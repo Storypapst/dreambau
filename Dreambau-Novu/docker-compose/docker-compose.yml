@@ -1,0 +1,242 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # MONGODB DATABASE
+  # ==========================================
+  mongodb:
+    image: mongo:8.0.3
+    container_name: novu-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: novu
+      MONGO_INITDB_ROOT_PASSWORD: Novu_Mongo_Pass_2024_Change_Me
+      PUID: 1000
+      PGID: 1000
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - novu-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ==========================================
+  # REDIS CACHE
+  # ==========================================
+  redis:
+    image: redis:alpine
+    container_name: novu-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - novu-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================
+  # NOVU API SERVICE
+  # ==========================================
+  novu-api:
+    image: ghcr.io/novuhq/novu/api:latest
+    container_name: novu-api
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Security
+      JWT_SECRET: "6a1d1c071126f999ab855d0143285294c9d33405be49556ef4546500a0765198"
+      STORE_ENCRYPTION_KEY: "5da4d5328dc4ee212717bd4f7a6be88c"
+      NOVU_SECRET_KEY: "805d3291d668f8eee4029c212550971ab63130bf32111303fc90223758ccbbeb"
+      SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME: "15d"
+      
+      # Host Configuration - CHANGE THIS TO YOUR DOMAIN
+      HOST_NAME: "https://novu.yourdomain.com"
+      API_ROOT_URL: "https://novu.yourdomain.com"
+      FRONT_BASE_URL: "https://novu.yourdomain.com"
+      
+      # Environment
+      NODE_ENV: "production"
+      
+      # MongoDB
+      MONGO_URL: "mongodb://novu:Novu_Mongo_Pass_2024_Change_Me@mongodb:27017/novu-db?authSource=admin"
+      MONGO_MAX_POOL_SIZE: "10"
+      MONGO_MIN_POOL_SIZE: "5"
+      MONGO_AUTO_CREATE_INDEXES: "true"
+      
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      REDIS_DB_INDEX: "2"
+      REDIS_CACHE_SERVICE_HOST: "redis"
+      REDIS_CACHE_SERVICE_PORT: "6379"
+      DOCKER_REDIS_SERVICE_PORT: "6379"
+      
+      # S3 Storage (Local)
+      S3_LOCAL_STACK: "http://localhost:4566"
+      S3_BUCKET_NAME: "novu-local"
+      S3_REGION: "us-east-1"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+      
+      # API Configuration
+      API_PORT: "3000"
+      API_CONTEXT_PATH: ""
+      IS_API_IDEMPOTENCY_ENABLED: "false"
+      IS_API_RATE_LIMITING_ENABLED: "false"
+      IS_NEW_MESSAGES_API_RESPONSE_ENABLED: "false"
+      IS_V2_ENABLED: "false"
+      
+      # Monitoring (Optional)
+      SENTRY_DSN: ""
+      NEW_RELIC_ENABLED: "false"
+      NEW_RELIC_APP_NAME: ""
+      NEW_RELIC_LICENSE_KEY: ""
+    ports:
+      - "3000:3000"
+    networks:
+      - novu-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/v1/health-check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ==========================================
+  # NOVU WORKER SERVICE
+  # ==========================================
+  novu-worker:
+    image: ghcr.io/novuhq/novu/worker:latest
+    container_name: novu-worker
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Security
+      JWT_SECRET: "6a1d1c071126f999ab855d0143285294c9d33405be49556ef4546500a0765198"
+      STORE_ENCRYPTION_KEY: "5da4d5328dc4ee212717bd4f7a6be88c"
+      NOVU_SECRET_KEY: "805d3291d668f8eee4029c212550971ab63130bf32111303fc90223758ccbbeb"
+      
+      # Host Configuration - CHANGE THIS TO YOUR DOMAIN
+      HOST_NAME: "https://novu.yourdomain.com"
+      API_ROOT_URL: "https://novu.yourdomain.com"
+      FRONT_BASE_URL: "https://novu.yourdomain.com"
+      
+      # Environment
+      NODE_ENV: "production"
+      
+      # MongoDB
+      MONGO_URL: "mongodb://novu:Novu_Mongo_Pass_2024_Change_Me@mongodb:27017/novu-db?authSource=admin"
+      MONGO_MAX_POOL_SIZE: "10"
+      MONGO_MIN_POOL_SIZE: "5"
+      
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      REDIS_DB_INDEX: "2"
+      REDIS_CACHE_SERVICE_HOST: "redis"
+      REDIS_CACHE_SERVICE_PORT: "6379"
+      
+      # S3 Storage
+      S3_LOCAL_STACK: "http://localhost:4566"
+      S3_BUCKET_NAME: "novu-local"
+      S3_REGION: "us-east-1"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+    networks:
+      - novu-network
+
+  # ==========================================
+  # NOVU WEBSOCKET SERVICE
+  # ==========================================
+  novu-ws:
+    image: ghcr.io/novuhq/novu/ws:latest
+    container_name: novu-ws
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Security
+      JWT_SECRET: "6a1d1c071126f999ab855d0143285294c9d33405be49556ef4546500a0765198"
+      NOVU_SECRET_KEY: "805d3291d668f8eee4029c212550971ab63130bf32111303fc90223758ccbbeb"
+      
+      # Host Configuration - CHANGE THIS TO YOUR DOMAIN
+      HOST_NAME: "https://novu.yourdomain.com"
+      
+      # Environment
+      NODE_ENV: "production"
+      
+      # MongoDB
+      MONGO_URL: "mongodb://novu:Novu_Mongo_Pass_2024_Change_Me@mongodb:27017/novu-db?authSource=admin"
+      
+      # Redis
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      REDIS_DB_INDEX: "2"
+      REDIS_CACHE_SERVICE_HOST: "redis"
+      REDIS_CACHE_SERVICE_PORT: "6379"
+      
+      # WebSocket Port
+      WS_PORT: "3002"
+    ports:
+      - "3002:3002"
+    networks:
+      - novu-network
+
+  # ==========================================
+  # NOVU WEB DASHBOARD
+  # ==========================================
+  novu-web:
+    image: ghcr.io/novuhq/novu/dashboard:latest
+    container_name: novu-web
+    restart: unless-stopped
+    depends_on:
+      - novu-api
+    environment:
+      # CHANGE THIS TO YOUR DOMAIN
+      VITE_API_HOSTNAME: "https://novu.yourdomain.com"
+      VITE_WEBSOCKET_HOSTNAME: "https://novu.yourdomain.com"
+    ports:
+      - "4000:4000"
+    networks:
+      - novu-network
+
+# ==========================================
+# VOLUMES
+# ==========================================
+volumes:
+  mongodb_data:
+    driver: local
+
+# ==========================================
+# NETWORKS
+# ==========================================
+networks:
+  novu-network:
+    driver: bridge
+
+
+

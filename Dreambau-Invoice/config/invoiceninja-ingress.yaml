@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: invoiceninja-ingress
+  namespace: wcr
+  labels:
+    app: invoiceninja
+    component: application
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - invoice.dreambau.com
+    secretName: invoice-dreambau-com-tls
+  rules:
+  - host: invoice.dreambau.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: invoiceninja
+            port:
+              number: 80
+

@@ -1,0 +1,81 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: invoiceninja-scheduler
+  namespace: wcr
+spec:
+  # Run every minute
+  schedule: "* * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: scheduler
+            image: wcr-invoiceninja:latest
+            imagePullPolicy: Never
+            command:
+              - /bin/sh
+              - -c
+              - php /var/www/app/artisan schedule:run
+            env:
+              - name: APP_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: APP_KEY
+              - name: APP_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: APP_URL
+              - name: APP_ENV
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: APP_ENV
+              - name: APP_DEBUG
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: APP_DEBUG
+              - name: DB_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: DB_HOST
+              - name: DB_PORT
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: DB_PORT
+              - name: DB_DATABASE
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: DB_DATABASE
+              - name: DB_USERNAME
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: DB_USERNAME
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: DB_PASSWORD
+              - name: REQUIRE_HTTPS
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: REQUIRE_HTTPS
+              - name: TRUSTED_PROXIES
+                valueFrom:
+                  secretKeyRef:
+                    name: invoiceninja-secret
+                    key: TRUSTED_PROXIES
+

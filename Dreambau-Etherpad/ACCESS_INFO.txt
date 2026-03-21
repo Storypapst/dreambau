@@ -1,0 +1,93 @@
+═══════════════════════════════════════════════════════════════
+                    ETHERPAD - ACCESS INFORMATION
+═══════════════════════════════════════════════════════════════
+
+🌐 PUBLIC ACCESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+URL: https://etherpad.dreambau.com
+
+Anyone can:
+  • Create new pads
+  • Edit existing pads
+  • Collaborate in real-time
+  • Export documents
+
+Example pad: https://etherpad.dreambau.com/p/meeting-notes
+
+
+🔐 ADMIN ACCESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Admin Panel: https://etherpad.dreambau.com/admin
+
+Username: admin
+Password: 2sGH6syYR+Ie9uGCmmoc3Ib9HrFNjIrH
+
+Admin can:
+  • Manage plugins
+  • Configure settings
+  • View all pads
+  • Manage users
+
+
+🔌 API ACCESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Endpoint: https://etherpad.dreambau.com/api/1/
+
+Get API Key:
+  kubectl get secret etherpad-secret -n wcr -o jsonpath='{.data.API_KEY}' | base64 -d
+
+Example API Call:
+  curl "https://etherpad.dreambau.com/api/1/getText?apikey=YOUR_KEY&padID=test"
+
+
+🛠️ MANAGEMENT COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+View Logs:
+  kubectl logs -n wcr -l app=etherpad -f
+
+Check Status:
+  kubectl get pods -n wcr -l app=etherpad
+
+Restart:
+  kubectl rollout restart deployment/etherpad -n wcr
+
+Backup Database:
+  POSTGRES_POD=$(kubectl get pods -n wcr -l app=shared-postgres -o jsonpath='{.items[0].metadata.name}')
+  kubectl exec -n wcr $POSTGRES_POD -- pg_dump -U etherpad etherpad | gzip > backup.sql.gz
+
+
+📚 DOCUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Location: /home/backup/Documents/business/wcr/Dreambau-Etherpad/
+
+Files:
+  • README.md              - Complete documentation
+  • QUICK_START.md         - Quick reference guide
+  • DEPLOYMENT_SUMMARY.md  - Technical details
+  • BILLING_SUMMARY.md     - Project summary for billing
+
+
+📊 STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Deployment:  ✅ Running
+SSL:         ✅ Valid (Let's Encrypt)
+Database:    ✅ Connected (PostgreSQL)
+Health:      ✅ All checks passing
+Uptime:      ✅ 100%
+
+
+🎯 QUICK TIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Create a pad: Just add /p/pad-name to the URL
+• Share: Send the pad URL to collaborators
+• Export: Use the import/export button in the toolbar
+• History: Use the time slider to view past versions
+• Chat: Click the chat icon to communicate with others
+
+
+═══════════════════════════════════════════════════════════════
+                    Deployed: November 19, 2025
+                    Status: Production Ready ✅
+═══════════════════════════════════════════════════════════════
+
+

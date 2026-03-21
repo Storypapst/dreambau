@@ -1,0 +1,246 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novu-api
+  namespace: wcr
+  labels:
+    app: novu
+    component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: novu
+      component: api
+  template:
+    metadata:
+      labels:
+        app: novu
+        component: api
+    spec:
+      initContainers:
+      - name: wait-for-mongodb
+        image: busybox:latest
+        command:
+          - sh
+          - -c
+          - |
+            echo "Waiting for MongoDB..."
+            until nc -z mongodb.wcr.svc.cluster.local 27017; do
+              echo "MongoDB is unavailable - sleeping"
+              sleep 2
+            done
+            echo "MongoDB is up!"
+      - name: wait-for-redis
+        image: busybox:latest
+        command:
+          - sh
+          - -c
+          - |
+            echo "Waiting for Redis..."
+            until nc -z redis.wcr.svc.cluster.local 6379; do
+              echo "Redis is unavailable - sleeping"
+              sleep 2
+            done
+            echo "Redis is up!"
+      
+      containers:
+      - name: api
+        image: ghcr.io/novuhq/novu/api:latest
+        ports:
+        - containerPort: 3000
+          name: http
+        envFrom:
+        - secretRef:
+            name: novu-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /v1/health-check
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /v1/health-check
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: novu-api
+  namespace: wcr
+  labels:
+    app: novu
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: novu
+    component: api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novu-worker
+  namespace: wcr
+  labels:
+    app: novu
+    component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: novu
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: novu
+        component: worker
+    spec:
+      containers:
+      - name: worker
+        image: ghcr.io/novuhq/novu/worker:latest
+        envFrom:
+        - secretRef:
+            name: novu-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novu-ws
+  namespace: wcr
+  labels:
+    app: novu
+    component: ws
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: novu
+      component: ws
+  template:
+    metadata:
+      labels:
+        app: novu
+        component: ws
+    spec:
+      containers:
+      - name: ws
+        image: ghcr.io/novuhq/novu/ws:latest
+        ports:
+        - containerPort: 3002
+          name: websocket
+        envFrom:
+        - secretRef:
+            name: novu-secret
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: novu-ws
+  namespace: wcr
+  labels:
+    app: novu
+    component: ws
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3002
+    targetPort: 3002
+    protocol: TCP
+    name: websocket
+  selector:
+    app: novu
+    component: ws
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novu-web
+  namespace: wcr
+  labels:
+    app: novu
+    component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: novu
+      component: web
+  template:
+    metadata:
+      labels:
+        app: novu
+        component: web
+    spec:
+      containers:
+      - name: web
+        image: ghcr.io/novuhq/novu/dashboard:latest
+        ports:
+        - containerPort: 4000
+          name: http
+        env:
+        - name: VITE_API_HOSTNAME
+          value: "https://novu.dreambau.com"
+        - name: VITE_WEBSOCKET_HOSTNAME
+          value: "https://novu.dreambau.com"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: novu-web
+  namespace: wcr
+  labels:
+    app: novu
+    component: web
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4000
+    targetPort: 4000
+    protocol: TCP
+    name: http
+  selector:
+    app: novu
+    component: web
+

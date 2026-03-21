@@ -1,0 +1,55 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: libretranslate-ingress
+  namespace: wcr
+  labels:
+    app: libretranslate
+    component: ingress
+  annotations:
+    # cert-manager annotations for automatic SSL
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # Traefik annotations
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - libretranslate.dreambau.com
+      secretName: libretranslate-dreambau-com-tls
+  rules:
+    - host: libretranslate.dreambau.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: libretranslate
+                port:
+                  number: 80
+---
+# Middleware for LibreTranslate headers and settings (optional)
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: libretranslate-headers
+  namespace: wcr
+  labels:
+    app: libretranslate
+    component: middleware
+spec:
+  headers:
+    customRequestHeaders:
+      X-Forwarded-Proto: "https"
+      X-Forwarded-Host: "libretranslate.dreambau.com"
+    customResponseHeaders:
+      X-Content-Type-Options: "nosniff"
+      X-Frame-Options: "SAMEORIGIN"
+      Referrer-Policy: "strict-origin-when-cross-origin"
+
+
+
+

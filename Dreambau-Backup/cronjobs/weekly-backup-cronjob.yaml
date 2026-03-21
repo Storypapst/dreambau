@@ -1,0 +1,71 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: weekly-backup
+  namespace: wcr
+  labels:
+    app: weekly-backup
+    component: backup
+spec:
+  # Schedule: Every Sunday at 2:00 AM
+  # Format: minute hour day-of-month month day-of-week
+  schedule: "0 2 * * 0"
+  
+  # Keep last 3 successful jobs and 1 failed job for debugging
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  
+  # Don't start new job if previous one is still running
+  concurrencyPolicy: Forbid
+  
+  jobTemplate:
+    metadata:
+      labels:
+        app: weekly-backup
+        component: backup
+    spec:
+      # Job will be deleted after 7 days
+      ttlSecondsAfterFinished: 604800
+      
+      template:
+        metadata:
+          labels:
+            app: weekly-backup
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          
+          containers:
+          - name: weekly-backup
+            image: busybox:latest
+            
+            # Placeholder command - will be configured later
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Weekly Backup Cronjob - Placeholder"
+              echo "Started at: $(date)"
+              echo "This cronjob will be configured later"
+              echo "Completed at: $(date)"
+            
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "100m"
+              limits:
+                memory: "128Mi"
+                cpu: "200m"
+          
+          # Use the same node as other services
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                    - caritas-test2
+

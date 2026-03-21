@@ -1,0 +1,273 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wcr
+
+---
+# PersistentVolumeClaim for Etherpad data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: etherpad-data
+  namespace: wcr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+
+---
+# ConfigMap for Etherpad settings
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: etherpad-config
+  namespace: wcr
+data:
+  settings.json: |
+    {
+      "title": "Dreambau Etherpad",
+      "favicon": "favicon.ico",
+      "skinName": "colibris",
+      "skinVariants": "dark-toolbar dark-editor dark-background",
+      
+      "ip": "0.0.0.0",
+      "port": 9001,
+      
+      "showSettingsInAdminPage": true,
+      
+      "dbType": "postgres",
+      "dbSettings": {
+        "host": "shared-postgres.wcr.svc.cluster.local",
+        "port": 5432,
+        "database": "${DB_NAME}",
+        "user": "${DB_USER}",
+        "password": "${DB_PASS}"
+      },
+      
+      "defaultPadText": "Welcome to Dreambau Etherpad!\\n\\nThis pad is synchronized as you type, so that everyone viewing this page sees the same text. This allows you to collaborate seamlessly on documents!\\n\\nGet involved with Etherpad at https://etherpad.org",
+      
+      "padOptions": {
+        "noColors": false,
+        "showControls": true,
+        "showChat": true,
+        "showLineNumbers": true,
+        "useMonospaceFont": false,
+        "userName": false,
+        "userColor": false,
+        "rtl": false,
+        "alwaysShowChat": false,
+        "chatAndUsers": false,
+        "lang": "en-gb"
+      },
+      
+      "suppressErrorsInPadText": false,
+      "requireSession": false,
+      "editOnly": false,
+      "minify": true,
+      "maxAge": 21600,
+      "abiword": null,
+      "soffice": null,
+      "tidyHtml": null,
+      "allowUnknownFileEnds": true,
+      "requireAuthentication": false,
+      "requireAuthorization": false,
+      "trustProxy": true,
+      
+      "cookie": {
+        "sameSite": "Lax"
+      },
+      
+      "socketTransportProtocols": ["xhr-polling", "jsonp-polling", "htmlfile"],
+      "socketIo": {
+        "maxHttpBufferSize": 10000
+      },
+      
+      "loadTest": false,
+      "dumpOnUncleanExit": false,
+      
+      "indentationOnNewLine": false,
+      
+      "toolbar": {
+        "left": [
+          ["bold", "italic", "underline", "strikethrough"],
+          ["orderedlist", "unorderedlist", "indent", "outdent"],
+          ["undo", "redo"],
+          ["clearauthorship"]
+        ],
+        "right": [
+          ["importexport", "timeslider", "savedrevision"],
+          ["settings", "embed"],
+          ["showusers"]
+        ],
+        "timeslider": [
+          ["timeslider_export", "timeslider_returnToPad"]
+        ]
+      },
+      
+      "loglevel": "INFO",
+      "logconfig": {
+        "appenders": [
+          {
+            "type": "console"
+          }
+        ]
+      },
+      
+      "users": {
+        "admin": {
+          "password": "${ADMIN_PASSWORD}",
+          "is_admin": true
+        }
+      }
+    }
+
+---
+# Deployment for Etherpad
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etherpad
+  namespace: wcr
+  labels:
+    app: etherpad
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etherpad
+  template:
+    metadata:
+      labels:
+        app: etherpad
+    spec:
+      containers:
+      - name: etherpad
+        image: etherpad/etherpad:latest
+        ports:
+        - containerPort: 9001
+          name: http
+        env:
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: etherpad-secret
+              key: DB_USER
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: etherpad-secret
+              key: DB_PASS
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: etherpad-secret
+              key: DB_NAME
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: etherpad-secret
+              key: ADMIN_PASSWORD
+        - name: SESSION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: etherpad-secret
+              key: SESSION_KEY
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: etherpad-secret
+              key: API_KEY
+        - name: TRUST_PROXY
+          value: "true"
+        volumeMounts:
+        - name: etherpad-data
+          mountPath: /opt/etherpad-lite/var
+        - name: settings
+          mountPath: /opt/etherpad-lite/settings.json
+          subPath: settings.json
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 9001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 9001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: etherpad-data
+        persistentVolumeClaim:
+          claimName: etherpad-data
+      - name: settings
+        configMap:
+          name: etherpad-config
+
+---
+# Service for Etherpad
+apiVersion: v1
+kind: Service
+metadata:
+  name: etherpad
+  namespace: wcr
+  labels:
+    app: etherpad
+spec:
+  selector:
+    app: etherpad
+  ports:
+  - port: 9001
+    targetPort: 9001
+    name: http
+  type: ClusterIP
+
+---
+# Certificate for Etherpad
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: etherpad-dreambau-com-tls
+  namespace: wcr
+spec:
+  secretName: etherpad-dreambau-com-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - etherpad.dreambau.com
+
+---
+# IngressRoute for Etherpad (Traefik)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: etherpad-ingress
+  namespace: wcr
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`etherpad.dreambau.com`)
+      kind: Rule
+      services:
+        - name: etherpad
+          port: 9001
+  tls:
+    secretName: etherpad-dreambau-com-tls
+

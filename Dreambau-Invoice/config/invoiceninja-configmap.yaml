@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: invoiceninja-nginx-config
+  namespace: wcr
+  labels:
+    app: invoiceninja
+    component: application
+data:
+  default.conf: |
+    server {
+        listen 80 default_server;
+        server_name _;
+        
+        root /var/www/app/public;
+        index index.php index.html;
+        
+        charset utf-8;
+        client_max_body_size 100M;
+        
+        # Logging
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log warn;
+        
+        location / {
+            try_files $uri $uri/ /index.php?$query_string;
+        }
+        
+        location = /favicon.ico { 
+            access_log off; 
+            log_not_found off; 
+        }
+        
+        location = /robots.txt  { 
+            access_log off; 
+            log_not_found off; 
+        }
+        
+        # PHP handler
+        location ~ \.php$ {
+            try_files $uri =404;
+            fastcgi_split_path_info ^(.+\.php)(/.+)$;
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param PATH_INFO $fastcgi_path_info;
+            fastcgi_intercept_errors off;
+            fastcgi_buffer_size 16k;
+            fastcgi_buffers 4 16k;
+            fastcgi_connect_timeout 300;
+            fastcgi_send_timeout 300;
+            fastcgi_read_timeout 300;
+        }
+        
+        # Deny access to hidden files
+        location ~ /\.(?!well-known).* {
+            deny all;
+        }
+        
+        # Cache static assets
+        location ~* \.(jpg|jpeg|gif|png|css|js|ico|xml|woff|woff2|ttf|svg|eot)$ {
+            expires 7d;
+            access_log off;
+            add_header Cache-Control "public";
+        }
+        
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+    }
+

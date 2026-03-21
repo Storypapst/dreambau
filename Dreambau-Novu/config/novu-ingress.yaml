@@ -1,0 +1,67 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: novu-ingress
+  namespace: wcr
+  labels:
+    app: novu
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - novu.dreambau.com
+    secretName: novu-dreambau-com-tls
+  rules:
+  - host: novu.dreambau.com
+    http:
+      paths:
+      # API endpoints (MUST come before / to match correctly)
+      - path: /v1
+        pathType: Prefix
+        backend:
+          service:
+            name: novu-api
+            port:
+              number: 3000
+      - path: /v2
+        pathType: Prefix
+        backend:
+          service:
+            name: novu-api
+            port:
+              number: 3000
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: novu-api
+            port:
+              number: 3000
+      # WebSocket endpoints
+      - path: /socket.io
+        pathType: Prefix
+        backend:
+          service:
+            name: novu-ws
+            port:
+              number: 3002
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: novu-ws
+            port:
+              number: 3002
+      # Web dashboard (default - MUST be last)
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: novu-web
+            port:
+              number: 4000
+

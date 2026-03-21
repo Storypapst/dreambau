@@ -1,0 +1,248 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: invoiceninja
+  namespace: wcr
+  labels:
+    app: invoiceninja
+    component: application
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: invoiceninja
+  template:
+    metadata:
+      labels:
+        app: invoiceninja
+        component: application
+    spec:
+      initContainers:
+      # Wait for MySQL to be ready
+      - name: wait-for-mysql
+        image: busybox:1.35
+        command: 
+          - 'sh'
+          - '-c'
+          - 'until nc -z mysql.wcr.svc.cluster.local 3306; do echo "Waiting for MySQL..."; sleep 2; done; echo "MySQL is ready!"'
+      
+      # Copy public files to persistent volume
+      - name: copy-public-files
+        image: wcr-invoiceninja:latest
+        imagePullPolicy: Never
+        command: ['sh', '-c', 'cp -rn /var/www/app/public/. /public-mount/ 2>/dev/null || true && ls -la /public-mount']
+        volumeMounts:
+        - name: public-storage
+          mountPath: /public-mount
+      
+      containers:
+      # InvoiceNinja PHP-FPM Container
+      - name: invoiceninja
+        image: wcr-invoiceninja:latest
+        imagePullPolicy: Never  # Use local image imported to k3s
+        ports:
+        - containerPort: 9000
+          name: php-fpm
+          protocol: TCP
+        env:
+        - name: APP_ENV
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: APP_ENV
+        - name: APP_DEBUG
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: APP_DEBUG
+        - name: APP_URL
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: APP_URL
+        - name: APP_KEY
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: APP_KEY
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: DB_PORT
+        - name: DB_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: DB_DATABASE
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: DB_USERNAME
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: DB_PASSWORD
+        - name: MAIL_MAILER
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: MAIL_MAILER
+        - name: MAIL_HOST
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: MAIL_HOST
+        - name: MAIL_PORT
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: MAIL_PORT
+        - name: MAIL_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: MAIL_USERNAME
+        - name: MAIL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: MAIL_PASSWORD
+        - name: MAIL_ENCRYPTION
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: MAIL_ENCRYPTION
+        - name: MAIL_FROM_ADDRESS
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: MAIL_FROM_ADDRESS
+        - name: MAIL_FROM_NAME
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: MAIL_FROM_NAME
+        - name: REQUIRE_HTTPS
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: REQUIRE_HTTPS
+        - name: TRUSTED_PROXIES
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: TRUSTED_PROXIES
+        - name: PDF_GENERATOR
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: PDF_GENERATOR
+        - name: VIEW_COMPILED_PATH
+          valueFrom:
+            secretKeyRef:
+              name: invoiceninja-secret
+              key: VIEW_COMPILED_PATH
+        volumeMounts:
+        - name: public-storage
+          mountPath: /var/www/app/public
+        - name: storage
+          mountPath: /var/www/app/storage
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          tcpSocket:
+            port: 9000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      
+      # Nginx Web Server Container
+      - name: nginx
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+        - name: public-storage
+          mountPath: /var/www/app/public
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      
+      volumes:
+      - name: public-storage
+        persistentVolumeClaim:
+          claimName: invoiceninja-public-pvc
+      - name: storage
+        persistentVolumeClaim:
+          claimName: invoiceninja-storage-pvc
+      - name: nginx-config
+        configMap:
+          name: invoiceninja-nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: invoiceninja
+  namespace: wcr
+  labels:
+    app: invoiceninja
+    component: application
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: invoiceninja
+

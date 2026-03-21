@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Webstudio Access</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .project {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0052a3;
+        }
+        .instructions {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Webstudio Project Access</h1>
+    
+    <div class="instructions">
+        <h2>Instructions:</h2>
+        <ol>
+            <li>Click the "Open Builder" button for your project</li>
+            <li>When you see the SSL warning, click "Advanced" → "Proceed to ... (unsafe)"</li>
+            <li>The builder should load!</li>
+        </ol>
+        <p><strong>Note:</strong> You'll need to accept the SSL warning once for each project subdomain.</p>
+    </div>
+
+    <div class="project">
+        <h3>My test</h3>
+        <p>Project ID: 9426796a-dc55-4178-b8b7-1e2eb82fa9c6</p>
+        <button onclick="window.open('https://p-9426796a-dc55-4178-b8b7-1e2eb82fa9c6.webstudio.dreambau.com/', '_blank')">Open Builder</button>
+    </div>
+
+    <div class="project">
+        <h3>Testing 2</h3>
+        <p>Project ID: d39478df-043d-46f8-9701-76f4bae78951</p>
+        <button onclick="window.open('https://p-d39478df-043d-46f8-9701-76f4bae78951.webstudio.dreambau.com/', '_blank')">Open Builder</button>
+    </div>
+
+    <div class="project">
+        <h3>final test</h3>
+        <p>Project ID: dd532093-5715-43ad-8ccd-2e4a5db9a589</p>
+        <button onclick="window.open('https://p-dd532093-5715-43ad-8ccd-2e4a5db9a589.webstudio.dreambau.com/', '_blank')">Open Builder</button>
+    </div>
+
+    <div class="project">
+        <h3>Testing</h3>
+        <p>Project ID: dc9de8ae-06e7-4daf-a522-9ec0e73e890d</p>
+        <button onclick="window.open('https://p-dc9de8ae-06e7-4daf-a522-9ec0e73e890d.webstudio.dreambau.com/', '_blank')">Open Builder</button>
+    </div>
+
+    <hr>
+    <p><strong>Alternative:</strong> If the above doesn't work due to OAuth errors, you can access projects via the dashboard at <a href="https://webstudio.dreambau.com/dashboard" target="_blank">https://webstudio.dreambau.com/dashboard</a></p>
+</body>
+</html>
+
+

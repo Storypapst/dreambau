@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+  namespace: wcr
+  labels:
+    app: shared-postgres
+    component: database
+data:
+  init-databases.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "========================================================"
+    echo "PostgreSQL Multi-Database Initialization"
+    echo "========================================================"
+
+    # Create NocoDB database and user
+    if [ ! -z "$NOCODB_DB_NAME" ] && [ ! -z "$NOCODB_DB_USER" ] && [ ! -z "$NOCODB_DB_PASSWORD" ]; then
+        echo "Creating NocoDB database..."
+        
+        # Create user
+        psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+            CREATE USER $NOCODB_DB_USER WITH PASSWORD '$NOCODB_DB_PASSWORD';
+    EOSQL
+        
+        # Create database
+        psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+            CREATE DATABASE $NOCODB_DB_NAME OWNER $NOCODB_DB_USER;
+            GRANT ALL PRIVILEGES ON DATABASE $NOCODB_DB_NAME TO $NOCODB_DB_USER;
+    EOSQL
+        
+        # Set up schema permissions
+        psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$NOCODB_DB_NAME" <<-EOSQL
+            GRANT ALL ON SCHEMA public TO $NOCODB_DB_USER;
+    EOSQL
+        
+        echo "NocoDB database created successfully"
+    fi
+
+    echo "========================================================"
+    echo "All databases initialized successfully"
+    echo "========================================================"

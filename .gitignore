@@ -1,0 +1,125 @@
+# ===========================================
+# SECURITY - NEVER COMMIT SENSITIVE DATA
+# ===========================================
+
+# Secrets - CRITICAL: Never commit passwords/keys
+WCR-Database/mysql/mysql-secret.yaml
+WCR-Invoice/config/invoiceninja-secret.yaml
+WCR-n8n/config/n8n-secret.yaml
+WCR-n8n/config/postgres-secret.yaml
+WCR-NocoDB/config/nocodb-secret.yaml
+WCR-Cap/config/cap-secret.yaml
+Dreambau-Novu/config/novu-secret.yaml
+Dreambau-Novu/config/mongodb-deployment.yaml
+
+# Keep example files for reference
+!*.yaml.example
+!*-example.yaml
+
+# Backups - Never commit database backups
+WCR-Database/backups/*.sql
+WCR-Database/backups/*.sql.gz
+WCR-Backup/
+wcr-backups/
+*-backups/
+*.backup
+*.dump
+
+# ===========================================
+# BUILD ARTIFACTS & DEPENDENCIES
+# ===========================================
+
+# Docker
+WCR-Invoice/docker/*.tar
+WCR-Invoice/docker/*.tar.gz
+WCR-Cap/docker/*.tar
+WCR-Cap/docker/*.tar.gz
+
+# InvoiceNinja source dependencies
+WCR-Invoice/source/.env
+WCR-Invoice/source/vendor/
+WCR-Invoice/source/node_modules/
+WCR-Invoice/source/storage/logs/*
+WCR-Invoice/source/bootstrap/cache/*
+WCR-Invoice/source/public/storage
+WCR-Invoice/source/.phpunit.result.cache
+
+# React UI dependencies
+WCR-Invoice/react-ui/node_modules/
+WCR-Invoice/react-ui/.env
+WCR-Invoice/react-ui/dist/
+
+# Cap source dependencies
+WCR-Cap/source/.env
+WCR-Cap/source/node_modules/
+WCR-Cap/source/.next/
+WCR-Cap/source/out/
+WCR-Cap/source/dist/
+
+# Novu source dependencies
+Dreambau-Novu/temp-source/
+
+# Webstudio source and build artifacts
+Dreambau-Webstudio-Source/
+Dreambau-Webstudio/config/webstudio-secret.yaml
+Dreambau-Webstudio/docker/*.tar
+Dreambau-Webstudio/docker/*.tar.gz
+Dreambau-Webstudio/docker/build.log
+
+# ===========================================
+# LOGS & TEMPORARY FILES
+# ===========================================
+
+# Log files
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.swp
+*~
+.cache/
+tmp/
+
+# ===========================================
+# OS & IDE FILES
+# ===========================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-*
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+
+# ===========================================
+# ENVIRONMENT SPECIFIC
+# ===========================================
+
+# Local development overrides
+*.local
+.env.local
+.env.*.local
+
+# Personal notes (won't be committed)
+NOTES.md
+TODO.md
+scratch.*
+

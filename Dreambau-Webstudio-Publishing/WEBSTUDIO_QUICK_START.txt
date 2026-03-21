@@ -1,0 +1,74 @@
+╔══════════════════════════════════════════════════════════════╗
+║         WEBSTUDIO PRODUCTION - QUICK START GUIDE             ║
+╚══════════════════════════════════════════════════════════════╝
+
+🌐 BUILDER ACCESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+URL: https://webstudio.dreambau.com
+Login: Click "Login with Secret"
+Secret: dreambau-webstudio-2024-secure-key-FXnrafwsNd17dTBk
+
+📝 DESIGN A WEBSITE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Log in to the Builder
+2. Create a new project
+3. Design your website visually
+4. Click "Publish" to save
+
+🚀 PUBLISH A WEBSITE (First Time)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Create project directory
+mkdir -p /home/backup/Documents/business/wcr/Dreambau-Webstudio-Sites/my-project
+cd /home/backup/Documents/business/wcr/Dreambau-Webstudio-Sites/my-project
+
+# Link to Builder (get share link from Builder with "Build" access)
+webstudio link
+
+# Build and deploy
+/home/backup/Documents/business/wcr/Dreambau-Webstudio-Publishing/build-script.sh \
+  "project-id" "my-project" "v1"
+
+# Your site will be live at:
+# https://my-project.sites.dreambau.com
+
+🔄 UPDATE A PUBLISHED WEBSITE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+cd /home/backup/Documents/business/wcr/Dreambau-Webstudio-Sites/my-project
+webstudio sync
+/home/backup/Documents/business/wcr/Dreambau-Webstudio-Publishing/build-script.sh \
+  "project-id" "my-project" "$(date +%Y%m%d_%H%M%S)"
+
+🛠️ MANAGEMENT COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Check Builder status
+kubectl get pods -n wcr | grep webstudio
+
+# View Builder logs
+kubectl logs -n wcr deployment/webstudio-builder --tail=50
+
+# Restart Builder
+kubectl rollout restart deployment/webstudio-builder -n wcr
+
+# View published sites
+kubectl get deployments -n wcr -l app=webstudio-site
+
+# Check build logs
+ls -lt /home/backup/Documents/business/wcr/Dreambau-Webstudio-Sites/logs/
+
+📚 DOCUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Full Guide: /home/backup/Documents/business/wcr/WEBSTUDIO_PRODUCTION_SUMMARY.md
+Publishing: /home/backup/Documents/business/wcr/Dreambau-Webstudio-Publishing/DEPLOYMENT_GUIDE.md
+
+✅ STATUS: PRODUCTION READY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Builder: ✅ Running
+Database: ✅ Connected
+PostgREST: ✅ Running
+SSL: ✅ Configured
+CLI: ✅ Installed
+Publishing: ✅ Ready
+
+⚠️ TODO: Add DNS wildcard record
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+*.sites.dreambau.com → A → 91.98.125.83

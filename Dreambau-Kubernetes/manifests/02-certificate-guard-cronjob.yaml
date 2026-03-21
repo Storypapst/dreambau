@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: certificate-guard
+  namespace: wcr
+  labels:
+    app: certificate-guard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: certificate-guard
+  namespace: wcr
+rules:
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: certificate-guard
+  namespace: wcr
+subjects:
+  - kind: ServiceAccount
+    name: certificate-guard
+    namespace: wcr
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: certificate-guard
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: certificate-guard
+  namespace: wcr
+  labels:
+    app: certificate-guard
+spec:
+  # Runs every day at 03:17 server time.
+  schedule: "17 3 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 2
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 604800
+      template:
+        metadata:
+          labels:
+            app: certificate-guard
+        spec:
+          serviceAccountName: certificate-guard
+          restartPolicy: OnFailure
+          containers:
+            - name: cert-check
+              image: alpine/k8s:1.30.4
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  NAMESPACE="wcr"
+                  THRESHOLD_DAYS=20
+                  THRESHOLD_SECONDS=$((THRESHOLD_DAYS*24*60*60))
+                  NOW_EPOCH="$(date +%s)"
+
+                  echo "[$(date -Is)] Certificate guard started (threshold=${THRESHOLD_DAYS}d)"
+
+                  kubectl -n "${NAMESPACE}" get certificate \
+                    -o custom-columns=NAME:.metadata.name,SECRET:.spec.secretName,READY:.status.conditions[0].status,NOTAFTER:.status.notAfter \
+                    --no-headers \
+                  | while read -r CERT_NAME SECRET_NAME READY_STATE NOT_AFTER; do
+                      [ -z "${CERT_NAME}" ] && continue
+
+                      if [ "${READY_STATE}" != "True" ]; then
+                        echo "[$(date -Is)] ${CERT_NAME}: Ready=${READY_STATE}; deleting secret ${SECRET_NAME} to trigger re-issue"
+                        kubectl -n "${NAMESPACE}" delete secret "${SECRET_NAME}" --ignore-not-found=true
+                        continue
+                      fi
+
+                      if [ -z "${NOT_AFTER}" ] || [ "${NOT_AFTER}" = "<none>" ]; then
+                        echo "[$(date -Is)] ${CERT_NAME}: notAfter missing, skipping"
+                        continue
+                      fi
+
+                      EXPIRY_EPOCH="$(
+                        date -d "${NOT_AFTER}" +%s 2>/dev/null \
+                        || date -u -D "%Y-%m-%dT%H:%M:%SZ" -d "${NOT_AFTER}" +%s 2>/dev/null \
+                        || true
+                      )"
+                      if [ -z "${EXPIRY_EPOCH}" ]; then
+                        echo "[$(date -Is)] ${CERT_NAME}: unable to parse notAfter=${NOT_AFTER}, skipping"
+                        continue
+                      fi
+
+                      REMAINING_SECONDS=$((EXPIRY_EPOCH-NOW_EPOCH))
+                      if [ "${REMAINING_SECONDS}" -le "${THRESHOLD_SECONDS}" ]; then
+                        REMAINING_DAYS=$((REMAINING_SECONDS/86400))
+                        echo "[$(date -Is)] ${CERT_NAME}: expires in ${REMAINING_DAYS}d; deleting secret ${SECRET_NAME} to trigger renewal"
+                        kubectl -n "${NAMESPACE}" delete secret "${SECRET_NAME}" --ignore-not-found=true
+                      else
+                        REMAINING_DAYS=$((REMAINING_SECONDS/86400))
+                        echo "[$(date -Is)] ${CERT_NAME}: healthy (${REMAINING_DAYS}d left)"
+                      fi
+                    done
+
+                  echo "[$(date -Is)] Certificate guard finished"
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "256Mi"
+                  cpu: "300m"
+

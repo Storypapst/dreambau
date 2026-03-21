@@ -1,0 +1,152 @@
+---
+# Deployment for Iframely
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iframely
+  namespace: wcr
+  labels:
+    app: iframely
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iframely
+  template:
+    metadata:
+      labels:
+        app: iframely
+    spec:
+      containers:
+      - name: iframely
+        image: iframely:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8061
+          name: http
+        env:
+        # API Key for Iframely (optional for self-hosted, but recommended for security)
+        - name: IFRAMELY_KEY
+          valueFrom:
+            secretKeyRef:
+              name: iframely-secret
+              key: API_KEY
+        - name: PORT
+          value: "8061"
+        # CORS settings
+        - name: ALLOW_ORIGIN
+          value: "*"
+        # Cache engine: 'no-cache', 'node-cache' (default), 'redis', 'memcached'
+        - name: CACHE_ENGINE
+          value: "node-cache"
+        # Cache TTL in milliseconds (0 = never expire, let cache engine decide)
+        - name: CACHE_TTL
+          value: "0"
+        # Optional: Uncomment to use Redis cache instead of memory
+        # - name: REDIS_HOST
+        #   value: "redis.wcr.svc.cluster.local"
+        # - name: REDIS_PORT
+        #   value: "6379"
+        # - name: REDIS_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: iframely-secret
+        #       key: REDIS_PASSWORD
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /iframely
+            port: 8061
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /iframely
+            port: 8061
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+---
+# Service for Iframely
+apiVersion: v1
+kind: Service
+metadata:
+  name: iframely
+  namespace: wcr
+  labels:
+    app: iframely
+spec:
+  selector:
+    app: iframely
+  ports:
+  - port: 8061
+    targetPort: 8061
+    name: http
+  type: ClusterIP
+---
+# Certificate for Iframely
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: iframely-dreambau-com-tls
+  namespace: wcr
+spec:
+  secretName: iframely-dreambau-com-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - iframely.dreambau.com
+---
+# IngressRoute for Iframely (Traefik)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: iframely-ingress
+  namespace: wcr
+  labels:
+    app: iframely
+    component: ingress
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`iframely.dreambau.com`)
+      kind: Rule
+      services:
+        - name: iframely
+          port: 8061
+      middlewares:
+        - name: iframely-headers
+  tls:
+    secretName: iframely-dreambau-com-tls
+---
+# Middleware for Iframely headers and CORS
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: iframely-headers
+  namespace: wcr
+  labels:
+    app: iframely
+    component: middleware
+spec:
+  headers:
+    customRequestHeaders:
+      X-Forwarded-Proto: "https"
+      X-Forwarded-Host: "iframely.dreambau.com"
+    customResponseHeaders:
+      Access-Control-Allow-Origin: "*"
+      Access-Control-Allow-Methods: "GET, POST, OPTIONS, HEAD"
+      Access-Control-Allow-Headers: "Content-Type, Authorization, X-API-Key, X-Requested-With"
+      Access-Control-Expose-Headers: "Content-Type, Content-Length"
+      Access-Control-Max-Age: "3600"
+      X-Content-Type-Options: "nosniff"
+
