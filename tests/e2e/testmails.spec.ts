@@ -54,7 +54,7 @@ test("login, filtering, reveal, copy, metadata, export and logout", async ({ pag
     await expect(page.getByText("Gespeichert")).toBeVisible();
     await row.getByLabel("Status").click();
     await page.getByRole("option", { name: "Im Einsatz", exact: true }).click();
-    await expect(row.getByText("Im Einsatz", { exact: true })).toBeVisible();
+    await expect(row.getByRole("combobox", { name: "Status" })).toContainText("Im Einsatz");
     const mailLinks = row.getByRole("link", { name: /Mail öffnen/ });
     await expect(mailLinks.first()).toHaveAttribute("href", "https://mail.dreambau.com/");
     await row.getByRole("button", { name: "Spider Pig" }).click();

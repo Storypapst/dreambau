@@ -22,7 +22,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: testmails
-          image: dreambau-testmails:0.2.0
+          image: dreambau-testmails:0.2.1
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 3000 }
