@@ -5,6 +5,8 @@ if (!password) throw new Error("TESTMAILS_E2E_PASSWORD must come from the operat
 
 async function login(page: import("@playwright/test").Page) {
   await page.goto("/testmails/");
+  await page.evaluate(() => localStorage.setItem("testmails-locale", "de"));
+  await page.reload();
   await page.getByLabel("Gemeinsames Passwort").fill(password!);
   await page.getByRole("button", { name: "Anmelden" }).click();
   await expect(page.getByRole("heading", { name: "Springfield Testkonten" })).toBeVisible();
@@ -21,6 +23,13 @@ test("unauthenticated surfaces contain no credentials", async ({ page, request }
 test("login, filtering, reveal, copy, metadata, export and logout", async ({ page, browserName }, testInfo) => {
   await login(page);
   await expect(page.getByText("180 von 180 Konten")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Webmail öffnen" })).toHaveAttribute("href", "https://mail.dreambau.com/");
+  await page.getByRole("button", { name: "Sprache" }).click();
+  await expect(page.getByRole("heading", { name: "Springfield test accounts" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Springfield test accounts" })).toBeVisible();
+  await page.getByRole("button", { name: "Language" }).click();
+  await expect(page.getByRole("heading", { name: "Springfield Testkonten" })).toBeVisible();
   await expect(page.getByText("150 S/MIME")).toBeVisible();
   await expect(page.getByText("30 Vergleichskonten")).toBeVisible();
   await expect(page.getByLabel("Konten nach Version filtern")).toBeVisible();
@@ -28,7 +37,7 @@ test("login, filtering, reveal, copy, metadata, export and logout", async ({ pag
   await expect(page.getByRole("button", { name: "Themen filtern" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Konversationen filtern" })).toBeVisible();
 
-  await page.getByPlaceholder("Name, E-Mail, Rolle, Thema, Notiz …").fill("spider.pig@oriso.org");
+  await page.getByPlaceholder("Name, E-Mail, Rolle, Thema, Projekt, Notiz …").fill("spider.pig@oriso.org");
   await expect(page.getByText("1 von 180 Konten")).toBeVisible();
   const row = page.locator("tbody tr").filter({ hasText: "spider.pig@oriso.org" });
   if (testInfo.project.name === "desktop") {
@@ -40,6 +49,14 @@ test("login, filtering, reveal, copy, metadata, export and logout", async ({ pag
       await row.getByRole("button", { name: "Passwort kopieren" }).click();
       expect((await page.evaluate(() => navigator.clipboard.readText())).length).toBeGreaterThan(15);
     }
+    await row.getByLabel("Projekt").click();
+    await page.getByRole("option", { name: "ORISO", exact: true }).click();
+    await expect(page.getByText("Gespeichert")).toBeVisible();
+    await row.getByLabel("Status").click();
+    await page.getByRole("option", { name: "Im Einsatz", exact: true }).click();
+    await expect(row.getByText("Im Einsatz", { exact: true })).toBeVisible();
+    const mailLinks = row.getByRole("link", { name: /Mail öffnen/ });
+    await expect(mailLinks.first()).toHaveAttribute("href", "https://mail.dreambau.com/");
     await row.getByRole("button", { name: "Spider Pig" }).click();
   } else {
     await page.getByRole("button", { name: "Spider Pig" }).click();
@@ -59,7 +76,7 @@ test("login, filtering, reveal, copy, metadata, export and logout", async ({ pag
   await expect(page.getByText("1 Konten vorgemerkt")).toBeVisible();
 
   await page.evaluate(async () => {
-    await fetch("/testmails/api/accounts/spider.pig%40oriso.org", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shippedVersion: "", lifecycleStatus: "active", roles: [], topics: [], conversationTypes: [], fixtureQuality: "empty", sampleFileCount: 0, notes: "" }) });
+    await fetch("/testmails/api/accounts/spider.pig%40oriso.org", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shippedVersion: "", lifecycleStatus: "unused", project: "NONE", roles: [], topics: [], conversationTypes: [], fixtureQuality: "empty", sampleFileCount: 0, notes: "" }) });
   });
   await page.getByRole("button", { name: "Abmelden" }).click();
   await expect(page.getByText("Testkonten öffnen")).toBeVisible();
@@ -69,16 +86,22 @@ test("domain filter and mobile cards are usable", async ({ page }, testInfo) => 
   await login(page);
   await page.getByRole("radio", { name: "oriso.org" }).click();
   await expect(page.getByText("30 von 180 Konten")).toBeVisible();
+  await expect(page.getByRole("radio", { name: "oriso.org" })).toHaveClass(/domain-oriso-org/);
   if (testInfo.project.name === "mobile") await expect(page.locator('[data-slot="card"]')).toHaveCount(30);
 });
 
 test("taxonomy settings are editable and persist", async ({ page }) => {
   await login(page);
+  const originalTopics = await page.evaluate(async () => (await (await fetch("/testmails/api/taxonomies")).json()).topics as string[]);
+  expect(originalTopics).toHaveLength(16);
+  await page.getByRole("button", { name: "Themen filtern" }).click();
+  await expect(page.getByText("Schulden", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Auswahllisten" }).click();
-  await page.getByLabel("Themengebiete").fill("E2E Thema");
+  await page.getByLabel("Themengebiete").fill([...originalTopics, "E2E Thema"].join("\n"));
   await page.getByRole("dialog", { name: "Auswahllisten" }).getByRole("button", { name: "Speichern" }).click();
   await expect(page.getByText("Auswahllisten gespeichert")).toBeVisible();
   const topics = await page.evaluate(async () => (await (await fetch("/testmails/api/taxonomies")).json()).topics as string[]);
   expect(topics).toContain("E2E Thema");
-  await page.evaluate(async () => { await fetch("/testmails/api/taxonomies/topics", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values: [] }) }); });
+  await page.evaluate(async (values) => { await fetch("/testmails/api/taxonomies/topics", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values }) }); }, originalTopics);
 });

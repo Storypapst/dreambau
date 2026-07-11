@@ -3,10 +3,11 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { metadataPatchSchema, emptyMetadata, type AccountMetadata, type MetadataPatch } from "./metadata.js";
 import type { Taxonomies } from "./taxonomies.js";
 import * as schema from "./schema.js";
+import { topicKeys } from "./catalog.js";
 
 const seeds = {
   roles: ["Träger", "Berater", "Ratsuchender", "Admin"],
-  topics: [],
+  topics: topicKeys,
   conversationTypes: ["Chat", "E-Mail", "Video", "Termin", "Dateiaustausch", "Langzeitdialog"]
 };
 
@@ -22,19 +23,21 @@ export function createDatabase(path: string): RegistryDatabase {
   drizzle(sqlite, { schema });
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS account_metadata (
-      email TEXT PRIMARY KEY, shipped_version TEXT NOT NULL DEFAULT '', lifecycle_status TEXT NOT NULL DEFAULT 'active',
+      email TEXT PRIMARY KEY, shipped_version TEXT NOT NULL DEFAULT '', lifecycle_status TEXT NOT NULL DEFAULT 'unused', project TEXT NOT NULL DEFAULT 'NONE',
       roles TEXT NOT NULL DEFAULT '[]', topics TEXT NOT NULL DEFAULT '[]', conversation_types TEXT NOT NULL DEFAULT '[]',
       fixture_quality TEXT NOT NULL DEFAULT 'empty', sample_file_count INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS taxonomy_values (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, value TEXT NOT NULL);
     CREATE UNIQUE INDEX IF NOT EXISTS taxonomy_kind_value ON taxonomy_values(kind, value);
   `);
+  const metadataColumns = new Set((sqlite.prepare("PRAGMA table_info(account_metadata)").all() as Array<{ name: string }>).map((column) => column.name));
+  if (!metadataColumns.has("project")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN project TEXT NOT NULL DEFAULT 'NONE'");
   const seed = sqlite.prepare("INSERT OR IGNORE INTO taxonomy_values(kind,value) VALUES (?,?)");
   const seedTransaction = sqlite.transaction(() => { for (const [kind, values] of Object.entries(seeds)) for (const value of values) seed.run(kind, value); });
   seedTransaction();
 
   const rowToMetadata = (row: any): AccountMetadata => ({
-    email: row.email, shippedVersion: row.shipped_version, lifecycleStatus: row.lifecycle_status,
+    email: row.email, shippedVersion: row.shipped_version, lifecycleStatus: row.lifecycle_status, project: row.project,
     roles: JSON.parse(row.roles), topics: JSON.parse(row.topics), conversationTypes: JSON.parse(row.conversation_types),
     fixtureQuality: row.fixture_quality, sampleFileCount: row.sample_file_count, notes: row.notes, updatedAt: row.updated_at
   });
@@ -44,9 +47,9 @@ export function createDatabase(path: string): RegistryDatabase {
     getAllMetadata: () => (sqlite.prepare("SELECT * FROM account_metadata ORDER BY email").all() as any[]).map(rowToMetadata),
     upsertMetadata(email, input) {
       const patch = metadataPatchSchema.parse(input); const current = api.getMetadata(email); const next = { ...current, ...patch, email, updatedAt: new Date().toISOString() };
-      sqlite.prepare(`INSERT INTO account_metadata(email,shipped_version,lifecycle_status,roles,topics,conversation_types,fixture_quality,sample_file_count,notes,updated_at)
-        VALUES(@email,@shippedVersion,@lifecycleStatus,@roles,@topics,@conversationTypes,@fixtureQuality,@sampleFileCount,@notes,@updatedAt)
-        ON CONFLICT(email) DO UPDATE SET shipped_version=excluded.shipped_version,lifecycle_status=excluded.lifecycle_status,roles=excluded.roles,topics=excluded.topics,conversation_types=excluded.conversation_types,fixture_quality=excluded.fixture_quality,sample_file_count=excluded.sample_file_count,notes=excluded.notes,updated_at=excluded.updated_at`).run({ ...next, roles: JSON.stringify(next.roles), topics: JSON.stringify(next.topics), conversationTypes: JSON.stringify(next.conversationTypes) });
+      sqlite.prepare(`INSERT INTO account_metadata(email,shipped_version,lifecycle_status,project,roles,topics,conversation_types,fixture_quality,sample_file_count,notes,updated_at)
+        VALUES(@email,@shippedVersion,@lifecycleStatus,@project,@roles,@topics,@conversationTypes,@fixtureQuality,@sampleFileCount,@notes,@updatedAt)
+        ON CONFLICT(email) DO UPDATE SET shipped_version=excluded.shipped_version,lifecycle_status=excluded.lifecycle_status,project=excluded.project,roles=excluded.roles,topics=excluded.topics,conversation_types=excluded.conversation_types,fixture_quality=excluded.fixture_quality,sample_file_count=excluded.sample_file_count,notes=excluded.notes,updated_at=excluded.updated_at`).run({ ...next, roles: JSON.stringify(next.roles), topics: JSON.stringify(next.topics), conversationTypes: JSON.stringify(next.conversationTypes) });
       return next;
     },
     bulkStatus(emails, status) { const parsed = metadataPatchSchema.pick({ lifecycleStatus: true }).parse({ lifecycleStatus: status }); const transaction = sqlite.transaction(() => { for (const email of [...new Set(emails)]) api.upsertMetadata(email, parsed); }); transaction(); return new Set(emails).size; },

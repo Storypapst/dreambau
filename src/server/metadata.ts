@@ -1,10 +1,11 @@
 import { z } from "zod";
 
-export const lifecycleStatuses = ["active", "needs_review", "delete_candidate", "archived"] as const;
+export const lifecycleStatuses = ["unused", "active", "needs_review", "delete_candidate", "archived"] as const;
 export const fixtureQualities = ["empty", "synthetic", "realistic", "gold"] as const;
+export const projects = ["NONE", "ORI", "ORISO", "ORIMO", "TRAIL.IST", "DREAMBAU", "OTHER"] as const;
 export const metadataPatchSchema = z.object({
   shippedVersion: z.string().regex(/^$|^\d+(\.\d+){0,2}$/).optional(),
-  lifecycleStatus: z.enum(lifecycleStatuses).optional(), roles: z.array(z.string().min(1)).optional(), topics: z.array(z.string().min(1)).optional(),
+  lifecycleStatus: z.enum(lifecycleStatuses).optional(), project: z.enum(projects).optional(), roles: z.array(z.string().min(1)).optional(), topics: z.array(z.string().min(1)).optional(),
   conversationTypes: z.array(z.string().min(1)).optional(), fixtureQuality: z.enum(fixtureQualities).optional(),
   sampleFileCount: z.number().int().min(0).optional(), notes: z.string().max(4000).optional()
 }).strict();
@@ -18,5 +19,5 @@ export function compareVersions(left: string, right: string) {
 }
 
 export function emptyMetadata(email: string): AccountMetadata {
-  return { email, shippedVersion: "", lifecycleStatus: "active", roles: [], topics: [], conversationTypes: [], fixtureQuality: "empty", sampleFileCount: 0, notes: "", updatedAt: new Date(0).toISOString() };
+  return { email, shippedVersion: "", lifecycleStatus: "unused", project: "NONE", roles: [], topics: [], conversationTypes: [], fixtureQuality: "empty", sampleFileCount: 0, notes: "", updatedAt: new Date(0).toISOString() };
 }
