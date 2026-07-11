@@ -1,7 +1,8 @@
-export type LifecycleStatus = "active" | "needs_review" | "delete_candidate" | "archived";
+export type LifecycleStatus = "unused" | "active" | "needs_review" | "delete_candidate" | "archived";
 export type FixtureQuality = "empty" | "synthetic" | "realistic" | "gold";
+export type Project = "NONE" | "ORI" | "ORISO" | "ORIMO" | "TRAIL.IST" | "DREAMBAU" | "OTHER";
 export interface AccountMetadata {
-  email: string; shippedVersion: string; lifecycleStatus: LifecycleStatus; roles: string[]; topics: string[];
+  email: string; shippedVersion: string; lifecycleStatus: LifecycleStatus; project: Project; roles: string[]; topics: string[];
   conversationTypes: string[]; fixtureQuality: FixtureQuality; sampleFileCount: number; notes: string; updatedAt: string;
 }
 export interface AccountView {
