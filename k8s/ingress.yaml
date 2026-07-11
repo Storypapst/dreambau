@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: testmails
+  namespace: wcr
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "100"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [dreambau.com]
+      secretName: dreambau-com-tls
+  rules:
+    - host: dreambau.com
+      http:
+        paths:
+          - path: /testmails
+            pathType: Prefix
+            backend:
+              service:
+                name: testmails
+                port: { name: http }
