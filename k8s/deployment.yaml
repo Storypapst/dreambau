@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testmails
+  namespace: wcr
+  labels: { app.kubernetes.io/name: testmails }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app.kubernetes.io/name: testmails }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: testmails }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: testmails
+          image: dreambau-testmails:0.1.0
+          imagePullPolicy: Never
+          ports:
+            - { name: http, containerPort: 3000 }
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: TESTMAILS_PASSWORD_HASH_FILE, value: /run/secrets/auth/password-hash }
+            - { name: TESTMAILS_SESSION_SECRET_FILE, value: /run/secrets/auth/session-secret }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: accounts, mountPath: /run/secrets/testmails, readOnly: true }
+            - { name: auth, mountPath: /run/secrets/auth, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: 25m, memory: 96Mi }
+            limits: { cpu: 500m, memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          livenessProbe:
+            httpGet: { path: /testmails/health/live, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /testmails/health/ready, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: testmails-data }
+        - name: accounts
+          secret: { secretName: testmails-accounts, defaultMode: 256 }
+        - name: auth
+          secret: { secretName: testmails-auth, defaultMode: 256 }
+        - name: tmp
+          emptyDir: { sizeLimit: 32Mi }
