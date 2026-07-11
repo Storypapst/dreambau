@@ -9,6 +9,6 @@ export default defineConfig({
   use: { baseURL: "https://dreambau.com", trace: "retain-on-failure", screenshot: "only-on-failure" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"], permissions: ["clipboard-read", "clipboard-write"] } },
-    { name: "mobile", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } }
+    { name: "mobile", use: { ...devices["Pixel 5"] } }
   ]
 });

@@ -90,7 +90,7 @@ test("domain filter and mobile cards are usable", async ({ page }, testInfo) => 
   if (testInfo.project.name === "mobile") await expect(page.locator('[data-slot="card"]')).toHaveCount(30);
 });
 
-test("taxonomy settings are editable and persist", async ({ page }) => {
+test("taxonomy settings are editable and persist", async ({ page }, testInfo) => {
   await login(page);
   const originalTopics = await page.evaluate(async () => (await (await fetch("/testmails/api/taxonomies")).json()).topics as string[]);
   expect(originalTopics).toHaveLength(16);
@@ -99,7 +99,15 @@ test("taxonomy settings are editable and persist", async ({ page }) => {
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Auswahllisten" }).click();
   await page.getByLabel("Themengebiete").fill([...originalTopics, "E2E Thema"].join("\n"));
-  await page.getByRole("dialog", { name: "Auswahllisten" }).getByRole("button", { name: "Speichern" }).click();
+  const settingsDialog = page.getByRole("dialog", { name: "Auswahllisten" });
+  const saveButton = settingsDialog.getByRole("button", { name: "Speichern" });
+  if (testInfo.project.name === "mobile") {
+    await settingsDialog.locator(".overflow-y-auto").evaluate((element) => element.scrollTo({ top: element.scrollHeight }));
+    await expect(saveButton).toBeInViewport();
+    await saveButton.click({ force: true });
+  } else {
+    await saveButton.click();
+  }
   await expect(page.getByText("Auswahllisten gespeichert")).toBeVisible();
   const topics = await page.evaluate(async () => (await (await fetch("/testmails/api/taxonomies")).json()).topics as string[]);
   expect(topics).toContain("E2E Thema");
