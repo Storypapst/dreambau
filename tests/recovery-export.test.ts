@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AccountRecord } from "../src/server/accounts.js";
+import { testAccessRecordSchema } from "../src/server/infisical-provider.js";
 import { buildRecoveryPayload, writeEncryptedRecoveryExport } from "../src/server/recovery-export.js";
 
 const account: AccountRecord = {
@@ -28,6 +29,7 @@ describe("SOPS recovery export", () => {
       kind: "mailbox"
     });
     expect(JSON.stringify(payload)).not.toContain('"environment":"production"');
+    expect(() => testAccessRecordSchema.parse(payload.records[0])).not.toThrow();
   });
 
   it("requires two recipients and writes only atomic mode-0600 ciphertext", () => {

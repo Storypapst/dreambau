@@ -23,9 +23,17 @@ export function buildRecoveryPayload(accounts: AccountRecord[], exportedAt = new
       displayName: account.displayName,
       username: account.email,
       email: account.email,
+      roles: ["mailbox"],
+      permissionsDescription: "Read-only Dreambau test mailbox access",
       loginUrl: "https://mail.dreambau.com",
       secret: account.password,
-      shared: true
+      responsiblePerson: "dreambau",
+      createdAt: exportedAt,
+      updatedAt: exportedAt,
+      expiresAt: null,
+      shared: true,
+      rotationStatus: "unknown" as const,
+      documentationUrl: "https://dreambau.com/testmails/"
     }))
   };
 }
