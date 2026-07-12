@@ -11,6 +11,7 @@ import {
 import type { TestMailReader } from "./test-mail.js";
 import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js";
 import { generateTotp } from "./totp.js";
+import { parseSeedProfile } from "./seed-profile.js";
 
 const querySchema = z.object({
   project: z.enum(["oriso", "orimo", "dreambau"]).optional(),
@@ -87,6 +88,22 @@ export function createTestAccessRouter(options: {
       }
       res.set("Cache-Control", "no-store");
       res.json({ id: match.id, secret: match.secret });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/accounts/:id/env", async (req, res, next) => {
+    const identity = res.locals.machineIdentity as MachineIdentity;
+    try {
+      const match = await options.registryProvider.get(String(req.params.id));
+      if (!match || match.kind !== "seed-profile"
+        || !identity.projects.includes(match.project)
+        || !identity.environments.includes(match.environment)) {
+        return res.status(404).json({ error: "seed_profile_not_found" });
+      }
+      res.set("Cache-Control", "no-store");
+      res.json({ id: match.id, variables: parseSeedProfile(match.secret) });
     } catch (error) {
       next(error);
     }

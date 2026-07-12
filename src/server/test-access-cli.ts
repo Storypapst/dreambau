@@ -1,7 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-type OutputMode = "json" | "secret" | "otp";
+import { serializeDotenv } from "./seed-profile.js";
+
+type OutputMode = "json" | "secret" | "otp" | "env";
 
 export interface ApiRequest {
   path: string;
@@ -40,10 +42,11 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
   if (!id) throw new Error(`${command || "command"} requires an account id`);
   const encoded = encodeURIComponent(id);
   if (command === "get") return { path: `/accounts/${encoded}/secret`, output: "secret" };
+  if (command === "env") return { path: `/accounts/${encoded}/env`, output: "env" };
   const query = terms.length ? `?${new URLSearchParams({ query: terms.join(" ") })}` : "";
   if (command === "otp") return { path: `/accounts/${encoded}/otp${query}`, output: "otp" };
   if (command === "mail") return { path: `/accounts/${encoded}/mail/latest${query}`, output: "json" };
-  throw new Error("usage: test-access <list|get|otp|mail> ...");
+  throw new Error("usage: test-access <list|get|otp|mail|env> ...");
 }
 
 interface CliDependencies {
@@ -69,6 +72,7 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
     const body = await response.json() as any;
     if (request.output === "secret") dependencies.write(`${String(body.secret)}\n`);
     else if (request.output === "otp") dependencies.write(`${String(body.code)}\n`);
+    else if (request.output === "env") dependencies.write(serializeDotenv(body.variables));
     else dependencies.write(`${JSON.stringify(body, null, 2)}\n`);
     return 0;
   } catch (error) {

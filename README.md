@@ -29,6 +29,8 @@ nie die Tokenwerte selbst.
   neueste passende Test-Mail über die von JMAP entdeckte Live-API.
 - `GET /testmails/api/v1/accounts/:id/otp?query=…` liefert nur einen passenden
   sechsstelligen OTP-Code samt Message-ID und Empfangszeit.
+- `GET /testmails/api/v1/accounts/:id/env` liefert nur für einen gezielt
+  angeforderten `seed-profile` eine begrenzte Map von Umgebungsvariablen.
 - Production ist kein gültiger Machine-Identity-Scope.
 - Unangemeldete, abgelaufene oder widerrufene Tokens erhalten keine Metadaten.
 - Die geschützte Human-Session sieht unter
@@ -64,11 +66,14 @@ npm run test-access -- list --project oriso --environment production-test
 npm run test-access -- get 'mailbox:spider.pig@oriso.org'
 npm run test-access -- otp 'mailbox:spider.pig@oriso.org' verification
 npm run test-access -- mail 'mailbox:spider.pig@oriso.org' verification
+npm run test-access -- env 'oriso/pre-dev/e2e-default'
 ```
 
 Der Token ist keine CLI-Option und erscheint deshalb nicht in Prozesslisten
 oder Shell-History. `get` und `otp` schreiben nur den ausdrücklich angeforderten
-Wert nach stdout; HTTP-Fehler geben keine Response-Bodies aus.
+Wert nach stdout; `env` sortiert erlaubte Variablennamen und setzt Werte in
+single-quoted, Shell-sicheres Dotenv. HTTP-Fehler geben keine Response-Bodies
+aus.
 
 ## Backup und Wiederherstellung
 

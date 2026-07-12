@@ -166,6 +166,28 @@ describe("test access API v1", () => {
     expect(JSON.stringify(response.body)).not.toContain(record.totpSecret);
   });
 
+  it("returns an environment only for an in-scope seed profile", async () => {
+    const record: TestAccessRecord = {
+      id: "oriso/pre-dev/e2e-default", project: "oriso", environment: "pre-dev", kind: "seed-profile",
+      displayName: "ORISO E2E Default", username: "e2e-default", email: null, roles: ["e2e"],
+      permissionsDescription: "Seed values for the ORISO PreDev E2E gate", loginUrl: "https://pre-dev.example.test",
+      secret: '{"BASE_URL":"https://pre-dev.example.test","TEST_USER":"test-consultant-001"}', responsiblePerson: "qa",
+      createdAt: "2026-07-12T00:00:00.000Z", updatedAt: "2026-07-12T00:00:00.000Z", expiresAt: null,
+      shared: true, rotationStatus: "current", documentationUrl: "https://docs.example.test/e2e"
+    };
+    const registryProvider: RegistryProvider = { async list() { return [record]; }, async get() { return record; } };
+    const target = createApp({
+      passwordHash: "unused", secureCookies: false, loadAccounts: () => [], registryProvider,
+      machineIdentities: [{ id: "m4", tokenHash: hash(orisoToken), projects: ["oriso"], environments: ["pre-dev"], expiresAt: "2099-01-01T00:00:00.000Z", revokedAt: null }]
+    });
+    const response = await request(target)
+      .get(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/env`)
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body).toEqual({ id: record.id, variables: { BASE_URL: "https://pre-dev.example.test", TEST_USER: "test-consultant-001" } });
+  });
+
   it("returns no metadata or secrets without a bearer token", async () => {
     const response = await request(app()).get("/testmails/api/v1/accounts");
     expect(response.status).toBe(401);

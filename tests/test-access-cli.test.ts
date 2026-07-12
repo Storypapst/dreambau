@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildApiRequest, runTestAccessCli } from "../src/server/test-access-cli.js";
 
 describe("test-access CLI", () => {
-  it("builds list, get, OTP and mail URLs without embedding a token", () => {
+  it("builds list, get, OTP, mail and env URLs without embedding a token", () => {
     const baseUrl = "https://dreambau.com/testmails/api/v1";
     expect(buildApiRequest(["list", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({
       path: "/accounts?project=oriso&environment=pre-dev",
@@ -20,6 +20,23 @@ describe("test-access CLI", () => {
       path: "/accounts/mailbox%3Atest%40example.test/mail/latest",
       output: "json"
     });
+    expect(buildApiRequest(["env", "oriso/pre-dev/e2e-default"], baseUrl)).toEqual({
+      path: "/accounts/oriso%2Fpre-dev%2Fe2e-default/env",
+      output: "env"
+    });
+  });
+
+  it("prints a requested seed profile as safely quoted dotenv", async () => {
+    const output: string[] = [];
+    const result = await runTestAccessCli(["env", "oriso/pre-dev/e2e-default"], {
+      baseUrl: "https://dreambau.com/testmails/api/v1",
+      identity: "codex-m4-oriso",
+      readKeychainToken: () => "keychain-token",
+      fetch: vi.fn(async () => Response.json({ id: "oriso/pre-dev/e2e-default", variables: { USERNAME: "test user", PASSWORD: "$(not-shell)" } })) as unknown as typeof fetch,
+      write: (value) => output.push(value)
+    });
+    expect(result).toBe(0);
+    expect(output).toEqual(["PASSWORD='$(not-shell)'\nUSERNAME='test user'\n"]);
   });
 
   it("loads the bearer token from Keychain and prints only the requested secret", async () => {
