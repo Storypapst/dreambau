@@ -21,6 +21,8 @@
     "@radix-ui/react-popover": "latest",
     "@radix-ui/react-slot": "latest",
     "@radix-ui/react-toggle-group": "latest",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
     "argon2": "latest",
     "better-sqlite3": "latest",
     "class-variance-authority": "latest",
