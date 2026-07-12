@@ -25,6 +25,7 @@ interface AppOptions {
   machineIdentities?: MachineIdentity[];
   mailReader?: TestMailReader;
   registryProvider?: RegistryProvider;
+  now?: () => Date;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -66,7 +67,8 @@ export function createApp(options: AppOptions = {}) {
     identities: options.machineIdentities ?? loadMachineIdentities(config.machineIdentitiesPath),
     registryProvider: options.registryProvider ?? runtimeRegistryProvider(),
     database,
-    mailReader: options.mailReader ?? createJmapTestMailReader()
+    mailReader: options.mailReader ?? createJmapTestMailReader(),
+    now: options.now
   }));
   api.get("/accounts", requireSession, (_req, res, next) => { try { res.json(accountViews()); } catch (error) { next(error); } });
   api.patch("/accounts/:email", requireSession, async (req, res) => {

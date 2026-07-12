@@ -10,6 +10,7 @@ import {
 } from "./machine-access.js";
 import type { TestMailReader } from "./test-mail.js";
 import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js";
+import { generateTotp } from "./totp.js";
 
 const querySchema = z.object({
   project: z.enum(["oriso", "orimo", "dreambau"]).optional(),
@@ -40,6 +41,7 @@ export function createTestAccessRouter(options: {
   registryProvider: RegistryProvider;
   database: RegistryDatabase;
   mailReader: TestMailReader;
+  now?: () => Date;
 }) {
   const router = express.Router();
 
@@ -122,6 +124,10 @@ export function createTestAccessRouter(options: {
     const parsed = mailQuery.safeParse(req.query);
     if (!parsed.success) return res.status(400).json({ error: "invalid_query" });
     try {
+      if (match.totpSecret) {
+        res.set("Cache-Control", "no-store");
+        return res.json(generateTotp(match.totpSecret, options.now?.() ?? new Date()));
+      }
       const account = mailboxAccount(match);
       if (!account) return res.status(404).json({ error: "mailbox_not_found" });
       const otp = await options.mailReader.otp(account, parsed.data.query ?? "");

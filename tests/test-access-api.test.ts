@@ -121,6 +121,51 @@ describe("test access API v1", () => {
     expect(secret.body).toEqual({ id: record.id, secret: record.secret });
   });
 
+  it("generates TOTP from the scoped record without calling the mailbox reader", async () => {
+    const record: TestAccessRecord = {
+      id: "oriso/pre-dev/test-admin-001",
+      project: "oriso",
+      environment: "pre-dev",
+      kind: "admin",
+      displayName: "Test Admin 001",
+      username: "test-admin-001",
+      email: "test-admin-001@example.test",
+      roles: ["admin"],
+      permissionsDescription: "PreDev test administrator",
+      loginUrl: "https://pre-dev.example.test",
+      secret: "fake-password",
+      totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      responsiblePerson: "qa",
+      createdAt: "2026-07-12T00:00:00.000Z",
+      updatedAt: "2026-07-12T00:00:00.000Z",
+      expiresAt: null,
+      shared: true,
+      rotationStatus: "current",
+      documentationUrl: "https://docs.example.test/test-account"
+    };
+    let mailCalled = false;
+    const registryProvider: RegistryProvider = { async list() { return [record]; }, async get() { return record; } };
+    const target = createApp({
+      passwordHash: "unused",
+      secureCookies: false,
+      loadAccounts: () => [],
+      registryProvider,
+      machineIdentities: [{ id: "m4", tokenHash: hash(orisoToken), projects: ["oriso"], environments: ["pre-dev"], expiresAt: "2099-01-01T00:00:00.000Z", revokedAt: null }],
+      mailReader: {
+        async latest() { mailCalled = true; return null; },
+        async otp() { mailCalled = true; return null; }
+      },
+      now: () => new Date(59_000)
+    });
+    const response = await request(target)
+      .get(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/otp`)
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ code: "287082", generatedAt: "1970-01-01T00:00:59.000Z", expiresAt: "1970-01-01T00:01:00.000Z" });
+    expect(mailCalled).toBe(false);
+    expect(JSON.stringify(response.body)).not.toContain(record.totpSecret);
+  });
+
   it("returns no metadata or secrets without a bearer token", async () => {
     const response = await request(app()).get("/testmails/api/v1/accounts");
     expect(response.status).toBe(401);
