@@ -55,6 +55,10 @@ test("login, filtering, reveal, copy, metadata, export and logout", async ({ pag
     await row.getByLabel("Status").click();
     await page.getByRole("option", { name: "Im Einsatz", exact: true }).click();
     await expect(row.getByRole("combobox", { name: "Status" })).toContainText("Im Einsatz");
+    await row.getByRole("button", { name: "Themen", exact: true }).click();
+    await page.getByRole("option", { name: /Schulden/ }).click();
+    await page.keyboard.press("Escape");
+    await expect(row.getByText("Schulden", { exact: true })).toBeVisible();
     const mailLinks = row.getByRole("link", { name: /Mail öffnen/ });
     await expect(mailLinks.first()).toHaveAttribute("href", "https://mail.dreambau.com/");
     await row.getByRole("button", { name: "Spider Pig" }).click();
@@ -90,6 +94,22 @@ test("domain filter and mobile cards are usable", async ({ page }, testInfo) => 
   if (testInfo.project.name === "mobile") await expect(page.locator('[data-slot="card"]')).toHaveCount(30);
 });
 
+test("intermediate desktop controls stay inside their assignment cell", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop breakpoint only");
+  await page.setViewportSize({ width: 974, height: 900 });
+  await login(page);
+  await page.getByPlaceholder("Name, E-Mail, Rolle, Thema, Projekt, Notiz …").fill("abe.simpson@dreambau.com");
+  const row = page.locator("tbody tr").filter({ hasText: "abe.simpson@dreambau.com" });
+  const assignment = row.locator("td").nth(2);
+  const assignmentBox = await assignment.boundingBox();
+  expect(assignmentBox).not.toBeNull();
+  for (const control of await assignment.getByRole("button").all()) {
+    const box = await control.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(assignmentBox!.x + assignmentBox!.width + 1);
+  }
+});
+
 test("taxonomy settings are editable and persist", async ({ page }, testInfo) => {
   await login(page);
   const originalTopics = await page.evaluate(async () => (await (await fetch("/testmails/api/taxonomies")).json()).topics as string[]);
@@ -98,8 +118,11 @@ test("taxonomy settings are editable and persist", async ({ page }, testInfo) =>
   await expect(page.getByText("Schulden", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Auswahllisten" }).click();
-  await page.getByLabel("Themengebiete").fill([...originalTopics, "E2E Thema"].join("\n"));
   const settingsDialog = page.getByRole("dialog", { name: "Auswahllisten" });
+  await expect(settingsDialog.getByText("Schulden", { exact: true })).toBeVisible();
+  await settingsDialog.getByLabel("Neues Themengebiete-Tag").fill("E2E Thema");
+  await settingsDialog.getByRole("button", { name: "Hinzufügen" }).nth(1).click();
+  await expect(settingsDialog.getByText("E2E Thema", { exact: true })).toBeVisible();
   const saveButton = settingsDialog.getByRole("button", { name: "Speichern" });
   if (testInfo.project.name === "mobile") {
     await settingsDialog.locator(".overflow-y-auto").evaluate((element) => element.scrollTo({ top: element.scrollHeight }));

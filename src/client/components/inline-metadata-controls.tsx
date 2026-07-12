@@ -5,6 +5,7 @@ import { labelConversation, labelFixture, labelLifecycle, labelProject, labelRol
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AccountMetadata, AccountView, FixtureQuality, LifecycleStatus, Project } from "@/types";
 import { MultiSelect } from "./multi-select";
+import { SelectedTags, type TagTone } from "./selected-tags";
 
 type MetadataPatch = Partial<Omit<AccountMetadata, "email" | "updatedAt">>;
 
@@ -32,7 +33,7 @@ const fixtureValues: FixtureQuality[] = ["empty", "synthetic", "realistic", "gol
 export function InlineStatusSelect({ account, locale, onSaved }: { account: AccountView; locale: Locale; onSaved: (metadata: AccountMetadata) => void }) {
   const { busy, save } = useInstantSave(account, onSaved, locale);
   return <Select value={account.metadata.lifecycleStatus} disabled={busy} onValueChange={(value) => save({ lifecycleStatus: value as LifecycleStatus })}>
-    <SelectTrigger size="sm" aria-label={t(locale, "page.status")} className="w-full min-w-32"><SelectValue /></SelectTrigger>
+    <SelectTrigger size="sm" aria-label={t(locale, "page.status")} className="min-w-0 w-full"><SelectValue /></SelectTrigger>
     <SelectContent><SelectGroup>{lifecycleValues.map((value) => <SelectItem key={value} value={value}>{labelLifecycle(locale, value)}</SelectItem>)}</SelectGroup></SelectContent>
   </Select>;
 }
@@ -40,7 +41,7 @@ export function InlineStatusSelect({ account, locale, onSaved }: { account: Acco
 export function InlineProjectSelect({ account, locale, onSaved }: { account: AccountView; locale: Locale; onSaved: (metadata: AccountMetadata) => void }) {
   const { busy, save } = useInstantSave(account, onSaved, locale);
   return <Select value={account.metadata.project} disabled={busy} onValueChange={(value) => save({ project: value as Project })}>
-    <SelectTrigger size="sm" aria-label={t(locale, "page.project")} className="w-full min-w-28"><SelectValue /></SelectTrigger>
+    <SelectTrigger size="sm" aria-label={t(locale, "page.project")} className="min-w-0 w-full"><SelectValue /></SelectTrigger>
     <SelectContent><SelectGroup>{projectValues.map((value) => <SelectItem key={value} value={value}>{labelProject(locale, value)}</SelectItem>)}</SelectGroup></SelectContent>
   </Select>;
 }
@@ -48,7 +49,7 @@ export function InlineProjectSelect({ account, locale, onSaved }: { account: Acc
 export function InlineFixtureSelect({ account, locale, onSaved }: { account: AccountView; locale: Locale; onSaved: (metadata: AccountMetadata) => void }) {
   const { busy, save } = useInstantSave(account, onSaved, locale);
   return <Select value={account.metadata.fixtureQuality} disabled={busy} onValueChange={(value) => save({ fixtureQuality: value as FixtureQuality })}>
-    <SelectTrigger size="sm" aria-label={t(locale, "page.testData")} className="w-full min-w-28"><SelectValue /></SelectTrigger>
+    <SelectTrigger size="sm" aria-label={t(locale, "page.testData")} className="min-w-0 w-full"><SelectValue /></SelectTrigger>
     <SelectContent><SelectGroup>{fixtureValues.map((value) => <SelectItem key={value} value={value}>{labelFixture(locale, value)}</SelectItem>)}</SelectGroup></SelectContent>
   </Select>;
 }
@@ -57,5 +58,6 @@ export function InlineTaxonomySelect({ account, locale, kind, options, onSaved }
   const { busy, save } = useInstantSave(account, onSaved, locale);
   const labels = { roles: t(locale, "page.roles"), topics: t(locale, "page.topics"), conversationTypes: t(locale, "page.conversations") };
   const format = kind === "topics" ? (value: string) => labelTopic(locale, value) : kind === "roles" ? (value: string) => labelRole(locale, value) : (value: string) => labelConversation(locale, value);
-  return <MultiSelect compact disabled={busy} label={labels[kind]} options={options} value={account.metadata[kind]} onChange={(value) => save({ [kind]: value })} formatOption={format} locale={locale} />;
+  const tone: Record<typeof kind, TagTone> = { roles: "role", topics: "topic", conversationTypes: "conversation" };
+  return <div className="flex min-w-0 flex-col gap-1.5"><MultiSelect compact disabled={busy} label={labels[kind]} options={options} value={account.metadata[kind]} onChange={(value) => save({ [kind]: value })} formatOption={format} locale={locale} /><SelectedTags values={account.metadata[kind]} formatOption={format} tone={tone[kind]} removeLabel={locale === "de" ? "entfernen" : "remove"} onRemove={(removed) => save({ [kind]: account.metadata[kind].filter((value) => value !== removed) })} /></div>;
 }
