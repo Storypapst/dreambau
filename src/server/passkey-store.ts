@@ -167,6 +167,9 @@ export function createPasskeyStore(path: string) {
     getCredentialsForUser(userId: string) {
       return (sqlite.prepare("SELECT * FROM passkey_credentials WHERE user_id=? ORDER BY created_at").all(userId) as any[]).map(rowToCredential);
     },
+    credentialCount() {
+      return (sqlite.prepare("SELECT COUNT(*) AS count FROM passkey_credentials").get() as { count: number }).count;
+    },
     updateCredentialCounter(id: string, counter: number, usedAt = new Date().toISOString()) {
       if (!Number.isInteger(counter) || counter < 0) throw new Error("Invalid passkey counter");
       const result = sqlite.prepare(`UPDATE passkey_credentials SET counter=?,last_used_at=?

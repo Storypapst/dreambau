@@ -4,7 +4,7 @@ import { cookieName, cookieOptions, SessionStore } from "./sessions.js";
 
 interface FailureWindow { count: number; startedAt: number }
 
-export function installAuth(router: Router, passwordHash: string, sessionSecret: string, secureCookies: boolean) {
+export function installAuth(router: Router, passwordHash: string, sessionSecret: string, secureCookies: boolean, passwordLoginAllowed: () => boolean = () => true) {
   const sessions = new SessionStore(sessionSecret || "test-only-session-secret");
   const failures = new Map<string, FailureWindow>();
   const windowMs = 15 * 60 * 1000;
@@ -24,6 +24,7 @@ export function installAuth(router: Router, passwordHash: string, sessionSecret:
   };
 
   router.post("/auth/login", async (req, res) => {
+    if (!passwordLoginAllowed()) return res.status(410).json({ error: "bootstrap_disabled" });
     const ip = req.ip ?? "unknown";
     const now = Date.now();
     const current = failures.get(ip);
@@ -40,6 +41,7 @@ export function installAuth(router: Router, passwordHash: string, sessionSecret:
     res.cookie(cookieName, sessions.create(), cookieOptions(secureCookies));
     return res.json({ authenticated: true });
   });
+  router.get("/auth/bootstrap-status", (_req, res) => res.json({ enabled: passwordLoginAllowed() }));
 
   router.post("/auth/logout", (req, res) => {
     sessions.destroy(req.cookies?.[cookieName]);

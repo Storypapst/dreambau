@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { KeyRoundIcon, LanguagesIcon, LockKeyholeIcon } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,12 +13,14 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [recoveryCode, setRecoveryCode] = useState("");
+  const [bootstrapEnabled, setBootstrapEnabled] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => { api<{ enabled: boolean }>("/auth/bootstrap-status").then((value) => setBootstrapEnabled(value.enabled)).catch(() => setBootstrapEnabled(false)); }, []);
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError("");
     try { await api("/auth/login", { method: "POST", body: JSON.stringify({ password }) }); onAuthenticated(); }
-    catch (reason) { setError(reason instanceof Error && reason.message === "rate_limited" ? (locale === "de" ? "Zu viele Versuche. Bitte später erneut probieren." : "Too many attempts. Please try again later.") : (locale === "de" ? "Das Passwort ist nicht korrekt." : "The password is incorrect.")); }
+    catch (reason) { setError(reason instanceof Error && reason.message === "rate_limited" ? (locale === "de" ? "Zu viele Versuche. Bitte später erneut probieren." : "Too many attempts. Please try again later.") : reason instanceof Error && reason.message === "bootstrap_disabled" ? (locale === "de" ? "Der Passwort-Bootstrap ist bereits dauerhaft deaktiviert." : "Password bootstrap is already permanently disabled.") : (locale === "de" ? "Das Passwort ist nicht korrekt." : "The password is incorrect.")); }
     finally { setBusy(false); }
   }
   async function passkeyLogin() {
@@ -49,12 +51,12 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
               <Input id="email" type="email" autoComplete="username webauthn" value={email} onChange={(event) => setEmail(event.target.value)} />
             </Field>
             <Button type="button" onClick={passkeyLogin} disabled={busy || !email}><KeyRoundIcon />{locale === "de" ? "Mit Passkey anmelden" : "Sign in with passkey"}</Button>
-            <div className="text-center text-xs text-muted-foreground">{locale === "de" ? "Bootstrap-Notfallzugang" : "Bootstrap emergency access"}</div>
+            {bootstrapEnabled && <><div className="text-center text-xs text-muted-foreground">{locale === "de" ? "Einmaliger Bootstrap-Zugang" : "One-time bootstrap access"}</div>
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="password">{locale === "de" ? "Gemeinsames Passwort" : "Shared password"}</FieldLabel>
               <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={Boolean(error)} required />
             </Field>
-            <Button type="submit" disabled={busy}>{busy ? (locale === "de" ? "Wird geprüft …" : "Checking …") : (locale === "de" ? "Anmelden" : "Sign in")}</Button>
+            <Button type="submit" disabled={busy}>{busy ? (locale === "de" ? "Wird geprüft …" : "Checking …") : (locale === "de" ? "Bootstrap starten" : "Start bootstrap")}</Button></>}
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="recovery-code">Recovery-Code</FieldLabel>
               <Input id="recovery-code" type="password" autoComplete="one-time-code" value={recoveryCode} onChange={(event) => setRecoveryCode(event.target.value)} />

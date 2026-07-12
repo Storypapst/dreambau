@@ -73,6 +73,9 @@ describe("passkey authentication", () => {
     expect(verified.body).toEqual({ verified: true });
     expect(passkeyStore.getCredential("credential-id")?.userId).toBe(user.id);
     expect((await agent.get("/testmails/api/auth/session")).body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
+    await agent.post("/testmails/api/auth/logout");
+    expect((await agent.post("/testmails/api/auth/login").send({ password: "bootstrap-password" })).status).toBe(410);
+    expect((await agent.get("/testmails/api/auth/bootstrap-status")).body).toEqual({ enabled: false });
     passkeyStore.close();
   });
 

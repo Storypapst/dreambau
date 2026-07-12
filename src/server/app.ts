@@ -45,15 +45,16 @@ export function createApp(options: AppOptions = {}) {
   app.use(cookieParser());
   app.get("/testmails/health/live", (_req, res) => res.json({ status: "ok" }));
   const api = express.Router();
+  const passkeyStore = options.passkeyStore ?? createPasskeyStore(options.loadAccounts ? ":memory:" : config.databasePath);
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,
     options.sessionSecret ?? config.sessionSecret,
-    options.secureCookies ?? config.secureCookies
+    options.secureCookies ?? config.secureCookies,
+    () => passkeyStore.credentialCount() === 0
   );
   const accountLoader = options.loadAccounts ?? (() => loadAccountsFile(config.accountsPath));
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
-  const passkeyStore = options.passkeyStore ?? createPasskeyStore(options.loadAccounts ? ":memory:" : config.databasePath);
   installPasskeyAuth(api, {
     store: passkeyStore,
     sessions,
