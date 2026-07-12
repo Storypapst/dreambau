@@ -63,6 +63,27 @@ nur `client-id` und `client-secret`; sein Wert wird nie in Git, Markdown oder
 einem Shell-Literal abgelegt. Die nicht geheimen Projekt-IDs stehen im
 Deployment-Manifest.
 
+### Kontrollierter Record-Import
+
+Der Import liest ein Array vollständiger Test-Access-Records ausschließlich
+von stdin. Ein kurzlebiges Admin-Access-Token wird separat aus dem macOS
+Keychain-Service `dreambau-infisical-import`, Account `admin-session`, gelesen.
+Der Import schreibt keine Klartextdatei und gibt nur Record-/Batch-Anzahlen aus.
+
+```bash
+export TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID=2808af88-2c60-4023-8754-98665192cfdf
+export TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID=cacf81e9-4d84-4352-99b8-4e3eb40bf338
+export TEST_ACCESS_INFISICAL_DREAMBAU_PROJECT_ID=a7620a55-2f67-4bc1-9526-4efda230b247
+sops --decrypt accepted-test-access-records.enc.json | npm run infisical-import
+```
+
+Vor jedem Write werden alle betroffenen Projekt-/Umgebungspfade mit
+`viewSecretValue=false` geprüft. Bereits vorhandene, doppelte, ungültige oder
+scope-fremde Records stoppen den gesamten Lauf vor dem ersten Write. Secret-
+Namen sind stabile, nicht sprechende SHA-256-Ableitungen; importiert wird nur
+unter `/records`. Ein Update/Overwrite ist in diesem Kommando absichtlich nicht
+implementiert.
+
 Der portable Operator-Client liest den Token aus Keychain-Service
 `dreambau-test-access` und Account `TEST_ACCESS_IDENTITY`:
 
