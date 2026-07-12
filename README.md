@@ -21,6 +21,27 @@ unter `/testmails/api/v1` zu. Die Datei
 SHA-256-Token-Hashes, Projekt-/Umgebungs-Scopes, Ablaufzeit und Widerrufszeit;
 nie die Tokenwerte selbst.
 
+## Menschlicher Passkey-Zugang
+
+Der gemeinsame Argon2id-Passwortlogin ist nur noch als Bootstrap-Pfad für den
+konfigurierten ersten Administrator vorgesehen. Eine Bootstrap-Session kann
+nur für diesen festen Benutzer ein WebAuthn-Credential registrieren; sie kann
+keine beliebige Mitarbeiteridentität übernehmen.
+
+- Registrierungs- und Authentication-Challenges laufen nach fünf Minuten ab
+  und werden vor der Verifikation atomar einmalig konsumiert.
+- RP-ID ist `dreambau.com`, erwarteter Origin `https://dreambau.com`.
+- User Verification ist zwingend; Attestation wird nicht verlangt.
+- ES256 und RS256 sind zugelassen.
+- Credentials, Public Key, Backup-/Device-Status und Signaturzähler liegen in
+  SQLite; ein nicht-null Signaturzähler muss monoton steigen.
+- Nach erfolgreicher Registrierung oder Anmeldung ersetzt eine
+  benutzergebundene Passkey-Session die Bootstrap-Session.
+- Recovery-Codes werden ausschließlich gehasht und einmalig gespeichert.
+
+Die Server-Endpunkte liegen unter
+`/testmails/api/auth/passkeys/{registration,authentication}/{options,verify}`.
+
 - `GET /testmails/api/v1/accounts` liefert nur Metadaten im Token-Scope.
 - Filter: `project`, `environment`, `role`.
 - `GET /testmails/api/v1/accounts/:id/secret` liefert gezielt genau ein Secret

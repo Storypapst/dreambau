@@ -10,7 +10,9 @@ export function installAuth(router: Router, passwordHash: string, sessionSecret:
   const windowMs = 15 * 60 * 1000;
 
   const requireSession = (req: Request, res: Response, next: NextFunction) => {
-    if (!sessions.validate(req.cookies?.[cookieName])) return res.status(401).json({ error: "unauthorized" });
+    const principal = sessions.get(req.cookies?.[cookieName]);
+    if (!principal) return res.status(401).json({ error: "unauthorized" });
+    res.locals.session = principal;
     next();
   };
 
@@ -37,6 +39,9 @@ export function installAuth(router: Router, passwordHash: string, sessionSecret:
     res.clearCookie(cookieName, cookieOptions(secureCookies));
     res.json({ authenticated: false });
   });
-  router.get("/auth/session", (req, res) => res.json({ authenticated: sessions.validate(req.cookies?.[cookieName]) }));
-  return { requireSession };
+  router.get("/auth/session", (req, res) => {
+    const principal = sessions.get(req.cookies?.[cookieName]);
+    res.json(principal ?? { authenticated: false });
+  });
+  return { requireSession, sessions };
 }

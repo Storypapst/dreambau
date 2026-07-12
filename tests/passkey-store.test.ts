@@ -28,6 +28,8 @@ describe("passkey store", () => {
     target.updateCredentialCounter("credential-id", 5, "2026-07-12T07:00:00.000Z");
     expect(target.getCredential("credential-id")?.counter).toBe(5);
     expect(() => target.updateCredentialCounter("credential-id", 5)).toThrow(/counter/i);
+    target.addCredential({ id: "zero-counter", userId: user.id, publicKey: new Uint8Array([4, 5, 6]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    expect(() => target.updateCredentialCounter("zero-counter", 0)).not.toThrow();
     target.close();
   });
 

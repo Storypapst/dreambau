@@ -153,8 +153,9 @@ export function createPasskeyStore(path: string) {
     },
     updateCredentialCounter(id: string, counter: number, usedAt = new Date().toISOString()) {
       if (!Number.isInteger(counter) || counter < 0) throw new Error("Invalid passkey counter");
-      const result = sqlite.prepare("UPDATE passkey_credentials SET counter=?,last_used_at=? WHERE id=? AND counter<?")
-        .run(counter, usedAt, id, counter);
+      const result = sqlite.prepare(`UPDATE passkey_credentials SET counter=?,last_used_at=?
+        WHERE id=? AND (counter<? OR (counter=0 AND ?=0))`)
+        .run(counter, usedAt, id, counter, counter);
       if (result.changes !== 1) throw new Error("Passkey counter did not advance");
     },
     putChallenge(input: z.input<typeof challengeSchema>) {

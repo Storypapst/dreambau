@@ -14,6 +14,8 @@ import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js
 import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestEnvironment, type TestProject } from "./infisical-provider.js";
+import { createPasskeyStore, type PasskeyStore } from "./passkey-store.js";
+import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -26,6 +28,11 @@ interface AppOptions {
   mailReader?: TestMailReader;
   registryProvider?: RegistryProvider;
   now?: () => Date;
+  passkeyStore?: PasskeyStore;
+  webauthn?: WebAuthnAdapter;
+  rpId?: string;
+  expectedOrigin?: string;
+  bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau"> };
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -37,7 +44,7 @@ export function createApp(options: AppOptions = {}) {
   app.use(cookieParser());
   app.get("/testmails/health/live", (_req, res) => res.json({ status: "ok" }));
   const api = express.Router();
-  const { requireSession } = installAuth(
+  const { requireSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,
     options.sessionSecret ?? config.sessionSecret,
@@ -45,6 +52,18 @@ export function createApp(options: AppOptions = {}) {
   );
   const accountLoader = options.loadAccounts ?? (() => loadAccountsFile(config.accountsPath));
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
+  const passkeyStore = options.passkeyStore ?? createPasskeyStore(options.loadAccounts ? ":memory:" : config.databasePath);
+  installPasskeyAuth(api, {
+    store: passkeyStore,
+    sessions,
+    requireSession,
+    secureCookies: options.secureCookies ?? config.secureCookies,
+    rpId: options.rpId ?? "dreambau.com",
+    expectedOrigin: options.expectedOrigin ?? "https://dreambau.com",
+    webauthn: options.webauthn,
+    now: options.now,
+    bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"] }
+  });
   const accountViews = () => accountLoader().map((account) => ({ ...account, metadata: database.getMetadata(account.email) }));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
   const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
