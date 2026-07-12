@@ -120,8 +120,9 @@ test("taxonomy settings are editable and persist", async ({ page }, testInfo) =>
   await page.getByRole("button", { name: "Auswahllisten" }).click();
   const settingsDialog = page.getByRole("dialog", { name: "Auswahllisten" });
   await expect(settingsDialog.getByText("Schulden", { exact: true })).toBeVisible();
-  await settingsDialog.getByLabel("Neues Themengebiete-Tag").fill("E2E Thema");
-  await settingsDialog.getByRole("button", { name: "Hinzufügen" }).nth(1).click();
+  const newTopicInput = settingsDialog.getByLabel("Neues Themengebiete-Tag");
+  await newTopicInput.fill("E2E Thema");
+  await newTopicInput.press("Enter");
   await expect(settingsDialog.getByText("E2E Thema", { exact: true })).toBeVisible();
   const saveButton = settingsDialog.getByRole("button", { name: "Speichern" });
   if (testInfo.project.name === "mobile") {
