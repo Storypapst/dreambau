@@ -208,4 +208,10 @@ export function installPasskeyAuth(router: Router, options: {
     try { res.json(options.store.setUserStatus(String(req.params.id), parsed.data.status)); }
     catch { res.status(404).json({ error: "user_not_found" }); }
   });
+  router.get("/auth/me", options.requireStrongSession, (_req, res) => {
+    const principal = res.locals.session as SessionPrincipal;
+    const user = principal.userId ? options.store.getUser(principal.userId) : null;
+    if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
+    res.json(user);
+  });
 }

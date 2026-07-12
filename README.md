@@ -56,6 +56,9 @@ einen Recovery-Code und registriert danach den eigenen Passkey. Das Deaktivieren
 eines Users wirkt bei der nächsten Anfrage auch auf bereits bestehende Sessions.
 Menschliche Accountlisten, Mutationen und Markdown-Exporte werden auf die dem
 User zugeordneten Projekte begrenzt.
+Die Weboberfläche zeigt den Bereich **Mitarbeiter** nur Administratoren, zeigt
+den Enrollment-Code nur im unmittelbar folgenden Dialogzustand und hält ihn
+nicht in einer dauerhaften Browserablage.
 
 - `GET /testmails/api/v1/accounts` liefert nur Metadaten im Token-Scope.
 - Filter: `project`, `environment`, `role`.

@@ -11,3 +11,7 @@ export interface AccountView {
   metadata: AccountMetadata;
 }
 export interface Taxonomies { roles: string[]; topics: string[]; conversationTypes: string[] }
+export interface HumanUser {
+  id: string; email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">;
+  role: "admin" | "member"; status: "active" | "disabled"; createdAt: string;
+}
