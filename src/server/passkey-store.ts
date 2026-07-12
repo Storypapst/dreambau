@@ -6,7 +6,8 @@ const projectSchema = z.enum(["oriso", "orimo", "dreambau"]);
 const userInputSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
-  projects: z.array(projectSchema).min(1)
+  projects: z.array(projectSchema).min(1),
+  role: z.enum(["admin", "member"]).default("member")
 });
 const credentialInputSchema = z.object({
   id: z.string().min(1),
@@ -33,6 +34,7 @@ export interface HumanUser {
   name: string;
   projects: HumanProject[];
   status: "active" | "disabled";
+  role: "admin" | "member";
   createdAt: string;
 }
 
@@ -59,6 +61,7 @@ export function createPasskeyStore(path: string) {
       name TEXT NOT NULL,
       projects TEXT NOT NULL,
       status TEXT NOT NULL CHECK(status IN ('active','disabled')),
+      role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin','member')),
       created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS passkey_credentials (
@@ -87,6 +90,8 @@ export function createPasskeyStore(path: string) {
       PRIMARY KEY(user_id, code_hash)
     );
   `);
+  const userColumns = new Set((sqlite.prepare("PRAGMA table_info(human_users)").all() as Array<{ name: string }>).map((column) => column.name));
+  if (!userColumns.has("role")) sqlite.exec("ALTER TABLE human_users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
 
   const rowToUser = (row: any): HumanUser => ({
     id: row.id,
@@ -94,6 +99,7 @@ export function createPasskeyStore(path: string) {
     name: row.name,
     projects: z.array(projectSchema).parse(JSON.parse(row.projects)),
     status: row.status,
+    role: row.role,
     createdAt: row.created_at
   });
   const rowToCredential = (row: any): StoredCredential => ({
@@ -117,11 +123,12 @@ export function createPasskeyStore(path: string) {
         name: parsed.name,
         projects: [...new Set(parsed.projects)],
         status: "active",
+        role: parsed.role,
         createdAt: new Date().toISOString()
       };
       try {
-        sqlite.prepare("INSERT INTO human_users(id,email,name,projects,status,created_at) VALUES(?,?,?,?,?,?)")
-          .run(user.id, user.email, user.name, JSON.stringify(user.projects), user.status, user.createdAt);
+        sqlite.prepare("INSERT INTO human_users(id,email,name,projects,status,role,created_at) VALUES(?,?,?,?,?,?,?)")
+          .run(user.id, user.email, user.name, JSON.stringify(user.projects), user.status, user.role, user.createdAt);
       } catch {
         throw new Error("A user with this email already exists");
       }
@@ -134,6 +141,15 @@ export function createPasskeyStore(path: string) {
     getUserByEmail(email: string) {
       const row = sqlite.prepare("SELECT * FROM human_users WHERE email=? COLLATE NOCASE").get(email);
       return row ? rowToUser(row) : null;
+    },
+    listUsers() {
+      return (sqlite.prepare("SELECT * FROM human_users ORDER BY email COLLATE NOCASE").all() as any[]).map(rowToUser);
+    },
+    setUserStatus(id: string, status: "active" | "disabled") {
+      const parsed = z.enum(["active", "disabled"]).parse(status);
+      const result = sqlite.prepare("UPDATE human_users SET status=? WHERE id=?").run(parsed, id);
+      if (result.changes !== 1) throw new Error("Human user not found");
+      return rowToUser(sqlite.prepare("SELECT * FROM human_users WHERE id=?").get(id));
     },
     addCredential(input: z.input<typeof credentialInputSchema>) {
       const credential = credentialInputSchema.parse(input);

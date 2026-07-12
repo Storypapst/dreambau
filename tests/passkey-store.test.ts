@@ -11,9 +11,20 @@ function store() {
 describe("passkey store", () => {
   it("creates individual users with normalized unique emails and project scopes", () => {
     const target = store();
-    const user = target.createUser({ email: "Frank@Dreambau.com", name: "Frank", projects: ["oriso", "dreambau"] });
-    expect(user).toMatchObject({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso", "dreambau"], status: "active" });
+    const user = target.createUser({ email: "Frank@Dreambau.com", name: "Frank", projects: ["oriso", "dreambau"], role: "admin" });
+    expect(user).toMatchObject({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso", "dreambau"], role: "admin", status: "active" });
     expect(() => target.createUser({ email: "frank@dreambau.com", name: "Other", projects: ["orimo"] })).toThrow(/email/i);
+    target.close();
+  });
+
+  it("lists individual users and disables access without deleting identity history", () => {
+    const target = store();
+    const admin = target.createUser({ email: "admin@dreambau.com", name: "Admin", projects: ["dreambau"], role: "admin" });
+    const member = target.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    expect(target.listUsers().map((user) => user.email)).toEqual(["admin@dreambau.com", "member@dreambau.com"]);
+    expect(target.setUserStatus(member.id, "disabled")).toMatchObject({ id: member.id, status: "disabled" });
+    expect(target.getUser(member.id)?.status).toBe("disabled");
+    expect(target.getUser(admin.id)?.status).toBe("active");
     target.close();
   });
 

@@ -48,6 +48,15 @@ keine beliebige Mitarbeiteridentität übernehmen.
 Die Server-Endpunkte liegen unter
 `/testmails/api/auth/passkeys/{registration,authentication}/{options,verify}`.
 
+Passkey-Administratoren verwalten individuelle Mitarbeiter unter
+`/testmails/api/auth/users`. Beim Anlegen werden Name, E-Mail und mindestens
+ein Projekt (`oriso`, `orimo`, `dreambau`) festgelegt. Die Antwort zeigt genau
+einmal einen zufälligen Enrollment-Code; der Mitarbeiter verwendet ihn wie
+einen Recovery-Code und registriert danach den eigenen Passkey. Das Deaktivieren
+eines Users wirkt bei der nächsten Anfrage auch auf bereits bestehende Sessions.
+Menschliche Accountlisten, Mutationen und Markdown-Exporte werden auf die dem
+User zugeordneten Projekte begrenzt.
+
 - `GET /testmails/api/v1/accounts` liefert nur Metadaten im Token-Scope.
 - Filter: `project`, `environment`, `role`.
 - `GET /testmails/api/v1/accounts/:id/secret` liefert gezielt genau ein Secret

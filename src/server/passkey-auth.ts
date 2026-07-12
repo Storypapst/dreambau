@@ -30,13 +30,14 @@ export function installPasskeyAuth(router: Router, options: {
   store: PasskeyStore;
   sessions: SessionStore;
   requireSession: RequestHandler;
+  requireStrongSession: RequestHandler;
   secureCookies: boolean;
   rpId: string;
   expectedOrigin: string;
   rpName?: string;
   webauthn?: WebAuthnAdapter;
   now?: () => Date;
-  bootstrapUser: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau"> };
+  bootstrapUser: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
 }) {
   const webauthn = options.webauthn ?? defaultWebAuthn;
   const now = options.now ?? (() => new Date());
@@ -173,5 +174,38 @@ export function installPasskeyAuth(router: Router, options: {
     options.sessions.destroy(req.cookies?.[cookieName]);
     res.cookie(cookieName, options.sessions.create({ authenticated: true, method: "recovery", userId: user.id }), cookieOptions(options.secureCookies));
     res.json({ authenticated: true, method: "recovery", userId: user.id });
+  });
+
+  const requireAdmin = (req: any, res: any, next: any) => options.requireStrongSession(req, res, () => {
+    const principal = res.locals.session as SessionPrincipal;
+    const user = principal.userId ? options.store.getUser(principal.userId) : null;
+    if (!user || user.status !== "active" || user.role !== "admin") return res.status(403).json({ error: "admin_required" });
+    res.locals.humanUser = user;
+    next();
+  });
+
+  router.get("/auth/users", requireAdmin, (_req, res) => res.json(options.store.listUsers()));
+  router.post("/auth/users", requireAdmin, (req, res) => {
+    const parsed = z.object({
+      email: z.string().email(),
+      name: z.string().min(1),
+      projects: z.array(z.enum(["oriso", "orimo", "dreambau"])).min(1)
+    }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_user" });
+    try {
+      const user = options.store.createUser({ ...parsed.data, role: "member" });
+      const enrollmentCode = randomBytes(16).toString("base64url");
+      options.store.replaceRecoveryCodeHashes(user.id, [createHash("sha256").update(enrollmentCode).digest("hex")]);
+      res.set("Cache-Control", "no-store");
+      res.status(201).json({ ...user, enrollmentCode });
+    } catch {
+      res.status(409).json({ error: "user_exists" });
+    }
+  });
+  router.patch("/auth/users/:id/status", requireAdmin, (req, res) => {
+    const parsed = z.object({ status: z.enum(["active", "disabled"]) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_status" });
+    try { res.json(options.store.setUserStatus(String(req.params.id), parsed.data.status)); }
+    catch { res.status(404).json({ error: "user_not_found" }); }
   });
 }

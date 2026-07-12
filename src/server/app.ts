@@ -14,8 +14,9 @@ import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js
 import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestEnvironment, type TestProject } from "./infisical-provider.js";
-import { createPasskeyStore, type PasskeyStore } from "./passkey-store.js";
+import { createPasskeyStore, type HumanUser, type PasskeyStore } from "./passkey-store.js";
 import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
+import type { SessionPrincipal } from "./sessions.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -32,7 +33,7 @@ interface AppOptions {
   webauthn?: WebAuthnAdapter;
   rpId?: string;
   expectedOrigin?: string;
-  bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau"> };
+  bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -57,14 +58,32 @@ export function createApp(options: AppOptions = {}) {
     store: passkeyStore,
     sessions,
     requireSession,
+    requireStrongSession,
     secureCookies: options.secureCookies ?? config.secureCookies,
     rpId: options.rpId ?? "dreambau.com",
     expectedOrigin: options.expectedOrigin ?? "https://dreambau.com",
     webauthn: options.webauthn,
     now: options.now,
-    bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"] }
+    bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" }
   });
+  const requireActivePasskeySession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
+    requireStrongSession(req, res, () => {
+      const principal = res.locals.session as SessionPrincipal;
+      const user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
+      if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
+      res.locals.humanUser = user;
+      next();
+    });
   const accountViews = () => accountLoader().map((account) => ({ ...account, metadata: database.getMetadata(account.email) }));
+  const viewProject = (view: ReturnType<typeof accountViews>[number]) => {
+    if (view.metadata.project === "ORISO") return "oriso" as const;
+    if (view.metadata.project === "ORIMO" || view.metadata.project === "TRAIL.IST") return "orimo" as const;
+    if (view.metadata.project === "DREAMBAU") return "dreambau" as const;
+    if (view.domain === "oriso.org" || view.domain === "openresilience.cc") return "oriso" as const;
+    if (view.domain === "trail.ist") return "orimo" as const;
+    return "dreambau" as const;
+  };
+  const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
   const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
   const regenerate = async () => { if (exportPath) await writeMarkdownAtomically(exportPath, markdown()); };
@@ -98,22 +117,22 @@ export function createApp(options: AppOptions = {}) {
     mailReader: options.mailReader ?? createJmapTestMailReader(),
     now: options.now
   }));
-  api.get("/accounts", requireStrongSession, (_req, res, next) => { try { res.json(accountViews()); } catch (error) { next(error); } });
-  api.patch("/accounts/:email", requireStrongSession, async (req, res) => {
-    const email = decodeURIComponent(String(req.params.email)); if (!accountLoader().some((account) => account.email === email)) return res.status(404).json({ error: "account_not_found" });
+  api.get("/accounts", requireActivePasskeySession, (_req, res, next) => { try { res.json(scopedAccountViews(res.locals.humanUser)); } catch (error) { next(error); } });
+  api.patch("/accounts/:email", requireActivePasskeySession, async (req, res) => {
+    const email = decodeURIComponent(String(req.params.email)); if (!scopedAccountViews(res.locals.humanUser).some((account) => account.email === email)) return res.status(404).json({ error: "account_not_found" });
     try { const value = database.upsertMetadata(email, metadataPatchSchema.parse(req.body)); await regenerate(); res.json(value); } catch (error) { handleValidation(error, res); }
   });
-  api.post("/accounts/bulk-status", requireStrongSession, async (req, res) => {
-    try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
+  api.post("/accounts/bulk-status", requireActivePasskeySession, async (req, res) => {
+    try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const allowed = new Set(scopedAccountViews(res.locals.humanUser).map((account) => account.email)); if (body.emails.some((email) => !allowed.has(email))) return res.status(403).json({ error: "scope_denied" }); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
   });
-  api.get("/taxonomies", requireStrongSession, (_req, res) => res.json(database.getTaxonomies()));
-  api.get("/machine-identities/usage", requireStrongSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
-  api.put("/taxonomies/:kind", requireStrongSession, async (req, res) => {
+  api.get("/taxonomies", requireActivePasskeySession, (_req, res) => res.json(database.getTaxonomies()));
+  api.get("/machine-identities/usage", requireActivePasskeySession, (_req, res) => res.json(database.getMachineIdentityUsage()));
+  api.put("/taxonomies/:kind", requireActivePasskeySession, async (req, res) => {
     try { const kind = taxonomyKindSchema.parse(String(req.params.kind)); const { values } = taxonomyValuesSchema.parse(req.body); const result = database.putTaxonomy(kind, values); await regenerate(); res.json(result); } catch (error) { handleValidation(error, res); }
   });
-  api.get("/export/markdown", requireStrongSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(markdown()));
+  api.get("/export/markdown", requireActivePasskeySession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
   app.use("/testmails/api", api);
-  app.get("/testmails/testmails.md", requireStrongSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(markdown()));
+  app.get("/testmails/testmails.md", requireActivePasskeySession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
 
   const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../client");
   app.use("/testmails", express.static(clientDir, { index: false }));
