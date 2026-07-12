@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test-access": "tsx src/server/test-access-cli.ts",
+    "recovery-export": "tsx src/server/recovery-export.ts",
     "lint": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
