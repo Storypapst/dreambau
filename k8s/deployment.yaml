@@ -31,11 +31,20 @@ spec:
             - { name: TESTMAILS_PASSWORD_HASH_FILE, value: /run/secrets/auth/password-hash }
             - { name: TESTMAILS_SESSION_SECRET_FILE, value: /run/secrets/auth/session-secret }
             - { name: TEST_ACCESS_IDENTITIES_PATH, value: /run/secrets/test-access/machine-identities.json }
+            - { name: TEST_ACCESS_PROVIDER, value: infisical }
+            - { name: INFISICAL_BASE_URL, value: https://secrets.dreambau.com }
+            - { name: INFISICAL_ORGANIZATION_SLUG, value: dreambau-test-access }
+            - { name: INFISICAL_CLIENT_ID_FILE, value: /run/secrets/infisical/client-id }
+            - { name: INFISICAL_CLIENT_SECRET_FILE, value: /run/secrets/infisical/client-secret }
+            - { name: TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID, value: 2808af88-2c60-4023-8754-98665192cfdf }
+            - { name: TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID, value: cacf81e9-4d84-4352-99b8-4e3eb40bf338 }
+            - { name: TEST_ACCESS_INFISICAL_DREAMBAU_PROJECT_ID, value: a7620a55-2f67-4bc1-9526-4efda230b247 }
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: accounts, mountPath: /run/secrets/testmails, readOnly: true }
             - { name: auth, mountPath: /run/secrets/auth, readOnly: true }
             - { name: test-access, mountPath: /run/secrets/test-access, readOnly: true }
+            - { name: infisical, mountPath: /run/secrets/infisical, readOnly: true }
             - { name: tmp, mountPath: /tmp }
           resources:
             requests: { cpu: 25m, memory: 96Mi }
@@ -61,5 +70,7 @@ spec:
           secret: { secretName: testmails-auth, defaultMode: 256 }
         - name: test-access
           secret: { secretName: test-access-identities, defaultMode: 256 }
+        - name: infisical
+          secret: { secretName: test-access-infisical, defaultMode: 256 }
         - name: tmp
           emptyDir: { sizeLimit: 32Mi }

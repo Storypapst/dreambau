@@ -40,6 +40,21 @@ Secret-System erzeugt. Tokenwerte werden einmalig im jeweiligen macOS Keychain
 oder CI-Secret gespeichert und nie in Repository, Markdown oder Shell-Literalen
 geschrieben.
 
+Die Registry selbst kann mit `TEST_ACCESS_PROVIDER=infisical` aus der
+self-hosted Instanz `https://secrets.dreambau.com` gelesen werden. Der Hub
+tauscht die gemounteten Universal-Auth-Dateien `client-id` und `client-secret`
+gegen ein kurzlebiges Access Token und liest ausschließlich `/records` aus den
+drei konfigurierten Projekt-IDs und den vier Umgebungen `local`, `pre-dev`,
+`dev` und `production-test`. Ungültige, doppelte oder zum Infisical-Pfad
+widersprüchliche Records stoppen den Import. Upstream-Antworten und
+Credentials erscheinen nicht in Fehlern.
+
+Das dedizierte Kubernetes Secret heißt `wcr/test-access-infisical`. Es wird
+direkt aus dem Secret-System beziehungsweise aus stdin erstellt und enthält
+nur `client-id` und `client-secret`; sein Wert wird nie in Git, Markdown oder
+einem Shell-Literal abgelegt. Die nicht geheimen Projekt-IDs stehen im
+Deployment-Manifest.
+
 Der portable Operator-Client liest den Token aus Keychain-Service
 `dreambau-test-access` und Account `TEST_ACCESS_IDENTITY`:
 

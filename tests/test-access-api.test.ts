@@ -9,6 +9,7 @@ import type { AccountRecord } from "../src/server/accounts.js";
 import { createDatabase } from "../src/server/db.js";
 import type { MachineIdentity } from "../src/server/machine-access.js";
 import type { TestMailReader } from "../src/server/test-mail.js";
+import type { RegistryProvider, TestAccessRecord } from "../src/server/infisical-provider.js";
 
 const orisoSecret = "fake-oriso-password-for-tests";
 const orimoSecret = "fake-orimo-password-for-tests";
@@ -67,6 +68,59 @@ function app(mailReader?: TestMailReader) {
 }
 
 describe("test access API v1", () => {
+  it("serves generalized pre-dev records through a provider without list-loading secrets into the response", async () => {
+    const record: TestAccessRecord = {
+      id: "oriso/pre-dev/test-consultant-001",
+      project: "oriso",
+      environment: "pre-dev",
+      kind: "app-user",
+      displayName: "Test Consultant 001",
+      username: "test-consultant-001",
+      email: "test-consultant-001@example.test",
+      roles: ["consultant"],
+      permissionsDescription: "PreDev consultant",
+      loginUrl: "https://pre-dev.example.test",
+      secret: "fake-predev-password",
+      responsiblePerson: "qa",
+      createdAt: "2026-07-12T00:00:00.000Z",
+      updatedAt: "2026-07-12T00:00:00.000Z",
+      expiresAt: null,
+      shared: true,
+      rotationStatus: "current",
+      documentationUrl: "https://docs.example.test/test-account"
+    };
+    const registryProvider: RegistryProvider = {
+      async list() { return [record]; },
+      async get(id) { return id === record.id ? record : null; }
+    };
+    const target = createApp({
+      passwordHash: "unused",
+      secureCookies: false,
+      loadAccounts: () => [],
+      registryProvider,
+      machineIdentities: [{
+        id: "codex-m4-oriso-predev",
+        tokenHash: hash(orisoToken),
+        projects: ["oriso"],
+        environments: ["pre-dev"],
+        expiresAt: "2099-01-01T00:00:00.000Z",
+        revokedAt: null
+      }]
+    });
+    const list = await request(target)
+      .get("/testmails/api/v1/accounts?project=oriso&environment=pre-dev")
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual([{ ...record, secret: undefined }].map(({ secret: _secret, totpSecret: _totp, ...publicRecord }) => publicRecord));
+    expect(JSON.stringify(list.body)).not.toContain(record.secret);
+
+    const secret = await request(target)
+      .get(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/secret`)
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(secret.status).toBe(200);
+    expect(secret.body).toEqual({ id: record.id, secret: record.secret });
+  });
+
   it("returns no metadata or secrets without a bearer token", async () => {
     const response = await request(app()).get("/testmails/api/v1/accounts");
     expect(response.status).toBe(401);

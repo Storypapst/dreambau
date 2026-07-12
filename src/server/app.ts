@@ -11,8 +11,9 @@ import { taxonomyKindSchema, taxonomyValuesSchema } from "./taxonomies.js";
 import { z } from "zod";
 import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
 import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
-import { createTestAccessRouter } from "./test-access.js";
+import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
+import { createInfisicalRegistryProvider, type RegistryProvider, type TestEnvironment, type TestProject } from "./infisical-provider.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -23,6 +24,7 @@ interface AppOptions {
   exportPath?: string | null;
   machineIdentities?: MachineIdentity[];
   mailReader?: TestMailReader;
+  registryProvider?: RegistryProvider;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -48,9 +50,21 @@ export function createApp(options: AppOptions = {}) {
   const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
   const regenerate = async () => { if (exportPath) await writeMarkdownAtomically(exportPath, markdown()); };
   void regenerate();
+  const environments: TestEnvironment[] = ["local", "pre-dev", "dev", "production-test"];
+  const runtimeRegistryProvider = () => {
+    if (config.registryProvider !== "infisical" || !config.infisical) return createAccountRegistryProvider(accountLoader, database);
+    const projects = Object.entries(config.infisical.projectIds) as Array<[TestProject, string]>;
+    return createInfisicalRegistryProvider({
+      baseUrl: config.infisical.baseUrl,
+      organizationSlug: config.infisical.organizationSlug,
+      clientId: config.infisical.clientId,
+      clientSecret: config.infisical.clientSecret,
+      sources: projects.flatMap(([project, projectId]) => environments.map((environment) => ({ project, projectId, environment })))
+    });
+  };
   api.use("/v1", createTestAccessRouter({
     identities: options.machineIdentities ?? loadMachineIdentities(config.machineIdentitiesPath),
-    loadAccounts: accountLoader,
+    registryProvider: options.registryProvider ?? runtimeRegistryProvider(),
     database,
     mailReader: options.mailReader ?? createJmapTestMailReader()
   }));
