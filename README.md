@@ -170,6 +170,23 @@ Die Aktivierung ist absichtlich unzulässig, solange der zweite öffentliche
 Empfänger fehlt. Ein Restore wird auf dem Ziel-Mac mit dessen lokalem
 Keychain-gesicherten privaten `age`-Schlüssel durchgeführt.
 
+### Kubernetes-Secrets at rest
+
+Der aktuelle Dreambau-K3s-Server muss vor dem Hub-Livegang noch von
+`Encryption Status: Disabled` auf verschlüsselte Secrets umgestellt werden.
+`ops/enable-k3s-secrets-encryption.sh` ist ohne Argument ausschließlich ein
+Status-/Dry-Run. `--apply` darf nur in einem freigegebenen Wartungsfenster
+ausgeführt werden: Das Script verlangt embedded etcd, erzeugt zuerst einen
+K3s-Snapshot, aktiviert die Encryption Configuration, startet K3s neu,
+verschlüsselt vorhandene Daten erneut und prüft den Endstatus. Bei unbekanntem
+Datastore verweigert es die Mutation.
+
+```bash
+sudo ops/enable-k3s-secrets-encryption.sh
+# nach Backup-/Wartungsfreigabe:
+sudo ops/enable-k3s-secrets-encryption.sh --apply
+```
+
 Vor Schemaänderungen die SQLite-Datei aus dem laufenden Pod sichern, ohne Account-Secrets zu exportieren:
 
 ```bash
