@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily encrypted Dreambau test-access recovery export
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=30m
+Unit=test-access-recovery-export.service
+
+[Install]
+WantedBy=timers.target

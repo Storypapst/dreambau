@@ -1,9 +1,9 @@
-import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import type { AccountRecord } from "./accounts.js";
-import { loadAccounts } from "./accounts.js";
+import { loadAccounts, parseAccounts } from "./accounts.js";
 
 function projectForDomain(domain: string) {
   if (domain === "oriso.org" || domain === "openresilience.cc") return "oriso" as const;
@@ -72,7 +72,8 @@ function main() {
   const accountsPath = process.env.TESTMAILS_ACCOUNTS_PATH ?? "/run/secrets/testmails/accounts.json";
   const output = process.env.TEST_ACCESS_RECOVERY_OUTPUT ?? "/var/backups/test-access/test-access.enc.json";
   const recipients = (process.env.TEST_ACCESS_AGE_RECIPIENTS ?? "").split(",");
-  writeEncryptedRecoveryExport({ accounts: loadAccounts(accountsPath), output, recipients });
+  const accounts = accountsPath === "-" ? parseAccounts(readFileSync(0, "utf8")) : loadAccounts(accountsPath);
+  writeEncryptedRecoveryExport({ accounts, output, recipients });
   process.stdout.write(`${output}\n`);
 }
 

@@ -143,6 +143,33 @@ aus.
 
 ## Backup und Wiederherstellung
 
+### Täglicher SOPS-Recovery-Export
+
+`ops/test-access-recovery-export.sh` liest `wcr/testmails-accounts` direkt über
+eine Pipe und schreibt ausschließlich die verschlüsselte Datei
+`/var/backups/test-access/test-access.enc.json`. Es wird keine temporäre
+Klartextdatei angelegt. Die systemd Unit und der persistente tägliche Timer
+liegen ebenfalls unter `ops/`.
+
+Vor der Aktivierung müssen auf dem Server in
+`/etc/dreambau/test-access-age-recipients` genau zwei unterschiedliche
+öffentliche `age1...`-Empfänger stehen, je einer pro Zeile. Private Schlüssel
+gehören ausschließlich in die jeweiligen macOS Keychains. Danach werden
+Script und Units als root installiert und erst nach einem erfolgreichen
+manuellen Probelauf aktiviert:
+
+```bash
+install -D -m 0700 ops/test-access-recovery-export.sh /usr/local/lib/dreambau/test-access-recovery-export.sh
+install -m 0644 ops/test-access-recovery-export.service ops/test-access-recovery-export.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl start test-access-recovery-export.service
+systemctl enable --now test-access-recovery-export.timer
+```
+
+Die Aktivierung ist absichtlich unzulässig, solange der zweite öffentliche
+Empfänger fehlt. Ein Restore wird auf dem Ziel-Mac mit dessen lokalem
+Keychain-gesicherten privaten `age`-Schlüssel durchgeführt.
+
 Vor Schemaänderungen die SQLite-Datei aus dem laufenden Pod sichern, ohne Account-Secrets zu exportieren:
 
 ```bash
