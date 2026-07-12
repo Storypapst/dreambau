@@ -12,6 +12,7 @@ import { authenticateWithPasskey } from "@/passkey-client";
 export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onAuthenticated: () => void }) {
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent) {
@@ -24,6 +25,12 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
     setBusy(true); setError("");
     try { await authenticateWithPasskey(email); onAuthenticated(); }
     catch { setError(locale === "de" ? "Passkey-Anmeldung fehlgeschlagen." : "Passkey sign-in failed."); }
+    finally { setBusy(false); }
+  }
+  async function recoveryLogin() {
+    setBusy(true); setError("");
+    try { await api("/auth/recovery", { method: "POST", body: JSON.stringify({ email, code: recoveryCode }) }); onAuthenticated(); }
+    catch { setError(locale === "de" ? "Recovery-Code ungültig oder bereits verwendet." : "Recovery code is invalid or already used."); }
     finally { setBusy(false); }
   }
   return <main className="grid min-h-screen place-items-center p-6">
@@ -48,6 +55,11 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
               <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={Boolean(error)} required />
             </Field>
             <Button type="submit" disabled={busy}>{busy ? (locale === "de" ? "Wird geprüft …" : "Checking …") : (locale === "de" ? "Anmelden" : "Sign in")}</Button>
+            <Field data-invalid={Boolean(error)}>
+              <FieldLabel htmlFor="recovery-code">Recovery-Code</FieldLabel>
+              <Input id="recovery-code" type="password" autoComplete="one-time-code" value={recoveryCode} onChange={(event) => setRecoveryCode(event.target.value)} />
+            </Field>
+            <Button type="button" variant="outline" onClick={recoveryLogin} disabled={busy || !email || !recoveryCode}>{locale === "de" ? "Recovery-Code verwenden" : "Use recovery code"}</Button>
           </FieldGroup>
         </form>
       </CardContent>

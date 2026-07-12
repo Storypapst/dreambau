@@ -37,7 +37,13 @@ keine beliebige Mitarbeiteridentität übernehmen.
   SQLite; ein nicht-null Signaturzähler muss monoton steigen.
 - Nach erfolgreicher Registrierung oder Anmeldung ersetzt eine
   benutzergebundene Passkey-Session die Bootstrap-Session.
-- Recovery-Codes werden ausschließlich gehasht und einmalig gespeichert.
+- Passwort-Bootstrap- und Recovery-Sessions dürfen keine Account-, Taxonomie-,
+  Usage- oder Exportdaten lesen. Sie dürfen ausschließlich einen Passkey für
+  die fest zugeordnete Person registrieren.
+- Nach der Registrierung werden zehn zufällige Recovery-Codes genau einmal im
+  Browser angezeigt. Serverseitig liegen ausschließlich SHA-256-Hashes; jeder
+  Code ist einmalig und wird nach Verwendung atomar verbraucht. Recovery führt
+  zwingend wieder zur Passkey-Registrierung.
 
 Die Server-Endpunkte liegen unter
 `/testmails/api/auth/passkeys/{registration,authentication}/{options,verify}`.

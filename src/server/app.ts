@@ -44,7 +44,7 @@ export function createApp(options: AppOptions = {}) {
   app.use(cookieParser());
   app.get("/testmails/health/live", (_req, res) => res.json({ status: "ok" }));
   const api = express.Router();
-  const { requireSession, sessions } = installAuth(
+  const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,
     options.sessionSecret ?? config.sessionSecret,
@@ -98,22 +98,22 @@ export function createApp(options: AppOptions = {}) {
     mailReader: options.mailReader ?? createJmapTestMailReader(),
     now: options.now
   }));
-  api.get("/accounts", requireSession, (_req, res, next) => { try { res.json(accountViews()); } catch (error) { next(error); } });
-  api.patch("/accounts/:email", requireSession, async (req, res) => {
+  api.get("/accounts", requireStrongSession, (_req, res, next) => { try { res.json(accountViews()); } catch (error) { next(error); } });
+  api.patch("/accounts/:email", requireStrongSession, async (req, res) => {
     const email = decodeURIComponent(String(req.params.email)); if (!accountLoader().some((account) => account.email === email)) return res.status(404).json({ error: "account_not_found" });
     try { const value = database.upsertMetadata(email, metadataPatchSchema.parse(req.body)); await regenerate(); res.json(value); } catch (error) { handleValidation(error, res); }
   });
-  api.post("/accounts/bulk-status", requireSession, async (req, res) => {
+  api.post("/accounts/bulk-status", requireStrongSession, async (req, res) => {
     try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
   });
-  api.get("/taxonomies", requireSession, (_req, res) => res.json(database.getTaxonomies()));
-  api.get("/machine-identities/usage", requireSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
-  api.put("/taxonomies/:kind", requireSession, async (req, res) => {
+  api.get("/taxonomies", requireStrongSession, (_req, res) => res.json(database.getTaxonomies()));
+  api.get("/machine-identities/usage", requireStrongSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
+  api.put("/taxonomies/:kind", requireStrongSession, async (req, res) => {
     try { const kind = taxonomyKindSchema.parse(String(req.params.kind)); const { values } = taxonomyValuesSchema.parse(req.body); const result = database.putTaxonomy(kind, values); await regenerate(); res.json(result); } catch (error) { handleValidation(error, res); }
   });
-  api.get("/export/markdown", requireSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(markdown()));
+  api.get("/export/markdown", requireStrongSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(markdown()));
   app.use("/testmails/api", api);
-  app.get("/testmails/testmails.md", requireSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(markdown()));
+  app.get("/testmails/testmails.md", requireStrongSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(markdown()));
 
   const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../client");
   app.use("/testmails", express.static(clientDir, { index: false }));

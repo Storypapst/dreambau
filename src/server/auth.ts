@@ -15,6 +15,13 @@ export function installAuth(router: Router, passwordHash: string, sessionSecret:
     res.locals.session = principal;
     next();
   };
+  const requireStrongSession = (req: Request, res: Response, next: NextFunction) => {
+    const principal = sessions.get(req.cookies?.[cookieName]);
+    if (!principal) return res.status(401).json({ error: "unauthorized" });
+    if (principal.method !== "passkey") return res.status(403).json({ error: "passkey_required" });
+    res.locals.session = principal;
+    next();
+  };
 
   router.post("/auth/login", async (req, res) => {
     const ip = req.ip ?? "unknown";
@@ -43,5 +50,5 @@ export function installAuth(router: Router, passwordHash: string, sessionSecret:
     const principal = sessions.get(req.cookies?.[cookieName]);
     res.json(principal ?? { authenticated: false });
   });
-  return { requireSession, sessions };
+  return { requireSession, requireStrongSession, sessions };
 }

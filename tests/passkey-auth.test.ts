@@ -79,4 +79,24 @@ describe("passkey authentication", () => {
     expect((await request(app).post("/testmails/api/auth/passkeys/authentication/verify").send(body)).status).toBe(400);
     passkeyStore.close();
   });
+
+  it("issues one-time recovery codes to a passkey session and recovery can only bootstrap a new passkey", async () => {
+    const { app, passkeyStore, user } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" } });
+    const generated = await agent.post("/testmails/api/auth/recovery-codes");
+    expect(generated.status).toBe(200);
+    expect(generated.body.codes).toHaveLength(10);
+    expect(generated.headers["cache-control"]).toBe("no-store");
+
+    const recovery = request.agent(app);
+    expect((await recovery.post("/testmails/api/auth/recovery").send({ email: user.email, code: generated.body.codes[0] })).status).toBe(200);
+    expect((await recovery.get("/testmails/api/accounts")).status).toBe(403);
+    expect((await recovery.post("/testmails/api/auth/passkeys/registration/options").send({})).status).toBe(200);
+    expect((await request(app).post("/testmails/api/auth/recovery").send({ email: user.email, code: generated.body.codes[0] })).status).toBe(401);
+    expect(JSON.stringify(passkeyStore.debugRecoveryCodes(user.id))).not.toContain(generated.body.codes[1]);
+    passkeyStore.close();
+  });
 });

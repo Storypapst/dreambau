@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { RequestHandler, Router } from "express";
 import {
   generateAuthenticationOptions,
@@ -150,5 +150,28 @@ export function installPasskeyAuth(router: Router, options: {
     } catch {
       res.status(400).json({ error: "verification_failed" });
     }
+  });
+
+  router.post("/auth/recovery-codes", options.requireSession, (req, res) => {
+    const principal = res.locals.session as SessionPrincipal;
+    if (principal.method !== "passkey" || !principal.userId) return res.status(403).json({ error: "passkey_required" });
+    const codes = Array.from({ length: 10 }, () => randomBytes(16).toString("base64url"));
+    const hashes = codes.map((code) => createHash("sha256").update(code).digest("hex"));
+    options.store.replaceRecoveryCodeHashes(principal.userId, hashes);
+    res.set("Cache-Control", "no-store");
+    res.json({ codes });
+  });
+
+  router.post("/auth/recovery", (req, res) => {
+    const parsed = z.object({ email: z.string().email(), code: z.string().min(20).max(64) }).safeParse(req.body);
+    if (!parsed.success) return res.status(401).json({ error: "invalid_recovery_code" });
+    const user = options.store.getUserByEmail(parsed.data.email.toLowerCase());
+    const hash = createHash("sha256").update(parsed.data.code).digest("hex");
+    if (!user || user.status !== "active" || !options.store.consumeRecoveryCodeHash(user.id, hash)) {
+      return res.status(401).json({ error: "invalid_recovery_code" });
+    }
+    options.sessions.destroy(req.cookies?.[cookieName]);
+    res.cookie(cookieName, options.sessions.create({ authenticated: true, method: "recovery", userId: user.id }), cookieOptions(options.secureCookies));
+    res.json({ authenticated: true, method: "recovery", userId: user.id });
   });
 }
