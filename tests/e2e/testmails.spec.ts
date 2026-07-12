@@ -94,6 +94,21 @@ test("domain filter and mobile cards are usable", async ({ page }, testInfo) => 
   if (testInfo.project.name === "mobile") await expect(page.locator('[data-slot="card"]')).toHaveCount(30);
 });
 
+test("intermediate card layout does not overflow the viewport", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "custom intermediate breakpoint");
+  await page.setViewportSize({ width: 720, height: 900 });
+  await login(page);
+  await page.getByPlaceholder("Name, E-Mail, Rolle, Thema, Projekt, Notiz …").fill("santas.little.helper@getme.global");
+  const card = page.locator('[data-slot="card"]').filter({ hasText: "Santas Little Helper" });
+  await expect(card).toHaveCount(1);
+  const geometry = await page.evaluate(() => ({ width: window.innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width);
+  const box = await card.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(geometry.width);
+});
+
 test("intermediate desktop controls stay inside their assignment cell", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "desktop breakpoint only");
   await page.setViewportSize({ width: 974, height: 900 });
