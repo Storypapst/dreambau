@@ -31,6 +31,9 @@ nie die Tokenwerte selbst.
   sechsstelligen OTP-Code samt Message-ID und Empfangszeit.
 - Production ist kein gültiger Machine-Identity-Scope.
 - Unangemeldete, abgelaufene oder widerrufene Tokens erhalten keine Metadaten.
+- Die geschützte Human-Session sieht unter
+  `GET /testmails/api/machine-identities/usage` ausschließlich Identity-ID und
+  letzten Nutzungszeitpunkt, niemals Token oder Token-Hash.
 
 Das Kubernetes Secret `wcr/test-access-identities` wird aus dem zentralen
 Secret-System erzeugt. Tokenwerte werden einmalig im jeweiligen macOS Keychain

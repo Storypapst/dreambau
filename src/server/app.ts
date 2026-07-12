@@ -63,6 +63,7 @@ export function createApp(options: AppOptions = {}) {
     try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
   });
   api.get("/taxonomies", requireSession, (_req, res) => res.json(database.getTaxonomies()));
+  api.get("/machine-identities/usage", requireSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
   api.put("/taxonomies/:kind", requireSession, async (req, res) => {
     try { const kind = taxonomyKindSchema.parse(String(req.params.kind)); const { values } = taxonomyValuesSchema.parse(req.body); const result = database.putTaxonomy(kind, values); await regenerate(); res.json(result); } catch (error) { handleValidation(error, res); }
   });

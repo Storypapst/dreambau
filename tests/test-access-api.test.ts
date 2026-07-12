@@ -156,4 +156,22 @@ describe("test access API v1", () => {
     expect(response.status).toBe(404);
     expect(called).toBe(false);
   });
+
+  it("records only the authenticated identity id as last-use metadata", async () => {
+    const database = createDatabase(path.join(mkdtempSync(path.join(tmpdir(), "test-access-usage-")), "test.sqlite"));
+    const target = createApp({
+      passwordHash: "unused",
+      secureCookies: false,
+      database,
+      loadAccounts: () => [account("spider.pig@oriso.org", orisoSecret)],
+      machineIdentities: [identity("codex-m4-oriso", orisoToken, "oriso")]
+    });
+    const response = await request(target)
+      .get("/testmails/api/v1/accounts")
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(response.status).toBe(200);
+    expect(database.getMachineIdentityUsage()[0]).toMatchObject({ identityId: "codex-m4-oriso" });
+    expect(JSON.stringify(database.getMachineIdentityUsage())).not.toContain(orisoToken);
+    database.close();
+  });
 });

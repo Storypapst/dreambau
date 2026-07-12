@@ -14,6 +14,8 @@ const seeds = {
 export interface RegistryDatabase {
   tableNames(): string[]; getMetadata(email: string): AccountMetadata; getAllMetadata(): AccountMetadata[];
   upsertMetadata(email: string, patch: MetadataPatch): AccountMetadata; bulkStatus(emails: string[], status: string): number;
+  recordMachineIdentityUse(identityId: string, usedAt?: string): void;
+  getMachineIdentityUsage(): Array<{ identityId: string; lastUsedAt: string }>;
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
 }
 
@@ -28,6 +30,10 @@ export function createDatabase(path: string): RegistryDatabase {
       fixture_quality TEXT NOT NULL DEFAULT 'empty', sample_file_count INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS taxonomy_values (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS machine_identity_usage (
+      identity_id TEXT PRIMARY KEY,
+      last_used_at TEXT NOT NULL
+    );
     CREATE UNIQUE INDEX IF NOT EXISTS taxonomy_kind_value ON taxonomy_values(kind, value);
   `);
   const metadataColumns = new Set((sqlite.prepare("PRAGMA table_info(account_metadata)").all() as Array<{ name: string }>).map((column) => column.name));
@@ -53,6 +59,11 @@ export function createDatabase(path: string): RegistryDatabase {
       return next;
     },
     bulkStatus(emails, status) { const parsed = metadataPatchSchema.pick({ lifecycleStatus: true }).parse({ lifecycleStatus: status }); const transaction = sqlite.transaction(() => { for (const email of [...new Set(emails)]) api.upsertMetadata(email, parsed); }); transaction(); return new Set(emails).size; },
+    recordMachineIdentityUse(identityId, usedAt = new Date().toISOString()) {
+      sqlite.prepare(`INSERT INTO machine_identity_usage(identity_id,last_used_at) VALUES(?,?)
+        ON CONFLICT(identity_id) DO UPDATE SET last_used_at=excluded.last_used_at`).run(identityId, usedAt);
+    },
+    getMachineIdentityUsage: () => (sqlite.prepare("SELECT identity_id,last_used_at FROM machine_identity_usage ORDER BY identity_id").all() as Array<{ identity_id: string; last_used_at: string }>).map((row) => ({ identityId: row.identity_id, lastUsedAt: row.last_used_at })),
     getTaxonomies() {
       const result: Taxonomies = { roles: [], topics: [], conversationTypes: [] };
       for (const row of sqlite.prepare("SELECT kind,value FROM taxonomy_values ORDER BY value COLLATE NOCASE").all() as any[]) result[row.kind as keyof Taxonomies].push(row.value);

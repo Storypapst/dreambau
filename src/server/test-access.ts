@@ -45,6 +45,7 @@ export function createTestAccessRouter(options: {
   router.use((req, res, next) => {
     const identity = authenticateMachineToken(bearerToken(req.header("authorization")), options.identities);
     if (!identity) return res.status(401).json({ error: "unauthorized" });
+    options.database.recordMachineIdentityUse(identity.id);
     res.locals.machineIdentity = identity;
     next();
   });
