@@ -12,6 +12,7 @@ export interface RuntimeConfig {
   accountsPath: string;
   databasePath: string;
   exportPath: string;
+  machineIdentitiesPath: string;
   secureCookies: boolean;
 }
 
@@ -22,6 +23,7 @@ export function loadConfig(): RuntimeConfig {
     accountsPath: process.env.TESTMAILS_ACCOUNTS_PATH ?? "/run/secrets/testmails/accounts.json",
     databasePath: process.env.TESTMAILS_DATABASE_PATH ?? "/data/testmails.sqlite",
     exportPath: process.env.TESTMAILS_EXPORT_PATH ?? "/data/export/testmails.md",
+    machineIdentitiesPath: process.env.TEST_ACCESS_IDENTITIES_PATH ?? "/run/secrets/test-access/machine-identities.json",
     secureCookies: process.env.NODE_ENV !== "test"
   };
 }

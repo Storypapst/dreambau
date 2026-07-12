@@ -13,6 +13,45 @@ ssh m4dreambau 'kubectl logs deployment/testmails -n wcr --tail=100'
 
 Secrets werden ausschließlich aus stdin erzeugt. Das Account-JSON kommt aus Keychain-Service `dreambau-test-mailbox`; der gemeinsame Login aus `dreambau-testmails-auth`. Private S/MIME-Identitäten bleiben im Service `dreambau-test-smime` und werden nie in die Anwendung kopiert.
 
+## Test Access API v1
+
+Maschinen greifen mit einzeln widerrufbaren Bearer-Tokens auf die read-only API
+unter `/testmails/api/v1` zu. Die Datei
+`/run/secrets/test-access/machine-identities.json` enthält ausschließlich
+SHA-256-Token-Hashes, Projekt-/Umgebungs-Scopes, Ablaufzeit und Widerrufszeit;
+nie die Tokenwerte selbst.
+
+- `GET /testmails/api/v1/accounts` liefert nur Metadaten im Token-Scope.
+- Filter: `project`, `environment`, `role`.
+- `GET /testmails/api/v1/accounts/:id/secret` liefert gezielt genau ein Secret
+  und setzt `Cache-Control: no-store`.
+- `GET /testmails/api/v1/accounts/:id/mail/latest?query=…` liest genau die
+  neueste passende Test-Mail über die von JMAP entdeckte Live-API.
+- `GET /testmails/api/v1/accounts/:id/otp?query=…` liefert nur einen passenden
+  sechsstelligen OTP-Code samt Message-ID und Empfangszeit.
+- Production ist kein gültiger Machine-Identity-Scope.
+- Unangemeldete, abgelaufene oder widerrufene Tokens erhalten keine Metadaten.
+
+Das Kubernetes Secret `wcr/test-access-identities` wird aus dem zentralen
+Secret-System erzeugt. Tokenwerte werden einmalig im jeweiligen macOS Keychain
+oder CI-Secret gespeichert und nie in Repository, Markdown oder Shell-Literalen
+geschrieben.
+
+Der portable Operator-Client liest den Token aus Keychain-Service
+`dreambau-test-access` und Account `TEST_ACCESS_IDENTITY`:
+
+```bash
+export TEST_ACCESS_IDENTITY=codex-m4-oriso
+npm run test-access -- list --project oriso --environment production-test
+npm run test-access -- get 'mailbox:spider.pig@oriso.org'
+npm run test-access -- otp 'mailbox:spider.pig@oriso.org' verification
+npm run test-access -- mail 'mailbox:spider.pig@oriso.org' verification
+```
+
+Der Token ist keine CLI-Option und erscheint deshalb nicht in Prozesslisten
+oder Shell-History. `get` und `otp` schreiben nur den ausdrücklich angeforderten
+Wert nach stdout; HTTP-Fehler geben keine Response-Bodies aus.
+
 ## Backup und Wiederherstellung
 
 Vor Schemaänderungen die SQLite-Datei aus dem laufenden Pod sichern, ohne Account-Secrets zu exportieren:

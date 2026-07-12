@@ -10,6 +10,9 @@ import { lifecycleStatuses, metadataPatchSchema } from "./metadata.js";
 import { taxonomyKindSchema, taxonomyValuesSchema } from "./taxonomies.js";
 import { z } from "zod";
 import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
+import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
+import { createTestAccessRouter } from "./test-access.js";
+import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -18,6 +21,8 @@ interface AppOptions {
   loadAccounts?: () => AccountRecord[];
   database?: RegistryDatabase;
   exportPath?: string | null;
+  machineIdentities?: MachineIdentity[];
+  mailReader?: TestMailReader;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -43,6 +48,12 @@ export function createApp(options: AppOptions = {}) {
   const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
   const regenerate = async () => { if (exportPath) await writeMarkdownAtomically(exportPath, markdown()); };
   void regenerate();
+  api.use("/v1", createTestAccessRouter({
+    identities: options.machineIdentities ?? loadMachineIdentities(config.machineIdentitiesPath),
+    loadAccounts: accountLoader,
+    database,
+    mailReader: options.mailReader ?? createJmapTestMailReader()
+  }));
   api.get("/accounts", requireSession, (_req, res, next) => { try { res.json(accountViews()); } catch (error) { next(error); } });
   api.patch("/accounts/:email", requireSession, async (req, res) => {
     const email = decodeURIComponent(String(req.params.email)); if (!accountLoader().some((account) => account.email === email)) return res.status(404).json({ error: "account_not_found" });

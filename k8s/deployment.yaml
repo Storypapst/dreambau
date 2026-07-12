@@ -30,10 +30,12 @@ spec:
             - { name: NODE_ENV, value: production }
             - { name: TESTMAILS_PASSWORD_HASH_FILE, value: /run/secrets/auth/password-hash }
             - { name: TESTMAILS_SESSION_SECRET_FILE, value: /run/secrets/auth/session-secret }
+            - { name: TEST_ACCESS_IDENTITIES_PATH, value: /run/secrets/test-access/machine-identities.json }
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: accounts, mountPath: /run/secrets/testmails, readOnly: true }
             - { name: auth, mountPath: /run/secrets/auth, readOnly: true }
+            - { name: test-access, mountPath: /run/secrets/test-access, readOnly: true }
             - { name: tmp, mountPath: /tmp }
           resources:
             requests: { cpu: 25m, memory: 96Mi }
@@ -57,5 +59,7 @@ spec:
           secret: { secretName: testmails-accounts, defaultMode: 256 }
         - name: auth
           secret: { secretName: testmails-auth, defaultMode: 256 }
+        - name: test-access
+          secret: { secretName: test-access-identities, defaultMode: 256 }
         - name: tmp
           emptyDir: { sizeLimit: 32Mi }

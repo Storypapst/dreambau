@@ -1,0 +1,65 @@
+import { describe, expect, it, vi } from "vitest";
+import { buildApiRequest, runTestAccessCli } from "../src/server/test-access-cli.js";
+
+describe("test-access CLI", () => {
+  it("builds list, get, OTP and mail URLs without embedding a token", () => {
+    const baseUrl = "https://dreambau.com/testmails/api/v1";
+    expect(buildApiRequest(["list", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({
+      path: "/accounts?project=oriso&environment=pre-dev",
+      output: "json"
+    });
+    expect(buildApiRequest(["get", "mailbox:test@example.test"], baseUrl)).toEqual({
+      path: "/accounts/mailbox%3Atest%40example.test/secret",
+      output: "secret"
+    });
+    expect(buildApiRequest(["otp", "mailbox:test@example.test", "verification"], baseUrl)).toEqual({
+      path: "/accounts/mailbox%3Atest%40example.test/otp?query=verification",
+      output: "otp"
+    });
+    expect(buildApiRequest(["mail", "mailbox:test@example.test"], baseUrl)).toEqual({
+      path: "/accounts/mailbox%3Atest%40example.test/mail/latest",
+      output: "json"
+    });
+  });
+
+  it("loads the bearer token from Keychain and prints only the requested secret", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      expect(init.headers).toEqual({ authorization: "Bearer keychain-token" });
+      return new Response(JSON.stringify({ id: "mailbox:test@example.test", secret: "target-secret" }), { status: 200 });
+    });
+    const output: string[] = [];
+    const result = await runTestAccessCli(
+      ["get", "mailbox:test@example.test"],
+      {
+        baseUrl: "https://dreambau.com/testmails/api/v1",
+        identity: "codex-m4-oriso",
+        readKeychainToken: () => "keychain-token",
+        fetch: fetchMock as unknown as typeof fetch,
+        write: (value) => output.push(value)
+      }
+    );
+    expect(result).toBe(0);
+    expect(output).toEqual(["target-secret\n"]);
+    expect(output.join("")).not.toContain("keychain-token");
+  });
+
+  it("does not print response bodies on authorization errors", async () => {
+    const output: string[] = [];
+    const errors: string[] = [];
+    const result = await runTestAccessCli(
+      ["list", "--project", "oriso"],
+      {
+        baseUrl: "https://dreambau.com/testmails/api/v1",
+        identity: "codex-m4-oriso",
+        readKeychainToken: () => "keychain-token",
+        fetch: vi.fn(async () => new Response(JSON.stringify({ error: "unauthorized", debug: "do-not-print" }), { status: 401 })) as unknown as typeof fetch,
+        write: (value) => output.push(value),
+        writeError: (value) => errors.push(value)
+      }
+    );
+    expect(result).toBe(1);
+    expect(output).toEqual([]);
+    expect(errors.join("")).toContain("HTTP 401");
+    expect(errors.join("")).not.toContain("do-not-print");
+  });
+});
