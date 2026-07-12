@@ -51,6 +51,12 @@ drei konfigurierten Projekt-IDs und den vier Umgebungen `local`, `pre-dev`,
 widersprüchliche Records stoppen den Import. Upstream-Antworten und
 Credentials erscheinen nicht in Fehlern.
 
+`/testmails/health/live` prüft nur den Prozess. Der Readiness-Endpunkt
+`/testmails/health/ready` authentifiziert den Provider und prüft einen
+konfigurierten `/records`-Pfad mit `viewSecretValue=false`; bei einem Fehler
+antwortet er ausschließlich mit `503 {"status":"unavailable"}` und gibt keine
+Upstream- oder Secret-Details aus.
+
 Das dedizierte Kubernetes Secret heißt `wcr/test-access-infisical`. Es wird
 direkt aus dem Secret-System beziehungsweise aus stdin erstellt und enthält
 nur `client-id` und `client-secret`; sein Wert wird nie in Git, Markdown oder

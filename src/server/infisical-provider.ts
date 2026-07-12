@@ -34,6 +34,7 @@ export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Res
 export interface RegistryProvider {
   list(): Promise<TestAccessRecord[]>;
   get(id: string): Promise<TestAccessRecord | null>;
+  health?(): Promise<void>;
 }
 
 interface Source {
@@ -79,6 +80,7 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
   const now = options.now ?? Date.now;
   let cachedToken: { value: string; expiresAt: number } | null = null;
   let pendingToken: Promise<string> | null = null;
+  if (options.sources.length === 0) throw new Error("At least one Infisical source is required");
 
   async function authenticate() {
     const response = await fetch(`${baseUrl}/api/v1/auth/universal-auth/login`, {
@@ -154,6 +156,21 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
     list,
     async get(id) {
       return (await list()).find((record) => record.id === id) ?? null;
+    },
+    async health() {
+      const source = options.sources[0];
+      const url = new URL("/api/v4/secrets", baseUrl);
+      url.search = new URLSearchParams({
+        projectId: source.projectId,
+        environment: source.environment,
+        secretPath: "/records",
+        recursive: "false",
+        viewSecretValue: "false",
+        expandSecretReferences: "false",
+        includePersonalOverrides: "false"
+      }).toString();
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
+      if (!response.ok) throw new Error("Infisical readiness check failed");
     }
   };
 }

@@ -204,6 +204,7 @@ export function createAccountRegistryProvider(loadAccounts: () => AccountRecord[
   });
   return {
     async list() { return records(); },
-    async get(id) { return records().find((record) => record.id === id) ?? null; }
+    async get(id) { return records().find((record) => record.id === id) ?? null; },
+    async health() { void records(); }
   };
 }

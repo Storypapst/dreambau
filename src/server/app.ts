@@ -36,7 +36,6 @@ export function createApp(options: AppOptions = {}) {
   app.use(express.json({ limit: "64kb" }));
   app.use(cookieParser());
   app.get("/testmails/health/live", (_req, res) => res.json({ status: "ok" }));
-  app.get("/testmails/health/ready", (_req, res) => res.json({ status: "ok" }));
   const api = express.Router();
   const { requireSession } = installAuth(
     api,
@@ -63,9 +62,19 @@ export function createApp(options: AppOptions = {}) {
       sources: projects.flatMap(([project, projectId]) => environments.map((environment) => ({ project, projectId, environment })))
     });
   };
+  const registryProvider = options.registryProvider ?? runtimeRegistryProvider();
+  app.get("/testmails/health/ready", async (_req, res) => {
+    try {
+      if (registryProvider.health) await registryProvider.health();
+      else await registryProvider.list();
+      res.json({ status: "ok" });
+    } catch {
+      res.status(503).json({ status: "unavailable" });
+    }
+  });
   api.use("/v1", createTestAccessRouter({
     identities: options.machineIdentities ?? loadMachineIdentities(config.machineIdentitiesPath),
-    registryProvider: options.registryProvider ?? runtimeRegistryProvider(),
+    registryProvider,
     database,
     mailReader: options.mailReader ?? createJmapTestMailReader(),
     now: options.now

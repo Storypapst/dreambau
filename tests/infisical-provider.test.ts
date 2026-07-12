@@ -139,4 +139,24 @@ describe("Infisical registry provider", () => {
     expect(String(error)).not.toContain(clientSecret);
     expect(String(error)).not.toContain("upstream leaked");
   });
+
+  it("checks readiness without requesting secret values", async () => {
+    const urls: string[] = [];
+    const fetch: FetchLike = async (input) => {
+      const url = String(input);
+      urls.push(url);
+      return url.includes("/login")
+        ? Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" })
+        : Response.json({ secrets: [], imports: [] });
+    };
+    const provider = createInfisicalRegistryProvider({
+      baseUrl: "https://secrets.dreambau.com", organizationSlug: "dreambau-test-access",
+      clientId: "hub-service", clientSecret,
+      sources: [{ project: "oriso", projectId: "project-oriso", environment: "pre-dev" }], fetch
+    });
+    await expect(provider.health?.()).resolves.toBeUndefined();
+    const healthUrl = new URL(urls[1]);
+    expect(healthUrl.searchParams.get("viewSecretValue")).toBe("false");
+    expect(healthUrl.searchParams.get("recursive")).toBe("false");
+  });
 });
