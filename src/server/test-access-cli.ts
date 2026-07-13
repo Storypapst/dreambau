@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { serializeDotenv } from "./seed-profile.js";
 
@@ -104,4 +105,7 @@ async function main() {
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) void main();
+if (
+  process.argv[1]
+  && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])
+) void main();
