@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test-access": "tsx src/server/test-access-cli.ts",
+    "smoke:live": "tsx src/server/live-smoke-cli.ts",
     "recovery-export": "tsx src/server/recovery-export.ts",
     "infisical-import": "tsx src/server/infisical-import-cli.ts",
     "lint": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"

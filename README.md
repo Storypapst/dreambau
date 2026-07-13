@@ -96,6 +96,12 @@ konfigurierten `/records`-Pfad mit `viewSecretValue=false`; bei einem Fehler
 antwortet er ausschließlich mit `503 {"status":"unavailable"}` und gibt keine
 Upstream- oder Secret-Details aus.
 
+Nach einem Deployment prüft `npm run smoke:live` die echten öffentlichen
+Grenzen: JSON-Liveness, JSON-Readiness, die geschützte v1-API und den
+Stalwart-JMAP-Endpunkt. Ein SPA-Fallback mit HTTP 200 gilt ausdrücklich als
+Fehler. Der Smoke-Test liest weder Accounts noch Mails und benötigt kein
+Secret.
+
 Das dedizierte Kubernetes Secret heißt `wcr/test-access-infisical`. Es wird
 direkt aus dem Secret-System beziehungsweise aus stdin erstellt und enthält
 nur `client-id` und `client-secret`; sein Wert wird nie in Git, Markdown oder
