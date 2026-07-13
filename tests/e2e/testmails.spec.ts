@@ -15,6 +15,9 @@ async function login(page: import("@playwright/test").Page) {
 test("unauthenticated surfaces contain no credentials", async ({ page, request }) => {
   await page.goto("/testmails/");
   await expect(page.getByText("Testkonten öffnen")).toBeVisible();
+  await expect(page.getByText("Ersteinrichtung auf diesem System")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ersteinrichtung starten" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mit Passkey anmelden" })).toHaveCount(0);
   await expect(page.getByText("@dreambau.com")).toHaveCount(0);
   expect((await request.get("/testmails/api/accounts")).status()).toBe(401);
   expect((await request.get("/testmails/testmails.md")).status()).toBe(401);
