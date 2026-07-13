@@ -40,5 +40,6 @@ npm test
 npm run build
 ```
 
-Run live E2E only with credentials sourced from the operator Keychain. Never
-place secret values in command literals, files, logs or chat.
+Run live E2E only with credentials sourced from the operator Keychain. In
+particular, resolve `TESTMAILS_E2E_PASSWORD` at runtime rather than placing its
+value in a command literal, file, log or chat.
