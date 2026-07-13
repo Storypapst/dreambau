@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { t, type Locale } from "@/i18n";
-import { rememberedLoginEmail } from "@/login-hint";
+import { rememberLoginEmail, rememberedLoginEmail } from "@/login-hint";
 import { authenticateWithPasskey } from "@/passkey-client";
 
 export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onAuthenticated: () => void }) {
@@ -26,7 +26,7 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   }
   async function passkeyLogin() {
     setBusy(true); setError("");
-    try { await authenticateWithPasskey(email); onAuthenticated(); }
+    try { await authenticateWithPasskey(email); rememberLoginEmail(email); onAuthenticated(); }
     catch { setError(locale === "de" ? "Passkey-Anmeldung fehlgeschlagen." : "Passkey sign-in failed."); }
     finally { setBusy(false); }
   }

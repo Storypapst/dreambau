@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/api";
+import { authenticateWithPasskey } from "@/passkey-client";
 import { LoginForm } from "../src/client/components/login-form.js";
 
 vi.mock("@/api", () => ({ api: vi.fn() }));
@@ -19,6 +20,7 @@ describe("LoginForm passkey onboarding", () => {
     document.body.append(container);
     root = createRoot(container);
     vi.mocked(api).mockReset();
+    vi.mocked(authenticateWithPasskey).mockReset();
   });
 
   afterEach(async () => {
@@ -62,6 +64,20 @@ describe("LoginForm passkey onboarding", () => {
     await renderWithBootstrapStatus({ enabled: false });
 
     expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe("frank@dreambau.com");
+  });
+
+  it("remembers the email after a successful passkey login", async () => {
+    vi.mocked(authenticateWithPasskey).mockResolvedValue({ verified: true });
+    await renderWithBootstrapStatus({ enabled: false });
+    const email = container.querySelector('input[type="email"]') as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(email, "frank@dreambau.com");
+      email.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const button = Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.includes("Mit Passkey anmelden"));
+    await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(localStorage.getItem("testmails-login-email")).toBe("frank@dreambau.com");
   });
 
   it("fails closed when bootstrap status cannot be loaded", async () => {
