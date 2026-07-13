@@ -59,13 +59,22 @@ export async function importTestAccessRecords(options: ImportOptions) {
       expandSecretReferences: "false"
     }).toString();
     const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error("Infisical import preflight failed");
     let existing: Set<string>;
+    if (!response.ok) {
+      if (response.status !== 404) throw new Error("Infisical import preflight failed");
+      try {
+        z.object({ error: z.literal("SecretPathNotFound") }).passthrough().parse(await response.json());
+        existing = new Set();
+      } catch {
+        throw new Error("Infisical import preflight failed");
+      }
+    } else {
     try {
       const parsed = z.object({ secrets: z.array(z.object({ secretKey: z.string() }).passthrough()) }).passthrough().parse(await response.json());
       existing = new Set(parsed.secrets.map((secret) => secret.secretKey));
     } catch {
       throw new Error("Infisical import preflight returned an invalid response");
+    }
     }
     if (batch.records.some((record) => existing.has(secretNameForRecord(record.id)))) {
       throw new Error("A test access record already exists; import will not overwrite it");

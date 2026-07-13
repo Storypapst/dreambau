@@ -41,6 +41,43 @@ describe("Infisical record import", () => {
     expect(body.secrets[0]).toMatchObject({ skipMultilineEncoding: true, secretComment: "Managed by Dreambau Test Access Hub import" });
   });
 
+  it("bootstraps the first import when the empty /records path does not exist yet", async () => {
+    let writes = 0;
+    const fetch: ImportFetch = async (_input, init) => {
+      if (!init?.method || init.method === "GET") {
+        return Response.json({ error: "SecretPathNotFound" }, { status: 404 });
+      }
+      writes += 1;
+      return Response.json({ secrets: [] });
+    };
+
+    await expect(importTestAccessRecords({
+      baseUrl: "https://secrets.dreambau.com",
+      accessToken: "short-lived-admin-token",
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      records: [record("oriso/pre-dev/first")],
+      fetch,
+    })).resolves.toEqual({ imported: 1, batches: 1 });
+    expect(writes).toBe(1);
+  });
+
+  it("keeps unrelated 404 responses as hard preflight failures", async () => {
+    let writes = 0;
+    const fetch: ImportFetch = async (_input, init) => {
+      if (init?.method === "POST") writes += 1;
+      return Response.json({ error: "ProjectNotFound" }, { status: 404 });
+    };
+
+    await expect(importTestAccessRecords({
+      baseUrl: "https://secrets.dreambau.com",
+      accessToken: "short-lived-admin-token",
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      records: [record("oriso/pre-dev/blocked")],
+      fetch,
+    })).rejects.toThrow("Infisical import preflight failed");
+    expect(writes).toBe(0);
+  });
+
   it("blocks existing keys before any write and never leaks secrets in the error", async () => {
     const target = record("oriso/pre-dev/existing");
     let writes = 0;
