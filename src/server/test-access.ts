@@ -38,7 +38,7 @@ function bearerToken(header: string | undefined) {
 }
 
 export function createTestAccessRouter(options: {
-  identities: MachineIdentity[];
+  identities: MachineIdentity[] | (() => MachineIdentity[]);
   registryProvider: RegistryProvider;
   database: RegistryDatabase;
   mailReader: TestMailReader;
@@ -47,7 +47,8 @@ export function createTestAccessRouter(options: {
   const router = express.Router();
 
   router.use((req, res, next) => {
-    const identity = authenticateMachineToken(bearerToken(req.header("authorization")), options.identities);
+    const identities = typeof options.identities === "function" ? options.identities() : options.identities;
+    const identity = authenticateMachineToken(bearerToken(req.header("authorization")), identities);
     if (!identity) return res.status(401).json({ error: "unauthorized" });
     options.database.recordMachineIdentityUse(identity.id);
     res.locals.machineIdentity = identity;

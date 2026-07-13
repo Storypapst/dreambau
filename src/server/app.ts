@@ -26,6 +26,7 @@ interface AppOptions {
   database?: RegistryDatabase;
   exportPath?: string | null;
   machineIdentities?: MachineIdentity[];
+  machineIdentityLoader?: () => MachineIdentity[];
   mailReader?: TestMailReader;
   registryProvider?: RegistryProvider;
   now?: () => Date;
@@ -112,7 +113,8 @@ export function createApp(options: AppOptions = {}) {
     }
   });
   api.use("/v1", createTestAccessRouter({
-    identities: options.machineIdentities ?? loadMachineIdentities(config.machineIdentitiesPath),
+    identities: options.machineIdentityLoader
+      ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath)),
     registryProvider,
     database,
     mailReader: options.mailReader ?? createJmapTestMailReader(),

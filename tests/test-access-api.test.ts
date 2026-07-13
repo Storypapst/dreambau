@@ -195,6 +195,27 @@ describe("test access API v1", () => {
     expect(JSON.stringify(response.body)).not.toContain(orisoSecret);
   });
 
+  it("rejects a machine token immediately after its identity is revoked", async () => {
+    let identities = [identity("codex-m4-oriso", orisoToken, "oriso")];
+    const target = createApp({
+      passwordHash: "unused",
+      secureCookies: false,
+      loadAccounts: () => [account("spider.pig@oriso.org", orisoSecret)],
+      machineIdentityLoader: () => identities,
+    });
+
+    const before = await request(target)
+      .get("/testmails/api/v1/accounts")
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(before.status).toBe(200);
+
+    identities = [{ ...identities[0], revokedAt: "2026-07-13T04:00:00.000Z" }];
+    const after = await request(target)
+      .get("/testmails/api/v1/accounts")
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(after.status).toBe(401);
+  });
+
   it("lists only in-scope metadata and never list-loads passwords", async () => {
     const response = await request(app())
       .get("/testmails/api/v1/accounts?project=oriso&environment=production-test")
