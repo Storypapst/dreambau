@@ -141,6 +141,28 @@ npm run test-access -- mail 'mailbox:spider.pig@oriso.org' verification
 npm run test-access -- env 'oriso/pre-dev/e2e-default'
 ```
 
+### ORISO PreDev seed import
+
+`npm run oriso-seed-import` accepts the decrypted Keycloak seed-store shape
+only on stdin and converts it into scoped `app-user` and optional
+`seed-profile` records. The target must be `local`, `pre-dev` or `dev`;
+`production`, source/target environment mismatches and malformed seed profiles
+are rejected before the Infisical write boundary. Output contains record counts
+only. The short-lived Infisical write token is read from Keychain service
+`dreambau-infisical-import`, account `admin-session`.
+
+The live ORISO PreDev baseline consists of the stable account IDs
+`oriso/pre-dev/test-consultant-001`, `oriso/pre-dev/test-user-001` and
+`oriso/pre-dev/test-tenantadmin-001`, plus the reference-only seed profile
+`oriso/pre-dev/e2e-default`. The seed profile contains URLs and stable account
+or mailbox IDs, never passwords. Its current M4 machine identity is
+`codex-m4-oriso`, scoped only to ORISO `pre-dev` and `production-test`; `dev`
+and foreign projects return `403`.
+
+The companion M4 identity `codex-m4-orimo` is restricted to
+`orimo/production-test`. It sees the 30 ORIMO test mailboxes and receives `403`
+for ORISO and for `dev`.
+
 Der Token ist keine CLI-Option und erscheint deshalb nicht in Prozesslisten
 oder Shell-History. `get` und `otp` schreiben nur den ausdrücklich angeforderten
 Wert nach stdout; `env` sortiert erlaubte Variablennamen und setzt Werte in
