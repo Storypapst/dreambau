@@ -100,7 +100,8 @@ export function installPasskeyAuth(router: Router, options: {
       });
       options.sessions.destroy(req.cookies?.[cookieName]);
       res.cookie(cookieName, options.sessions.create({ authenticated: true, method: "passkey", userId: challenge.userId }), cookieOptions(options.secureCookies));
-      res.json({ verified: true });
+      const user = options.store.getUser(challenge.userId);
+      res.json({ verified: true, email: user?.email });
     } catch {
       res.status(400).json({ error: "verification_failed" });
     }

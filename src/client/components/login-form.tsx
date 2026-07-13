@@ -7,11 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { t, type Locale } from "@/i18n";
+import { rememberedLoginEmail } from "@/login-hint";
 import { authenticateWithPasskey } from "@/passkey-client";
 
 export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onAuthenticated: () => void }) {
   const [password, setPassword] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(rememberedLoginEmail);
   const [recoveryCode, setRecoveryCode] = useState("");
   const [bootstrapEnabled, setBootstrapEnabled] = useState<boolean | "error" | null>(null);
   const [error, setError] = useState("");

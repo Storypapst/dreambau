@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Locale } from "@/i18n";
+import { rememberLoginEmail } from "@/login-hint";
 import { api } from "@/api";
 
 export function PasskeyEnrollment({ locale, onComplete }: { locale: Locale; onComplete: () => void }) {
@@ -14,7 +15,8 @@ export function PasskeyEnrollment({ locale, onComplete }: { locale: Locale; onCo
   async function register() {
     setBusy(true); setError(false);
     try {
-      await registerBootstrapPasskey();
+      const registration = await registerBootstrapPasskey();
+      if (typeof registration?.email === "string") rememberLoginEmail(registration.email);
       const recovery = await api<{ codes: string[] }>("/auth/recovery-codes", { method: "POST" });
       setCodes(recovery.codes);
     }

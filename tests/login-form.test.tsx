@@ -14,6 +14,7 @@ describe("LoginForm passkey onboarding", () => {
   let root: Root;
 
   beforeEach(() => {
+    localStorage.clear();
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -54,6 +55,13 @@ describe("LoginForm passkey onboarding", () => {
     expect(container.textContent).toContain("Recovery-Code verwenden");
     expect(container.textContent).not.toContain("Ersteinrichtung starten");
     expect(container.querySelector('input[type="email"]')).not.toBeNull();
+  });
+
+  it("prefills the locally remembered passkey email", async () => {
+    localStorage.setItem("testmails-login-email", "frank@dreambau.com");
+    await renderWithBootstrapStatus({ enabled: false });
+
+    expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe("frank@dreambau.com");
   });
 
   it("fails closed when bootstrap status cannot be loaded", async () => {

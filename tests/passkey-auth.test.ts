@@ -70,7 +70,7 @@ describe("passkey authentication", () => {
       response: { id: "credential-id", response: { transports: ["internal"] } }
     });
     expect(verified.status).toBe(200);
-    expect(verified.body).toEqual({ verified: true });
+    expect(verified.body).toEqual({ verified: true, email: user.email });
     expect(passkeyStore.getCredential("credential-id")?.userId).toBe(user.id);
     expect((await agent.get("/testmails/api/auth/session")).body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
     await agent.post("/testmails/api/auth/logout");
