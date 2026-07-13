@@ -4,7 +4,7 @@ Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten ko
 
 ## Betrieb
 
-Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Image heißt `dreambau-testmails:0.4.7-login-hint` und verwendet Infisical als Registry-Provider.
+Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Image heißt `dreambau-testmails:0.4.8-infisical-recovery` und verwendet Infisical als Registry-Provider.
 
 ```bash
 ssh m4dreambau 'kubectl get pod,svc,ingress,pvc -n wcr -l app.kubernetes.io/name=testmails'
@@ -173,11 +173,13 @@ aus.
 
 ### Täglicher SOPS-Recovery-Export
 
-`ops/test-access-recovery-export.sh` liest `wcr/testmails-accounts` direkt über
-eine Pipe und schreibt ausschließlich die verschlüsselte Datei
-`/var/backups/test-access/test-access.enc.json`. Es wird keine temporäre
-Klartextdatei angelegt. Die systemd Unit und der persistente tägliche Timer
-liegen ebenfalls unter `ops/`.
+`ops/test-access-recovery-export.sh` liest die vollständige, schema-validierte
+Infisical-Registry über einen explizit freigeschalteten Read-only-Stream aus dem
+laufenden Hub-Pod und piped sie direkt in SOPS. Der Host schreibt ausschließlich
+die verschlüsselte Datei `/var/backups/test-access/test-access.enc.json`; es
+entsteht keine temporäre Klartextdatei. Duplikate und Production-Records stoppen
+den Export vor SOPS. Die systemd Unit und der persistente tägliche Timer liegen
+ebenfalls unter `ops/`.
 
 Vor der Aktivierung müssen auf dem Server in
 `/etc/dreambau/test-access-age-recipients` genau zwei unterschiedliche

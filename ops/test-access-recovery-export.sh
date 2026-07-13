@@ -1,5 +1,5 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 recipients_file=/etc/dreambau/test-access-age-recipients
 output=/var/backups/test-access/test-access.enc.json
@@ -12,9 +12,17 @@ recipients=$(awk 'NF { print $1 }' "$recipients_file" | sort -u)
 }
 
 install -d -m 0700 "$(dirname "$output")"
-kubectl get secret testmails-accounts -n wcr -o jsonpath='{.data.accounts\.json}' \
-  | base64 -d \
-  | TESTMAILS_ACCOUNTS_PATH=- \
-    TEST_ACCESS_AGE_RECIPIENTS="$(printf '%s' "$recipients" | paste -sd, -)" \
-    TEST_ACCESS_RECOVERY_OUTPUT="$output" \
-    node /root/testmails-app/dist/server/recovery-export.js
+temporary="$output.tmp.$$"
+trap 'rm -f "$temporary"' EXIT HUP INT TERM
+kubectl exec -n wcr deployment/testmails -- \
+  env TEST_ACCESS_RECOVERY_STREAM=1 node /app/dist/server/infisical-recovery-source.js \
+  | sops encrypt \
+      --age "$(printf '%s' "$recipients" | paste -sd, -)" \
+      --input-type json \
+      --output-type json \
+      /dev/stdin \
+      > "$temporary"
+test -s "$temporary"
+chmod 0600 "$temporary"
+mv "$temporary" "$output"
+trap - EXIT HUP INT TERM

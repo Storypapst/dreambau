@@ -4,12 +4,14 @@ import { describe, expect, it } from "vitest";
 const read = (name: string) => readFileSync(new URL(`../ops/${name}`, import.meta.url), "utf8");
 
 describe("recovery export systemd operation", () => {
-  it("pipes Kubernetes account data without a plaintext temporary file", () => {
+  it("pipes the complete Infisical registry into SOPS without a plaintext temporary file", () => {
     const script = read("test-access-recovery-export.sh");
-    expect(script).toContain("TESTMAILS_ACCOUNTS_PATH=-");
-    expect(script).toContain("kubectl get secret testmails-accounts");
-    expect(script).toContain("base64 -d");
-    expect(script).not.toMatch(/mktemp|accounts\.json >/);
+    expect(script).toContain("set -euo pipefail");
+    expect(script).toContain("TEST_ACCESS_RECOVERY_STREAM=1");
+    expect(script).toContain("infisical-recovery-source.js");
+    expect(script).toContain("sops encrypt");
+    expect(script).not.toContain("testmails-accounts");
+    expect(script).toContain("mv \"$temporary\" \"$output\"");
     expect(script).toContain("test-access-age-recipients");
   });
 
