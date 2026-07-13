@@ -159,4 +159,21 @@ describe("Infisical registry provider", () => {
     expect(healthUrl.searchParams.get("viewSecretValue")).toBe("false");
     expect(healthUrl.searchParams.get("recursive")).toBe("false");
   });
+
+  it("treats an unmaterialized records path as an empty healthy source", async () => {
+    const fetch: FetchLike = async (input) => String(input).includes("/login")
+      ? Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" })
+      : Response.json({ error: "SecretPathNotFound" }, { status: 404 });
+    const provider = createInfisicalRegistryProvider({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "hub-service",
+      clientSecret,
+      sources: [{ project: "oriso", projectId: "project-oriso", environment: "local" }],
+      fetch,
+    });
+
+    await expect(provider.list()).resolves.toEqual([]);
+    await expect(provider.health?.()).resolves.toBeUndefined();
+  });
 });

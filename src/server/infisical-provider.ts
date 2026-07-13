@@ -74,6 +74,16 @@ function normalizedBaseUrl(value: string) {
   return url.origin;
 }
 
+async function isMissingSecretPath(response: Response) {
+  if (response.status !== 404) return false;
+  try {
+    z.object({ error: z.literal("SecretPathNotFound") }).passthrough().parse(await response.json());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function createInfisicalRegistryProvider(options: InfisicalProviderOptions): RegistryProvider {
   const baseUrl = normalizedBaseUrl(options.baseUrl);
   const fetch = options.fetch ?? globalThis.fetch;
@@ -121,6 +131,7 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
       includePersonalOverrides: "false"
     }).toString();
     const response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
+    if (await isMissingSecretPath(response)) return [];
     if (!response.ok) throw new Error("Infisical secret lookup failed");
     let parsed: z.infer<typeof secretsResponseSchema>;
     try {
@@ -170,6 +181,7 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
         includePersonalOverrides: "false"
       }).toString();
       const response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
+      if (await isMissingSecretPath(response)) return;
       if (!response.ok) throw new Error("Infisical readiness check failed");
     }
   };
