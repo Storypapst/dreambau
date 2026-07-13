@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-const password = process.env.TESTMAILS_E2E_PASSWORD;
-if (!password) throw new Error("TESTMAILS_E2E_PASSWORD must come from the operator Keychain");
-
 async function login(page: import("@playwright/test").Page) {
+  const password = process.env.TESTMAILS_E2E_PASSWORD;
+  if (!password) throw new Error("TESTMAILS_E2E_PASSWORD must come from the operator Keychain");
   await page.goto("/testmails/");
   await page.evaluate(() => localStorage.setItem("testmails-locale", "de"));
   await page.reload();
-  await page.getByLabel("Gemeinsames Passwort").fill(password!);
+  await page.getByLabel("Gemeinsames Passwort").fill(password);
   await page.getByRole("button", { name: "Anmelden" }).click();
   await expect(page.getByRole("heading", { name: "Springfield Testkonten" })).toBeVisible();
 }
