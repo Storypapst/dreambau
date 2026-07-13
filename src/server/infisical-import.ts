@@ -46,6 +46,7 @@ export async function importTestAccessRecords(options: ImportOptions) {
   const fetch = options.fetch ?? globalThis.fetch;
   const batches = batchesFor(options.records);
   const headers = { Authorization: `Bearer ${options.accessToken}` };
+  const missingPaths = new Set<string>();
 
   for (const batch of batches) {
     const url = new URL("/api/v4/secrets", baseUrl.origin);
@@ -65,6 +66,7 @@ export async function importTestAccessRecords(options: ImportOptions) {
       try {
         z.object({ error: z.literal("SecretPathNotFound") }).passthrough().parse(await response.json());
         existing = new Set();
+        missingPaths.add(`${batch.project}:${batch.environment}`);
       } catch {
         throw new Error("Infisical import preflight failed");
       }
@@ -81,23 +83,58 @@ export async function importTestAccessRecords(options: ImportOptions) {
     }
   }
 
-  for (const batch of batches) {
-    const response = await fetch(new URL("/api/v4/secrets/batch", baseUrl.origin), {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectId: options.projectIds[batch.project],
-        environment: batch.environment,
-        secretPath: "/records",
-        secrets: batch.records.map((record) => ({
-          secretKey: secretNameForRecord(record.id),
-          secretValue: JSON.stringify(record),
-          secretComment: "Managed by Dreambau Test Access Hub import",
-          skipMultilineEncoding: true
-        }))
-      })
-    });
-    if (!response.ok) throw new Error("Infisical record import failed");
+  const created: Array<{ batch: Batch; record: TestAccessRecord }> = [];
+  try {
+    for (const batch of batches) {
+      if (missingPaths.has(`${batch.project}:${batch.environment}`)) {
+        const folderResponse = await fetch(new URL("/api/v2/folders", baseUrl.origin), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: options.projectIds[batch.project],
+            environment: batch.environment,
+            name: "records",
+            path: "/",
+            description: "Dreambau Test Access Hub records"
+          })
+        });
+        if (!folderResponse.ok) throw new Error("Infisical records folder creation failed");
+      }
+      for (const record of batch.records) {
+        const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(record.id)}`, baseUrl.origin), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: options.projectIds[batch.project],
+            environment: batch.environment,
+            secretPath: "/records",
+            secretValue: JSON.stringify(record),
+            secretComment: "Managed by Dreambau Test Access Hub import",
+            skipMultilineEncoding: true,
+            type: "shared"
+          })
+        });
+        if (!response.ok) throw new Error("Infisical record import failed");
+        created.push({ batch, record });
+      }
+    }
+  } catch (error) {
+    let rollbackIncomplete = false;
+    for (const { batch, record } of created.reverse()) {
+      const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(record.id)}`, baseUrl.origin), {
+        method: "DELETE",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: options.projectIds[batch.project],
+          environment: batch.environment,
+          secretPath: "/records",
+          type: "shared"
+        })
+      });
+      if (!response.ok) rollbackIncomplete = true;
+    }
+    if (rollbackIncomplete) throw new Error("Infisical record import failed and rollback is incomplete");
+    throw error;
   }
 
   return { imported: options.records.length, batches: batches.length };

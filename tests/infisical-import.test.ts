@@ -32,23 +32,26 @@ describe("Infisical record import", () => {
       baseUrl: "https://secrets.dreambau.com", accessToken: "short-lived-admin-token",
       projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" }, records, fetch
     })).resolves.toEqual({ imported: 3, batches: 2 });
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
     expect(calls.slice(0, 2).every((call) => new URL(call.url).searchParams.get("viewSecretValue") === "false")).toBe(true);
-    const batch = calls.find((call) => call.url.endsWith("/api/v4/secrets/batch"))!;
-    expect(new Headers(batch.init?.headers).get("Authorization")).toBe("Bearer short-lived-admin-token");
-    const body = JSON.parse(String(batch.init?.body));
+    const creates = calls.slice(2);
+    expect(creates.every((call) => call.url.includes("/api/v4/secrets/RECORD_"))).toBe(true);
+    expect(new Headers(creates[0].init?.headers).get("Authorization")).toBe("Bearer short-lived-admin-token");
+    const body = JSON.parse(String(creates[0].init?.body));
     expect(body).toMatchObject({ projectId: "project-oriso", secretPath: "/records" });
-    expect(body.secrets[0]).toMatchObject({ skipMultilineEncoding: true, secretComment: "Managed by Dreambau Test Access Hub import" });
+    expect(body).toMatchObject({ skipMultilineEncoding: true, secretComment: "Managed by Dreambau Test Access Hub import", type: "shared" });
   });
 
   it("bootstraps the first import when the empty /records path does not exist yet", async () => {
-    let writes = 0;
-    const fetch: ImportFetch = async (_input, init) => {
+    const writes: Array<{ url: string; body: unknown }> = [];
+    const fetch: ImportFetch = async (input, init) => {
       if (!init?.method || init.method === "GET") {
         return Response.json({ error: "SecretPathNotFound" }, { status: 404 });
       }
-      writes += 1;
-      return Response.json({ secrets: [] });
+      writes.push({ url: String(input), body: JSON.parse(String(init.body)) });
+      return String(input).endsWith("/api/v2/folders")
+        ? Response.json({ folder: { id: "folder-id" } })
+        : Response.json({ secret: { id: "secret-id" } });
     };
 
     await expect(importTestAccessRecords({
@@ -58,7 +61,15 @@ describe("Infisical record import", () => {
       records: [record("oriso/pre-dev/first")],
       fetch,
     })).resolves.toEqual({ imported: 1, batches: 1 });
-    expect(writes).toBe(1);
+    expect(writes).toHaveLength(2);
+    expect(writes[0]).toEqual({
+      url: "https://secrets.dreambau.com/api/v2/folders",
+      body: { projectId: "project-oriso", environment: "pre-dev", name: "records", path: "/", description: "Dreambau Test Access Hub records" },
+    });
+    expect(writes[1]).toMatchObject({
+      url: `https://secrets.dreambau.com/api/v4/secrets/${secretNameForRecord("oriso/pre-dev/first")}`,
+      body: { projectId: "project-oriso", environment: "pre-dev", secretPath: "/records", type: "shared" },
+    });
   });
 
   it("keeps unrelated 404 responses as hard preflight failures", async () => {
@@ -76,6 +87,38 @@ describe("Infisical record import", () => {
       fetch,
     })).rejects.toThrow("Infisical import preflight failed");
     expect(writes).toBe(0);
+  });
+
+  it("rolls back secrets created earlier in the same import when a later create fails", async () => {
+    const first = record("oriso/pre-dev/first-created");
+    const second = record("oriso/pre-dev/second-fails");
+    const calls: Array<{ url: string; method: string; body?: unknown }> = [];
+    let creates = 0;
+    const fetch: ImportFetch = async (input, init) => {
+      const method = init?.method ?? "GET";
+      calls.push({ url: String(input), method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (method === "GET") return Response.json({ secrets: [], imports: [] });
+      if (method === "DELETE") return Response.json({ secret: { id: "deleted" } });
+      creates += 1;
+      return creates === 1
+        ? Response.json({ secret: { id: "created" } })
+        : Response.json({ error: "write failed" }, { status: 500 });
+    };
+
+    await expect(importTestAccessRecords({
+      baseUrl: "https://secrets.dreambau.com",
+      accessToken: "short-lived-admin-token",
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      records: [first, second],
+      fetch,
+    })).rejects.toThrow("Infisical record import failed");
+
+    const deletes = calls.filter((call) => call.method === "DELETE");
+    expect(deletes).toEqual([{
+      url: `https://secrets.dreambau.com/api/v4/secrets/${secretNameForRecord(first.id)}`,
+      method: "DELETE",
+      body: { projectId: "project-oriso", environment: "pre-dev", secretPath: "/records", type: "shared" },
+    }]);
   });
 
   it("blocks existing keys before any write and never leaks secrets in the error", async () => {
