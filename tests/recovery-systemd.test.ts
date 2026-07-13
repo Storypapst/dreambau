@@ -18,10 +18,12 @@ describe("recovery export systemd operation", () => {
   it("uses a persistent daily timer and hardened one-shot service", () => {
     const service = read("test-access-recovery-export.service");
     const timer = read("test-access-recovery-export.timer");
+    const tmpfiles = read("test-access-recovery-export.tmpfiles");
     expect(service).toContain("Type=oneshot");
     expect(service).toContain("UMask=0077");
     expect(service).toContain("NoNewPrivileges=true");
     expect(timer).toContain("OnCalendar=daily");
     expect(timer).toContain("Persistent=true");
+    expect(tmpfiles.trim()).toBe("d /var/backups/test-access 0700 root root -");
   });
 });

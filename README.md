@@ -191,6 +191,8 @@ manuellen Probelauf aktiviert:
 ```bash
 install -D -m 0700 ops/test-access-recovery-export.sh /usr/local/lib/dreambau/test-access-recovery-export.sh
 install -m 0644 ops/test-access-recovery-export.service ops/test-access-recovery-export.timer /etc/systemd/system/
+install -m 0644 ops/test-access-recovery-export.tmpfiles /etc/tmpfiles.d/dreambau-test-access-recovery.conf
+systemd-tmpfiles --create /etc/tmpfiles.d/dreambau-test-access-recovery.conf
 systemctl daemon-reload
 systemctl start test-access-recovery-export.service
 systemctl enable --now test-access-recovery-export.timer
