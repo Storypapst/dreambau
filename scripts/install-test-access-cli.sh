@@ -39,7 +39,10 @@ if test -d "$data_dir/node_modules"; then
   runtime_backup="$data_dir/node_modules.backup.$(date +%Y%m%d-%H%M%S)"
   mv "$data_dir/node_modules" "$runtime_backup"
 fi
-mv "$runtime_temporary" "$data_dir/node_modules"
+if ! mv "$runtime_temporary" "$data_dir/node_modules"; then
+  if test -n "$runtime_backup"; then mv "$runtime_backup" "$data_dir/node_modules"; fi
+  exit 1
+fi
 if test -n "$runtime_backup"; then rm -rf "$runtime_backup"; fi
 
 printf '%s\n' \

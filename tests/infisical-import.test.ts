@@ -123,6 +123,7 @@ describe("Infisical record import", () => {
   it("continues rollback after an independent delete failure and reports unresolved cleanup", async () => {
     const records = [record("oriso/pre-dev/first"), record("oriso/pre-dev/second"), record("oriso/pre-dev/third")];
     const deleted: string[] = [];
+    const deleteSignals: AbortSignal[] = [];
     let creates = 0;
     const fetch: ImportFetch = async (input, init) => {
       const method = init?.method ?? "GET";
@@ -133,6 +134,7 @@ describe("Infisical record import", () => {
         return Response.json({ secret: { id: "created" } });
       }
       deleted.push(String(input));
+      if (init?.signal) deleteSignals.push(init.signal);
       if (deleted.length === 1) throw new Error("delete unavailable");
       return Response.json({ secret: { id: "deleted" } });
     };
@@ -141,7 +143,12 @@ describe("Infisical record import", () => {
       baseUrl: "https://secrets.dreambau.com", accessToken: "token",
       projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" }, records, fetch
     })).rejects.toThrow(/rollback is incomplete.*1 unresolved/i);
-    expect(deleted).toHaveLength(3);
+    expect(deleted).toEqual([
+      `https://secrets.dreambau.com/api/v4/secrets/${secretNameForRecord(records[2].id)}`,
+      `https://secrets.dreambau.com/api/v4/secrets/${secretNameForRecord(records[1].id)}`,
+      `https://secrets.dreambau.com/api/v4/secrets/${secretNameForRecord(records[0].id)}`
+    ]);
+    expect(deleteSignals).toHaveLength(3);
   });
 
   it("blocks existing keys before any write and never leaks secrets in the error", async () => {
