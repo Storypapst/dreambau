@@ -42,6 +42,18 @@ export interface CoordinationCatalog {
 
 export type RuntimeState = "healthy" | "degraded" | "offline" | "unavailable";
 
+export interface RuntimeMetricsView {
+  intakesTotal: number;
+  intakesBlocked: number;
+  issuesCreated: number;
+  repairsQueued: number;
+  repairsClaimed: number;
+  repairsCompleted: number;
+  repairsFailed: number;
+  artifactsCount: number;
+  retentionDays: number;
+}
+
 export interface RuntimeStatusView {
   id: string;
   name: string;
@@ -51,6 +63,7 @@ export interface RuntimeStatusView {
   checkedAt: string;
   latencyMs: number | null;
   url: string;
+  metrics?: RuntimeMetricsView;
 }
 
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;

@@ -9,7 +9,19 @@ interface RuntimeTarget {
   environment: "pre-dev" | "dev" | "platform";
   url: string;
   healthUrl?: string;
-  healthShape?: "status-ok" | "message-ok";
+  healthShape?: "status-ok" | "message-ok" | "kio-status";
+}
+
+export interface RuntimeMetrics {
+  intakesTotal: number;
+  intakesBlocked: number;
+  issuesCreated: number;
+  repairsQueued: number;
+  repairsClaimed: number;
+  repairsCompleted: number;
+  repairsFailed: number;
+  artifactsCount: number;
+  retentionDays: number;
 }
 
 export interface RuntimeStatus {
@@ -21,6 +33,7 @@ export interface RuntimeStatus {
   checkedAt: string;
   latencyMs: number | null;
   url: string;
+  metrics?: RuntimeMetrics;
 }
 
 export const runtimeTargets: readonly RuntimeTarget[] = [
@@ -57,8 +70,8 @@ export const runtimeTargets: readonly RuntimeTarget[] = [
     project: "dreambau",
     environment: "platform",
     url: "https://kio.dreambau.com",
-    healthUrl: "https://kio.dreambau.com/health/live",
-    healthShape: "status-ok"
+    healthUrl: "https://kio.dreambau.com/api/bug-intake/status",
+    healthShape: "kio-status"
   },
   {
     id: "understand-anything",
@@ -98,14 +111,41 @@ export async function loadRuntimeStatuses(
       const latencyMs = Math.max(0, clock() - startedAt);
       if (!response.ok) return { ...publicTarget(target), state: "degraded", checkedAt, latencyMs };
       const body = await response.json().catch(() => null) as Record<string, unknown> | null;
-      const recognized = target.healthShape === "message-ok"
-        ? body?.message === "Ok"
-        : body?.status === "ok";
+      if (target.healthShape === "kio-status") {
+        const metrics = kioMetrics(body);
+        const state = body?.state === "healthy" ? "healthy" : "degraded";
+        return { ...publicTarget(target), state, checkedAt, latencyMs, ...(metrics ? { metrics } : {}) };
+      }
+      const recognized = target.healthShape === "message-ok" ? body?.message === "Ok" : body?.status === "ok";
       return { ...publicTarget(target), state: recognized ? "healthy" : "degraded", checkedAt, latencyMs };
     } catch {
       return { ...publicTarget(target), state: "offline", checkedAt, latencyMs: null };
     }
   }));
+}
+
+function kioMetrics(body: Record<string, unknown> | null): RuntimeMetrics | null {
+  if (!body || !isRecord(body.intakes) || !isRecord(body.repairs) || !isRecord(body.artifacts)) return null;
+  const values = {
+    intakesTotal: body.intakes.total,
+    intakesBlocked: body.intakes.blocked,
+    issuesCreated: body.intakes.issues_created,
+    repairsQueued: body.repairs.queued,
+    repairsClaimed: body.repairs.claimed,
+    repairsCompleted: body.repairs.completed,
+    repairsFailed: body.repairs.failed,
+    artifactsCount: body.artifacts.count,
+    retentionDays: body.artifacts.retention_days
+  };
+  return Object.values(values).every(isCount) ? values as RuntimeMetrics : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCount(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
 function publicTarget(target: RuntimeTarget) {

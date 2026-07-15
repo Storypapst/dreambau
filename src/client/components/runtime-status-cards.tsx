@@ -34,10 +34,21 @@ export function RuntimeStatusCards({ locale, initialStatuses }: { locale: Locale
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="runtime-status-heading" className="text-2xl font-semibold">{locale === "de" ? "Live-Systeme" : "Live systems"}</h2><p className="text-sm text-muted-foreground">{locale === "de" ? "Direkt geprüft – nicht aus einer Statusdatei kopiert." : "Probed directly, not copied from a status file."}</p></div><Button variant="outline" onClick={refresh} disabled={refreshing}><RefreshCwIcon data-icon="inline-start" />{locale === "de" ? "Neu prüfen" : "Refresh"}</Button></div>
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{statuses.map((status) => <Card key={status.id}>
       <CardHeader><CardTitle className="flex items-center gap-2"><ActivityIcon />{status.name}</CardTitle><CardDescription>{status.project.toUpperCase()} · {status.environment}</CardDescription><CardAction><StateBadge state={status.state} locale={locale} /></CardAction></CardHeader>
-      <CardContent><p className="text-sm text-muted-foreground">{status.latencyMs === null ? (locale === "de" ? "Keine Antwortzeit verfügbar" : "No latency available") : `${status.latencyMs} ms`}</p></CardContent>
+      <CardContent className="space-y-3"><p className="text-sm text-muted-foreground">{status.latencyMs === null ? (locale === "de" ? "Keine Antwortzeit verfügbar" : "No latency available") : `${status.latencyMs} ms`}</p>{status.metrics && <dl className="grid grid-cols-2 gap-2 text-sm">
+        <Metric value={status.metrics.intakesBlocked} label={locale === "de" ? "blockiert" : "blocked"} />
+        <Metric value={status.metrics.repairsQueued} label={locale === "de" ? "in Warteschlange" : "queued"} />
+        <Metric value={status.metrics.repairsClaimed} label={locale === "de" ? "in Arbeit" : "in progress"} />
+        <Metric value={status.metrics.repairsCompleted} label={locale === "de" ? "abgeschlossen" : "completed"} />
+        <Metric value={status.metrics.retentionDays} label={locale === "de" ? "Tage Aufbewahrung" : "days retention"} />
+        <Metric value={status.metrics.artifactsCount} label={locale === "de" ? "Artefakte" : "artifacts"} />
+      </dl>}</CardContent>
       <CardFooter className="justify-between gap-3"><p className="text-xs text-muted-foreground">{new Date(status.checkedAt).toLocaleTimeString(locale === "de" ? "de-DE" : "en-GB")}</p><Button size="sm" variant="ghost" asChild><a href={status.url} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />{locale === "de" ? "Öffnen" : "Open"}</a></Button></CardFooter>
     </Card>)}</div>
   </section>;
+}
+
+function Metric({ value, label }: { value: number; label: string }) {
+  return <div className="rounded-md border bg-muted/30 px-2 py-1"><dt className="sr-only">{label}</dt><dd><strong>{value}</strong> {label}</dd></div>;
 }
 
 function StateBadge({ state, locale }: { state: RuntimeState; locale: Locale }) {
