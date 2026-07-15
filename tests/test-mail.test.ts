@@ -49,6 +49,11 @@ describe("JMAP test mail reader", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("https://box.dreambau.com/jmap/");
     const request = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
     expect(request.methodCalls[0][1]).toMatchObject({ filter: { text: "verification" }, limit: 1 });
+    const firstSignal = fetchMock.mock.calls[0][1]?.signal;
+    const secondSignal = fetchMock.mock.calls[1][1]?.signal;
+    expect(firstSignal).toBeInstanceOf(AbortSignal);
+    expect(secondSignal).toBeInstanceOf(AbortSignal);
+    expect(firstSignal).not.toBe(secondSignal);
   });
 
   it("extracts only a six-digit OTP with message provenance", async () => {

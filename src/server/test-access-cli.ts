@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 
 import { serializeDotenv } from "./seed-profile.js";
 import {
@@ -84,14 +85,24 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
       headers: { authorization: `Bearer ${token}` }
     });
     if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
-    const body = await response.json() as any;
-    if (request.output === "secret") dependencies.write(`${String(body.secret)}\n`);
-    else if (request.output === "otp") dependencies.write(`${String(body.code)}\n`);
-    else if (request.output === "env") dependencies.write(serializeDotenv(body.variables));
+    const body = await response.json() as unknown;
+    if (request.output === "secret") {
+      const { secret } = z.object({ secret: z.string() }).passthrough().parse(body);
+      dependencies.write(`${secret}\n`);
+    }
+    else if (request.output === "otp") {
+      const { code } = z.object({ code: z.string() }).passthrough().parse(body);
+      dependencies.write(`${code}\n`);
+    }
+    else if (request.output === "env") {
+      const { variables } = z.object({ variables: z.record(z.string(), z.string()) }).passthrough().parse(body);
+      dependencies.write(serializeDotenv(variables));
+    }
     else dependencies.write(`${JSON.stringify(body, null, 2)}\n`);
     return 0;
   } catch (error) {
-    writeError(`${error instanceof Error ? error.message : "Test Access CLI failed"}\n`);
+    const message = error instanceof z.ZodError ? "Test Access API returned an invalid response" : error instanceof Error ? error.message : "Test Access CLI failed";
+    writeError(`${message}\n`);
     return 1;
   }
 }

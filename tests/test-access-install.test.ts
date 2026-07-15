@@ -27,4 +27,12 @@ describe("portable test-access installer", () => {
     expect(invoked.stderr).toContain("TEST_ACCESS_IDENTITY");
     expect(bundle).not.toContain("/Users/frankgerhardt");
   });
+
+  it("removes only the previous runtime backup after a successful swap", () => {
+    const script = readFileSync(new URL("../scripts/install-test-access-cli.sh", import.meta.url), "utf8");
+    expect(script).toContain('runtime_backup="$data_dir/node_modules.backup.');
+    expect(script).toContain('mv "$data_dir/node_modules" "$runtime_backup"');
+    expect(script).toContain('mv "$runtime_temporary" "$data_dir/node_modules"');
+    expect(script).toContain('rm -rf "$runtime_backup"');
+  });
 });

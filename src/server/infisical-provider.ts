@@ -91,6 +91,7 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
   let cachedToken: { value: string; expiresAt: number } | null = null;
   let pendingToken: Promise<string> | null = null;
   if (options.sources.length === 0) throw new Error("At least one Infisical source is required");
+  const requestSignal = () => AbortSignal.timeout(15_000);
 
   async function authenticate() {
     const response = await fetch(`${baseUrl}/api/v1/auth/universal-auth/login`, {
@@ -100,7 +101,8 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
         clientId: options.clientId,
         clientSecret: options.clientSecret,
         organizationSlug: options.organizationSlug
-      })
+      }),
+      signal: requestSignal()
     });
     if (!response.ok) throw new Error("Infisical authentication failed");
     let parsed: z.infer<typeof authResponseSchema>;
@@ -130,7 +132,7 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
       expandSecretReferences: "false",
       includePersonalOverrides: "false"
     }).toString();
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` }, signal: requestSignal() });
     if (await isMissingSecretPath(response)) return [];
     if (!response.ok) throw new Error("Infisical secret lookup failed");
     let parsed: z.infer<typeof secretsResponseSchema>;
@@ -169,20 +171,21 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
       return (await list()).find((record) => record.id === id) ?? null;
     },
     async health() {
-      const source = options.sources[0];
-      const url = new URL("/api/v4/secrets", baseUrl);
-      url.search = new URLSearchParams({
-        projectId: source.projectId,
-        environment: source.environment,
-        secretPath: "/records",
-        recursive: "false",
-        viewSecretValue: "false",
-        expandSecretReferences: "false",
-        includePersonalOverrides: "false"
-      }).toString();
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
-      if (await isMissingSecretPath(response)) return;
-      if (!response.ok) throw new Error("Infisical readiness check failed");
+      for (const source of options.sources) {
+        const url = new URL("/api/v4/secrets", baseUrl);
+        url.search = new URLSearchParams({
+          projectId: source.projectId,
+          environment: source.environment,
+          secretPath: "/records",
+          recursive: "false",
+          viewSecretValue: "false",
+          expandSecretReferences: "false",
+          includePersonalOverrides: "false"
+        }).toString();
+        const response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` }, signal: requestSignal() });
+        if (await isMissingSecretPath(response)) continue;
+        if (!response.ok) throw new Error("Infisical readiness check failed");
+      }
     }
   };
 }

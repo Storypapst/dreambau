@@ -24,7 +24,7 @@ const defaultWebAuthn: WebAuthnAdapter = {
   verifyAuthenticationResponse
 };
 
-const flowSchema = z.object({ flowId: z.string().uuid(), response: z.object({ id: z.string().min(1) }).passthrough() });
+const flowSchema = z.object({ flowId: z.uuid(), response: z.object({ id: z.string().min(1) }).passthrough() });
 
 export function installPasskeyAuth(router: Router, options: {
   store: PasskeyStore;
@@ -76,7 +76,10 @@ export function installPasskeyAuth(router: Router, options: {
     const challenge = options.store.consumeChallenge(parsed.data.flowId, "registration", now());
     if (!challenge?.userId) return res.status(400).json({ error: "invalid_or_expired_challenge" });
     const principal = res.locals.session as SessionPrincipal;
-    if (principal.method !== "password-bootstrap" && principal.userId !== challenge.userId) {
+    const ownerId = principal.method === "password-bootstrap"
+      ? options.store.getUserByEmail(options.bootstrapUser.email)?.id
+      : principal.userId;
+    if (!ownerId || ownerId !== challenge.userId) {
       return res.status(403).json({ error: "scope_denied" });
     }
     try {
@@ -165,7 +168,7 @@ export function installPasskeyAuth(router: Router, options: {
   });
 
   router.post("/auth/recovery", (req, res) => {
-    const parsed = z.object({ email: z.string().email(), code: z.string().min(20).max(64) }).safeParse(req.body);
+    const parsed = z.object({ email: z.email(), code: z.string().min(20).max(64) }).safeParse(req.body);
     if (!parsed.success) return res.status(401).json({ error: "invalid_recovery_code" });
     const user = options.store.getUserByEmail(parsed.data.email.toLowerCase());
     const hash = createHash("sha256").update(parsed.data.code).digest("hex");
@@ -188,7 +191,7 @@ export function installPasskeyAuth(router: Router, options: {
   router.get("/auth/users", requireAdmin, (_req, res) => res.json(options.store.listUsers()));
   router.post("/auth/users", requireAdmin, (req, res) => {
     const parsed = z.object({
-      email: z.string().email(),
+      email: z.email(),
       name: z.string().min(1),
       projects: z.array(z.enum(["oriso", "orimo", "dreambau"])).min(1)
     }).safeParse(req.body);

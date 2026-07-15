@@ -15,6 +15,7 @@ temporary="$bundle.tmp.$$"
 wrapper="$bin_dir/test-access"
 wrapper_temporary="$wrapper.tmp.$$"
 runtime_temporary="$data_dir/node_modules.tmp.$$"
+runtime_backup=""
 trap 'rm -rf "$runtime_temporary"; rm -f "$temporary" "$wrapper_temporary"' EXIT HUP INT TERM
 
 "$esbuild" "$root_dir/src/server/test-access-cli.ts" \
@@ -35,9 +36,11 @@ cp -R "$root_dir/node_modules/@playwright/test" "$runtime_temporary/@playwright/
 cp -R "$root_dir/node_modules/playwright" "$runtime_temporary/playwright"
 cp -R "$root_dir/node_modules/playwright-core" "$runtime_temporary/playwright-core"
 if test -d "$data_dir/node_modules"; then
-  mv "$data_dir/node_modules" "$data_dir/node_modules.backup.$(date +%Y%m%d-%H%M%S)"
+  runtime_backup="$data_dir/node_modules.backup.$(date +%Y%m%d-%H%M%S)"
+  mv "$data_dir/node_modules" "$runtime_backup"
 fi
 mv "$runtime_temporary" "$data_dir/node_modules"
+if test -n "$runtime_backup"; then rm -rf "$runtime_backup"; fi
 
 printf '%s\n' \
   '#!/bin/sh' \

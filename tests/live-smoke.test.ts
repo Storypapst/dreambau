@@ -44,4 +44,14 @@ describe("live Test Access smoke gate", () => {
       "v1-auth-boundary returned text/html with status 200",
     );
   });
+
+  it("disables redirects for every boundary probe", async () => {
+    const fetchImpl = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      expect(init?.redirect).toBe("error");
+      return response(200, "application/json", { status: "ok" });
+    });
+
+    await expect(checkLiveTestAccess({ fetchImpl })).rejects.toThrow("v1-auth-boundary returned application/json with status 200");
+    expect(fetchImpl).toHaveBeenCalled();
+  });
 });

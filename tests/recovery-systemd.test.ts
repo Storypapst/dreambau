@@ -13,6 +13,8 @@ describe("recovery export systemd operation", () => {
     expect(script).not.toContain("testmails-accounts");
     expect(script).toContain("mv \"$temporary\" \"$output\"");
     expect(script).toContain("test-access-age-recipients");
+    expect(script).toContain("^age1[0-9a-z]{58}$");
+    expect(script).toContain("Exactly two distinct valid age recipients are required");
   });
 
   it("uses a persistent daily timer and hardened one-shot service", () => {

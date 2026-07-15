@@ -4,7 +4,7 @@ import { z } from "zod";
 
 const projectSchema = z.enum(["oriso", "orimo", "dreambau"]);
 const userInputSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().min(1),
   projects: z.array(projectSchema).min(1),
   role: z.enum(["admin", "member"]).default("member")
@@ -23,7 +23,7 @@ const challengeSchema = z.object({
   kind: z.enum(["registration", "authentication"]),
   challenge: z.string().min(1),
   userId: z.string().min(1).nullable(),
-  expiresAt: z.string().datetime()
+  expiresAt: z.iso.datetime()
 });
 
 export type HumanProject = z.infer<typeof projectSchema>;

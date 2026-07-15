@@ -1,9 +1,10 @@
 const LOGIN_EMAIL_KEY = "testmails-login-email";
 
 export function rememberedLoginEmail() {
-  return localStorage.getItem(LOGIN_EMAIL_KEY) ?? "";
+  return sessionStorage.getItem(LOGIN_EMAIL_KEY) ?? "";
 }
 
 export function rememberLoginEmail(email: string) {
-  localStorage.setItem(LOGIN_EMAIL_KEY, email);
+  if (email) sessionStorage.setItem(LOGIN_EMAIL_KEY, email);
+  else sessionStorage.removeItem(LOGIN_EMAIL_KEY);
 }
