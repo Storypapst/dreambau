@@ -1,7 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildApiRequest, runTestAccessCli } from "../src/server/test-access-cli.js";
+import { buildApiRequest, runTestAccessCli, runTestAccessCommand } from "../src/server/test-access-cli.js";
 
 describe("test-access CLI", () => {
+  it("routes playwright-login without sending credentials through normal CLI output", async () => {
+    const broker = vi.fn(async () => 0);
+    const result = await runTestAccessCommand(
+      ["playwright-login", "oriso/pre-dev/test-consultant-001"],
+      {
+        baseUrl: "https://dreambau.com/testmails/api/v1",
+        identity: "codex-m4-oriso",
+        readKeychainToken: () => "keychain-token",
+        fetch: vi.fn() as unknown as typeof fetch,
+        write: vi.fn(),
+        playwrightLoginBroker: broker
+      }
+    );
+    expect(result).toBe(0);
+    expect(broker).toHaveBeenCalledWith(
+      "oriso/pre-dev/test-consultant-001",
+      expect.objectContaining({ identity: "codex-m4-oriso" })
+    );
+  });
+
   it("builds list, get, OTP, mail and env URLs without embedding a token", () => {
     const baseUrl = "https://dreambau.com/testmails/api/v1";
     expect(buildApiRequest(["list", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({

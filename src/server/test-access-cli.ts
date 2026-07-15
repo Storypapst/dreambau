@@ -3,6 +3,10 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { serializeDotenv } from "./seed-profile.js";
+import {
+  runPlaywrightLoginBroker,
+  type BrokerDependencies
+} from "./playwright-login-broker.js";
 
 type OutputMode = "json" | "secret" | "otp" | "env";
 
@@ -57,6 +61,16 @@ interface CliDependencies {
   fetch: typeof fetch;
   write: (value: string) => void;
   writeError?: (value: string) => void;
+  playwrightLoginBroker?: typeof runPlaywrightLoginBroker;
+}
+
+export async function runTestAccessCommand(args: string[], dependencies: CliDependencies) {
+  if (args[0] === "playwright-login") {
+    const [, accountId = ""] = args;
+    const brokerDependencies: BrokerDependencies = dependencies;
+    return (dependencies.playwrightLoginBroker ?? runPlaywrightLoginBroker)(accountId, brokerDependencies);
+  }
+  return runTestAccessCli(args, dependencies);
 }
 
 export async function runTestAccessCli(args: string[], dependencies: CliDependencies) {
@@ -96,7 +110,7 @@ async function main() {
   const identityIndex = argv.indexOf("--identity");
   const identity = identityIndex >= 0 ? argv.splice(identityIndex, 2)[1] : process.env.TEST_ACCESS_IDENTITY ?? "";
   const baseUrl = process.env.TEST_ACCESS_URL ?? "https://dreambau.com/testmails/api/v1";
-  process.exitCode = await runTestAccessCli(argv, {
+  process.exitCode = await runTestAccessCommand(argv, {
     baseUrl,
     identity,
     readKeychainToken,
