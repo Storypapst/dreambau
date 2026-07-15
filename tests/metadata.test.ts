@@ -45,6 +45,31 @@ describe("metadata database", () => {
     expect(JSON.stringify(db.getMachineIdentityUsage())).not.toContain("token");
     db.close();
   });
+  it("persists additive coordination tags and discussion links idempotently", () => {
+    const db = database();
+    expect(db.tableNames()).toContain("coordination_item_metadata");
+    expect(db.addCoordinationTag("oriso-delivery", "quality-gate")).toEqual({
+      tags: ["quality-gate"], discussions: []
+    });
+    expect(db.addCoordinationTag("oriso-delivery", "quality-gate").tags).toEqual([
+      "quality-gate"
+    ]);
+    expect(
+      db.addCoordinationDiscussion("oriso-delivery", {
+        label: "Slack Diskussion",
+        url: "https://sunflowercare.slack.com/archives/C0BHAEENLE7"
+      })
+    ).toEqual({
+      tags: ["quality-gate"],
+      discussions: [
+        {
+          label: "Slack Diskussion",
+          url: "https://sunflowercare.slack.com/archives/C0BHAEENLE7"
+        }
+      ]
+    });
+    db.close();
+  });
 });
 
 describe("numeric version comparison", () => {
