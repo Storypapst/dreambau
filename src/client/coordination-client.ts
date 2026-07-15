@@ -40,10 +40,27 @@ export interface CoordinationCatalog {
   resourceKinds: CoordinationResourceKind[];
 }
 
+export type RuntimeState = "healthy" | "degraded" | "offline" | "unavailable";
+
+export interface RuntimeStatusView {
+  id: string;
+  name: string;
+  project: CoordinationProject;
+  environment: "pre-dev" | "dev" | "platform";
+  state: RuntimeState;
+  checkedAt: string;
+  latencyMs: number | null;
+  url: string;
+}
+
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;
 
 export function loadCoordination(request: Request = api) {
   return request<CoordinationCatalog>("/coordination");
+}
+
+export function loadRuntimeStatuses(request: Request = api) {
+  return request<RuntimeStatusView[]>("/coordination/runtime");
 }
 
 export function addCoordinationTag(itemId: string, tag: string, request: Request = api) {

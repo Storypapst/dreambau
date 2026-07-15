@@ -21,6 +21,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RuntimeStatusCards } from "./runtime-status-cards";
 
 const labels = {
   de: {
@@ -94,6 +95,8 @@ export function CoordinationDashboard({
       <div className="flex items-start gap-4"><div className="rounded-xl bg-primary p-3 text-primary-foreground"><RouteIcon /></div><div className="flex flex-col gap-2"><p className="text-sm font-medium text-muted-foreground">{copy.kicker}</p><h1 className="text-3xl font-bold tracking-tight md:text-4xl">{copy.title}</h1><p className="max-w-3xl text-muted-foreground">{copy.description}</p></div></div>
     </div></header>
     <section className="mx-auto max-w-[1600px] px-4 py-8 lg:px-8">
+      <RuntimeStatusCards locale={locale} />
+      <Separator className="my-8" />
       <Tabs value={project} onValueChange={(value) => setProject(value as CoordinationProject)}>
         <TabsList>{catalog.projects.map((entry) => <TabsTrigger key={entry.id} value={entry.id}>{entry.name}</TabsTrigger>)}</TabsList>
         {catalog.projects.map((entry) => <TabsContent key={entry.id} value={entry.id} className="flex flex-col gap-6 pt-4">

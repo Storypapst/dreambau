@@ -128,4 +128,62 @@ describe("coordination API", () => {
     passkeyStore.close();
     database.close();
   });
+
+  it("protects runtime status and passes only the active user's project scope", async () => {
+    const passkeyStore = createPasskeyStore(
+      path.join(mkdtempSync(path.join(tmpdir(), "runtime-auth-")), "auth.sqlite")
+    );
+    const database = createDatabase(":memory:");
+    const user = passkeyStore.createUser({
+      email: "runtime-member@dreambau.com",
+      name: "Runtime Member",
+      projects: ["oriso"],
+      role: "member"
+    });
+    passkeyStore.addCredential({
+      id: "coordination-credential",
+      userId: user.id,
+      publicKey: new Uint8Array([1]),
+      counter: 0,
+      transports: ["internal"],
+      deviceType: "multiDevice",
+      backedUp: true
+    });
+    const webauthn: WebAuthnAdapter = {
+      generateRegistrationOptions: vi.fn(),
+      verifyRegistrationResponse: vi.fn(),
+      generateAuthenticationOptions: vi.fn(async () => ({ challenge: "runtime-challenge" })),
+      verifyAuthenticationResponse: vi.fn(async () => ({ verified: true, authenticationInfo: { newCounter: 1 } }))
+    };
+    const runtimeStatusLoader = vi.fn(async () => [{
+      id: "signoz-dev",
+      name: "SigNoz Dev",
+      project: "oriso" as const,
+      environment: "dev",
+      state: "healthy" as const,
+      checkedAt: "2026-07-15T12:00:00.000Z",
+      latencyMs: 12,
+      url: "https://signoz.oriso.org"
+    }]);
+    const app = createApp({
+      passwordHash: "unused",
+      sessionSecret: "runtime-session-secret-32-bytes",
+      secureCookies: false,
+      loadAccounts: () => [],
+      database,
+      passkeyStore,
+      webauthn,
+      runtimeStatusLoader
+    });
+
+    expect((await request(app).get("/testmails/api/coordination/runtime")).status).toBe(401);
+    const agent = await authenticatedAgent(app, user.email);
+    const response = await agent.get("/testmails/api/coordination/runtime");
+
+    expect(response.status).toBe(200);
+    expect(response.body[0]).toMatchObject({ id: "signoz-dev", state: "healthy" });
+    expect(runtimeStatusLoader).toHaveBeenCalledWith(["oriso"]);
+    passkeyStore.close();
+    database.close();
+  });
 });
