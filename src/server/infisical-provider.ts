@@ -171,7 +171,7 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
       return (await list()).find((record) => record.id === id) ?? null;
     },
     async health() {
-      for (const source of options.sources) {
+      await Promise.all(options.sources.map(async (source) => {
         const url = new URL("/api/v4/secrets", baseUrl);
         url.search = new URLSearchParams({
           projectId: source.projectId,
@@ -183,9 +183,9 @@ export function createInfisicalRegistryProvider(options: InfisicalProviderOption
           includePersonalOverrides: "false"
         }).toString();
         const response = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` }, signal: requestSignal() });
-        if (await isMissingSecretPath(response)) continue;
+        if (await isMissingSecretPath(response)) return;
         if (!response.ok) throw new Error("Infisical readiness check failed");
-      }
+      }));
     }
   };
 }

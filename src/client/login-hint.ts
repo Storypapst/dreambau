@@ -8,3 +8,7 @@ export function rememberLoginEmail(email: string) {
   if (email) sessionStorage.setItem(LOGIN_EMAIL_KEY, email);
   else sessionStorage.removeItem(LOGIN_EMAIL_KEY);
 }
+
+export function clearRememberedLoginEmail() {
+  sessionStorage.removeItem(LOGIN_EMAIL_KEY);
+}
