@@ -110,7 +110,7 @@ export async function loadRuntimeStatuses(
     try {
       if (target.expectedAddress) {
         const hostname = new URL(target.healthUrl).hostname;
-        const addresses = await resolver(hostname);
+        const addresses = await withTimeout(resolver(hostname), timeoutMs);
         if (!addresses.includes(target.expectedAddress)) {
           return { ...publicTarget(target), state: "degraded", checkedAt, latencyMs: null };
         }
@@ -158,6 +158,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isCount(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("runtime probe timed out")), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function publicTarget(target: RuntimeTarget) {

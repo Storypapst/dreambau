@@ -38,6 +38,24 @@ describe("runtime status probes", () => {
     expect(JSON.stringify(statuses)).not.toContain("91.99.183.160");
   });
 
+  it("bounds a stalled DNS check with the runtime probe timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const statusesPromise = loadRuntimeStatuses(["oriso"], {
+        fetcher: vi.fn(async () => new Response(JSON.stringify({ status: "ok" }), { status: 200 })),
+        resolver: async () => new Promise<string[]>(() => undefined),
+        timeoutMs: 50
+      });
+
+      await vi.advanceTimersByTimeAsync(51);
+      const statuses = await statusesPromise;
+
+      expect(statuses.find((status) => status.id === "signoz-predev")?.state).toBe("offline");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("isolates degraded, offline and unavailable dependencies without returning bodies", async () => {
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
