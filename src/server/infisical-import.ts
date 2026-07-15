@@ -83,7 +83,7 @@ export async function importTestAccessRecords(options: ImportOptions) {
     }
   }
 
-  const created: Array<{ batch: Batch; record: TestAccessRecord }> = [];
+  const attempted: Array<{ batch: Batch; record: TestAccessRecord }> = [];
   try {
     for (const batch of batches) {
       if (missingPaths.has(`${batch.project}:${batch.environment}`)) {
@@ -101,6 +101,7 @@ export async function importTestAccessRecords(options: ImportOptions) {
         if (!folderResponse.ok) throw new Error("Infisical records folder creation failed");
       }
       for (const record of batch.records) {
+        attempted.push({ batch, record });
         const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(record.id)}`, baseUrl.origin), {
           method: "POST",
           headers: { ...headers, "Content-Type": "application/json" },
@@ -115,25 +116,26 @@ export async function importTestAccessRecords(options: ImportOptions) {
           })
         });
         if (!response.ok) throw new Error("Infisical record import failed");
-        created.push({ batch, record });
       }
     }
   } catch (error) {
-    let rollbackIncomplete = false;
-    for (const { batch, record } of created.reverse()) {
-      const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(record.id)}`, baseUrl.origin), {
-        method: "DELETE",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: options.projectIds[batch.project],
-          environment: batch.environment,
-          secretPath: "/records",
-          type: "shared"
-        })
-      });
-      if (!response.ok) rollbackIncomplete = true;
+    let unresolved = 0;
+    for (const { batch, record } of attempted.reverse()) {
+      try {
+        const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(record.id)}`, baseUrl.origin), {
+          method: "DELETE",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId: options.projectIds[batch.project],
+            environment: batch.environment,
+            secretPath: "/records",
+            type: "shared"
+          })
+        });
+        if (!response.ok && response.status !== 404) unresolved += 1;
+      } catch { unresolved += 1; }
     }
-    if (rollbackIncomplete) throw new Error("Infisical record import failed and rollback is incomplete");
+    if (unresolved) throw new Error(`Infisical record import failed and rollback is incomplete: ${unresolved} unresolved`);
     throw error;
   }
 

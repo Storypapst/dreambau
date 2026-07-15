@@ -160,6 +160,52 @@ describe("Infisical registry provider", () => {
     expect(healthUrl.searchParams.get("recursive")).toBe("false");
   });
 
+  it("checks every configured source during readiness", async () => {
+    const checked: string[] = [];
+    const fetch: FetchLike = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      checked.push(String(url.searchParams.get("environment")));
+      if (url.searchParams.get("environment") === "dev") return new Response(null, { status: 503 });
+      return Response.json({ secrets: [], imports: [] });
+    };
+    const provider = createInfisicalRegistryProvider({
+      baseUrl: "https://secrets.dreambau.com", organizationSlug: "dreambau-test-access",
+      clientId: "hub-service", clientSecret,
+      sources: [
+        { project: "oriso", projectId: "project-oriso", environment: "pre-dev" },
+        { project: "oriso", projectId: "project-oriso", environment: "dev" }
+      ],
+      fetch
+    });
+
+    await expect(provider.health?.()).rejects.toThrow("Infisical readiness check failed");
+    expect(checked).toEqual(["pre-dev", "dev"]);
+  });
+
+  it("adds an independent bounded timeout signal to authentication, reads and readiness", async () => {
+    const signals: AbortSignal[] = [];
+    const fetch: FetchLike = async (input, init) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      signals.push(init!.signal as AbortSignal);
+      return String(input).includes("/login")
+        ? Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" })
+        : Response.json({ secrets: [], imports: [] });
+    };
+    const provider = createInfisicalRegistryProvider({
+      baseUrl: "https://secrets.dreambau.com", organizationSlug: "dreambau-test-access",
+      clientId: "hub-service", clientSecret,
+      sources: [{ project: "oriso", projectId: "project-oriso", environment: "pre-dev" }], fetch
+    });
+
+    await provider.list();
+    await provider.health?.();
+    expect(signals).toHaveLength(3);
+    expect(new Set(signals).size).toBe(3);
+  });
+
   it("treats an unmaterialized records path as an empty healthy source", async () => {
     const fetch: FetchLike = async (input) => String(input).includes("/login")
       ? Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" })

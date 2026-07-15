@@ -12,7 +12,7 @@ interface LoginCheckDependencies {
 
 export function runOrisoConsultantLoginCheck(dependencies: LoginCheckDependencies = {}) {
   const execute = dependencies.execute ?? ((command: string, args: string[]) =>
-    execFileSync(command, args, { encoding: "utf8" }));
+    execFileSync(command, args, { encoding: "utf8", timeout: 60_000 }));
   const write = dependencies.write ?? ((value: string) => process.stdout.write(value));
   const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
 
@@ -24,7 +24,8 @@ export function runOrisoConsultantLoginCheck(dependencies: LoginCheckDependencie
       ACCOUNT_ID
     ])) as { accountId?: string; storageState?: string; expiresAt?: string };
 
-    if (result.accountId !== ACCOUNT_ID || !result.storageState || !result.expiresAt) {
+    const expiresAt = Date.parse(result.expiresAt ?? "");
+    if (result.accountId !== ACCOUNT_ID || !result.storageState || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
       throw new Error("login broker did not return a complete private state handle");
     }
     write("LOGIN_CHECK: SUCCESS\n");

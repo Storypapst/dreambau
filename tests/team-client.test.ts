@@ -10,6 +10,9 @@ describe("team browser client", () => {
     expect(api.mock.calls.map((call) => call[0])).toEqual([
       "/auth/users", "/auth/users", "/auth/users/user-id/status"
     ]);
+    expect(api.mock.calls[1][1]?.method).toBe("POST");
     expect(JSON.parse(String(api.mock.calls[1][1]?.body))).toEqual({ email: "employee@dreambau.com", name: "Employee", projects: ["oriso"] });
+    expect(api.mock.calls[2][1]?.method).toBe("PATCH");
+    expect(JSON.parse(String(api.mock.calls[2][1]?.body))).toEqual({ status: "disabled" });
   });
 });

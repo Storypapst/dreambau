@@ -75,17 +75,24 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
     await page.locator("#username").fill(request.username);
     await page.locator("#passwordInput").fill(request.password);
-    await page.locator("#passwordInput").press("Enter");
-
+    const preSubmitUrl = page.url();
+    const applicationOrigin = new URL(request.loginUrl).origin;
     const otp = page.locator("#otp");
-    await Promise.race([
-      page.waitForURL((url) => url.origin === new URL(request.loginUrl).origin, { timeout: 15_000 }),
-      otp.waitFor({ state: "visible", timeout: 15_000 }).then(async () => {
-        if (!isOtpChallenge(page.url(), request.loginUrl, true)) return;
+    const postLoginNavigation = page.waitForURL(
+      (url) => url.href !== preSubmitUrl && url.origin === applicationOrigin,
+      { waitUntil: "domcontentloaded", timeout: 15_000 }
+    );
+    const otpChallenge = otp.waitFor({ state: "visible", timeout: 15_000 }).then(async () => {
+      if (isOtpChallenge(page.url(), request.loginUrl, true)) {
         await otp.fill(await request.getOtp());
         await otp.press("Enter");
-        await page.waitForURL((url) => url.origin === new URL(request.loginUrl).origin, { timeout: 15_000 });
-      })
+      }
+      await postLoginNavigation;
+    });
+    await page.locator("#passwordInput").press("Enter");
+    await Promise.race([
+      postLoginNavigation,
+      otpChallenge
     ]);
     await context.storageState({ path: request.statePath });
   } finally {

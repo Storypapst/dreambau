@@ -99,4 +99,26 @@ describe("test-access CLI", () => {
     expect(errors.join("")).toContain("HTTP 401");
     expect(errors.join("")).not.toContain("do-not-print");
   });
+
+  it("rejects malformed successful secret, OTP and environment responses", async () => {
+    for (const [args, body] of [
+      [["get", "oriso/pre-dev/user"], { secret: 123 }],
+      [["otp", "oriso/pre-dev/user"], {}],
+      [["env", "oriso/pre-dev/profile"], { variables: ["not-an-object"] }]
+    ] as const) {
+      const output: string[] = [];
+      const errors: string[] = [];
+      const result = await runTestAccessCli([...args], {
+        baseUrl: "https://dreambau.com/testmails/api/v1",
+        identity: "codex-m4-oriso",
+        readKeychainToken: () => "keychain-token",
+        fetch: vi.fn(async () => Response.json(body)) as unknown as typeof fetch,
+        write: (value) => output.push(value),
+        writeError: (value) => errors.push(value)
+      });
+      expect(result).toBe(1);
+      expect(output).toEqual([]);
+      expect(errors.join("")).toContain("invalid response");
+    }
+  });
 });

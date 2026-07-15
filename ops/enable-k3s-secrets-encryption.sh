@@ -8,9 +8,18 @@ case "${1:-}" in
   *) echo "Usage: $0 [--apply]" >&2; exit 2 ;;
 esac
 
+encryption_complete() {
+  candidate=$1
+  printf '%s\n' "$candidate" | grep -q 'Encryption Status: Enabled' || return 1
+  printf '%s\n' "$candidate" | grep -q 'Current Rotation Stage: reencrypt_finished' || return 1
+  if printf '%s\n' "$candidate" | grep -q 'Server Encryption Hashes:'; then
+    printf '%s\n' "$candidate" | grep -q 'All hashes match' || return 1
+  fi
+}
+
 status=$(k3s secrets-encrypt status 2>&1 || true)
 printf '%s\n' "$status"
-printf '%s\n' "$status" | grep -q 'Encryption Status: Enabled' && exit 0
+encryption_complete "$status" && exit 0
 
 if [ "$apply" != true ]; then
   echo "Dry run only; use --apply during an approved maintenance window." >&2
@@ -41,7 +50,7 @@ done
 k3s secrets-encrypt reencrypt
 final_status=$(k3s secrets-encrypt status)
 printf '%s\n' "$final_status"
-printf '%s\n' "$final_status" | grep -q 'Encryption Status: Enabled' || {
-  echo "Secrets encryption did not reach enabled state" >&2
+encryption_complete "$final_status" || {
+  echo "Secrets encryption did not reach a fully reencrypted consistent state" >&2
   exit 1
 }

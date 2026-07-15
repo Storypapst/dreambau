@@ -69,4 +69,17 @@ describe("SOPS recovery export", () => {
     })).toThrow(/plaintext secret/i);
     expect(() => readFileSync(output, "utf8")).toThrow();
   });
+
+  it("rejects plaintext JSON when a password requires JSON escaping", () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "recovery-export-escaped-leak-"));
+    const output = path.join(directory, "test-access.enc.json");
+    const escapedAccount = { ...account, password: 'fake-"escaped\\password' };
+    expect(() => writeEncryptedRecoveryExport({
+      accounts: [escapedAccount],
+      output,
+      recipients: ["age1m4", "age1mini"],
+      encrypt: (plaintext) => plaintext
+    })).toThrow(/plaintext secret/i);
+    expect(() => readFileSync(output, "utf8")).toThrow();
+  });
 });

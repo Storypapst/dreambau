@@ -23,5 +23,8 @@ describe("K3s secrets-at-rest operation", () => {
     expect(script).toContain('systemctl restart k3s');
     expect(script).toContain('k3s secrets-encrypt reencrypt');
     expect(script).toMatch(/Encryption Status: Enabled/);
+    expect(script).toContain("Current Rotation Stage: reencrypt_finished");
+    expect(script).toContain("All hashes match");
+    expect(script.match(/encryption_complete/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });

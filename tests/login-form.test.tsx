@@ -16,6 +16,7 @@ describe("LoginForm passkey onboarding", () => {
 
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -60,7 +61,7 @@ describe("LoginForm passkey onboarding", () => {
   });
 
   it("prefills the locally remembered passkey email", async () => {
-    localStorage.setItem("testmails-login-email", "frank@dreambau.com");
+    sessionStorage.setItem("testmails-login-email", "frank@dreambau.com");
     await renderWithBootstrapStatus({ enabled: false });
 
     expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe("frank@dreambau.com");
@@ -77,7 +78,8 @@ describe("LoginForm passkey onboarding", () => {
     const button = Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.includes("Mit Passkey anmelden"));
     await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-    expect(localStorage.getItem("testmails-login-email")).toBe("frank@dreambau.com");
+    expect(sessionStorage.getItem("testmails-login-email")).toBe("frank@dreambau.com");
+    expect(localStorage.getItem("testmails-login-email")).toBeNull();
   });
 
   it("fails closed when bootstrap status cannot be loaded", async () => {

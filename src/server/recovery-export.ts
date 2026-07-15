@@ -59,7 +59,10 @@ export function writeEncryptedRecoveryExport(options: {
   if (!options.output.endsWith(".enc.json")) throw new Error("Recovery export must end in .enc.json");
   const plaintext = `${JSON.stringify(buildRecoveryPayload(options.accounts), null, 2)}\n`;
   const ciphertext = (options.encrypt ?? encryptWithSops)(plaintext, recipients);
-  if (options.accounts.some((account) => ciphertext.includes(account.password))) {
+  if (options.accounts.some((account) => {
+    const serialized = JSON.stringify(account.password).slice(1, -1);
+    return ciphertext.includes(account.password) || ciphertext.includes(serialized);
+  })) {
     throw new Error("SOPS output contains a plaintext secret");
   }
 
