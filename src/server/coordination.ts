@@ -68,7 +68,7 @@ const items: CoordinationItem[] = [
       { kind: "rule", title: "AGENTS.md Router", description: "Lädt globale, projekt- und repositoryspezifische Regeln progressiv." },
       { kind: "prompt", title: "Issue Prompt", description: "Kanonische Vorlage für Feature Requests, Bugs und Sub-Issues." },
       { kind: "adr", title: "ADR Timeline", description: "Chronologische Architekturentscheidungen mit aktuellem Gültigkeitsstatus." },
-      { kind: "observability", title: "SigNoz", description: "Traces, Logs, Metriken und Alerts für Pre-Dev und Dev." },
+      { kind: "observability", title: "SigNoz", description: "Traces, Logs, Metriken und Alerts für Pre-Dev und Dev.", url: "https://signoz.oriso-dev.site" },
       { kind: "tool", title: "Understand Anything", description: "Durchsuchbarer Wissensgraph und Projektfragen über API." }
     ]
   },
@@ -86,11 +86,11 @@ const items: CoordinationItem[] = [
     resources: [
       { kind: "tool", title: "Testkonten", description: "Passkey-geschütztes Verzeichnis und Machine API.", url: "/testmails/" },
       { kind: "tool", title: "Infisical", description: "Self-hosted Secret Management.", url: "https://secrets.dreambau.com" },
-      { kind: "tool", title: "Kio Bugfix", description: "Slack Intake, private Artefakte und Draft-PR-Automation." },
+      { kind: "tool", title: "Kio Bugfix", description: "Slack Intake, private Artefakte und Draft-PR-Automation.", url: "https://sunflowercare.slack.com/archives/C0BHAEENLE7" },
       { kind: "rule", title: "Project Router", description: "Trennt Dreambau-, ORISO-, ORIMO- und private Kontexte." },
       { kind: "prompt", title: "Prompt Registry", description: "Source of Truth für Systemprompts, Skills und Toolregeln." },
       { kind: "adr", title: "ADR Timeline", description: "Betriebs- und Architekturentscheidungen mit Links zum Diskussionskontext." },
-      { kind: "observability", title: "SigNoz", description: "Gemeinsamer Einstieg zu Live-Systemzuständen." },
+      { kind: "observability", title: "SigNoz", description: "Gemeinsamer Einstieg zu Live-Systemzuständen.", url: "https://signoz.oriso-dev.site" },
       { kind: "tool", title: "Understand Anything", description: "Projektwissen und Fragen per API." }
     ]
   },

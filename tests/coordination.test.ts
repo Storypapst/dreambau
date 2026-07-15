@@ -31,5 +31,11 @@ describe("coordination catalog", () => {
     expect(catalog.items.flatMap((item) => item.resources).map((resource) => resource.title)).toEqual(
       expect.arrayContaining(["AGENTS.md Router", "ADR Timeline", "SigNoz", "Understand Anything"])
     );
+    expect(catalog.items.flatMap((item) => item.resources)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "SigNoz", url: "https://signoz.oriso-dev.site" }),
+        expect.objectContaining({ title: "Kio Bugfix", url: "https://sunflowercare.slack.com/archives/C0BHAEENLE7" })
+      ])
+    );
   });
 });
