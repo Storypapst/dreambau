@@ -119,11 +119,11 @@ export function createTestAccessRouter(options: {
   const mailQuery = z.object({ query: z.string().max(200).optional() });
   router.get("/accounts/:id/mail/latest", async (req, res, next) => {
     const identity = res.locals.machineIdentity as MachineIdentity;
-    const match = await scopedRecord(String(req.params.id), identity);
-    if (!match) return res.status(404).json({ error: "account_not_found" });
-    const parsed = mailQuery.safeParse(req.query);
-    if (!parsed.success) return res.status(400).json({ error: "invalid_query" });
     try {
+      const match = await scopedRecord(String(req.params.id), identity);
+      if (!match) return res.status(404).json({ error: "account_not_found" });
+      const parsed = mailQuery.safeParse(req.query);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_query" });
       const account = mailboxAccount(match);
       if (!account) return res.status(404).json({ error: "mailbox_not_found" });
       const message = await options.mailReader.latest(account, parsed.data.query ?? "");
@@ -137,11 +137,11 @@ export function createTestAccessRouter(options: {
 
   router.get("/accounts/:id/otp", async (req, res, next) => {
     const identity = res.locals.machineIdentity as MachineIdentity;
-    const match = await scopedRecord(String(req.params.id), identity);
-    if (!match) return res.status(404).json({ error: "account_not_found" });
-    const parsed = mailQuery.safeParse(req.query);
-    if (!parsed.success) return res.status(400).json({ error: "invalid_query" });
     try {
+      const match = await scopedRecord(String(req.params.id), identity);
+      if (!match) return res.status(404).json({ error: "account_not_found" });
+      const parsed = mailQuery.safeParse(req.query);
+      if (!parsed.success) return res.status(400).json({ error: "invalid_query" });
       if (match.totpSecret) {
         res.set("Cache-Control", "no-store");
         return res.json(generateTotp(match.totpSecret, options.now?.() ?? new Date()));

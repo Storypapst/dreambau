@@ -35,15 +35,22 @@ function bodyText(message: any) {
 }
 
 export function createJmapTestMailReader(fetchImpl: typeof fetch = fetch): TestMailReader {
+  async function boundedFetch(input: string, init: RequestInit, operation: string) {
+    try {
+      return await fetchImpl(input, { ...init, signal: AbortSignal.timeout(15_000) });
+    } catch {
+      throw new Error(`JMAP ${operation} failed upstream`);
+    }
+  }
   async function queryMessages(account: AccountRecord, query: string, limit: number) {
     const authorization = `Basic ${Buffer.from(`${account.email}:${account.password}`).toString("base64")}`;
-    const discovery = await fetchImpl(account.jmap, { headers: { authorization } });
+    const discovery = await boundedFetch(account.jmap, { headers: { authorization } }, "discovery");
     if (!discovery.ok) throw new Error(`JMAP discovery failed with HTTP ${discovery.status}`);
     const session = await discovery.json() as any;
     const accountId = session.primaryAccounts?.[MAIL]
       ?? Object.keys(session.accounts ?? {}).find((id) => session.accounts[id].accountCapabilities?.[MAIL]);
     if (!accountId || !session.apiUrl) throw new Error("JMAP session is missing mail capability");
-    const response = await fetchImpl(session.apiUrl, {
+    const response = await boundedFetch(session.apiUrl, {
       method: "POST",
       headers: { authorization, "content-type": "application/json" },
       body: JSON.stringify({
@@ -53,7 +60,7 @@ export function createJmapTestMailReader(fetchImpl: typeof fetch = fetch): TestM
           ["Email/get", { accountId, "#ids": { resultOf: "q", name: "Email/query", path: "/ids" }, properties: ["id", "receivedAt", "from", "subject", "preview", "textBody", "bodyValues"], fetchTextBodyValues: true, maxBodyValueBytes: 100000 }, "g"]
         ]
       })
-    });
+    }, "request");
     if (!response.ok) throw new Error(`JMAP request failed with HTTP ${response.status}`);
     const data = await response.json() as any;
     const methodError = (data.methodResponses ?? []).find((entry: any[]) => entry[0] === "error");

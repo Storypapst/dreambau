@@ -18,26 +18,34 @@ export function EmployeeManagement({ locale }: { locale: Locale }) {
   const [users, setUsers] = useState<HumanUser[]>([]);
   const [email, setEmail] = useState(""); const [name, setName] = useState("");
   const [selected, setSelected] = useState<Array<(typeof projects)[number]>>([]);
-  const [enrollmentCode, setEnrollmentCode] = useState(""); const [error, setError] = useState(false);
-  async function load() { setUsers(await loadTeamMembers()); }
+  const [enrollmentCode, setEnrollmentCode] = useState("");
+  const [error, setError] = useState<"load" | "create" | "status" | null>(null);
+  async function load() {
+    setError(null);
+    try { setUsers(await loadTeamMembers()); }
+    catch { setError("load"); }
+  }
   async function create() {
-    setError(false);
+    setError(null);
     try {
       const user = await createTeamMember({ email, name, projects: selected });
       setUsers((current) => [...current, user].sort((left, right) => left.email.localeCompare(right.email)));
       setEnrollmentCode(user.enrollmentCode); setEmail(""); setName(""); setSelected([]);
-    } catch { setError(true); }
+    } catch { setError("create"); }
   }
   async function setStatus(user: HumanUser) {
-    const updated = await setTeamMemberStatus(user.id, user.status === "active" ? "disabled" : "active");
-    setUsers((current) => current.map((entry) => entry.id === updated.id ? updated : entry));
+    setError(null);
+    try {
+      const updated = await setTeamMemberStatus(user.id, user.status === "active" ? "disabled" : "active");
+      setUsers((current) => current.map((entry) => entry.id === updated.id ? updated : entry));
+    } catch { setError("status"); }
   }
   return <Dialog open={open} onOpenChange={(value) => { setOpen(value); setEnrollmentCode(""); if (value) void load(); }}>
     <DialogTrigger asChild><Button variant="outline"><UsersIcon />{locale === "de" ? "Mitarbeiter" : "Team"}</Button></DialogTrigger>
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader><DialogTitle>{locale === "de" ? "Mitarbeiterzugänge" : "Team access"}</DialogTitle><DialogDescription>{locale === "de" ? "Individuelle Passkey-Konten und Projektzugriffe verwalten." : "Manage individual passkey accounts and project access."}</DialogDescription></DialogHeader>
       <FieldGroup>
-        {error && <Alert variant="destructive"><AlertTitle>{locale === "de" ? "Anlegen fehlgeschlagen" : "Creation failed"}</AlertTitle></Alert>}
+        {error && <Alert variant="destructive"><AlertTitle>{error === "load" ? (locale === "de" ? "Mitarbeiter konnten nicht geladen werden" : "Team members could not be loaded") : error === "status" ? (locale === "de" ? "Statusänderung fehlgeschlagen" : "Status update failed") : (locale === "de" ? "Anlegen fehlgeschlagen" : "Creation failed")}</AlertTitle></Alert>}
         {enrollmentCode && <Alert><AlertTitle>{locale === "de" ? "Enrollment-Code jetzt sicher übergeben" : "Share this enrollment code securely now"}</AlertTitle><AlertDescription>{locale === "de" ? "Der Code wird nach dem Schließen nicht erneut angezeigt." : "The code will not be shown again after closing."}</AlertDescription><pre className="mt-3 overflow-x-auto rounded bg-muted p-3">{enrollmentCode}</pre></Alert>}
         <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="employee-name">Name</FieldLabel><Input id="employee-name" value={name} onChange={(event) => setName(event.target.value)} /></Field><Field><FieldLabel htmlFor="employee-email">E-Mail</FieldLabel><Input id="employee-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></Field></div>
         <div className="flex flex-wrap gap-4">{projects.map((project) => <label key={project} className="flex items-center gap-2 text-sm"><Checkbox checked={selected.includes(project)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, project] : current.filter((value) => value !== project))} />{project.toUpperCase()}</label>)}</div>

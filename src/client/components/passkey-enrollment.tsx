@@ -11,14 +11,24 @@ import { api } from "@/api";
 export function PasskeyEnrollment({ locale, onComplete }: { locale: Locale; onComplete: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [recoveryError, setRecoveryError] = useState(false);
   const [codes, setCodes] = useState<string[]>([]);
+  async function loadRecoveryCodes() {
+    setBusy(true); setRecoveryError(false);
+    try {
+      const recovery = await api<{ codes: string[] }>("/auth/recovery-codes", { method: "POST" });
+      setCodes(recovery.codes);
+    } catch { setRecoveryError(true); }
+    finally { setBusy(false); }
+  }
   async function register() {
     setBusy(true); setError(false);
     try {
       const registration = await registerBootstrapPasskey();
       if (typeof registration?.email === "string") rememberLoginEmail(registration.email);
-      const recovery = await api<{ codes: string[] }>("/auth/recovery-codes", { method: "POST" });
-      setCodes(recovery.codes);
+      setRegistered(true);
+      await loadRecoveryCodes();
     }
     catch { setError(true); }
     finally { setBusy(false); }
@@ -32,11 +42,12 @@ export function PasskeyEnrollment({ locale, onComplete }: { locale: Locale; onCo
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {error && <Alert variant="destructive"><AlertTitle>{locale === "de" ? "Registrierung fehlgeschlagen" : "Registration failed"}</AlertTitle><AlertDescription>{locale === "de" ? "Der Passkey wurde nicht gespeichert. Bitte erneut versuchen." : "The passkey was not saved. Please try again."}</AlertDescription></Alert>}
+        {registered && recoveryError && <Alert variant="destructive"><AlertTitle>{locale === "de" ? "Passkey wurde gespeichert" : "Passkey was saved"}</AlertTitle><AlertDescription>{locale === "de" ? "Nur die Recovery-Codes konnten nicht geladen werden. Die Passkey-Registrierung wird nicht wiederholt." : "Only recovery-code delivery failed. Passkey registration will not be repeated."}</AlertDescription></Alert>}
         {codes.length ? <>
           <Alert><AlertTitle>{locale === "de" ? "Recovery-Codes einmalig speichern" : "Save recovery codes now"}</AlertTitle><AlertDescription>{locale === "de" ? "Jeder Code funktioniert genau einmal. Diese Liste wird nicht erneut angezeigt." : "Each code works once. This list will not be shown again."}</AlertDescription></Alert>
           <pre className="overflow-x-auto rounded-lg border bg-muted p-4 text-sm">{codes.join("\n")}</pre>
           <Button onClick={onComplete}>{locale === "de" ? "Codes sicher gespeichert" : "Codes saved securely"}</Button>
-        </> : <Button onClick={register} disabled={busy}><KeyRoundIcon />{busy ? (locale === "de" ? "Passkey wird eingerichtet …" : "Setting up passkey …") : (locale === "de" ? "Passkey jetzt einrichten" : "Set up passkey now")}</Button>}
+        </> : registered ? <Button onClick={loadRecoveryCodes} disabled={busy}><KeyRoundIcon />{busy ? (locale === "de" ? "Recovery-Codes werden geladen …" : "Loading recovery codes …") : (locale === "de" ? "Recovery-Codes erneut laden" : "Retry recovery codes")}</Button> : <Button onClick={register} disabled={busy}><KeyRoundIcon />{busy ? (locale === "de" ? "Passkey wird eingerichtet …" : "Setting up passkey …") : (locale === "de" ? "Passkey jetzt einrichten" : "Set up passkey now")}</Button>}
       </CardContent>
     </Card>
   </main>;

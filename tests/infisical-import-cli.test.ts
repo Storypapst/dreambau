@@ -27,12 +27,14 @@ describe("Infisical import CLI", () => {
 
   it("prints no input or upstream body when validation fails", async () => {
     const errors: string[] = [];
+    const fetchMock = vi.fn();
     const result = await runInfisicalImportCli('[{"secret":"do-not-print"}]', {
-      readKeychainToken: () => "token", fetch, write: () => {}, writeError: (value) => errors.push(value),
+      readKeychainToken: () => "token", fetch: fetchMock as unknown as typeof fetch, write: () => {}, writeError: (value) => errors.push(value),
       baseUrl: "https://secrets.dreambau.com",
       projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" }
     });
     expect(result).toBe(1);
     expect(errors.join("")).toBe("Test access import failed validation.\n");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

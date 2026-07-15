@@ -16,7 +16,7 @@ async function request(
 ): Promise<{ response: Response; contentType: string }> {
   const response = await fetchImpl(url, {
     headers: { accept: "application/json" },
-    redirect: "follow",
+    redirect: "error",
     signal: AbortSignal.timeout(15_000),
   });
   const contentType = response.headers.get("content-type")?.split(";", 1)[0] ?? "missing content-type";

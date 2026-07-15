@@ -30,7 +30,11 @@ function required(value: string, name: string) {
 }
 
 export function loadConfig(): RuntimeConfig {
-  const registryProvider = process.env.TEST_ACCESS_PROVIDER === "infisical" ? "infisical" : "file";
+  const providerValue = process.env.TEST_ACCESS_PROVIDER?.trim() ?? "";
+  if (providerValue && providerValue !== "file" && providerValue !== "infisical") {
+    throw new Error("TEST_ACCESS_PROVIDER must be file or infisical");
+  }
+  const registryProvider: RuntimeConfig["registryProvider"] = providerValue === "infisical" ? "infisical" : "file";
   const infisical = registryProvider === "infisical" ? {
     baseUrl: required(process.env.INFISICAL_BASE_URL?.trim() ?? "", "INFISICAL_BASE_URL"),
     organizationSlug: required(process.env.INFISICAL_ORGANIZATION_SLUG?.trim() ?? "", "INFISICAL_ORGANIZATION_SLUG"),

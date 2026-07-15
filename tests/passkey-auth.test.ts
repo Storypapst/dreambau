@@ -79,6 +79,32 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
+  it("rejects a bootstrap registration challenge owned by another user", async () => {
+    const { app, passkeyStore } = setup();
+    const other = passkeyStore.createUser({
+      email: "other@dreambau.com", name: "Other", projects: ["oriso"], role: "member"
+    });
+    const agent = request.agent(app);
+    await agent.post("/testmails/api/auth/login").send({ password: "bootstrap-password" });
+    passkeyStore.putChallenge({
+      sessionId: "00000000-0000-4000-8000-000000000001",
+      kind: "registration",
+      challenge: "foreign-registration-challenge",
+      userId: other.id,
+      expiresAt: "2099-01-01T00:00:00.000Z"
+    });
+
+    const response = await agent.post("/testmails/api/auth/passkeys/registration/verify").send({
+      flowId: "00000000-0000-4000-8000-000000000001",
+      response: { id: "foreign-credential", response: { transports: ["internal"] } }
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: "scope_denied" });
+    expect(passkeyStore.getCredential("foreign-credential")).toBeNull();
+    passkeyStore.close();
+  });
+
   it("logs in passwordlessly and consumes the authentication challenge once", async () => {
     const { app, passkeyStore, user } = setup();
     passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
@@ -152,6 +178,11 @@ describe("passkey authentication", () => {
     expect(response.status).toBe(200);
     expect(response.body.map((entry: AccountRecord) => entry.email)).toEqual(["oriso-user@oriso.org"]);
     expect(JSON.stringify(response.body)).not.toContain("orimo-user@trail.ist");
+    const projectEscape = await member.patch("/testmails/api/accounts/oriso-user%40oriso.org").send({ project: "ORIMO" });
+    expect(projectEscape.status).toBe(403);
+    expect(projectEscape.body).toEqual({ error: "scope_denied" });
+    expect((await member.get("/testmails/api/machine-identities/usage")).status).toBe(403);
+    expect((await member.put("/testmails/api/taxonomies/topics").send({ values: ["member-write"] })).status).toBe(403);
     passkeyStore.close();
   });
 });

@@ -114,11 +114,34 @@ describe("Infisical record import", () => {
     })).rejects.toThrow("Infisical record import failed");
 
     const deletes = calls.filter((call) => call.method === "DELETE");
-    expect(deletes).toEqual([{
-      url: `https://secrets.dreambau.com/api/v4/secrets/${secretNameForRecord(first.id)}`,
-      method: "DELETE",
-      body: { projectId: "project-oriso", environment: "pre-dev", secretPath: "/records", type: "shared" },
-    }]);
+    expect(deletes.map((entry) => entry.url)).toEqual([
+      `https://secrets.dreambau.com/api/v4/secrets/${secretNameForRecord(second.id)}`,
+      `https://secrets.dreambau.com/api/v4/secrets/${secretNameForRecord(first.id)}`
+    ]);
+  });
+
+  it("continues rollback after an independent delete failure and reports unresolved cleanup", async () => {
+    const records = [record("oriso/pre-dev/first"), record("oriso/pre-dev/second"), record("oriso/pre-dev/third")];
+    const deleted: string[] = [];
+    let creates = 0;
+    const fetch: ImportFetch = async (input, init) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET") return Response.json({ secrets: [], imports: [] });
+      if (method === "POST") {
+        creates += 1;
+        if (creates === 3) throw new Error("connection lost after possible write");
+        return Response.json({ secret: { id: "created" } });
+      }
+      deleted.push(String(input));
+      if (deleted.length === 1) throw new Error("delete unavailable");
+      return Response.json({ secret: { id: "deleted" } });
+    };
+
+    await expect(importTestAccessRecords({
+      baseUrl: "https://secrets.dreambau.com", accessToken: "token",
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" }, records, fetch
+    })).rejects.toThrow(/rollback is incomplete.*1 unresolved/i);
+    expect(deleted).toHaveLength(3);
   });
 
   it("blocks existing keys before any write and never leaks secrets in the error", async () => {
