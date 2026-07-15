@@ -1,3 +1,4 @@
+import { resolve4 } from "node:dns/promises";
 import type { CoordinationProject } from "./coordination.js";
 
 export type RuntimeState = "healthy" | "degraded" | "offline" | "unavailable";
@@ -10,6 +11,7 @@ interface RuntimeTarget {
   url: string;
   healthUrl?: string;
   healthShape?: "status-ok" | "message-ok" | "kio-status";
+  expectedAddress?: string;
 }
 
 export interface RuntimeMetrics {
@@ -44,7 +46,8 @@ export const runtimeTargets: readonly RuntimeTarget[] = [
     environment: "pre-dev",
     url: "https://signoz.oriso-dev.site",
     healthUrl: "https://signoz.oriso-dev.site/api/v1/health",
-    healthShape: "status-ok"
+    healthShape: "status-ok",
+    expectedAddress: "46.224.170.69"
   },
   {
     id: "signoz-dev",
@@ -86,6 +89,7 @@ export async function loadRuntimeStatuses(
   projects: CoordinationProject[],
   dependencies: {
     fetcher?: typeof fetch;
+    resolver?: (hostname: string) => Promise<string[]>;
     timeoutMs?: number;
     now?: () => Date;
     clock?: () => number;
@@ -94,6 +98,7 @@ export async function loadRuntimeStatuses(
   const allowed = new Set(projects);
   const targets = runtimeTargets.filter((target) => allowed.has(target.project));
   const fetcher = dependencies.fetcher ?? fetch;
+  const resolver = dependencies.resolver ?? resolve4;
   const timeoutMs = dependencies.timeoutMs ?? 2_500;
   const now = dependencies.now ?? (() => new Date());
   const clock = dependencies.clock ?? Date.now;
@@ -103,6 +108,13 @@ export async function loadRuntimeStatuses(
     if (!target.healthUrl) return { ...publicTarget(target), state: "unavailable", checkedAt, latencyMs: null };
     const startedAt = clock();
     try {
+      if (target.expectedAddress) {
+        const hostname = new URL(target.healthUrl).hostname;
+        const addresses = await resolver(hostname);
+        if (!addresses.includes(target.expectedAddress)) {
+          return { ...publicTarget(target), state: "degraded", checkedAt, latencyMs: null };
+        }
+      }
       const response = await fetcher(target.healthUrl, {
         method: "GET",
         headers: { Accept: "application/json" },

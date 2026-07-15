@@ -9,14 +9,33 @@ describe("runtime status probes", () => {
       return new Response(JSON.stringify({ message: "Ok" }), { status: 200 });
     });
 
-    const statuses = await loadRuntimeStatuses(["oriso"], { fetcher, timeoutMs: 50 });
+    const statuses = await loadRuntimeStatuses(["oriso"], {
+      fetcher,
+      resolver: async () => ["46.224.170.69"],
+      timeoutMs: 50
+    });
 
     expect(statuses.map((status) => status.id)).toEqual(["signoz-predev", "signoz-dev"]);
     expect(statuses.every((status) => status.state === "healthy")).toBe(true);
     expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual(
-      runtimeTargets.filter((target) => target.project === "oriso" && target.healthUrl).map((target) => target.healthUrl)
+    expect(fetcher.mock.calls.map(([url]) => String(url)).sort()).toEqual(
+      runtimeTargets.filter((target) => target.project === "oriso" && target.healthUrl).map((target) => target.healthUrl).sort()
     );
+  });
+
+  it("marks Pre-Dev degraded when public DNS points at a retired server", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
+
+    const statuses = await loadRuntimeStatuses(["oriso"], {
+      fetcher,
+      resolver: async (hostname) => hostname === "signoz.oriso-dev.site" ? ["91.99.183.160"] : [],
+      timeoutMs: 50
+    });
+
+    expect(statuses.find((status) => status.id === "signoz-predev")?.state).toBe("degraded");
+    expect(statuses.find((status) => status.id === "signoz-dev")?.state).toBe("healthy");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(statuses)).not.toContain("91.99.183.160");
   });
 
   it("isolates degraded, offline and unavailable dependencies without returning bodies", async () => {
