@@ -5,7 +5,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("runtime config", () => {
   it("rejects an unsupported non-empty Test Access provider", () => {
-    process.env.TEST_ACCESS_PROVIDER = "typo-provider";
+    vi.stubEnv("TEST_ACCESS_PROVIDER", "typo-provider");
     expect(() => loadConfig()).toThrow(/TEST_ACCESS_PROVIDER/);
   });
   it("requires an explicit Infisical switch and maps only the three test projects", () => {

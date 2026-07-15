@@ -125,6 +125,7 @@ export async function importTestAccessRecords(options: ImportOptions) {
         const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(record.id)}`, baseUrl.origin), {
           method: "DELETE",
           headers: { ...headers, "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(15_000),
           body: JSON.stringify({
             projectId: options.projectIds[batch.project],
             environment: batch.environment,

@@ -41,7 +41,7 @@ describe("PasskeyEnrollment login hint", () => {
 
     expect(sessionStorage.getItem("testmails-login-email")).toBe("frank@dreambau.com");
     expect(localStorage.getItem("testmails-login-email")).toBeNull();
-    expect(JSON.stringify(localStorage)).not.toContain("recovery-code");
+    expect(localStorage.getItem("recovery-code")).toBeNull();
   });
 
   it("retries only recovery-code delivery after passkey registration succeeds", async () => {

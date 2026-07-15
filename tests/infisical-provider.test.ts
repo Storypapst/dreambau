@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createInfisicalRegistryProvider,
   testAccessRecordSchema,
@@ -186,6 +186,7 @@ describe("Infisical registry provider", () => {
   });
 
   it("adds an independent bounded timeout signal to authentication, reads and readiness", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
     const signals: AbortSignal[] = [];
     const fetch: FetchLike = async (input, init) => {
       expect(init?.signal).toBeInstanceOf(AbortSignal);
@@ -204,6 +205,35 @@ describe("Infisical registry provider", () => {
     await provider.health?.();
     expect(signals).toHaveLength(3);
     expect(new Set(signals).size).toBe(3);
+    expect(timeout).toHaveBeenCalledTimes(3);
+    expect(timeout).toHaveBeenNthCalledWith(1, 15_000);
+    expect(timeout).toHaveBeenNthCalledWith(2, 15_000);
+    expect(timeout).toHaveBeenNthCalledWith(3, 15_000);
+  });
+
+  it("starts all readiness source checks concurrently", async () => {
+    let healthCalls = 0;
+    let releaseFirst!: (response: Response) => void;
+    const firstResponse = new Promise<Response>((resolve) => { releaseFirst = resolve; });
+    const fetch: FetchLike = async (input) => {
+      if (String(input).includes("/login")) return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      healthCalls += 1;
+      if (healthCalls === 1) return firstResponse;
+      return Response.json({ secrets: [], imports: [] });
+    };
+    const provider = createInfisicalRegistryProvider({
+      baseUrl: "https://secrets.dreambau.com", organizationSlug: "dreambau-test-access",
+      clientId: "hub-service", clientSecret,
+      sources: [
+        { project: "oriso", projectId: "project-oriso", environment: "pre-dev" },
+        { project: "oriso", projectId: "project-oriso", environment: "dev" }
+      ], fetch
+    });
+
+    const health = provider.health?.();
+    await vi.waitFor(() => expect(healthCalls).toBe(2));
+    releaseFirst(Response.json({ secrets: [], imports: [] }));
+    await expect(health).resolves.toBeUndefined();
   });
 
   it("treats an unmaterialized records path as an empty healthy source", async () => {

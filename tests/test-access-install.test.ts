@@ -32,7 +32,8 @@ describe("portable test-access installer", () => {
     const script = readFileSync(new URL("../scripts/install-test-access-cli.sh", import.meta.url), "utf8");
     expect(script).toContain('runtime_backup="$data_dir/node_modules.backup.');
     expect(script).toContain('mv "$data_dir/node_modules" "$runtime_backup"');
-    expect(script).toContain('mv "$runtime_temporary" "$data_dir/node_modules"');
+    expect(script).toContain('if ! mv "$runtime_temporary" "$data_dir/node_modules"; then');
+    expect(script).toContain('mv "$runtime_backup" "$data_dir/node_modules"');
     expect(script).toContain('rm -rf "$runtime_backup"');
   });
 });
