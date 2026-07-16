@@ -17,6 +17,7 @@ import { createInfisicalRegistryProvider, type RegistryProvider, type TestEnviro
 import { createPasskeyStore, type HumanUser, type PasskeyStore } from "./passkey-store.js";
 import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
 import type { SessionPrincipal } from "./sessions.js";
+import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -35,6 +36,7 @@ interface AppOptions {
   rpId?: string;
   expectedOrigin?: string;
   bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
+  humanAccessProvider?: HumanAccessProvider;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -47,6 +49,18 @@ export function createApp(options: AppOptions = {}) {
   app.get("/testmails/health/live", (_req, res) => res.json({ status: "ok" }));
   const api = express.Router();
   const passkeyStore = options.passkeyStore ?? createPasskeyStore(options.loadAccounts ? ":memory:" : config.databasePath);
+  const humanAccessProvider = options.humanAccessProvider ?? (config.registryProvider === "infisical" && config.infisical
+    ? createInfisicalHumanAccessProvider({
+      baseUrl: config.infisical.baseUrl,
+      organizationSlug: config.infisical.organizationSlug,
+      clientId: config.infisical.clientId,
+      clientSecret: config.infisical.clientSecret
+    })
+    : undefined);
+  const syncHumanUser = async (user: HumanUser) => {
+    if (!humanAccessProvider || user.role === "admin") return user;
+    return passkeyStore.updateUserProjects(user.id, await humanAccessProvider.projectsFor(user.email));
+  };
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,
@@ -66,13 +80,16 @@ export function createApp(options: AppOptions = {}) {
     expectedOrigin: options.expectedOrigin ?? "https://dreambau.com",
     webauthn: options.webauthn,
     now: options.now,
-    bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" }
+    bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" },
+    syncHumanUser
   });
   const requireActivePasskeySession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
-    requireStrongSession(req, res, () => {
+    requireStrongSession(req, res, async () => {
       const principal = res.locals.session as SessionPrincipal;
-      const user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
+      let user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
       if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
+      try { user = await syncHumanUser(user); }
+      catch { return res.status(503).json({ error: "human_access_unavailable" }); }
       res.locals.humanUser = user;
       next();
     });

@@ -38,6 +38,7 @@ export function installPasskeyAuth(router: Router, options: {
   webauthn?: WebAuthnAdapter;
   now?: () => Date;
   bootstrapUser: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
+  syncHumanUser?: (user: import("./passkey-store.js").HumanUser) => Promise<import("./passkey-store.js").HumanUser>;
 }) {
   const webauthn = options.webauthn ?? defaultWebAuthn;
   const now = options.now ?? (() => new Date());
@@ -185,7 +186,14 @@ export function installPasskeyAuth(router: Router, options: {
     next();
   });
 
-  router.get("/auth/users", requireAdmin, (_req, res) => res.json(options.store.listUsers()));
+  router.get("/auth/users", requireAdmin, async (_req, res) => {
+    try {
+      const users = options.store.listUsers();
+      res.json(options.syncHumanUser ? await Promise.all(users.map(options.syncHumanUser)) : users);
+    } catch {
+      res.status(503).json({ error: "human_access_unavailable" });
+    }
+  });
   router.post("/auth/users", requireAdmin, (req, res) => {
     const parsed = z.object({
       email: z.string().email(),
@@ -209,10 +217,12 @@ export function installPasskeyAuth(router: Router, options: {
     try { res.json(options.store.setUserStatus(String(req.params.id), parsed.data.status)); }
     catch { res.status(404).json({ error: "user_not_found" }); }
   });
-  router.get("/auth/me", options.requireStrongSession, (_req, res) => {
+  router.get("/auth/me", options.requireStrongSession, async (_req, res) => {
     const principal = res.locals.session as SessionPrincipal;
-    const user = principal.userId ? options.store.getUser(principal.userId) : null;
+    let user = principal.userId ? options.store.getUser(principal.userId) : null;
     if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
+    try { if (options.syncHumanUser) user = await options.syncHumanUser(user); }
+    catch { return res.status(503).json({ error: "human_access_unavailable" }); }
     res.json(user);
   });
 }
