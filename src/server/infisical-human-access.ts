@@ -1,29 +1,20 @@
 import { z } from "zod";
 import type { HumanProject } from "./passkey-store.js";
 
-const projectByGroupSlug = {
-  "testmails-oriso": "oriso",
-  "testmails-orimo": "orimo",
-  "testmails-dreambau": "dreambau"
-} as const satisfies Record<string, HumanProject>;
-
 const authResponseSchema = z.object({
   accessToken: z.string().min(1),
   expiresIn: z.number().positive(),
   accessTokenMaxTTL: z.number().positive(),
   tokenType: z.literal("Bearer")
 });
-const groupsResponseSchema = z.array(z.object({
-  id: z.string().min(1),
-  slug: z.string().min(1)
-}).passthrough());
-const groupUsersResponseSchema = z.object({
-  users: z.array(z.object({
+const membershipsResponseSchema = z.object({
+  memberships: z.array(z.object({
+    user: z.object({
     username: z.string().min(1),
-    email: z.string().nullable().optional(),
-    isPartOfGroup: z.boolean().optional()
-  }).passthrough()),
-  totalCount: z.number().int().nonnegative()
+      email: z.string().nullable().optional()
+    }).passthrough(),
+    roles: z.array(z.object({ role: z.string().min(1) }).passthrough())
+  }).passthrough())
 });
 
 export type HumanAccessFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
@@ -37,6 +28,7 @@ interface InfisicalHumanAccessOptions {
   organizationSlug: string;
   clientId: string;
   clientSecret: string;
+  projectIds: Record<HumanProject, string>;
   fetch?: HumanAccessFetch;
   now?: () => number;
   cacheTtlMs?: number;
@@ -80,43 +72,24 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
     return cachedToken.value;
   }
 
-  async function groupUsers(groupId: string, token: string) {
-    const users: Array<z.infer<typeof groupUsersResponseSchema>["users"][number]> = [];
-    let offset = 0;
-    do {
-      const url = new URL(`/api/v1/groups/${encodeURIComponent(groupId)}/users`, baseUrl);
-      url.search = new URLSearchParams({ offset: String(offset), limit: "100", filter: "existingMembers" }).toString();
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      if (!response.ok) throw new Error("Infisical human access lookup failed");
-      let page: z.infer<typeof groupUsersResponseSchema>;
-      try { page = groupUsersResponseSchema.parse(await response.json()); }
-      catch { throw new Error("Infisical human access lookup failed"); }
-      users.push(...page.users.filter((user) => user.isPartOfGroup !== false));
-      offset += page.users.length;
-      if (page.users.length === 0 || offset >= page.totalCount) break;
-    } while (true);
-    return users;
-  }
-
   async function loadProjects() {
     const token = await accessToken();
-    const response = await fetch(`${baseUrl}/api/v1/groups`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) throw new Error("Infisical human access lookup failed");
-    let groups: z.infer<typeof groupsResponseSchema>;
-    try { groups = groupsResponseSchema.parse(await response.json()); }
-    catch { throw new Error("Infisical human access lookup failed"); }
-    const recognized = groups.filter((group) => group.slug in projectByGroupSlug);
-    const memberships = await Promise.all(recognized.map(async (group) => ({
-      project: projectByGroupSlug[group.slug as keyof typeof projectByGroupSlug],
-      users: await groupUsers(group.id, token)
-    })));
+    const memberships = await Promise.all((Object.entries(options.projectIds) as Array<[HumanProject, string]>).map(async ([project, projectId]) => {
+      const response = await fetch(`${baseUrl}/api/v1/projects/${encodeURIComponent(projectId)}/memberships`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error("Infisical human access lookup failed");
+      try { return { project, memberships: membershipsResponseSchema.parse(await response.json()).memberships }; }
+      catch { throw new Error("Infisical human access lookup failed"); }
+    }));
     const result = new Map<string, HumanProject[]>();
-    for (const membership of memberships) {
-      for (const user of membership.users) {
-        const email = normalizedEmail(user.email ?? user.username);
+    for (const projectMemberships of memberships) {
+      for (const membership of projectMemberships.memberships) {
+        if (membership.roles.length === 0 || !membership.roles.every(({ role }) => role === "no-access")) continue;
+        const email = normalizedEmail(membership.user.email ?? membership.user.username);
         if (!email.includes("@")) continue;
         const projects = result.get(email) ?? [];
-        if (!projects.includes(membership.project)) projects.push(membership.project);
+        if (!projects.includes(projectMemberships.project)) projects.push(projectMemberships.project);
         result.set(email, projects);
       }
     }

@@ -54,7 +54,8 @@ export function createApp(options: AppOptions = {}) {
       baseUrl: config.infisical.baseUrl,
       organizationSlug: config.infisical.organizationSlug,
       clientId: config.infisical.clientId,
-      clientSecret: config.infisical.clientSecret
+      clientSecret: config.infisical.clientSecret,
+      projectIds: config.infisical.projectIds
     })
     : undefined);
   const syncHumanUser = async (user: HumanUser) => {
