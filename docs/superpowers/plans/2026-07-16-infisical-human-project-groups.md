@@ -28,7 +28,7 @@ administrators retain their bootstrap scopes.
 - [x] Change Shazia's ORISO membership from `member` to `no-access`.
 - [x] Add Shazia to Dreambau Test Access with `no-access`; keep ORIMO absent.
 - [x] Verify the three live memberships through the read-only runtime identity.
-- [ ] Run the complete lint, test, and production build gates.
-- [ ] Build/import a unique image, deploy it, and wait for rollout readiness.
-- [ ] Trigger and verify live Testmails synchronization without exposing
+- [x] Run the complete lint, test, and production build gates.
+- [x] Build/import a unique image, deploy it, and wait for rollout readiness.
+- [x] Trigger and verify live Testmails synchronization without exposing
   credentials or enrollment codes.
