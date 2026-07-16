@@ -60,6 +60,21 @@ Die Weboberfläche zeigt den Bereich **Mitarbeiter** nur Administratoren, zeigt
 den Enrollment-Code nur im unmittelbar folgenden Dialogzustand und hält ihn
 nicht in einer dauerhaften Browserablage.
 
+### Infisical-Gruppen für menschliche Projektzugriffe
+
+Für nicht-administrative Benutzer ist Infisical die führende Quelle der
+Projektzuordnung. Die Organisation-Gruppen `testmails-oriso`,
+`testmails-orimo` und `testmails-dreambau` werden mit der Organisationsrolle
+`no-access` angelegt und nicht mit Infisical-Projekten verbunden. Dadurch
+steuern sie ausschließlich die sichtbaren Testkonten und gewähren keinen
+Zugriff auf Secrets.
+
+Die Anwendung liest Gruppen und Mitglieder über die bereits gemountete
+Universal-Auth-Identität, cached das Ergebnis höchstens 60 Sekunden und
+aktualisiert `human_users.projects`. Schlägt die Synchronisierung fehl, werden
+Anfragen nicht-administrativer Benutzer mit `503 human_access_unavailable`
+abgewiesen. Der Bootstrap-Administrator behält seine lokalen Projektzuordnungen.
+
 - `GET /testmails/api/v1/accounts` liefert nur Metadaten im Token-Scope.
 - Filter: `project`, `environment`, `role`.
 - `GET /testmails/api/v1/accounts/:id/secret` liefert gezielt genau ein Secret

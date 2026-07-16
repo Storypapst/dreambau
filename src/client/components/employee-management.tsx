@@ -35,7 +35,7 @@ export function EmployeeManagement({ locale }: { locale: Locale }) {
   return <Dialog open={open} onOpenChange={(value) => { setOpen(value); setEnrollmentCode(""); if (value) void load(); }}>
     <DialogTrigger asChild><Button variant="outline"><UsersIcon />{locale === "de" ? "Mitarbeiter" : "Team"}</Button></DialogTrigger>
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-      <DialogHeader><DialogTitle>{locale === "de" ? "Mitarbeiterzugänge" : "Team access"}</DialogTitle><DialogDescription>{locale === "de" ? "Individuelle Passkey-Konten und Projektzugriffe verwalten." : "Manage individual passkey accounts and project access."}</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>{locale === "de" ? "Mitarbeiterzugänge" : "Team access"}</DialogTitle><DialogDescription>{locale === "de" ? "Passkey-Konten werden hier angelegt. Effektive Projektzugriffe werden aus Infisical-Gruppen synchronisiert." : "Passkey accounts are created here. Effective project access is synchronized from Infisical groups."}</DialogDescription></DialogHeader>
       <FieldGroup>
         {error && <Alert variant="destructive"><AlertTitle>{locale === "de" ? "Anlegen fehlgeschlagen" : "Creation failed"}</AlertTitle></Alert>}
         {enrollmentCode && <Alert><AlertTitle>{locale === "de" ? "Enrollment-Code jetzt sicher übergeben" : "Share this enrollment code securely now"}</AlertTitle><AlertDescription>{locale === "de" ? "Der Code wird nach dem Schließen nicht erneut angezeigt." : "The code will not be shown again after closing."}</AlertDescription><pre className="mt-3 overflow-x-auto rounded bg-muted p-3">{enrollmentCode}</pre></Alert>}
