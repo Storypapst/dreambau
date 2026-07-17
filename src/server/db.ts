@@ -4,6 +4,7 @@ import { metadataPatchSchema, emptyMetadata, type AccountMetadata, type Metadata
 import type { Taxonomies } from "./taxonomies.js";
 import * as schema from "./schema.js";
 import { topicKeys } from "./catalog.js";
+import { TestRunStore } from "./test-run-store.js";
 
 const seeds = {
   roles: ["Träger", "Berater", "Ratsuchender", "Admin"],
@@ -12,6 +13,7 @@ const seeds = {
 };
 
 export interface RegistryDatabase {
+  testRuns: TestRunStore;
   tableNames(): string[]; getMetadata(email: string): AccountMetadata; getAllMetadata(): AccountMetadata[];
   upsertMetadata(email: string, patch: MetadataPatch): AccountMetadata; bulkStatus(emails: string[], status: string): number;
   recordMachineIdentityUse(identityId: string, usedAt?: string): void;
@@ -45,7 +47,55 @@ export function createDatabase(path: string): RegistryDatabase {
       tags TEXT NOT NULL DEFAULT '[]',
       discussions TEXT NOT NULL DEFAULT '[]'
     );
+    CREATE TABLE IF NOT EXISTS test_runs (
+      id TEXT PRIMARY KEY,
+      project TEXT NOT NULL,
+      target_environment TEXT NOT NULL,
+      pool_environment TEXT NOT NULL,
+      application_version TEXT NOT NULL,
+      commit_sha TEXT NOT NULL,
+      scenario TEXT NOT NULL,
+      status TEXT NOT NULL,
+      requested_accounts INTEGER NOT NULL,
+      initiated_by_type TEXT NOT NULL,
+      initiated_by_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      finished_at TEXT,
+      cleaned_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS test_run_role_demands (
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE RESTRICT,
+      role TEXT NOT NULL,
+      count INTEGER NOT NULL,
+      PRIMARY KEY(run_id,role)
+    );
+    CREATE TABLE IF NOT EXISTS test_run_accounts (
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE RESTRICT,
+      account_id TEXT NOT NULL,
+      email TEXT,
+      roles TEXT NOT NULL,
+      requested_role TEXT NOT NULL,
+      PRIMARY KEY(run_id,account_id)
+    );
+    CREATE TABLE IF NOT EXISTS account_leases (
+      account_id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE RESTRICT,
+      leased_at TEXT NOT NULL,
+      expires_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS test_run_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE RESTRICT,
+      event_type TEXT NOT NULL,
+      actor_type TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      payload TEXT NOT NULL DEFAULT '{}'
+    );
     CREATE UNIQUE INDEX IF NOT EXISTS taxonomy_kind_value ON taxonomy_values(kind, value);
+    CREATE INDEX IF NOT EXISTS test_runs_lookup ON test_runs(project,target_environment,application_version);
+    CREATE INDEX IF NOT EXISTS test_run_events_order ON test_run_events(run_id,id);
   `);
   const metadataColumns = new Set((sqlite.prepare("PRAGMA table_info(account_metadata)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!metadataColumns.has("project")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN project TEXT NOT NULL DEFAULT 'NONE'");
@@ -59,6 +109,7 @@ export function createDatabase(path: string): RegistryDatabase {
     fixtureQuality: row.fixture_quality, sampleFileCount: row.sample_file_count, notes: row.notes, updatedAt: row.updated_at
   });
   const api: RegistryDatabase = {
+    testRuns: new TestRunStore(sqlite),
     tableNames: () => (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((row) => row.name),
     getMetadata(email) { const row = sqlite.prepare("SELECT * FROM account_metadata WHERE email=?").get(email); return row ? rowToMetadata(row) : emptyMetadata(email); },
     getAllMetadata: () => (sqlite.prepare("SELECT * FROM account_metadata ORDER BY email").all() as any[]).map(rowToMetadata),

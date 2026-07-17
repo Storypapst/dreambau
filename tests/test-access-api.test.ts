@@ -195,6 +195,23 @@ describe("test access API v1", () => {
     expect(JSON.stringify(response.body)).not.toContain(orisoSecret);
   });
 
+  it("does not grant account access to a run-only machine identity", async () => {
+    const target = createApp({
+      passwordHash: "unused",
+      secureCookies: false,
+      loadAccounts: () => [account("spider.pig@oriso.org", orisoSecret)],
+      machineIdentities: [{
+        ...identity("run-worker", orisoToken, "oriso"),
+        actions: ["runs:read"]
+      }]
+    });
+    const response = await request(target)
+      .get("/testmails/api/v1/accounts")
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: "action_denied" });
+  });
+
   it("rejects a machine token immediately after its identity is revoked", async () => {
     let identities = [identity("codex-m4-oriso", orisoToken, "oriso")];
     const target = createApp({

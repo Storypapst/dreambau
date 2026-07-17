@@ -4,6 +4,7 @@ import type { AccountRecord } from "./accounts.js";
 import type { RegistryDatabase } from "./db.js";
 import {
   authenticateMachineToken,
+  machineCan,
   type MachineIdentity,
   type TestEnvironment,
   type TestProject
@@ -12,6 +13,7 @@ import type { TestMailReader } from "./test-mail.js";
 import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js";
 import { generateTotp } from "./totp.js";
 import { parseSeedProfile } from "./seed-profile.js";
+import { createTestRunRouter } from "./test-run-router.js";
 
 const querySchema = z.object({
   project: z.enum(["oriso", "orimo", "dreambau"]).optional(),
@@ -56,6 +58,20 @@ export function createTestAccessRouter(options: {
   });
 
   const publicRecord = ({ secret: _secret, totpSecret: _totpSecret, ...record }: TestAccessRecord) => record;
+
+  router.use("/runs", createTestRunRouter({
+    registryProvider: options.registryProvider,
+    database: options.database,
+    now: options.now
+  }));
+
+  router.use((_req, res, next) => {
+    const identity = res.locals.machineIdentity as MachineIdentity;
+    if (!machineCan(identity, "accounts:read")) {
+      return res.status(403).json({ error: "action_denied" });
+    }
+    next();
+  });
 
   router.get("/accounts", async (req, res, next) => {
     const parsed = querySchema.safeParse(req.query);
