@@ -52,7 +52,7 @@ async function requireJmapBoundary(fetchImpl: typeof fetch, url: string): Promis
 export async function checkLiveTestAccess(options: LiveSmokeOptions = {}): Promise<LiveSmokeResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = (options.baseUrl ?? "https://dreambau.com/testmails").replace(/\/$/, "");
-  const jmapUrl = options.jmapUrl ?? "https://box.dreambau.com/.well-known/jmap";
+  const jmapUrl = options.jmapUrl ?? "https://box.dreambau.com/jmap/session";
 
   await requireJsonHealth(fetchImpl, "liveness", `${baseUrl}/health/live`);
   await requireJsonHealth(fetchImpl, "readiness", `${baseUrl}/health/ready`);
