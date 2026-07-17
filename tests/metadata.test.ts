@@ -36,6 +36,15 @@ describe("metadata database", () => {
     expect(() => db.upsertMetadata("homer.simpson@dreambau.com", { lifecycleStatus: "gone" as never })).toThrow();
     db.close();
   });
+  it("records machine identity usage without storing token values", () => {
+    const db = database();
+    db.recordMachineIdentityUse("codex-m4-oriso", "2026-07-12T06:30:00.000Z");
+    expect(db.getMachineIdentityUsage()).toEqual([
+      { identityId: "codex-m4-oriso", lastUsedAt: "2026-07-12T06:30:00.000Z" }
+    ]);
+    expect(JSON.stringify(db.getMachineIdentityUsage())).not.toContain("token");
+    db.close();
+  });
 });
 
 describe("numeric version comparison", () => {

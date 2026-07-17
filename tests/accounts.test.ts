@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadAccounts, type AccountRecord } from "../src/server/accounts.js";
+import { loadAccounts, parseAccounts, type AccountRecord } from "../src/server/accounts.js";
 
 const domains = ["dreambau.com", "dreambau.de", "getme.global", "openresilience.cc", "oriso.org", "trail.ist"];
 function fixture(): AccountRecord[] {
@@ -32,6 +32,7 @@ describe("account secret loader", () => {
     expect(new Set(accounts.map((a) => a.domain))).toEqual(new Set(domains));
   });
   it("rejects duplicate emails", () => expect(() => loadAccounts(write([...fixture(), fixture()[0]]))).toThrow(/duplicate/i));
+  it("parses the same validated account format directly from a pipe payload", () => expect(parseAccounts(JSON.stringify(fixture()))).toEqual(fixture()));
   it("rejects missing passwords", () => {
     const accounts = fixture(); accounts[0].password = "";
     expect(() => loadAccounts(write(accounts))).toThrow(/password/i);

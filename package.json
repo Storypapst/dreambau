@@ -10,6 +10,12 @@
     "start": "node dist/server/index.js",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test-access": "tsx src/server/test-access-cli.ts",
+    "oriso-login-check": "tsx src/server/oriso-consultant-login-check.ts",
+    "smoke:live": "tsx src/server/live-smoke-cli.ts",
+    "recovery-export": "tsx src/server/recovery-export.ts",
+    "infisical-import": "tsx src/server/infisical-import-cli.ts",
+    "oriso-seed-import": "tsx src/server/oriso-seed-import-cli.ts",
     "lint": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
@@ -18,6 +24,8 @@
     "@radix-ui/react-popover": "latest",
     "@radix-ui/react-slot": "latest",
     "@radix-ui/react-toggle-group": "latest",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
     "argon2": "latest",
     "better-sqlite3": "latest",
     "class-variance-authority": "latest",

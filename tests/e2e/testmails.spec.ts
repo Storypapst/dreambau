@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-const password = process.env.TESTMAILS_E2E_PASSWORD;
-if (!password) throw new Error("TESTMAILS_E2E_PASSWORD must come from the operator Keychain");
-
 async function login(page: import("@playwright/test").Page) {
+  const password = process.env.TESTMAILS_E2E_PASSWORD;
+  if (!password) throw new Error("TESTMAILS_E2E_PASSWORD must come from the operator Keychain");
   await page.goto("/testmails/");
   await page.evaluate(() => localStorage.setItem("testmails-locale", "de"));
   await page.reload();
-  await page.getByLabel("Gemeinsames Passwort").fill(password!);
+  await page.getByLabel("Gemeinsames Passwort").fill(password);
   await page.getByRole("button", { name: "Anmelden" }).click();
   await expect(page.getByRole("heading", { name: "Springfield Testkonten" })).toBeVisible();
 }
@@ -15,6 +14,9 @@ async function login(page: import("@playwright/test").Page) {
 test("unauthenticated surfaces contain no credentials", async ({ page, request }) => {
   await page.goto("/testmails/");
   await expect(page.getByText("Testkonten öffnen")).toBeVisible();
+  await expect(page.getByText("Ersteinrichtung auf diesem System")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ersteinrichtung starten" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mit Passkey anmelden" })).toHaveCount(0);
   await expect(page.getByText("@dreambau.com")).toHaveCount(0);
   expect((await request.get("/testmails/api/accounts")).status()).toBe(401);
   expect((await request.get("/testmails/testmails.md")).status()).toBe(401);

@@ -19,8 +19,8 @@ export type AccountRecord = z.infer<typeof accountSchema>;
 
 const expectedDomains = new Set(["dreambau.com", "dreambau.de", "getme.global", "openresilience.cc", "oriso.org", "trail.ist"]);
 
-export function loadAccounts(filePath: string): AccountRecord[] {
-  const parsed = z.array(accountSchema).parse(JSON.parse(readFileSync(filePath, "utf8")));
+export function parseAccounts(raw: string): AccountRecord[] {
+  const parsed = z.array(accountSchema).parse(JSON.parse(raw));
   const emails = new Set<string>();
   for (const account of parsed) {
     if (emails.has(account.email)) throw new Error(`Duplicate email: ${account.email}`);
@@ -32,4 +32,8 @@ export function loadAccounts(filePath: string): AccountRecord[] {
   }
   if (new Set(parsed.map((account) => account.domain)).size !== 6) throw new Error("Exactly six domains are required");
   return parsed;
+}
+
+export function loadAccounts(filePath: string): AccountRecord[] {
+  return parseAccounts(readFileSync(filePath, "utf8"));
 }

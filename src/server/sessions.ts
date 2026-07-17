@@ -3,22 +3,26 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 const MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 export class SessionStore {
-  private readonly sessions = new Map<string, number>();
+  private readonly sessions = new Map<string, { expiresAt: number; principal: SessionPrincipal }>();
   constructor(private readonly secret: string) {}
 
-  create() {
+  create(principal: SessionPrincipal = { authenticated: true, method: "password-bootstrap", userId: null }) {
     const id = randomBytes(32).toString("base64url");
-    this.sessions.set(id, Date.now() + MAX_AGE_MS);
+    this.sessions.set(id, { expiresAt: Date.now() + MAX_AGE_MS, principal });
     return `${id}.${this.sign(id)}`;
   }
 
   validate(cookie: string | undefined) {
-    if (!cookie) return false;
+    return this.get(cookie) !== null;
+  }
+
+  get(cookie: string | undefined): SessionPrincipal | null {
+    if (!cookie) return null;
     const [id, signature] = cookie.split(".");
-    if (!id || !signature || !this.equal(signature, this.sign(id))) return false;
-    const expires = this.sessions.get(id);
-    if (!expires || expires < Date.now()) { this.sessions.delete(id); return false; }
-    return true;
+    if (!id || !signature || !this.equal(signature, this.sign(id))) return null;
+    const session = this.sessions.get(id);
+    if (!session || session.expiresAt < Date.now()) { this.sessions.delete(id); return null; }
+    return session.principal;
   }
 
   destroy(cookie: string | undefined) {
@@ -31,6 +35,12 @@ export class SessionStore {
     const left = Buffer.from(a); const right = Buffer.from(b);
     return left.length === right.length && timingSafeEqual(left, right);
   }
+}
+
+export interface SessionPrincipal {
+  authenticated: true;
+  method: "password-bootstrap" | "passkey" | "recovery";
+  userId: string | null;
 }
 
 export const cookieName = "dreambau_testmails_session";

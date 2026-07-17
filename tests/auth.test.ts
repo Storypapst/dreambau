@@ -39,6 +39,13 @@ describe("password-only authentication", () => {
     expect(cookie).toContain("Path=/testmails");
   });
 
+  it("does not let a bootstrap password session read account data", async () => {
+    const target = createApp({ passwordHash, secureCookies: false, loadAccounts: () => [] });
+    const agent = request.agent(target);
+    await agent.post("/testmails/api/auth/login").send({ password: "correct horse battery staple" });
+    expect((await agent.get("/testmails/api/accounts")).status).toBe(403);
+  });
+
   it("invalidates a session on logout", async () => {
     const target = createApp({ passwordHash, secureCookies: false, loadAccounts: () => [] });
     const agent = request.agent(target);
