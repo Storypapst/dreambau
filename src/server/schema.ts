@@ -10,3 +10,8 @@ export const accountMetadata = sqliteTable("account_metadata", {
 export const taxonomyValues = sqliteTable("taxonomy_values", {
   id: integer("id").primaryKey({ autoIncrement: true }), kind: text("kind").notNull(), value: text("value").notNull()
 }, (table) => [uniqueIndex("taxonomy_kind_value").on(table.kind, table.value)]);
+export const coordinationItemMetadata = sqliteTable("coordination_item_metadata", {
+  itemId: text("item_id").primaryKey(),
+  tags: text("tags").notNull().default("[]"),
+  discussions: text("discussions").notNull().default("[]")
+});

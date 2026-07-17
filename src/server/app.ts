@@ -17,6 +17,11 @@ import { createInfisicalRegistryProvider, type RegistryProvider, type TestEnviro
 import { createPasskeyStore, type HumanUser, type PasskeyStore } from "./passkey-store.js";
 import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
 import type { SessionPrincipal } from "./sessions.js";
+import {
+  coordinationForProjects,
+  coordinationItemById,
+  type CoordinationProject
+} from "./coordination.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -146,6 +151,61 @@ export function createApp(options: AppOptions = {}) {
   });
   api.get("/taxonomies", requireActivePasskeySession, (_req, res) => res.json(database.getTaxonomies()));
   api.get("/machine-identities/usage", requireAdminSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
+  const coordinationProjects = (user: HumanUser) =>
+    user.projects.filter((project): project is CoordinationProject =>
+      ["oriso", "orimo", "dreambau"].includes(project)
+    );
+  const scopedCoordination = (user: HumanUser) => {
+    const catalog = coordinationForProjects(coordinationProjects(user));
+    return {
+      ...catalog,
+      items: catalog.items.map((item) => ({
+        ...item,
+        ...database.getCoordinationMetadata(item.id)
+      }))
+    };
+  };
+  const scopedCoordinationItem = (itemId: string, user: HumanUser) => {
+    const item = coordinationItemById(itemId);
+    if (!item) return { status: 404 as const };
+    if (!item.projects.some((project) => coordinationProjects(user).includes(project))) {
+      return { status: 403 as const };
+    }
+    return { status: 200 as const, item };
+  };
+  const coordinationTagSchema = z.object({
+    tag: z.string().trim().min(1).max(40).regex(/^[\p{L}\p{N}][\p{L}\p{N} ._/-]*$/u)
+  });
+  const coordinationDiscussionSchema = z.object({
+    label: z.string().trim().min(1).max(80),
+    url: z.string().url().refine((value) => {
+      const hostname = new URL(value).hostname;
+      return hostname === "github.com" || hostname.endsWith(".slack.com") || hostname === "matrix.dreambau.com";
+    }, "discussion host is not allowed")
+  });
+  api.get("/coordination", requireActivePasskeySession, (_req, res) => {
+    res.json(scopedCoordination(res.locals.humanUser));
+  });
+  api.post("/coordination/items/:itemId/tags", requireActivePasskeySession, (req, res) => {
+    const scoped = scopedCoordinationItem(String(req.params.itemId), res.locals.humanUser);
+    if (scoped.status !== 200) return res.status(scoped.status).json({ error: scoped.status === 403 ? "scope_denied" : "coordination_item_not_found" });
+    try {
+      const { tag } = coordinationTagSchema.parse(req.body);
+      res.status(201).json(database.addCoordinationTag(scoped.item.id, tag));
+    } catch (error) {
+      handleValidation(error, res);
+    }
+  });
+  api.post("/coordination/items/:itemId/discussions", requireActivePasskeySession, (req, res) => {
+    const scoped = scopedCoordinationItem(String(req.params.itemId), res.locals.humanUser);
+    if (scoped.status !== 200) return res.status(scoped.status).json({ error: scoped.status === 403 ? "scope_denied" : "coordination_item_not_found" });
+    try {
+      const discussion = coordinationDiscussionSchema.parse(req.body);
+      res.status(201).json(database.addCoordinationDiscussion(scoped.item.id, discussion));
+    } catch (error) {
+      handleValidation(error, res);
+    }
+  });
   api.put("/taxonomies/:kind", requireAdminSession, async (req, res) => {
     try { const kind = taxonomyKindSchema.parse(String(req.params.kind)); const { values } = taxonomyValuesSchema.parse(req.body); const result = database.putTaxonomy(kind, values); await regenerate(); res.json(result); } catch (error) { handleValidation(error, res); }
   });

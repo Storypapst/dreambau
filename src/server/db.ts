@@ -17,7 +17,13 @@ export interface RegistryDatabase {
   recordMachineIdentityUse(identityId: string, usedAt?: string): void;
   getMachineIdentityUsage(): Array<{ identityId: string; lastUsedAt: string }>;
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
+  getCoordinationMetadata(itemId: string): CoordinationMetadata;
+  addCoordinationTag(itemId: string, tag: string): CoordinationMetadata;
+  addCoordinationDiscussion(itemId: string, discussion: CoordinationDiscussion): CoordinationMetadata;
 }
+
+export interface CoordinationDiscussion { label: string; url: string }
+export interface CoordinationMetadata { tags: string[]; discussions: CoordinationDiscussion[] }
 
 export function createDatabase(path: string): RegistryDatabase {
   const sqlite = new Database(path);
@@ -33,6 +39,11 @@ export function createDatabase(path: string): RegistryDatabase {
     CREATE TABLE IF NOT EXISTS machine_identity_usage (
       identity_id TEXT PRIMARY KEY,
       last_used_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS coordination_item_metadata (
+      item_id TEXT PRIMARY KEY,
+      tags TEXT NOT NULL DEFAULT '[]',
+      discussions TEXT NOT NULL DEFAULT '[]'
     );
     CREATE UNIQUE INDEX IF NOT EXISTS taxonomy_kind_value ON taxonomy_values(kind, value);
   `);
@@ -70,7 +81,30 @@ export function createDatabase(path: string): RegistryDatabase {
       return result;
     },
     putTaxonomy(kind, values) { const transaction = sqlite.transaction(() => { sqlite.prepare("DELETE FROM taxonomy_values WHERE kind=?").run(kind); const insert = sqlite.prepare("INSERT INTO taxonomy_values(kind,value) VALUES (?,?)"); for (const value of [...new Set(values)].sort((a,b) => a.localeCompare(b,"de"))) insert.run(kind, value); }); transaction(); return api.getTaxonomies(); },
+    getCoordinationMetadata(itemId) {
+      const row = sqlite.prepare("SELECT tags,discussions FROM coordination_item_metadata WHERE item_id=?").get(itemId) as { tags: string; discussions: string } | undefined;
+      return row ? { tags: JSON.parse(row.tags), discussions: JSON.parse(row.discussions) } : { tags: [], discussions: [] };
+    },
+    addCoordinationTag(itemId, tag) {
+      const current = api.getCoordinationMetadata(itemId);
+      const tags = [...new Set([...current.tags, tag])].sort((a, b) => a.localeCompare(b, "de"));
+      writeCoordinationMetadata(itemId, { ...current, tags });
+      return api.getCoordinationMetadata(itemId);
+    },
+    addCoordinationDiscussion(itemId, discussion) {
+      const current = api.getCoordinationMetadata(itemId);
+      const discussions = current.discussions.some((entry) => entry.url === discussion.url)
+        ? current.discussions
+        : [...current.discussions, discussion];
+      writeCoordinationMetadata(itemId, { ...current, discussions });
+      return api.getCoordinationMetadata(itemId);
+    },
     close: () => sqlite.close()
   };
+  function writeCoordinationMetadata(itemId: string, value: CoordinationMetadata) {
+    sqlite.prepare(`INSERT INTO coordination_item_metadata(item_id,tags,discussions) VALUES(?,?,?)
+      ON CONFLICT(item_id) DO UPDATE SET tags=excluded.tags,discussions=excluded.discussions`)
+      .run(itemId, JSON.stringify(value.tags), JSON.stringify(value.discussions));
+  }
   return api;
 }
