@@ -8,6 +8,7 @@ import {
   runPlaywrightLoginBroker,
   type BrokerDependencies
 } from "./playwright-login-broker.js";
+import { runTestRunCli } from "./test-run-cli.js";
 
 type OutputMode = "json" | "secret" | "otp" | "env";
 
@@ -66,6 +67,7 @@ interface CliDependencies {
 }
 
 export async function runTestAccessCommand(args: string[], dependencies: CliDependencies) {
+  if (args[0] === "run") return runTestRunCli(args.slice(1), dependencies);
   if (args[0] === "playwright-login") {
     const [, accountId = ""] = args;
     const brokerDependencies: BrokerDependencies = dependencies;

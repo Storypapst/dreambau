@@ -2,6 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 import { buildApiRequest, runTestAccessCli, runTestAccessCommand } from "../src/server/test-access-cli.js";
 
 describe("test-access CLI", () => {
+  it("dispatches versioned run commands through the same Keychain-backed client", async () => {
+    const fetchMock = vi.fn(async () => Response.json([]));
+    const result = await runTestAccessCommand(
+      ["run", "list", "--project", "oriso", "--target", "pre-dev"],
+      {
+        baseUrl: "https://dreambau.com/testmails/api/v1",
+        identity: "kio-oriso",
+        readKeychainToken: () => "keychain-token",
+        fetch: fetchMock as unknown as typeof fetch,
+        write: vi.fn()
+      }
+    );
+    expect(result).toBe(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://dreambau.com/testmails/api/v1/runs?project=oriso&targetEnvironment=pre-dev",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
   it("routes playwright-login without sending credentials through normal CLI output", async () => {
     const broker = vi.fn(async () => 0);
     const result = await runTestAccessCommand(

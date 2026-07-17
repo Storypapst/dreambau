@@ -15,7 +15,8 @@ Secrets werden ausschließlich aus stdin erzeugt. Das Account-JSON kommt aus Key
 
 ## Test Access API v1
 
-Maschinen greifen mit einzeln widerrufbaren Bearer-Tokens auf die read-only API
+Maschinen greifen mit einzeln widerrufbaren Bearer-Tokens auf die projekt- und
+aktionsgescopte API
 unter `/testmails/api/v1` zu. Die Datei
 `/run/secrets/test-access/machine-identities.json` enthält ausschließlich
 SHA-256-Token-Hashes, Projekt-/Umgebungs-Scopes, Ablaufzeit und Widerrufszeit;
@@ -139,7 +140,30 @@ npm run test-access -- get 'mailbox:spider.pig@oriso.org'
 npm run test-access -- otp 'mailbox:spider.pig@oriso.org' verification
 npm run test-access -- mail 'mailbox:spider.pig@oriso.org' verification
 npm run test-access -- env 'oriso/pre-dev/e2e-default'
+npm run test-access -- run create --project oriso --target pre-dev --pool production-test --version 4.9 --commit abcdef1 --scenario three-way-chat --role consultant=2 --role user=1
+npm run test-access -- run list --project oriso --target pre-dev
+npm run test-access -- run show '<run-id>'
+npm run test-access -- run start '<run-id>'
+npm run test-access -- run finish '<run-id>' --result passed
+npm run test-access -- run release '<run-id>'
 ```
+
+### Versionierte Test-Runs
+
+Ein Test-Run reserviert eine vollständige Rollenbelegung atomar aus den
+stabilen Mailbox-Records. SQLite speichert nur Account-ID, E-Mail,
+Rollen-Snapshot, Zielumgebung, Version, Commit, Status und Audit-Ereignisse;
+Passwörter, OTPs, Tokens, Browser-State und Nachrichteninhalte bleiben
+außerhalb des Run-Ledgers.
+
+Machine Identities erhalten Run-Rechte explizit über `actions`:
+`runs:read`, `runs:create`, `runs:execute` und – erst für den späteren
+produktseitigen Cleanup-Adapter – `runs:cleanup`. Bestehende Identities ohne
+`actions` behalten ausschließlich `accounts:read` und `sessions:open`.
+
+`run release` gibt nur die Lease frei. Die stabile Mailbox und ihr Infisical-
+Secret bleiben unverändert. Das Löschen versionierter ORISO-Testnutzer, Räume
+und Artefakte folgt in einem separaten, preview-pflichtigen Adapter.
 
 ### ORISO PreDev seed import
 
