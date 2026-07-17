@@ -51,7 +51,8 @@ describe("Playwright login broker", () => {
     expect(login).toHaveBeenCalledWith(expect.objectContaining({
       username: "test-consultant-001",
       password,
-      loginUrl: "https://app.oriso-dev.site"
+      loginUrl: "https://app.oriso-dev.site",
+      ignoreHTTPSErrors: true
     }));
     const response = JSON.parse(output.join(""));
     expect(response).toMatchObject({
@@ -90,6 +91,7 @@ describe("Playwright login broker", () => {
       await playwrightLogin({
         username: "test-user", password: "test-password",
         loginUrl: `http://127.0.0.1:${address.port}/`, statePath,
+        ignoreHTTPSErrors: false,
         getOtp: async () => { throw new Error("OTP should not be requested"); }
       });
       const state = JSON.parse(await readFile(statePath, "utf8"));
