@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   authenticateMachineToken,
   hashMachineToken,
+  machineCan,
   machineIdentitySchema,
   type MachineIdentity
 } from "../src/server/machine-access.js";
@@ -37,5 +38,13 @@ describe("machine identity authentication", () => {
       ...identity(),
       token
     })).toThrow();
+  });
+
+  it("keeps legacy identities read-only and grants run actions explicitly", () => {
+    expect(machineCan(identity(), "accounts:read")).toBe(true);
+    expect(machineCan(identity(), "sessions:open")).toBe(true);
+    expect(machineCan(identity(), "runs:create")).toBe(false);
+    expect(machineCan(identity({ actions: ["runs:read", "runs:create"] }), "runs:create")).toBe(true);
+    expect(machineCan(identity({ actions: ["runs:read", "runs:create"] }), "runs:cleanup")).toBe(false);
   });
 });
