@@ -2,6 +2,29 @@ import { describe, expect, it, vi } from "vitest";
 import { buildApiRequest, runTestAccessCli, runTestAccessCommand } from "../src/server/test-access-cli.js";
 
 describe("test-access CLI", () => {
+  it("opens an authenticated browser session without exposing a credential command", async () => {
+    const broker = vi.fn(async () => 0);
+    const write = vi.fn();
+    const result = await runTestAccessCommand(
+      ["session", "open", "oriso/pre-dev/test-consultant-001"],
+      {
+        baseUrl: "https://dreambau.com/testmails/api/v1",
+        identity: "agent-mac-mini-oriso",
+        readKeychainToken: () => "machine-bootstrap-token",
+        fetch: vi.fn() as unknown as typeof fetch,
+        write,
+        playwrightLoginBroker: broker
+      }
+    );
+
+    expect(result).toBe(0);
+    expect(broker).toHaveBeenCalledWith(
+      "oriso/pre-dev/test-consultant-001",
+      expect.objectContaining({ identity: "agent-mac-mini-oriso" })
+    );
+    expect(write).not.toHaveBeenCalledWith(expect.stringContaining("machine-bootstrap-token"));
+  });
+
   it("routes playwright-login without sending credentials through normal CLI output", async () => {
     const broker = vi.fn(async () => 0);
     const result = await runTestAccessCommand(

@@ -18,6 +18,7 @@ export interface BrowserLoginRequest {
   password: string;
   loginUrl: string;
   statePath: string;
+  ignoreHTTPSErrors: boolean;
   getOtp: () => Promise<string>;
 }
 
@@ -69,7 +70,7 @@ async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) 
 export async function playwrightLogin(request: BrowserLoginRequest) {
   const { chromium } = await import("@playwright/test");
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ ignoreHTTPSErrors: request.ignoreHTTPSErrors });
   try {
     const page = await context.newPage();
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
@@ -143,6 +144,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       password,
       loginUrl: account.loginUrl,
       statePath,
+      ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
       getOtp
     });
     await chmod(statePath, 0o600);

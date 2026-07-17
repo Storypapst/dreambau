@@ -1,9 +1,9 @@
-import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
 import { serializeDotenv } from "./seed-profile.js";
+import { readMachineCredential, readMacOSKeychainCredential } from "./machine-credential.js";
 import {
   runPlaywrightLoginBroker,
   type BrokerDependencies
@@ -52,7 +52,7 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
   const query = terms.length ? `?${new URLSearchParams({ query: terms.join(" ") })}` : "";
   if (command === "otp") return { path: `/accounts/${encoded}/otp${query}`, output: "otp" };
   if (command === "mail") return { path: `/accounts/${encoded}/mail/latest${query}`, output: "json" };
-  throw new Error("usage: test-access <list|get|otp|mail|env> ...");
+  throw new Error("usage: test-access <list|get|otp|mail|env|session open> ...");
 }
 
 interface CliDependencies {
@@ -66,8 +66,9 @@ interface CliDependencies {
 }
 
 export async function runTestAccessCommand(args: string[], dependencies: CliDependencies) {
-  if (args[0] === "playwright-login") {
-    const [, accountId = ""] = args;
+  const isSessionOpen = args[0] === "session" && args[1] === "open";
+  if (args[0] === "playwright-login" || isSessionOpen) {
+    const accountId = isSessionOpen ? args[2] ?? "" : args[1] ?? "";
     const brokerDependencies: BrokerDependencies = dependencies;
     return (dependencies.playwrightLoginBroker ?? runPlaywrightLoginBroker)(accountId, brokerDependencies);
   }
@@ -107,13 +108,8 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
   }
 }
 
-function readKeychainToken(identity: string) {
-  const result = spawnSync(
-    "security",
-    ["find-generic-password", "-s", "dreambau-test-access", "-a", identity, "-w"],
-    { encoding: "utf8" }
-  );
-  return result.status === 0 ? result.stdout.trim() : "";
+function readTestAccessCredential(identity: string) {
+  return readMachineCredential(identity, { readKeychain: readMacOSKeychainCredential });
 }
 
 async function main() {
@@ -124,7 +120,7 @@ async function main() {
   process.exitCode = await runTestAccessCommand(argv, {
     baseUrl,
     identity,
-    readKeychainToken,
+    readKeychainToken: readTestAccessCredential,
     fetch,
     write: (value) => process.stdout.write(value)
   });

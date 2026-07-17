@@ -139,7 +139,25 @@ npm run test-access -- get 'mailbox:spider.pig@oriso.org'
 npm run test-access -- otp 'mailbox:spider.pig@oriso.org' verification
 npm run test-access -- mail 'mailbox:spider.pig@oriso.org' verification
 npm run test-access -- env 'oriso/pre-dev/e2e-default'
+npm run test-access -- session open 'oriso/pre-dev/test-tenantadmin-001'
 ```
+
+`session open` ist die bevorzugte Agent-Schnittstelle für Browser-Logins. Der
+Broker lädt Passwort und optionales OTP intern, erzeugt einen privaten
+Playwright-`storageState` mit 15 Minuten TTL und gibt ausschließlich dessen
+Pfad, Account-ID und Ablaufzeit zurück. Ein Agent soll deshalb niemals ein
+Testpasswort lesen, kopieren, in ein Formular tippen oder den Menschen zur
+Eingabe auffordern. Für `local` und `pre-dev` darf der Broker lokal nicht
+vertrauenswürdige TLS-Zertifikate akzeptieren; `dev` und `production-test`
+bleiben strikt.
+
+Auf macOS versucht der Client zuerst den Login-Keychain. Wenn ein headless
+Prozess dort zunächst Status 36 erhält, öffnet er den Login-Keychain
+nicht-interaktiv und wiederholt den Abruf. Als Reserve kann ausschließlich
+`~/.config/dreambau-test-access/identities/<identity>.token` verwendet werden;
+die Datei muss dem aktuellen Benutzer gehören und darf keine Gruppen- oder
+Weltrechte besitzen. Dieser lokale Wert ist nur das eingeschränkte
+Maschinen-Bootstrap-Credential. Testkonto-Passwörter verbleiben in Infisical.
 
 ### ORISO PreDev seed import
 
