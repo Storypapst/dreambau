@@ -12,6 +12,7 @@ import type { TestMailReader } from "./test-mail.js";
 import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js";
 import { generateTotp } from "./totp.js";
 import { parseSeedProfile } from "./seed-profile.js";
+import { createTestRunRouter } from "./test-run-router.js";
 
 const querySchema = z.object({
   project: z.enum(["oriso", "orimo", "dreambau"]).optional(),
@@ -56,6 +57,12 @@ export function createTestAccessRouter(options: {
   });
 
   const publicRecord = ({ secret: _secret, totpSecret: _totpSecret, ...record }: TestAccessRecord) => record;
+
+  router.use("/runs", createTestRunRouter({
+    registryProvider: options.registryProvider,
+    database: options.database,
+    now: options.now
+  }));
 
   router.get("/accounts", async (req, res, next) => {
     const parsed = querySchema.safeParse(req.query);
