@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   addCoordinationDiscussion,
   addCoordinationTag,
-  loadCoordination
+  loadCoordination,
+  loadRuntimeStatuses
 } from "../src/client/coordination-client.js";
 
 describe("coordination client", () => {
@@ -12,6 +13,14 @@ describe("coordination client", () => {
     await loadCoordination(request);
 
     expect(request).toHaveBeenCalledWith("/coordination");
+  });
+
+  it("loads live runtime status through the protected coordination API", async () => {
+    const request = vi.fn(async () => []);
+
+    await loadRuntimeStatuses(request);
+
+    expect(request).toHaveBeenCalledWith("/coordination/runtime");
   });
 
   it("adds tags and discussion links through JSON API calls", async () => {

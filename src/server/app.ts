@@ -22,6 +22,7 @@ import {
   coordinationItemById,
   type CoordinationProject
 } from "./coordination.js";
+import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -40,6 +41,7 @@ interface AppOptions {
   rpId?: string;
   expectedOrigin?: string;
   bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
+  runtimeStatusLoader?: (projects: CoordinationProject[]) => Promise<RuntimeStatus[]>;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -185,6 +187,14 @@ export function createApp(options: AppOptions = {}) {
   });
   api.get("/coordination", requireActivePasskeySession, (_req, res) => {
     res.json(scopedCoordination(res.locals.humanUser));
+  });
+  api.get("/coordination/runtime", requireActivePasskeySession, async (_req, res, next) => {
+    try {
+      const loader = options.runtimeStatusLoader ?? loadRuntimeStatuses;
+      res.json(await loader(coordinationProjects(res.locals.humanUser)));
+    } catch (error) {
+      next(error);
+    }
   });
   api.post("/coordination/items/:itemId/tags", requireActivePasskeySession, (req, res) => {
     const scoped = scopedCoordinationItem(String(req.params.itemId), res.locals.humanUser);
