@@ -19,8 +19,8 @@ describe("live Test Access smoke gate", () => {
       if (url.endsWith("/api/v1/accounts")) {
         return response(401, "application/json", { error: "unauthorized" });
       }
-      if (url === "https://box.dreambau.com/.well-known/jmap") {
-        return response(401, "application/json", { error: "unauthorized" });
+      if (url === "https://box.dreambau.com/jmap/session") {
+        return response(200, "application/json", { apiUrl: "https://box.dreambau.com/jmap/" });
       }
       throw new Error(`unexpected URL: ${url}`);
     });
