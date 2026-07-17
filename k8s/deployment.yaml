@@ -22,7 +22,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: testmails
-          image: dreambau-testmails:0.4.9-human-access
+          image: dreambau-testmails:0.4.10-passkey-onboarding
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 3000 }

@@ -18,6 +18,15 @@ describe("passkey browser client", () => {
     expect(calls).toEqual(["/auth/passkeys/authentication/options", "/auth/passkeys/authentication/verify"]);
   });
 
+  it("does not open the password manager when the account has no registered passkey", async () => {
+    const api = vi.fn(async () => ({ flowId: "flow", options: { challenge: "challenge", allowCredentials: [] } }));
+    const startAuthentication = vi.fn();
+
+    await expect(authenticateWithPasskey("shazia@example.com", { api, startAuthentication }))
+      .rejects.toThrow("passkey_not_registered");
+    expect(startAuthentication).not.toHaveBeenCalled();
+  });
+
   it("runs bootstrap registration options, browser creation and verification", async () => {
     const api = vi.fn(async (path: string, init?: RequestInit) => path.endsWith("/options")
       ? { flowId: "flow", options: { challenge: "register" } }
