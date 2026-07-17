@@ -4,6 +4,7 @@ import type { AccountRecord } from "./accounts.js";
 import type { RegistryDatabase } from "./db.js";
 import {
   authenticateMachineToken,
+  machineCan,
   type MachineIdentity,
   type TestEnvironment,
   type TestProject
@@ -63,6 +64,14 @@ export function createTestAccessRouter(options: {
     database: options.database,
     now: options.now
   }));
+
+  router.use((_req, res, next) => {
+    const identity = res.locals.machineIdentity as MachineIdentity;
+    if (!machineCan(identity, "accounts:read")) {
+      return res.status(403).json({ error: "action_denied" });
+    }
+    next();
+  });
 
   router.get("/accounts", async (req, res, next) => {
     const parsed = querySchema.safeParse(req.query);

@@ -52,6 +52,25 @@ describe("test run account selection", () => {
     });
   });
 
+  it("finds a complete cohort when multi-role accounts require non-greedy matching", () => {
+    const candidates = [
+      { accountId: "mailbox:a-flex@oriso.org", email: "a-flex@oriso.org", roles: ["consultant", "user"] },
+      { accountId: "mailbox:z-consultant@oriso.org", email: "z-consultant@oriso.org", roles: ["consultant"] }
+    ];
+
+    expect(selectRunAccounts(
+      [{ role: "consultant", count: 1 }, { role: "user", count: 1 }],
+      candidates,
+      new Set()
+    )).toEqual({
+      ok: true,
+      accounts: [
+        { ...candidates[1], requestedRole: "consultant" },
+        { ...candidates[0], requestedRole: "user" }
+      ]
+    });
+  });
+
   it("rejects duplicate role demands before reserving accounts", () => {
     expect(() => createRunInputSchema.parse({
       project: "oriso",

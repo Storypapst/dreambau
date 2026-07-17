@@ -78,29 +78,51 @@ export function selectRunAccounts(
   const available = candidates
     .filter((candidate) => !leasedAccountIds.has(candidate.accountId))
     .sort((left, right) => left.accountId.localeCompare(right.accountId));
-  const selected: SelectedRunAccount[] = [];
-  const used = new Set<string>();
-  const missing: AccountShortage[] = [];
+  const slots = demands.flatMap((demand) =>
+    Array.from({ length: demand.count }, () => demand.role)
+  );
+  const candidateToSlot = new Array<number>(available.length).fill(-1);
+  const slotToCandidate = new Array<number>(slots.length).fill(-1);
 
-  for (const demand of demands) {
-    const matches = available.filter((candidate) =>
-      !used.has(candidate.accountId) && candidate.roles.includes(demand.role)
-    );
-    if (matches.length < demand.count) {
-      missing.push({
-        role: demand.role,
-        requested: demand.count,
-        available: matches.length
-      });
-      continue;
+  function augment(slotIndex: number, visitedCandidates: Set<number>): boolean {
+    for (let candidateIndex = 0; candidateIndex < available.length; candidateIndex += 1) {
+      const candidate = available[candidateIndex];
+      if (visitedCandidates.has(candidateIndex) || !candidate.roles.includes(slots[slotIndex])) continue;
+      visitedCandidates.add(candidateIndex);
+      const previousSlot = candidateToSlot[candidateIndex];
+      if (previousSlot === -1 || augment(previousSlot, visitedCandidates)) {
+        candidateToSlot[candidateIndex] = slotIndex;
+        slotToCandidate[slotIndex] = candidateIndex;
+        return true;
+      }
     }
-    for (const candidate of matches.slice(0, demand.count)) {
-      used.add(candidate.accountId);
-      selected.push({ ...candidate, requestedRole: demand.role });
-    }
+    return false;
   }
 
-  return missing.length > 0
-    ? { ok: false, missing }
-    : { ok: true, accounts: selected };
+  let maximumAssigned = 0;
+  for (let slotIndex = slots.length - 1; slotIndex >= 0; slotIndex -= 1) {
+    if (!augment(slotIndex, new Set())) break;
+    maximumAssigned += 1;
+  }
+  if (maximumAssigned === slots.length) {
+    return {
+      ok: true,
+      accounts: slots.map((role, slotIndex) => ({
+        ...available[slotToCandidate[slotIndex]],
+        requestedRole: role
+      }))
+    };
+  }
+  const missing = demands.flatMap((demand) => {
+    const matching = available.filter((candidate) => candidate.roles.includes(demand.role)).length;
+    return matching < demand.count
+      ? [{ role: demand.role, requested: demand.count, available: matching }]
+      : [];
+  });
+  return {
+    ok: false,
+    missing: missing.length > 0
+      ? missing
+      : [{ role: "cohort", requested: slots.length, available: maximumAssigned }]
+  };
 }
