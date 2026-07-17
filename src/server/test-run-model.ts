@@ -26,6 +26,7 @@ export const createRunInputSchema = z.object({
     roles.add(demand.role);
   }
 });
+export type CreateRunInput = z.infer<typeof createRunInputSchema>;
 
 export interface RoleDemand {
   role: string;
