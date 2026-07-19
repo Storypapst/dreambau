@@ -2,11 +2,18 @@ import { chmod, mkdir, mkdtemp } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 import type { Locator, Page } from "@playwright/test";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
 const FIELD_TIMEOUT_MS = 20_000;
+/**
+ * How long a revealed OTP field may wait for the password-only navigation to
+ * finish before it counts as a real challenge. Only bounds the stalled case:
+ * the check races the navigation, so a normal login is not delayed.
+ */
+const OTP_CHALLENGE_GRACE_MS = 6_000;
 
 interface AccountMetadata {
   id: string;
@@ -199,8 +206,25 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     // The ORISO admin reveals its second factor inline on the login screen
     // after the first submit, so the challenge is same-origin.
     const otpChallenge = resolveVisible(otpCandidates(page), "otp", 15_000).then(async (otp) => {
+      // A revealed OTP field is not yet proof of a challenge: ORISO renders its
+      // inline #otp input with a real bounding box on logins that need no second
+      // factor. Let the password-only navigation settle first — racing it keeps
+      // the common case fast, and the grace timer only bounds a genuine stall.
+      await Promise.race([postLoginNavigation.catch(() => {}), delay(OTP_CHALLENGE_GRACE_MS)]);
       if (isOtpChallenge(page.url(), request.loginUrl, true, preSubmitUrl)) {
-        await otp.fill(await request.getOtp());
+        let code: string;
+        try {
+          code = await request.getOtp();
+        } catch {
+          // This account has no OTP source (the hub answers 404 for records
+          // without a TOTP secret or mailbox). Do not fail here: if the login
+          // genuinely needs a second factor, the navigation below times out and
+          // reports the visible stall, which is truthful. Failing on the lookup
+          // would break every password-only login behind a phantom field.
+          await postLoginNavigation;
+          return;
+        }
+        await otp.fill(code);
         const otpSubmit = await resolveVisible(submitCandidates(page), "submit", 2_000).catch(() => null);
         if (otpSubmit) await otpSubmit.click();
         else await otp.press("Enter");

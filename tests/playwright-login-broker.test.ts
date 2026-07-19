@@ -261,6 +261,97 @@ describe("Playwright login broker", () => {
     }
   }, 30_000);
 
+  it("completes a password-only login although the login screen shows an otp field", async () => {
+    // Regression: ORISO renders its inline #otp input with a real bounding box
+    // even for accounts without a second factor, so visibility alone made the
+    // broker request an OTP. The hub answers 404 for records without a TOTP
+    // secret or mailbox, which failed a login that only ever needed a password.
+    let appRequests = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/app") {
+        appRequests += 1;
+        res.setHeader("Set-Cookie", "logged_in=1; Path=/; HttpOnly");
+        res.end("signed in");
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      // The OTP field is visible from the start and stays irrelevant; the
+      // navigation is slow enough that the URL is still unchanged right after
+      // the submit, which is exactly what used to look like a challenge.
+      res.end(`<!doctype html>
+        <form id="login">
+          <input type="text" id="username" autocomplete="username" placeholder="Username/Email">
+          <input type="password" id="passwordInput" autocomplete="current-password" placeholder="Password">
+          <input type="text" id="otp" autocomplete="one-time-code" aria-label="One-time password">
+          <button type="submit">Sign in</button>
+        </form>
+        <script>
+          document.querySelector('#login').addEventListener('submit', (event) => {
+            event.preventDefault();
+            setTimeout(() => { location.href = '/app'; }, 900);
+          });
+        </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-phantom-otp-"));
+    const statePath = join(root, "state.json");
+    const getOtp = vi.fn(async () => "123456");
+    try {
+      await playwrightLogin({
+        username: "test-user",
+        password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/`,
+        statePath,
+        ignoreHTTPSErrors: false,
+        getOtp
+      });
+
+      expect(getOtp).not.toHaveBeenCalled();
+      expect(appRequests).toBe(1);
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      expect(state.cookies).toEqual(expect.arrayContaining([expect.objectContaining({ name: "logged_in", value: "1" })]));
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 30_000);
+
+  it("reports the visible stall when a real challenge has no OTP source", async () => {
+    // A login that truly needs a second factor but whose record carries none
+    // must fail with the page state, not with the hub's 404 for the lookup.
+    const server = createServer((_req, res) => {
+      res.setHeader("Content-Type", "text/html");
+      res.end(`<!doctype html>
+        <form id="login">
+          <input type="text" id="username" autocomplete="username" placeholder="Username/Email">
+          <input type="password" id="passwordInput" autocomplete="current-password" placeholder="Password">
+          <input type="text" id="otp" autocomplete="one-time-code" aria-label="One-time password">
+          <button type="submit">Sign in</button>
+        </form>
+        <div role="alert">One-time code required</div>
+        <script>
+          document.querySelector('#login').addEventListener('submit', (event) => event.preventDefault());
+        </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-otp-missing-"));
+    try {
+      await expect(playwrightLogin({
+        username: "test-user",
+        password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/`,
+        statePath: join(root, "state.json"),
+        ignoreHTTPSErrors: false,
+        getOtp: async () => { throw new Error("Test Access API failed with HTTP 404"); }
+      })).rejects.toThrow(/stalled at/);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 40_000);
+
   it("fails closed and redacts output for missing identity, token, account, secret and OTP", async () => {
     const cases = [
       { identity: "", token: "token", records: [], secret: "password", otp: "123456", login: undefined },
