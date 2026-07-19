@@ -8,6 +8,16 @@
 
 **Tech Stack:** TypeScript, Zod 4, Express 5, better-sqlite3, React 19, shadcn/Radix components, Vitest, Supertest, Playwright, Infisical Test Access provider, Stalwart JMAP.
 
+## Execution status — 2026-07-19
+
+- Implemented and deployed as `dreambau-testmails:0.6.0-springfield-20260719`.
+- Local gate: 53 test files / 195 tests, TypeScript, production build and live smoke all pass.
+- Abe Simpson is linked under stable ID `oriso/pre-dev/e2e-platform-admin-predev`; Keycloak UUID, tenant `0`, four admin roles and the existing OTP credential were preserved.
+- Password plus App-TOTP authentication against ORISO PreDev returned HTTP 200.
+- M4 and Kio can list, synchronize and request OTP for the linked record; both actions appear in the secret-free account history.
+- Remaining human-only proof: Frank signs back into Testmails after the rollout-created session reset and clicks **OTP abrufen** once. Touch ID/passkey confirmation cannot be performed headlessly.
+- Source is pushed on `feat/springfield-account-sync` at `0402095`; merge into the repository default branch remains a separate review decision.
+
 ## Global Constraints
 
 - Only established Simpson mailboxes on the six approved test domains may be linked; never create or use a real personal email.
