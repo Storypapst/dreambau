@@ -4,12 +4,84 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
-import { isOtpChallenge, playwrightLogin, runPlaywrightLoginBroker } from "../src/server/playwright-login-broker.js";
+import {
+  isOtpChallenge,
+  playwrightLogin,
+  resolveVisible,
+  runPlaywrightLoginBroker
+} from "../src/server/playwright-login-broker.js";
+
+// Mirrors the live ORISO admin login: React assigns dynamic ids, the fields are
+// only identifiable semantically, and a search combobox sits above them.
+const SEMANTIC_LOGIN_FORM = `<!doctype html>
+  <form id="login">
+    <input type="search" id="rc_select_0" role="combobox" aria-label="Select login language">
+    <label for="_r_1_">Tenant code</label>
+    <input type="text" id="_r_1_" placeholder="Tenant code">
+    <label for="_r_3_">Username</label>
+    <input type="text" id="_r_3_" autocomplete="username" placeholder="Username/Email">
+    <label for="_r_4_">Password</label>
+    <input type="password" id="_r_4_" autocomplete="current-password" placeholder="Password">
+    <button type="button" aria-label="toggle password visibility"></button>
+    <button type="submit">Sign in</button>
+  </form>
+  <script>document.querySelector('#login').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const user = document.querySelector('#_r_3_').value;
+    const password = document.querySelector('#_r_4_').value;
+    setTimeout(() => { location.href = '/app?u=' + encodeURIComponent(user) + '&p=' + encodeURIComponent(password); }, 150);
+  });</script>`;
+
+function fakeLocator(visible: boolean, label: string) {
+  const locator = {
+    label,
+    first: () => locator,
+    isVisible: vi.fn(async () => visible)
+  };
+  return locator;
+}
 
 describe("Playwright login broker", () => {
+  it("resolves the first visible candidate and skips invisible ones", async () => {
+    const hidden = fakeLocator(false, "legacy");
+    const visible = fakeLocator(true, "semantic");
+    const later = fakeLocator(true, "fallback");
+
+    const resolved = await resolveVisible([hidden, visible, later] as never, "username", 1_000);
+
+    expect((resolved as unknown as { label: string }).label).toBe("semantic");
+    expect(later.isVisible).not.toHaveBeenCalled();
+  });
+
+  it("fails with a named field error when no candidate ever becomes visible", async () => {
+    const sleep = vi.fn(async () => {});
+    await expect(
+      resolveVisible([fakeLocator(false, "none")] as never, "password", 0, sleep)
+    ).rejects.toThrow(/login form field "password" was not found/);
+  });
+
+  it("treats a locator that throws while probing as not visible", async () => {
+    const broken = { first: () => broken, isVisible: vi.fn(async () => { throw new Error("detached"); }) };
+    const good = fakeLocator(true, "semantic");
+
+    const resolved = await resolveVisible([broken, good] as never, "username", 1_000);
+
+    expect((resolved as unknown as { label: string }).label).toBe("semantic");
+  });
+
   it("does not confuse an application element named otp with an identity-provider challenge", () => {
     expect(isOtpChallenge("https://app.oriso-dev.site/app", "https://app.oriso-dev.site", true)).toBe(false);
     expect(isOtpChallenge("https://identity.oriso-dev.site/realms/oriso/login-actions/authenticate", "https://app.oriso-dev.site", true)).toBe(true);
+  });
+
+  it("treats a same-origin second factor revealed on the login screen as a challenge", () => {
+    const login = "https://admin.oriso-dev.site/admin/login";
+    // Still on the login screen: the ORISO admin reveals its OTP field inline.
+    expect(isOtpChallenge(login, login, true, login)).toBe(true);
+    // Navigated on: an element named otp is part of the application, not a challenge.
+    expect(isOtpChallenge("https://admin.oriso-dev.site/admin/dashboard", login, true, login)).toBe(false);
+    // An invisible field is never a challenge.
+    expect(isOtpChallenge(login, login, false, login)).toBe(false);
   });
 
   it("creates a private state handle without printing credentials or tokens", async () => {
@@ -101,6 +173,93 @@ describe("Playwright login broker", () => {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
   }, 20_000);
+
+  it("logs in against dynamic React ids using semantic selectors and ignores the search field", async () => {
+    let received: URL | null = null;
+    const server = createServer((req, res) => {
+      if (req.url?.startsWith("/app")) {
+        received = new URL(req.url, "http://127.0.0.1");
+        res.setHeader("Set-Cookie", "logged_in=1; Path=/; HttpOnly");
+        res.end("signed in");
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.end(SEMANTIC_LOGIN_FORM);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-semantic-login-"));
+    const statePath = join(root, "state.json");
+    try {
+      await playwrightLogin({
+        username: "abe.simpson@dreambau.de",
+        password: "semantic-test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/`,
+        statePath,
+        ignoreHTTPSErrors: false,
+        getOtp: async () => { throw new Error("OTP should not be requested"); }
+      });
+
+      // Proves the username landed in the semantic field, not the search combobox.
+      expect(received!.searchParams.get("u")).toBe("abe.simpson@dreambau.de");
+      expect(received!.searchParams.get("p")).toBe("semantic-test-password");
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      expect(state.cookies).toEqual(expect.arrayContaining([expect.objectContaining({ name: "logged_in", value: "1" })]));
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 30_000);
+
+  it("completes an inline same-origin two-factor login by fetching the code from the broker", async () => {
+    let received: URL | null = null;
+    const server = createServer((req, res) => {
+      if (req.url?.startsWith("/app")) {
+        received = new URL(req.url, "http://127.0.0.1");
+        res.setHeader("Set-Cookie", "logged_in=1; Path=/; HttpOnly");
+        res.end("signed in");
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      // The OTP field only appears after the first submit, on the same origin.
+      res.end(`<!doctype html>
+        <form id="login">
+          <input type="text" id="_r_3_" autocomplete="username" placeholder="Username/Email">
+          <input type="password" id="_r_4_" autocomplete="current-password" placeholder="Password">
+          <input type="text" id="_r_5_" autocomplete="one-time-code" aria-label="One-time password" style="display:none">
+          <button type="submit">Sign in</button>
+        </form>
+        <script>
+          const form = document.querySelector('#login');
+          const otp = document.querySelector('#_r_5_');
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (otp.style.display === 'none') { otp.style.display = 'block'; return; }
+            setTimeout(() => { location.href = '/app?code=' + encodeURIComponent(otp.value); }, 100);
+          });
+        </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-inline-otp-"));
+    const getOtp = vi.fn(async () => "654321");
+    try {
+      await playwrightLogin({
+        username: "abe.simpson@dreambau.de",
+        password: "inline-otp-password",
+        loginUrl: `http://127.0.0.1:${address.port}/`,
+        statePath: join(root, "state.json"),
+        ignoreHTTPSErrors: false,
+        getOtp
+      });
+
+      expect(getOtp).toHaveBeenCalledTimes(1);
+      expect(received!.searchParams.get("code")).toBe("654321");
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 30_000);
 
   it("fails closed and redacts output for missing identity, token, account, secret and OTP", async () => {
     const cases = [
