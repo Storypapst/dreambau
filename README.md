@@ -4,7 +4,7 @@ Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten ko
 
 ## Betrieb
 
-Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Image heißt `dreambau-testmails:0.4.8-infisical-recovery` und verwendet Infisical als Registry-Provider.
+Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.6.0-springfield-20260719` und Infisical als Registry-Provider.
 
 ```bash
 ssh m4dreambau 'kubectl get pod,svc,ingress,pvc -n wcr -l app.kubernetes.io/name=testmails'
@@ -71,6 +71,14 @@ nicht in einer dauerhaften Browserablage.
   sechsstelligen OTP-Code samt Message-ID und Empfangszeit.
 - `GET /testmails/api/v1/accounts/:id/env` liefert nur für einen gezielt
   angeforderten `seed-profile` eine begrenzte Map von Umgebungsvariablen.
+- `POST /testmails/api/v1/accounts/:id/catalog` erfordert die zusätzliche
+  Machine-Aktion `accounts:sync`. Der Record muss dieselbe synthetische
+  Simpson-Mailadresse wie eines der 180 Konten verwenden. Projekt, Rolle,
+  Version, Status und Notiz werden dann ohne Secret in den Katalog übernommen.
+- `GET /testmails/api/accounts/:email/otp?accountId=…` steht ausschließlich
+  einer aktiven Passkey-Session im zugeordneten Projekt zur Verfügung. Der
+  Endpunkt bevorzugt App-TOTP, fällt andernfalls auf die neueste passende
+  Mail-OTP zurück und antwortet mit `Cache-Control: no-store`.
 - Production ist kein gültiger Machine-Identity-Scope.
 - Unangemeldete, abgelaufene oder widerrufene Tokens erhalten keine Metadaten.
 - Die geschützte Human-Session sieht unter
@@ -90,6 +98,22 @@ drei konfigurierten Projekt-IDs und den vier Umgebungen `local`, `pre-dev`,
 `dev` und `production-test`. Ungültige, doppelte oder zum Infisical-Pfad
 widersprüchliche Records stoppen den Import. Upstream-Antworten und
 Credentials erscheinen nicht in Fehlern.
+
+### Verbindlicher Account-Workflow für KI-Tests
+
+1. Zuerst ein freies Konto aus dem festen Springfield-Pool auswählen; keine
+   persönliche oder neue technische E-Mailadresse erfinden.
+2. Den Produktnutzer mit exakt dieser Simpson-Mailadresse in der Zielumgebung
+   anlegen und den Infisical-Record unter einer stabilen technischen ID führen.
+3. Danach `test-access sync <record-id> --version <version> --status active`
+   aufrufen. Die berechtigte Machine Identity aktualisiert dadurch dieselbe
+   sichtbare Zeile und protokolliert Account-ID, Akteur und Zeitpunkt, jedoch
+   weder Passwort noch OTP.
+4. In E2E-Bericht und Screenshots immer Simpson-Name, Nutzername und E-Mail
+   nennen. Passwörter, OTPs und TOTP-Seeds bleiben aus Artefakten heraus.
+5. Menschen öffnen dieselbe Zeile in Springfield und verwenden **OTP abrufen**.
+   Der Code lebt nur im aktuellen UI-Zustand und wird automatisch wieder
+   entfernt.
 
 `/testmails/health/live` prüft nur den Prozess. Der Readiness-Endpunkt
 `/testmails/health/ready` authentifiziert den Provider und prüft einen

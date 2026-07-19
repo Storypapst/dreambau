@@ -16,6 +16,19 @@ export const coordinationItemMetadata = sqliteTable("coordination_item_metadata"
   discussions: text("discussions").notNull().default("[]")
 });
 
+export const accountAccessEvents = sqliteTable("account_access_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  accountId: text("account_id").notNull(),
+  email: text("email").notNull(),
+  actorId: text("actor_id").notNull(),
+  action: text("action").notNull(),
+  createdAt: text("created_at").notNull(),
+  context: text("context").notNull().default("{}")
+}, (table) => [
+  index("account_access_events_email").on(table.email, table.createdAt, table.id),
+  index("account_access_events_account").on(table.accountId, table.createdAt, table.id)
+]);
+
 export const testRuns = sqliteTable("test_runs", {
   id: text("id").primaryKey(),
   project: text("project").notNull(),

@@ -42,9 +42,11 @@ describe("machine identity authentication", () => {
 
   it("keeps legacy identities read-only and grants run actions explicitly", () => {
     expect(machineCan(identity(), "accounts:read")).toBe(true);
+    expect(machineCan(identity(), "accounts:sync")).toBe(false);
     expect(machineCan(identity(), "sessions:open")).toBe(true);
     expect(machineCan(identity(), "runs:create")).toBe(false);
     expect(machineCan(identity({ actions: ["runs:read", "runs:create"] }), "runs:create")).toBe(true);
     expect(machineCan(identity({ actions: ["runs:read", "runs:create"] }), "runs:cleanup")).toBe(false);
+    expect(machineCan(identity({ actions: ["accounts:read", "accounts:sync"] }), "accounts:sync")).toBe(true);
   });
 });

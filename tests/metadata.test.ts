@@ -45,6 +45,39 @@ describe("metadata database", () => {
     expect(JSON.stringify(db.getMachineIdentityUsage())).not.toContain("token");
     db.close();
   });
+  it("records an append-only, secret-free account access history", () => {
+    const db = database();
+    expect(db.tableNames()).toContain("account_access_events");
+    db.recordAccountAccess({
+      accountId: "oriso/pre-dev/e2e-platform-admin-predev",
+      email: "abe.simpson@dreambau.de",
+      actorId: "codex-m4-oriso",
+      action: "catalog_sync",
+      createdAt: "2026-07-19T16:50:00.000Z",
+      context: { applicationVersion: "2.02", environment: "pre-dev" }
+    });
+    db.recordAccountAccess({
+      accountId: "oriso/pre-dev/e2e-platform-admin-predev",
+      email: "abe.simpson@dreambau.de",
+      actorId: "codex-m4-oriso",
+      action: "otp_requested",
+      createdAt: "2026-07-19T16:51:00.000Z",
+      context: {}
+    });
+    expect(db.getAccountAccess("ABE.SIMPSON@dreambau.de")).toMatchObject({
+      latest: {
+        action: "otp_requested",
+        createdAt: "2026-07-19T16:51:00.000Z"
+      },
+      events: [
+        { action: "otp_requested" },
+        { action: "catalog_sync", context: { applicationVersion: "2.02", environment: "pre-dev" } }
+      ]
+    });
+    const serialized = JSON.stringify(db.getAccountAccess("abe.simpson@dreambau.de"));
+    expect(serialized).not.toMatch(/password|otpValue|totpSecret|token/i);
+    db.close();
+  });
   it("persists additive coordination tags and discussion links idempotently", () => {
     const db = database();
     expect(db.tableNames()).toContain("coordination_item_metadata");
