@@ -68,6 +68,116 @@ function app(mailReader?: TestMailReader) {
 }
 
 describe("test access API v1", () => {
+  it("syncs an exact synthetic email into the Springfield catalog and records secret-free usage", async () => {
+    const database = createDatabase(path.join(mkdtempSync(path.join(tmpdir(), "catalog-sync-")), "test.sqlite"));
+    const abe = account("abe.simpson@dreambau.de", "mailbox-password-never-returned");
+    const record: TestAccessRecord = {
+      id: "oriso/pre-dev/e2e-platform-admin-predev",
+      project: "oriso",
+      environment: "pre-dev",
+      kind: "admin",
+      displayName: "Abe Simpson",
+      username: abe.email,
+      email: abe.email,
+      roles: ["platform-admin", "tenant-admin"],
+      permissionsDescription: "Dedicated PreDev E2E platform administrator",
+      loginUrl: "https://pre-dev.oriso.example.test",
+      secret: "application-password-never-returned",
+      totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      responsiblePerson: "qa",
+      createdAt: "2026-07-19T00:00:00.000Z",
+      updatedAt: "2026-07-19T00:00:00.000Z",
+      expiresAt: null,
+      shared: true,
+      rotationStatus: "current",
+      documentationUrl: "https://dreambau.com/testmails/"
+    };
+    const registryProvider: RegistryProvider = {
+      async list() { return [record]; },
+      async get(id) { return id === record.id ? record : null; }
+    };
+    const target = createApp({
+      passwordHash: "unused",
+      secureCookies: false,
+      database,
+      loadAccounts: () => [abe],
+      registryProvider,
+      now: () => new Date("2026-07-19T17:00:00.000Z"),
+      machineIdentities: [{
+        id: "codex-m4-oriso",
+        tokenHash: hash(orisoToken),
+        projects: ["oriso"],
+        environments: ["pre-dev"],
+        actions: ["accounts:read", "accounts:sync"],
+        expiresAt: "2099-01-01T00:00:00.000Z",
+        revokedAt: null
+      }]
+    });
+
+    const response = await request(target)
+      .post(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/catalog`)
+      .set("Authorization", `Bearer ${orisoToken}`)
+      .send({
+        applicationVersion: "2.02",
+        lifecycleStatus: "active",
+        topics: [],
+        notes: "Dedicated ORISO PreDev platform administrator."
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      id: record.id,
+      email: abe.email,
+      metadata: { project: "ORISO", roles: ["Admin"], shippedVersion: "2.02", lifecycleStatus: "active" }
+    });
+    expect(JSON.stringify(response.body)).not.toContain(record.secret);
+    expect(JSON.stringify(response.body)).not.toContain(record.totpSecret);
+    expect(database.getMetadata(abe.email)).toMatchObject({ project: "ORISO", roles: ["Admin"], shippedVersion: "2.02" });
+    expect(database.getAccountAccess(abe.email).latest).toMatchObject({
+      accountId: record.id,
+      actorId: "codex-m4-oriso",
+      action: "catalog_sync",
+      context: { applicationVersion: "2.02", environment: "pre-dev" }
+    });
+  });
+
+  it("refuses catalog sync for read-only machines and non-Springfield emails", async () => {
+    const record: TestAccessRecord = {
+      id: "oriso/pre-dev/outside",
+      project: "oriso",
+      environment: "pre-dev",
+      kind: "app-user",
+      displayName: "Outside",
+      username: "outside@example.test",
+      email: "outside@example.test",
+      roles: ["consultant"],
+      permissionsDescription: "test",
+      loginUrl: "https://pre-dev.example.test",
+      secret: "not-returned",
+      responsiblePerson: "qa",
+      createdAt: "2026-07-19T00:00:00.000Z",
+      updatedAt: "2026-07-19T00:00:00.000Z",
+      expiresAt: null,
+      shared: true,
+      rotationStatus: "current",
+      documentationUrl: "https://dreambau.com/testmails/"
+    };
+    const registryProvider: RegistryProvider = { async list() { return [record]; }, async get() { return record; } };
+    const readOnly = createApp({
+      passwordHash: "unused", secureCookies: false, loadAccounts: () => [], registryProvider,
+      machineIdentities: [{ id: "reader", tokenHash: hash(orisoToken), projects: ["oriso"], environments: ["pre-dev"], actions: ["accounts:read"], expiresAt: "2099-01-01T00:00:00.000Z", revokedAt: null }]
+    });
+    expect((await request(readOnly).post(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/catalog`).set("Authorization", `Bearer ${orisoToken}`).send({ applicationVersion: "2.02" })).status).toBe(403);
+
+    const writer = createApp({
+      passwordHash: "unused", secureCookies: false, loadAccounts: () => [], registryProvider,
+      machineIdentities: [{ id: "writer", tokenHash: hash(orisoToken), projects: ["oriso"], environments: ["pre-dev"], actions: ["accounts:sync"], expiresAt: "2099-01-01T00:00:00.000Z", revokedAt: null }]
+    });
+    const missing = await request(writer).post(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/catalog`).set("Authorization", `Bearer ${orisoToken}`).send({ applicationVersion: "2.02" });
+    expect(missing.status).toBe(409);
+    expect(missing.body).toEqual({ error: "synthetic_account_not_found" });
+  });
+
   it("serves generalized pre-dev records through a provider without list-loading secrets into the response", async () => {
     const record: TestAccessRecord = {
       id: "oriso/pre-dev/test-consultant-001",

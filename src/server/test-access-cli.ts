@@ -15,6 +15,8 @@ type OutputMode = "json" | "secret" | "otp" | "env";
 export interface ApiRequest {
   path: string;
   output: OutputMode;
+  method?: "POST";
+  body?: Record<string, unknown>;
 }
 
 function option(args: string[], name: string) {
@@ -23,7 +25,7 @@ function option(args: string[], name: string) {
 }
 
 function positional(args: string[]) {
-  const options = new Set(["--project", "--environment", "--role"]);
+  const options = new Set(["--project", "--environment", "--role", "--version", "--status", "--topics", "--note"]);
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     if (options.has(args[index])) {
@@ -48,12 +50,28 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
   }
   if (!id) throw new Error(`${command || "command"} requires an account id`);
   const encoded = encodeURIComponent(id);
+  if (command === "sync") {
+    const applicationVersion = option(args, "--version");
+    if (!applicationVersion) throw new Error("sync requires --version");
+    const topics = (option(args, "--topics") ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+    return {
+      path: `/accounts/${encoded}/catalog`,
+      output: "json",
+      method: "POST",
+      body: {
+        applicationVersion,
+        lifecycleStatus: option(args, "--status") ?? "active",
+        topics,
+        notes: option(args, "--note") ?? ""
+      }
+    };
+  }
   if (command === "get") return { path: `/accounts/${encoded}/secret`, output: "secret" };
   if (command === "env") return { path: `/accounts/${encoded}/env`, output: "env" };
   const query = terms.length ? `?${new URLSearchParams({ query: terms.join(" ") })}` : "";
   if (command === "otp") return { path: `/accounts/${encoded}/otp${query}`, output: "otp" };
   if (command === "mail") return { path: `/accounts/${encoded}/mail/latest${query}`, output: "json" };
-  throw new Error("usage: test-access <list|get|otp|mail|env|session open> ...");
+  throw new Error("usage: test-access <list|get|otp|mail|env|sync|session open> ...");
 }
 
 interface CliDependencies {
@@ -84,8 +102,12 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
     const request = buildApiRequest(args, dependencies.baseUrl);
     const token = dependencies.readKeychainToken(dependencies.identity);
     if (!token) throw new Error(`Keychain token missing for identity ${dependencies.identity}`);
+    const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+    if (request.body) headers["content-type"] = "application/json";
     const response = await dependencies.fetch(`${dependencies.baseUrl.replace(/\/$/, "")}${request.path}`, {
-      headers: { authorization: `Bearer ${token}` }
+      headers,
+      ...(request.method ? { method: request.method } : {}),
+      ...(request.body ? { body: JSON.stringify(request.body) } : {})
     });
     if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
     const body = await response.json() as unknown;

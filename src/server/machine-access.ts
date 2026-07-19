@@ -6,6 +6,7 @@ const projects = ["oriso", "orimo", "dreambau"] as const;
 const environments = ["local", "pre-dev", "dev", "production-test"] as const;
 export const machineActions = [
   "accounts:read",
+  "accounts:sync",
   "sessions:open",
   "runs:read",
   "runs:create",

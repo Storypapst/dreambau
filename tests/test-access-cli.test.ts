@@ -87,6 +87,47 @@ describe("test-access CLI", () => {
     });
   });
 
+  it("builds a secret-free Springfield catalog sync request", () => {
+    expect(buildApiRequest([
+      "sync",
+      "oriso/pre-dev/e2e-platform-admin-predev",
+      "--version", "2.02",
+      "--status", "active",
+      "--topics", "",
+      "--note", "Dedicated ORISO PreDev platform administrator."
+    ], "https://dreambau.com/testmails/api/v1")).toEqual({
+      path: "/accounts/oriso%2Fpre-dev%2Fe2e-platform-admin-predev/catalog",
+      output: "json",
+      method: "POST",
+      body: {
+        applicationVersion: "2.02",
+        lifecycleStatus: "active",
+        topics: [],
+        notes: "Dedicated ORISO PreDev platform administrator."
+      }
+    });
+  });
+
+  it("sends catalog sync as JSON without printing credentials", async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      expect(init.method).toBe("POST");
+      expect(init.headers).toEqual({ authorization: "Bearer keychain-token", "content-type": "application/json" });
+      expect(JSON.parse(String(init.body))).toEqual({ applicationVersion: "2.02", lifecycleStatus: "active", topics: [], notes: "E2E admin" });
+      return Response.json({ id: "oriso/pre-dev/admin", email: "abe.simpson@dreambau.de", metadata: { shippedVersion: "2.02" } });
+    });
+    const output: string[] = [];
+    const result = await runTestAccessCli(["sync", "oriso/pre-dev/admin", "--version", "2.02", "--status", "active", "--note", "E2E admin"], {
+      baseUrl: "https://dreambau.com/testmails/api/v1",
+      identity: "codex-m4-oriso",
+      readKeychainToken: () => "keychain-token",
+      fetch: fetchMock as unknown as typeof fetch,
+      write: (value) => output.push(value)
+    });
+    expect(result).toBe(0);
+    expect(output.join(" ")).toContain("abe.simpson@dreambau.de");
+    expect(output.join(" ")).not.toContain("keychain-token");
+  });
+
   it("prints a requested seed profile as safely quoted dotenv", async () => {
     const output: string[] = [];
     const result = await runTestAccessCli(["env", "oriso/pre-dev/e2e-default"], {
