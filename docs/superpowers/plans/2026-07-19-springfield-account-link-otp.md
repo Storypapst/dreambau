@@ -50,7 +50,7 @@ Cover exact-email matching, rejection of non-Simpson email, stable technical ID 
 
 - [ ] **Step 2: Confirm RED**
 
-Run: `npm test -- --run tests/account-link.test.ts`  
+Run: `npm test -- --run tests/account-link.test.ts`
 Expected: FAIL because `account-link.ts` does not exist.
 
 - [ ] **Step 3: Implement the pure link helpers**
