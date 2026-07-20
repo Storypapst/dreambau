@@ -28,6 +28,15 @@ describe("passkey store", () => {
     target.close();
   });
 
+  it("updates effective project scopes and permits an empty synchronized scope", () => {
+    const target = store();
+    const member = target.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    expect(target.updateUserProjects(member.id, ["dreambau", "dreambau"])).toMatchObject({ projects: ["dreambau"] });
+    expect(target.updateUserProjects(member.id, [])).toMatchObject({ projects: [] });
+    expect(target.getUser(member.id)?.projects).toEqual([]);
+    target.close();
+  });
+
   it("stores WebAuthn credentials and only permits monotonic counters", () => {
     const target = store();
     const user = target.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso"] });

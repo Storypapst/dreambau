@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { z } from "zod";
 
 const projectSchema = z.enum(["oriso", "orimo", "dreambau"]);
+const synchronizedProjectsSchema = z.array(projectSchema).max(3);
 const userInputSchema = z.object({
   email: z.email(),
   name: z.string().min(1),
@@ -148,6 +149,12 @@ export function createPasskeyStore(path: string) {
     setUserStatus(id: string, status: "active" | "disabled") {
       const parsed = z.enum(["active", "disabled"]).parse(status);
       const result = sqlite.prepare("UPDATE human_users SET status=? WHERE id=?").run(parsed, id);
+      if (result.changes !== 1) throw new Error("Human user not found");
+      return rowToUser(sqlite.prepare("SELECT * FROM human_users WHERE id=?").get(id));
+    },
+    updateUserProjects(id: string, projects: HumanProject[]) {
+      const parsed = [...new Set(synchronizedProjectsSchema.parse(projects))];
+      const result = sqlite.prepare("UPDATE human_users SET projects=? WHERE id=?").run(JSON.stringify(parsed), id);
       if (result.changes !== 1) throw new Error("Human user not found");
       return rowToUser(sqlite.prepare("SELECT * FROM human_users WHERE id=?").get(id));
     },

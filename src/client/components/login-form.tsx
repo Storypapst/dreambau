@@ -27,7 +27,9 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   async function passkeyLogin() {
     setBusy(true); setError("");
     try { await authenticateWithPasskey(email); rememberLoginEmail(email); onAuthenticated(); }
-    catch { setError(locale === "de" ? "Passkey-Anmeldung fehlgeschlagen." : "Passkey sign-in failed."); }
+    catch (reason) { setError(reason instanceof Error && reason.message === "passkey_not_registered"
+      ? (locale === "de" ? "Für dieses Konto ist noch kein Passkey registriert. Bitte den Enrollment-Code unten verwenden und danach den Passkey einrichten." : "No passkey is registered for this account yet. Use the enrollment code below, then set up the passkey.")
+      : (locale === "de" ? "Passkey-Anmeldung fehlgeschlagen." : "Passkey sign-in failed.")); }
     finally { setBusy(false); }
   }
   async function recoveryLogin() {
@@ -55,10 +57,10 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
             </Field>
             <Button type="button" onClick={passkeyLogin} disabled={busy || !email}><KeyRoundIcon />{locale === "de" ? "Mit Passkey anmelden" : "Sign in with passkey"}</Button>
             <Field data-invalid={Boolean(error)}>
-              <FieldLabel htmlFor="recovery-code">Recovery-Code</FieldLabel>
+              <FieldLabel htmlFor="recovery-code">{locale === "de" ? "Enrollment-/Recovery-Code" : "Enrollment/recovery code"}</FieldLabel>
               <Input id="recovery-code" type="password" autoComplete="one-time-code" value={recoveryCode} onChange={(event) => setRecoveryCode(event.target.value)} />
             </Field>
-            <Button type="button" variant="outline" onClick={recoveryLogin} disabled={busy || !email || !recoveryCode}>{locale === "de" ? "Recovery-Code verwenden" : "Use recovery code"}</Button></>}
+            <Button type="button" variant="outline" onClick={recoveryLogin} disabled={busy || !email || !recoveryCode}>{locale === "de" ? "Enrollment-/Recovery-Code verwenden" : "Use enrollment/recovery code"}</Button></>}
             {bootstrapEnabled === true && <><div className="text-center"><div className="font-medium">{locale === "de" ? "Ersteinrichtung auf diesem System" : "First-time setup on this system"}</div><div className="mt-1 text-xs text-muted-foreground">{locale === "de" ? "Lege jetzt den ersten Passkey für den geschützten Zugang an." : "Create the first passkey for protected access now."}</div></div>
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="password">{locale === "de" ? "Gemeinsames Passwort" : "Shared password"}</FieldLabel>

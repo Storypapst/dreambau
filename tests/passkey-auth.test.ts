@@ -8,6 +8,7 @@ import { createApp } from "../src/server/app.js";
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
 import type { AccountRecord } from "../src/server/accounts.js";
+import type { HumanAccessProvider } from "../src/server/infisical-human-access.js";
 
 let passwordHash = "";
 beforeAll(async () => { passwordHash = await argon2.hash("bootstrap-password", { type: argon2.argon2id }); });
@@ -22,7 +23,7 @@ function account(email: string): AccountRecord {
   };
 }
 
-function setup(accounts: AccountRecord[] = []) {
+function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccessProvider) {
   const passkeyStore = createPasskeyStore(path.join(mkdtempSync(path.join(tmpdir(), "passkey-auth-")), "auth.sqlite"));
   const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso", "dreambau"], role: "admin" });
   const webauthn: WebAuthnAdapter = {
@@ -49,7 +50,8 @@ function setup(accounts: AccountRecord[] = []) {
   const app = createApp({
     passwordHash, secureCookies: false, loadAccounts: () => accounts, passkeyStore, webauthn,
     rpId: "dreambau.com", expectedOrigin: "https://dreambau.com",
-    bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" }
+    bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" },
+    humanAccessProvider
   });
   return { app, passkeyStore, user, webauthn };
 }
@@ -183,6 +185,62 @@ describe("passkey authentication", () => {
     expect(projectEscape.body).toEqual({ error: "scope_denied" });
     expect((await member.get("/testmails/api/machine-identities/usage")).status).toBe(403);
     expect((await member.put("/testmails/api/taxonomies/topics").send({ values: ["member-write"] })).status).toBe(403);
+    passkeyStore.close();
+  });
+
+  it("synchronizes non-admin project scopes from Infisical before listing users and accounts", async () => {
+    const humanAccessProvider: HumanAccessProvider = { projectsFor: vi.fn(async () => ["orimo"]) };
+    const { app, passkeyStore, user } = setup([account("oriso-user@oriso.org"), account("orimo-user@trail.ist")], humanAccessProvider);
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+
+    const admin = request.agent(app);
+    const adminOptions = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: adminOptions.body.flowId, response: { id: "admin-credential" } });
+    const listed = await admin.get("/testmails/api/auth/users");
+    expect(listed.body.find((entry: { email: string }) => entry.email === member.email).projects).toEqual(["orimo"]);
+
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+    const accounts = await agent.get("/testmails/api/accounts");
+    expect(accounts.status).toBe(200);
+    expect(accounts.body.map((entry: AccountRecord) => entry.email)).toEqual(["orimo-user@trail.ist"]);
+    expect(passkeyStore.getUser(member.id)?.projects).toEqual(["orimo"]);
+    passkeyStore.close();
+  });
+
+  it("fails closed for member access when Infisical synchronization fails but preserves admin access", async () => {
+    const humanAccessProvider: HumanAccessProvider = { projectsFor: vi.fn(async () => { throw new Error("offline"); }) };
+    const { app, passkeyStore, user } = setup([account("oriso-user@oriso.org")], humanAccessProvider);
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+
+    const admin = request.agent(app);
+    const adminOptions = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: adminOptions.body.flowId, response: { id: "admin-credential" } });
+    expect((await admin.get("/testmails/api/accounts")).status).toBe(200);
+
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+    expect((await agent.get("/testmails/api/accounts")).status).toBe(503);
+    passkeyStore.close();
+  });
+
+  it("removes all member account visibility when no Infisical access group remains", async () => {
+    const humanAccessProvider: HumanAccessProvider = { projectsFor: vi.fn(async () => []) };
+    const { app, passkeyStore } = setup([account("oriso-user@oriso.org")], humanAccessProvider);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+    const accounts = await agent.get("/testmails/api/accounts");
+    expect(accounts.status).toBe(200);
+    expect(accounts.body).toEqual([]);
     passkeyStore.close();
   });
 });

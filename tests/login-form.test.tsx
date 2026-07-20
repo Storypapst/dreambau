@@ -82,6 +82,21 @@ describe("LoginForm passkey onboarding", () => {
     expect(localStorage.getItem("testmails-login-email")).toBeNull();
   });
 
+  it("directs users without a passkey to their enrollment code", async () => {
+    vi.mocked(authenticateWithPasskey).mockRejectedValue(new Error("passkey_not_registered"));
+    await renderWithBootstrapStatus({ enabled: false });
+    const email = container.querySelector('input[type="email"]') as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(email, "shazia@example.com");
+      email.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const button = Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.includes("Mit Passkey anmelden"));
+    await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(container.textContent).toContain("Für dieses Konto ist noch kein Passkey registriert");
+    expect(container.textContent).toContain("Enrollment-/Recovery-Code verwenden");
+  });
+
   it("fails closed when bootstrap status cannot be loaded", async () => {
     await renderWithBootstrapStatus(new Error("offline"));
 

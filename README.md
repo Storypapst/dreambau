@@ -61,6 +61,21 @@ Die Weboberfläche zeigt den Bereich **Mitarbeiter** nur Administratoren, zeigt
 den Enrollment-Code nur im unmittelbar folgenden Dialogzustand und hält ihn
 nicht in einer dauerhaften Browserablage.
 
+### Infisical-Mitgliedschaften für menschliche Projektzuordnungen
+
+Für nicht-administrative Benutzer ist Infisical die führende Quelle der
+Projektzuordnung. Eine Mitgliedschaft im jeweiligen Infisical-Projekt mit der
+eingebauten Rolle `no-access` dient als Zuordnungsmarker. Sie gewährt keine
+Projektberechtigungen und damit keinen Zugriff auf Secrets. Mitgliedschaften
+mit anderen oder zusätzlichen Rollen werden nicht als sicherer Zuordnungsmarker
+übernommen.
+
+Die Anwendung liest Projektmitgliedschaften über die bereits gemountete
+Universal-Auth-Identität, cached das Ergebnis höchstens 60 Sekunden und
+aktualisiert `human_users.projects`. Schlägt die Synchronisierung fehl, werden
+Anfragen nicht-administrativer Benutzer mit `503 human_access_unavailable`
+abgewiesen. Der Bootstrap-Administrator behält seine lokalen Projektzuordnungen.
+
 - `GET /testmails/api/v1/accounts` liefert nur Metadaten im Token-Scope.
 - Filter: `project`, `environment`, `role`.
 - `GET /testmails/api/v1/accounts/:id/secret` liefert gezielt genau ein Secret
