@@ -45,6 +45,20 @@ describe("App authenticated loading", () => {
     await vi.waitFor(() => expect(container.querySelector('[data-testid="directory"]')?.textContent).toContain("accounts:0"));
   });
 
+  it("treats email OTP as a complete member login instead of passkey enrollment", async () => {
+    vi.mocked(api).mockImplementation(async (path) => {
+      if (path === "/auth/session") return { authenticated: true, method: "email-otp", userId: "member" };
+      if (path === "/accounts") return [];
+      if (path === "/taxonomies") return { roles: [], topics: [], conversationTypes: [] };
+      if (path === "/auth/me") return { id: "member", email: "bjoern.ludwig@caritas.de", name: "Björn", projects: ["oriso"], status: "active", role: "member", createdAt: "2026-07-20T00:00:00.000Z" };
+      throw new Error(`unexpected ${path}`);
+    });
+
+    await act(async () => root.render(<App />));
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="directory"]')?.textContent).toContain("accounts:0"));
+    expect(container.textContent).not.toContain("enrollment");
+  });
+
   it("clears the remembered login email when the user logs out", async () => {
     sessionStorage.setItem("testmails-login-email", "frank@dreambau.com");
     vi.mocked(api).mockImplementation(async (path) => {

@@ -4,7 +4,7 @@ Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten ko
 
 ## Betrieb
 
-Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.6.0-springfield-20260719` und Infisical als Registry-Provider.
+Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.7.0-email-otp-20260720` und Infisical als Registry-Provider.
 
 ```bash
 ssh m4dreambau 'kubectl get pod,svc,ingress,pvc -n wcr -l app.kubernetes.io/name=testmails'
@@ -22,7 +22,7 @@ unter `/testmails/api/v1` zu. Die Datei
 SHA-256-Token-Hashes, Projekt-/Umgebungs-Scopes, Ablaufzeit und Widerrufszeit;
 nie die Tokenwerte selbst.
 
-## Menschlicher Passkey-Zugang
+## Menschlicher Passkey- und E-Mail-OTP-Zugang
 
 Der gemeinsame Argon2id-Passwortlogin ist nur noch als Bootstrap-Pfad für den
 konfigurierten ersten Administrator vorgesehen. Eine Bootstrap-Session kann
@@ -38,6 +38,14 @@ keine beliebige Mitarbeiteridentität übernehmen.
   SQLite; ein nicht-null Signaturzähler muss monoton steigen.
 - Nach erfolgreicher Registrierung oder Anmeldung ersetzt eine
   benutzergebundene Passkey-Session die Bootstrap-Session.
+- Mitarbeiter können alternativ einen sechsstelligen Code per E-Mail anfordern.
+  Diese E-Mail-OTP-Session ist ein vollständiger, projektbegrenzter Lesezugang
+  und funktioniert auch auf Compliance-Geräten, die keine Passkeys speichern.
+- E-Mail-Codes laufen nach zehn Minuten ab, sind einmalig, haben höchstens fünf
+  Versuche und können pro Benutzer frühestens nach 60 Sekunden neu angefordert
+  werden. SQLite enthält ausschließlich den HMAC, niemals den Klartext-Code.
+- Administrative Benutzer dürfen mit E-Mail-OTP lesen; Benutzerverwaltung und
+  andere Admin-Endpunkte verlangen weiterhin ausdrücklich eine Passkey-Session.
 - Passwort-Bootstrap- und Recovery-Sessions dürfen keine Account-, Taxonomie-,
   Usage- oder Exportdaten lesen. Sie dürfen ausschließlich einen Passkey für
   die fest zugeordnete Person registrieren.
@@ -48,6 +56,10 @@ keine beliebige Mitarbeiteridentität übernehmen.
 
 Die Server-Endpunkte liegen unter
 `/testmails/api/auth/passkeys/{registration,authentication}/{options,verify}`.
+Der alternative Login verwendet `POST /testmails/api/auth/email-otp/request`
+und `POST /testmails/api/auth/email-otp/verify`. Die Request-Antwort ist auch
+für unbekannte oder unberechtigte Adressen immer identisch, damit keine Konten
+ermittelt werden können.
 
 Passkey-Administratoren verwalten individuelle Mitarbeiter unter
 `/testmails/api/auth/users`. Beim Anlegen werden Name, E-Mail und mindestens
@@ -90,8 +102,8 @@ abgewiesen. Der Bootstrap-Administrator behält seine lokalen Projektzuordnungen
   Machine-Aktion `accounts:sync`. Der Record muss dieselbe synthetische
   Simpson-Mailadresse wie eines der 180 Konten verwenden. Projekt, Rolle,
   Version, Status und Notiz werden dann ohne Secret in den Katalog übernommen.
-- `GET /testmails/api/accounts/:email/otp?accountId=…` steht ausschließlich
-  einer aktiven Passkey-Session im zugeordneten Projekt zur Verfügung. Der
+- `GET /testmails/api/accounts/:email/otp?accountId=…` steht einer aktiven
+  Passkey- oder E-Mail-OTP-Session im zugeordneten Projekt zur Verfügung. Der
   Endpunkt bevorzugt App-TOTP, fällt andernfalls auf die neueste passende
   Mail-OTP zurück und antwortet mit `Cache-Control: no-store`.
 - Production ist kein gültiger Machine-Identity-Scope.

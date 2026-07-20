@@ -22,7 +22,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: testmails
-          image: dreambau-testmails:0.6.0-springfield-20260719
+          image: dreambau-testmails:0.7.0-email-otp-20260720
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 3000 }
@@ -30,6 +30,13 @@ spec:
             - { name: NODE_ENV, value: production }
             - { name: TESTMAILS_PASSWORD_HASH_FILE, value: /run/secrets/auth/password-hash }
             - { name: TESTMAILS_SESSION_SECRET_FILE, value: /run/secrets/auth/session-secret }
+            - { name: TESTMAILS_EMAIL_OTP_HMAC_KEY_FILE, value: /run/secrets/email-otp/hmac-key }
+            - { name: TESTMAILS_SMTP_HOST_FILE, value: /run/secrets/email-otp/smtp-host }
+            - { name: TESTMAILS_SMTP_PORT_FILE, value: /run/secrets/email-otp/smtp-port }
+            - { name: TESTMAILS_SMTP_USERNAME_FILE, value: /run/secrets/email-otp/smtp-username }
+            - { name: TESTMAILS_SMTP_PASSWORD_FILE, value: /run/secrets/email-otp/smtp-password }
+            - { name: TESTMAILS_SMTP_FROM_ADDRESS_FILE, value: /run/secrets/email-otp/smtp-from-address }
+            - { name: TESTMAILS_SMTP_FROM_NAME, value: Dreambau Test Access }
             - { name: TEST_ACCESS_IDENTITIES_PATH, value: /run/secrets/test-access/machine-identities.json }
             - { name: TEST_ACCESS_PROVIDER, value: infisical }
             - { name: INFISICAL_BASE_URL, value: https://secrets.dreambau.com }
@@ -45,6 +52,7 @@ spec:
             - { name: auth, mountPath: /run/secrets/auth, readOnly: true }
             - { name: test-access, mountPath: /run/secrets/test-access, readOnly: true }
             - { name: infisical, mountPath: /run/secrets/infisical, readOnly: true }
+            - { name: email-otp, mountPath: /run/secrets/email-otp, readOnly: true }
             - { name: tmp, mountPath: /tmp }
           resources:
             requests: { cpu: 25m, memory: 96Mi }
@@ -72,5 +80,7 @@ spec:
           secret: { secretName: test-access-identities, defaultMode: 256 }
         - name: infisical
           secret: { secretName: test-access-infisical, defaultMode: 256 }
+        - name: email-otp
+          secret: { secretName: testmails-email-otp, defaultMode: 256 }
         - name: tmp
           emptyDir: { sizeLimit: 32Mi }

@@ -40,4 +40,15 @@ describe("runtime config", () => {
     vi.stubEnv("TEST_ACCESS_INFISICAL_DREAMBAU_PROJECT_ID", "project-dreambau");
     expect(() => loadConfig()).toThrow(/INFISICAL_CLIENT_SECRET/);
   });
+
+  it("loads complete SMTP configuration only with a separate OTP HMAC key", () => {
+    vi.stubEnv("TESTMAILS_SMTP_HOST", "mail.dreambau.com");
+    vi.stubEnv("TESTMAILS_SMTP_PORT", "465");
+    vi.stubEnv("TESTMAILS_SMTP_USERNAME", "otp@dreambau.com");
+    vi.stubEnv("TESTMAILS_SMTP_PASSWORD", "test-only-secret");
+    vi.stubEnv("TESTMAILS_SMTP_FROM_ADDRESS", "otp@dreambau.com");
+    expect(() => loadConfig()).toThrow(/HMAC/);
+    vi.stubEnv("TESTMAILS_EMAIL_OTP_HMAC_KEY", "separate-hmac-key");
+    expect(loadConfig().smtp).toMatchObject({ host: "mail.dreambau.com", port: 465, secure: true });
+  });
 });

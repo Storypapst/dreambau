@@ -55,9 +55,45 @@ describe("LoginForm passkey onboarding", () => {
     await renderWithBootstrapStatus({ enabled: false });
 
     expect(container.textContent).toContain("Mit Passkey anmelden");
+    expect(container.textContent).toContain("Code per E-Mail senden");
     expect(container.textContent).toContain("Recovery-Code verwenden");
     expect(container.textContent).not.toContain("Ersteinrichtung starten");
     expect(container.querySelector('input[type="email"]')).not.toBeNull();
+  });
+
+  it("requests and verifies an email OTP without opening passkey enrollment", async () => {
+    const onAuthenticated = vi.fn();
+    vi.mocked(api).mockImplementation(async (path) => {
+      if (path === "/auth/bootstrap-status") return { enabled: false };
+      if (path === "/auth/email-otp/request") return { accepted: true };
+      if (path === "/auth/email-otp/verify") return { authenticated: true, method: "email-otp", userId: "member" };
+      throw new Error(`unexpected API call: ${path}`);
+    });
+    await act(async () => {
+      root.render(<LoginForm locale="de" onLocaleChange={() => undefined} onAuthenticated={onAuthenticated} />);
+    });
+    await vi.waitFor(() => expect(container.textContent).toContain("Code per E-Mail senden"));
+
+    const email = container.querySelector('input[type="email"]') as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(email, "bjoern.ludwig@caritas.de");
+      email.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const requestCode = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Code per E-Mail senden"));
+    await act(async () => requestCode?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.textContent).toContain("Sechsstelliger Code");
+
+    const code = container.querySelector('input[inputmode="numeric"]') as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(code, "123456");
+      code.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const verifyCode = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Code bestätigen"));
+    await act(async () => verifyCode?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(api).toHaveBeenCalledWith("/auth/email-otp/request", expect.objectContaining({ method: "POST" }));
+    expect(api).toHaveBeenCalledWith("/auth/email-otp/verify", expect.objectContaining({ method: "POST" }));
+    expect(onAuthenticated).toHaveBeenCalledOnce();
   });
 
   it("prefills the locally remembered passkey email", async () => {

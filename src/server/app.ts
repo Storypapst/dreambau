@@ -26,6 +26,7 @@ import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
 import { linkedRecordsForEmail, publicLinkedAccount } from "./account-link.js";
 import { generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
+import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -46,6 +47,8 @@ interface AppOptions {
   bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
   runtimeStatusLoader?: (projects: CoordinationProject[]) => Promise<RuntimeStatus[]>;
   humanAccessProvider?: HumanAccessProvider;
+  emailOtpSender?: EmailOtpSender;
+  emailOtpHmacKey?: string;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -93,9 +96,21 @@ export function createApp(options: AppOptions = {}) {
     bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" },
     syncHumanUser
   });
-  const requireActivePasskeySession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
-    requireStrongSession(req, res, async () => {
+  installEmailOtpAuth(api, {
+    store: passkeyStore,
+    sessions,
+    secureCookies: options.secureCookies ?? config.secureCookies,
+    sender: options.emailOtpSender ?? (config.smtp ? createSmtpEmailOtpSender(config.smtp) : undefined),
+    hmacKey: options.emailOtpHmacKey ?? config.emailOtpHmacKey,
+    now: options.now,
+    syncHumanUser
+  });
+  const requireActiveHumanSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
+    requireSession(req, res, async () => {
       const principal = res.locals.session as SessionPrincipal;
+      if (principal.method !== "passkey" && principal.method !== "email-otp") {
+        return res.status(403).json({ error: "strong_auth_required" });
+      }
       let user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
       if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
       try { user = await syncHumanUser(user); }
@@ -104,7 +119,11 @@ export function createApp(options: AppOptions = {}) {
       next();
     });
   const requireAdminSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
-    requireActivePasskeySession(req, res, () => {
+    requireStrongSession(req, res, () => {
+      const principal = res.locals.session as SessionPrincipal;
+      const user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
+      if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
+      res.locals.humanUser = user;
       if ((res.locals.humanUser as HumanUser).role !== "admin") {
         return res.status(403).json({ error: "admin_required" });
       }
@@ -156,7 +175,7 @@ export function createApp(options: AppOptions = {}) {
     mailReader,
     now: options.now
   }));
-  api.get("/accounts", requireActivePasskeySession, async (_req, res, next) => {
+  api.get("/accounts", requireActiveHumanSession, async (_req, res, next) => {
     try {
       const user = res.locals.humanUser as HumanUser;
       const records = await registryProvider.list();
@@ -176,7 +195,7 @@ export function createApp(options: AppOptions = {}) {
     accountId: z.string().min(1).max(240).optional(),
     query: z.string().max(200).optional()
   });
-  api.get("/accounts/:email/otp", requireActivePasskeySession, async (req, res, next) => {
+  api.get("/accounts/:email/otp", requireActiveHumanSession, async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
     const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
@@ -212,7 +231,7 @@ export function createApp(options: AppOptions = {}) {
       next(error);
     }
   });
-  api.patch("/accounts/:email", requireActivePasskeySession, async (req, res) => {
+  api.patch("/accounts/:email", requireActiveHumanSession, async (req, res) => {
     const email = decodeURIComponent(String(req.params.email));
     const current = scopedAccountViews(res.locals.humanUser).find((account) => account.email === email);
     if (!current) return res.status(404).json({ error: "account_not_found" });
@@ -225,10 +244,10 @@ export function createApp(options: AppOptions = {}) {
       res.json(value);
     } catch (error) { handleValidation(error, res); }
   });
-  api.post("/accounts/bulk-status", requireActivePasskeySession, async (req, res) => {
+  api.post("/accounts/bulk-status", requireActiveHumanSession, async (req, res) => {
     try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const allowed = new Set(scopedAccountViews(res.locals.humanUser).map((account) => account.email)); if (body.emails.some((email) => !allowed.has(email))) return res.status(403).json({ error: "scope_denied" }); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
   });
-  api.get("/taxonomies", requireActivePasskeySession, (_req, res) => res.json(database.getTaxonomies()));
+  api.get("/taxonomies", requireActiveHumanSession, (_req, res) => res.json(database.getTaxonomies()));
   api.get("/machine-identities/usage", requireAdminSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
   const coordinationProjects = (user: HumanUser) =>
     user.projects.filter((project): project is CoordinationProject =>
@@ -262,10 +281,10 @@ export function createApp(options: AppOptions = {}) {
       return hostname === "github.com" || hostname.endsWith(".slack.com") || hostname === "matrix.dreambau.com";
     }, "discussion host is not allowed")
   });
-  api.get("/coordination", requireActivePasskeySession, (_req, res) => {
+  api.get("/coordination", requireActiveHumanSession, (_req, res) => {
     res.json(scopedCoordination(res.locals.humanUser));
   });
-  api.get("/coordination/runtime", requireActivePasskeySession, async (_req, res, next) => {
+  api.get("/coordination/runtime", requireActiveHumanSession, async (_req, res, next) => {
     try {
       const loader = options.runtimeStatusLoader ?? loadRuntimeStatuses;
       res.json(await loader(coordinationProjects(res.locals.humanUser)));
@@ -273,7 +292,7 @@ export function createApp(options: AppOptions = {}) {
       next(error);
     }
   });
-  api.post("/coordination/items/:itemId/tags", requireActivePasskeySession, (req, res) => {
+  api.post("/coordination/items/:itemId/tags", requireActiveHumanSession, (req, res) => {
     const scoped = scopedCoordinationItem(String(req.params.itemId), res.locals.humanUser);
     if (scoped.status !== 200) return res.status(scoped.status).json({ error: scoped.status === 403 ? "scope_denied" : "coordination_item_not_found" });
     try {
@@ -283,7 +302,7 @@ export function createApp(options: AppOptions = {}) {
       handleValidation(error, res);
     }
   });
-  api.post("/coordination/items/:itemId/discussions", requireActivePasskeySession, (req, res) => {
+  api.post("/coordination/items/:itemId/discussions", requireActiveHumanSession, (req, res) => {
     const scoped = scopedCoordinationItem(String(req.params.itemId), res.locals.humanUser);
     if (scoped.status !== 200) return res.status(scoped.status).json({ error: scoped.status === 403 ? "scope_denied" : "coordination_item_not_found" });
     try {
@@ -296,9 +315,9 @@ export function createApp(options: AppOptions = {}) {
   api.put("/taxonomies/:kind", requireAdminSession, async (req, res) => {
     try { const kind = taxonomyKindSchema.parse(String(req.params.kind)); const { values } = taxonomyValuesSchema.parse(req.body); const result = database.putTaxonomy(kind, values); await regenerate(); res.json(result); } catch (error) { handleValidation(error, res); }
   });
-  api.get("/export/markdown", requireActivePasskeySession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
+  api.get("/export/markdown", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
   app.use("/testmails/api", api);
-  app.get("/testmails/testmails.md", requireActivePasskeySession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
+  app.get("/testmails/testmails.md", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
 
   const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../client");
   app.use("/testmails", express.static(clientDir, { index: false }));

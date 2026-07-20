@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { KeyRoundIcon, LanguagesIcon, LockKeyholeIcon } from "lucide-react";
+import { KeyRoundIcon, LanguagesIcon, LockKeyholeIcon, MailIcon } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState(rememberedLoginEmail);
   const [recoveryCode, setRecoveryCode] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
+  const [emailOtpRequested, setEmailOtpRequested] = useState(false);
   const [bootstrapEnabled, setBootstrapEnabled] = useState<boolean | "error" | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,6 +40,24 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
     catch { setError(locale === "de" ? "Recovery-Code ungültig oder bereits verwendet." : "Recovery code is invalid or already used."); }
     finally { setBusy(false); }
   }
+  async function requestEmailOtp() {
+    setBusy(true); setError("");
+    try {
+      await api("/auth/email-otp/request", { method: "POST", body: JSON.stringify({ email }) });
+      setEmailOtpRequested(true);
+    } catch {
+      setError(locale === "de" ? "Der Code konnte gerade nicht angefordert werden." : "The code could not be requested right now.");
+    } finally { setBusy(false); }
+  }
+  async function verifyEmailOtp() {
+    setBusy(true); setError("");
+    try {
+      await api("/auth/email-otp/verify", { method: "POST", body: JSON.stringify({ email, code: emailOtp }) });
+      rememberLoginEmail(email); onAuthenticated();
+    } catch {
+      setError(locale === "de" ? "Der E-Mail-Code ist ungültig oder abgelaufen." : "The email code is invalid or expired.");
+    } finally { setBusy(false); }
+  }
   return <main className="grid min-h-screen place-items-center p-6">
     <Card className="w-full max-w-md">
       <CardHeader>
@@ -56,6 +76,13 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
               <Input id="email" type="email" autoComplete="username webauthn" value={email} onChange={(event) => setEmail(event.target.value)} />
             </Field>
             <Button type="button" onClick={passkeyLogin} disabled={busy || !email}><KeyRoundIcon />{locale === "de" ? "Mit Passkey anmelden" : "Sign in with passkey"}</Button>
+            <Button type="button" variant="outline" onClick={requestEmailOtp} disabled={busy || !email}><MailIcon data-icon="inline-start" />{locale === "de" ? "Code per E-Mail senden" : "Send code by email"}</Button>
+            {emailOtpRequested && <><Alert><MailIcon /><AlertTitle>{locale === "de" ? "Postfach prüfen" : "Check your inbox"}</AlertTitle><AlertDescription>{locale === "de" ? "Wenn das Konto berechtigt ist, wurde ein sechsstelliger Code gesendet." : "If the account is eligible, a six-digit code was sent."}</AlertDescription></Alert>
+            <Field data-invalid={Boolean(error)}>
+              <FieldLabel htmlFor="email-otp">{locale === "de" ? "Sechsstelliger Code" : "Six-digit code"}</FieldLabel>
+              <Input id="email-otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={emailOtp} onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} />
+            </Field>
+            <Button type="button" onClick={verifyEmailOtp} disabled={busy || emailOtp.length !== 6}>{locale === "de" ? "Code bestätigen" : "Confirm code"}</Button></>}
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="recovery-code">{locale === "de" ? "Enrollment-/Recovery-Code" : "Enrollment/recovery code"}</FieldLabel>
               <Input id="recovery-code" type="password" autoComplete="one-time-code" value={recoveryCode} onChange={(event) => setRecoveryCode(event.target.value)} />
