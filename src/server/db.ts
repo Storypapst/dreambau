@@ -5,6 +5,12 @@ import type { Taxonomies } from "./taxonomies.js";
 import * as schema from "./schema.js";
 import { topicKeys } from "./catalog.js";
 import { TestRunStore } from "./test-run-store.js";
+import {
+  accountAccessEventInputSchema,
+  type AccountAccessEvent,
+  type AccountAccessEventInput,
+  type AccountAccessSummary
+} from "./account-link.js";
 
 const seeds = {
   roles: ["Träger", "Berater", "Ratsuchender", "Admin"],
@@ -18,6 +24,8 @@ export interface RegistryDatabase {
   upsertMetadata(email: string, patch: MetadataPatch): AccountMetadata; bulkStatus(emails: string[], status: string): number;
   recordMachineIdentityUse(identityId: string, usedAt?: string): void;
   getMachineIdentityUsage(): Array<{ identityId: string; lastUsedAt: string }>;
+  recordAccountAccess(event: AccountAccessEventInput): AccountAccessEvent;
+  getAccountAccess(email: string, limit?: number): AccountAccessSummary;
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
   getCoordinationMetadata(itemId: string): CoordinationMetadata;
   addCoordinationTag(itemId: string, tag: string): CoordinationMetadata;
@@ -41,6 +49,15 @@ export function createDatabase(path: string): RegistryDatabase {
     CREATE TABLE IF NOT EXISTS machine_identity_usage (
       identity_id TEXT PRIMARY KEY,
       last_used_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS account_access_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      context TEXT NOT NULL DEFAULT '{}'
     );
     CREATE TABLE IF NOT EXISTS coordination_item_metadata (
       item_id TEXT PRIMARY KEY,
@@ -96,6 +113,8 @@ export function createDatabase(path: string): RegistryDatabase {
     CREATE UNIQUE INDEX IF NOT EXISTS taxonomy_kind_value ON taxonomy_values(kind, value);
     CREATE INDEX IF NOT EXISTS test_runs_lookup ON test_runs(project,target_environment,application_version);
     CREATE INDEX IF NOT EXISTS test_run_events_order ON test_run_events(run_id,id);
+    CREATE INDEX IF NOT EXISTS account_access_events_email ON account_access_events(email,created_at DESC,id DESC);
+    CREATE INDEX IF NOT EXISTS account_access_events_account ON account_access_events(account_id,created_at DESC,id DESC);
   `);
   const metadataColumns = new Set((sqlite.prepare("PRAGMA table_info(account_metadata)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!metadataColumns.has("project")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN project TEXT NOT NULL DEFAULT 'NONE'");
@@ -126,6 +145,44 @@ export function createDatabase(path: string): RegistryDatabase {
         ON CONFLICT(identity_id) DO UPDATE SET last_used_at=excluded.last_used_at`).run(identityId, usedAt);
     },
     getMachineIdentityUsage: () => (sqlite.prepare("SELECT identity_id,last_used_at FROM machine_identity_usage ORDER BY identity_id").all() as Array<{ identity_id: string; last_used_at: string }>).map((row) => ({ identityId: row.identity_id, lastUsedAt: row.last_used_at })),
+    recordAccountAccess(input) {
+      const event = accountAccessEventInputSchema.parse({
+        ...input,
+        email: input.email.trim().toLowerCase()
+      });
+      const result = sqlite.prepare(`INSERT INTO account_access_events(
+        account_id,email,actor_id,action,created_at,context
+      ) VALUES(?,?,?,?,?,?)`).run(
+        event.accountId,
+        event.email,
+        event.actorId,
+        event.action,
+        event.createdAt,
+        JSON.stringify(event.context)
+      );
+      return { id: Number(result.lastInsertRowid), ...event };
+    },
+    getAccountAccess(email, limit = 10) {
+      const boundedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+      const rows = sqlite.prepare(`SELECT id,account_id,email,actor_id,action,created_at,context
+        FROM account_access_events WHERE email=? ORDER BY created_at DESC,id DESC LIMIT ?`)
+        .all(email.trim().toLowerCase(), boundedLimit) as Array<{
+          id: number; account_id: string; email: string; actor_id: string;
+          action: AccountAccessEvent["action"]; created_at: string; context: string;
+        }>;
+      const events = rows.map((row): AccountAccessEvent => {
+        const parsed = accountAccessEventInputSchema.parse({
+          accountId: row.account_id,
+          email: row.email,
+          actorId: row.actor_id,
+          action: row.action,
+          createdAt: row.created_at,
+          context: JSON.parse(row.context)
+        });
+        return { id: row.id, ...parsed };
+      });
+      return { latest: events[0] ?? null, events };
+    },
     getTaxonomies() {
       const result: Taxonomies = { roles: [], topics: [], conversationTypes: [] };
       for (const row of sqlite.prepare("SELECT kind,value FROM taxonomy_values ORDER BY value COLLATE NOCASE").all() as any[]) result[row.kind as keyof Taxonomies].push(row.value);

@@ -23,6 +23,8 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
+import { linkedRecordsForEmail, publicLinkedAccount } from "./account-link.js";
+import { generateTotp } from "./totp.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -117,6 +119,7 @@ export function createApp(options: AppOptions = {}) {
     });
   };
   const registryProvider = options.registryProvider ?? runtimeRegistryProvider();
+  const mailReader = options.mailReader ?? createJmapTestMailReader();
   app.get("/testmails/health/ready", async (_req, res) => {
     try {
       if (registryProvider.health) await registryProvider.health();
@@ -131,10 +134,66 @@ export function createApp(options: AppOptions = {}) {
       ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath)),
     registryProvider,
     database,
-    mailReader: options.mailReader ?? createJmapTestMailReader(),
+    accounts: accountLoader,
+    mailReader,
     now: options.now
   }));
-  api.get("/accounts", requireActivePasskeySession, (_req, res, next) => { try { res.json(scopedAccountViews(res.locals.humanUser)); } catch (error) { next(error); } });
+  api.get("/accounts", requireActivePasskeySession, async (_req, res, next) => {
+    try {
+      const user = res.locals.humanUser as HumanUser;
+      const records = await registryProvider.list();
+      res.json(scopedAccountViews(user).map((account) => ({
+        ...account,
+        linkedAccess: linkedRecordsForEmail(account.email, records)
+          .filter((record) => user.projects.includes(record.project))
+          .map(publicLinkedAccount)
+          .filter((record) => record !== null),
+        access: database.getAccountAccess(account.email)
+      })));
+    } catch (error) {
+      next(error);
+    }
+  });
+  const humanOtpQuerySchema = z.object({
+    accountId: z.string().min(1).max(240).optional(),
+    query: z.string().max(200).optional()
+  });
+  api.get("/accounts/:email/otp", requireActivePasskeySession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    try {
+      const parsed = humanOtpQuerySchema.parse(req.query);
+      const linked = linkedRecordsForEmail(email, await registryProvider.list())
+        .filter((record) => user.projects.includes(record.project));
+      const selected = parsed.accountId
+        ? linked.find((record) => record.id === parsed.accountId)
+        : linked[0];
+      if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
+      const generatedAt = options.now?.() ?? new Date();
+      const result = selected.totpSecret
+        ? { accountId: selected.id, source: "totp" as const, ...generateTotp(selected.totpSecret, generatedAt) }
+        : await (async () => {
+            const otp = await mailReader.otp(current, parsed.query ?? "");
+            return otp ? { accountId: selected.id, source: "mail" as const, ...otp } : null;
+          })();
+      if (!result) return res.status(404).json({ error: "otp_not_found" });
+      database.recordAccountAccess({
+        accountId: selected.id,
+        email,
+        actorId: user.id,
+        action: "otp_requested",
+        createdAt: generatedAt.toISOString(),
+        context: { environment: selected.environment }
+      });
+      res.set("Cache-Control", "no-store");
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) return handleValidation(error, res);
+      next(error);
+    }
+  });
   api.patch("/accounts/:email", requireActivePasskeySession, async (req, res) => {
     const email = decodeURIComponent(String(req.params.email));
     const current = scopedAccountViews(res.locals.humanUser).find((account) => account.email === email);
