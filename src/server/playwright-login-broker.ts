@@ -86,8 +86,12 @@ export function isOtpChallenge(
   preSubmitUrl?: string
 ) {
   if (!otpVisible) return false;
-  if (new URL(currentUrl).origin !== new URL(loginUrl).origin) return true;
-  return preSubmitUrl !== undefined && currentUrl === preSubmitUrl;
+  const current = new URL(currentUrl);
+  const login = new URL(loginUrl);
+  if (current.origin !== login.origin) return true;
+  if (preSubmitUrl !== undefined && currentUrl === preSubmitUrl) return true;
+  return current.pathname === login.pathname
+    && /(?:^|\/)login\/?$/i.test(current.pathname);
 }
 
 async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) {
@@ -227,7 +231,6 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
       if (response.status() >= 400) failedResponses.push(`${response.status()} ${new URL(response.url()).pathname}`);
     });
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
-
     const usernameField = await resolveVisible(usernameCandidates(page), "username");
     await usernameField.fill(request.username);
     const passwordField = await resolveVisible(passwordCandidates(page), "password");
