@@ -58,7 +58,11 @@ function redact(error: unknown, secrets: string[]) {
 }
 
 export function isOtpChallenge(currentUrl: string, loginUrl: string, otpVisible: boolean) {
-  return otpVisible && new URL(currentUrl).origin !== new URL(loginUrl).origin;
+  if (!otpVisible) return false;
+  const current = new URL(currentUrl);
+  const login = new URL(loginUrl);
+  return current.origin !== login.origin
+    || (current.pathname === login.pathname && /(?:^|\/)login\/?$/i.test(current.pathname));
 }
 
 async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) {
@@ -74,11 +78,14 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
   try {
     const page = await context.newPage();
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
-    await page.locator("#username").fill(request.username);
-    await page.locator("#passwordInput").fill(request.password);
+    const username = page.locator('#username, input[name="username"], input[autocomplete="username"]').first();
+    const password = page.locator('#passwordInput, input[name="password"], input[autocomplete="current-password"]').first();
+    const submit = page.locator('form button[type="submit"], form button:not([type]), form input[type="submit"]').first();
+    await username.fill(request.username);
+    await password.fill(request.password);
     const preSubmitUrl = page.url();
     const applicationOrigin = new URL(request.loginUrl).origin;
-    const otp = page.locator("#otp");
+    const otp = page.locator('#otp, input[name="otp"], input[autocomplete="one-time-code"], input[placeholder="One-time password"]').first();
     const postLoginNavigation = page.waitForURL(
       (url) => url.href !== preSubmitUrl && url.origin === applicationOrigin,
       { waitUntil: "domcontentloaded", timeout: 15_000 }
@@ -90,7 +97,7 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
       }
       await postLoginNavigation;
     });
-    await page.locator("#passwordInput").press("Enter");
+    await submit.click();
     await Promise.race([
       postLoginNavigation,
       otpChallenge

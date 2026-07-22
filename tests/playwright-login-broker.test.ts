@@ -10,6 +10,7 @@ describe("Playwright login broker", () => {
   it("does not confuse an application element named otp with an identity-provider challenge", () => {
     expect(isOtpChallenge("https://app.oriso-dev.site/app", "https://app.oriso-dev.site", true)).toBe(false);
     expect(isOtpChallenge("https://identity.oriso-dev.site/realms/oriso/login-actions/authenticate", "https://app.oriso-dev.site", true)).toBe(true);
+    expect(isOtpChallenge("https://admin.oriso-dev.site/admin/login", "https://admin.oriso-dev.site/admin/login", true)).toBe(true);
   });
 
   it("creates a private state handle without printing credentials or tokens", async () => {
@@ -97,6 +98,51 @@ describe("Playwright login broker", () => {
       const state = JSON.parse(await readFile(statePath, "utf8"));
       expect(appRequests).toBe(1);
       expect(state.cookies).toEqual(expect.arrayContaining([expect.objectContaining({ name: "logged_in", value: "1" })]));
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 20_000);
+
+  it("supports the same-origin ORISO Admin password and App-TOTP forms", async () => {
+    let submissions = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/admin/tenants") {
+        res.end("signed in");
+        return;
+      }
+      if (req.url === "/admin/login" && req.method === "POST") {
+        submissions += 1;
+        if (submissions === 1) {
+          res.setHeader("Content-Type", "text/html");
+          res.end('<form method="post"><input placeholder="One-time password"><button type="submit">Login</button></form>');
+          return;
+        }
+        res.statusCode = 302;
+        res.setHeader("Location", "/admin/tenants");
+        res.setHeader("Set-Cookie", "admin_logged_in=1; Path=/; HttpOnly");
+        res.end();
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.end('<form method="post" action="/admin/login"><input autocomplete="username"><input autocomplete="current-password" type="password"><button type="submit">Login</button></form>');
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-admin-login-"));
+    const statePath = join(root, "state.json");
+    const getOtp = vi.fn(async () => "123456");
+    try {
+      await playwrightLogin({
+        username: "platform-admin", password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/admin/login`, statePath,
+        ignoreHTTPSErrors: false,
+        getOtp
+      });
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      expect(submissions).toBe(2);
+      expect(getOtp).toHaveBeenCalledOnce();
+      expect(state.cookies).toEqual(expect.arrayContaining([expect.objectContaining({ name: "admin_logged_in", value: "1" })]));
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
