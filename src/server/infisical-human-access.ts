@@ -83,9 +83,10 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
       catch { throw new Error("Infisical human access lookup failed"); }
     }));
     const result = new Map<string, HumanProject[]>();
+    const assignmentRoles = new Set(["no-access", "admin"]);
     for (const projectMemberships of memberships) {
       for (const membership of projectMemberships.memberships) {
-        if (membership.roles.length === 0 || !membership.roles.every(({ role }) => role === "no-access")) continue;
+        if (membership.roles.length === 0 || !membership.roles.every(({ role }) => assignmentRoles.has(role))) continue;
         const email = normalizedEmail(membership.user.email ?? membership.user.username);
         if (!email.includes("@")) continue;
         const projects = result.get(email) ?? [];

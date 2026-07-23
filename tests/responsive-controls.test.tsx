@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { InlineProjectSelect, InlineStatusSelect } from "../src/client/components/inline-metadata-controls.js";
+import { AccountCard } from "../src/client/components/account-card.js";
 import type { AccountView } from "../src/client/types.js";
 
 const account: AccountView = {
@@ -17,5 +19,18 @@ describe("responsive inline controls", () => {
     expect(project).toContain("min-w-0");
     expect(status).not.toContain("min-w-32");
     expect(project).not.toContain("min-w-28");
+  });
+
+  it("labels the general credential as the mailbox password", () => {
+    const card = renderToStaticMarkup(<AccountCard
+      account={account}
+      taxonomies={{ roles: [], topics: [], conversationTypes: [] }}
+      locale="de"
+      onSaved={() => undefined}
+      onDetail={() => undefined}
+      onEdit={() => undefined}
+    />);
+    expect(card).toContain("Mail-Passwort");
+    expect(readFileSync("src/client/components/account-detail-sheet.tsx", "utf8")).toContain("Mail-Passwort kopieren");
   });
 });

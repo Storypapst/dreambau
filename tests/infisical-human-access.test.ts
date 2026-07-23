@@ -22,7 +22,7 @@ function provider(fetch: HumanAccessFetch, now = () => 1_000) {
 }
 
 describe("Infisical human access provider", () => {
-  it("maps pure no-access project memberships to normalized project scopes", async () => {
+  it("maps no-access and administrator memberships to normalized project scopes", async () => {
     const fetch = vi.fn(async (input: string | URL) => {
       const url = String(input);
       if (url.endsWith("/auth/universal-auth/login")) return json({ accessToken: "token", expiresIn: 3600, accessTokenMaxTTL: 3600, tokenType: "Bearer" });
@@ -33,12 +33,14 @@ describe("Infisical human access provider", () => {
       if (url.endsWith("/projects/p-orimo/memberships")) return json({ memberships: [] });
       if (url.endsWith("/projects/p-dreambau/memberships")) return json({ memberships: [
         { user: { username: "ShaziaKausarWork@gmail.com", email: "ShaziaKausarWork@gmail.com" }, roles: [{ role: "no-access" }] },
+        { user: { username: "Christoph@ag-prop.com", email: "Christoph@ag-prop.com" }, roles: [{ role: "admin" }] },
         { user: { username: "mixed@example.com", email: "mixed@example.com" }, roles: [{ role: "no-access" }, { role: "viewer" }] }
       ] });
       throw new Error(`Unexpected URL: ${url}`);
     }) satisfies HumanAccessFetch;
 
     await expect(provider(fetch).projectsFor("shaziakausarwork@gmail.com")).resolves.toEqual(["oriso", "dreambau"]);
+    await expect(provider(fetch).projectsFor("christoph@ag-prop.com")).resolves.toEqual(["dreambau"]);
     await expect(provider(fetch).projectsFor("secret-reader@example.com")).resolves.toEqual([]);
     await expect(provider(fetch).projectsFor("mixed@example.com")).resolves.toEqual([]);
   });

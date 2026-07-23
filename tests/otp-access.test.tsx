@@ -47,5 +47,23 @@ describe("OtpAccess", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("287082"));
     expect(api).toHaveBeenCalledWith(`/accounts/${encodeURIComponent(account.email)}/otp?accountId=${encodeURIComponent(account.linkedAccess![0].id)}`);
     expect(container.textContent).not.toContain("mailbox-password");
+    expect(container.textContent).toContain("platform-admin");
+  });
+
+  it("labels a mailbox-only identity and does not offer a misleading OTP action", async () => {
+    await act(async () => root.render(<OtpAccess account={{ ...account, linkedAccess: [] }} locale="de" compact />));
+    expect(container.textContent).toContain("Nur Mailkonto");
+    expect(container.textContent).not.toContain("OTP abrufen");
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("loads the application password separately from the mailbox password", async () => {
+    vi.mocked(api).mockResolvedValue({ accountId: account.linkedAccess![0].id, secret: "application-password" });
+    await act(async () => root.render(<OtpAccess account={account} locale="de" compact />));
+    const button = Array.from(container.querySelectorAll("button")).find((candidate) => candidate.textContent?.includes("App-Passwort abrufen"));
+    await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(container.textContent).toContain("application-password"));
+    expect(api).toHaveBeenCalledWith(`/accounts/${encodeURIComponent(account.email)}/application-secret?accountId=${encodeURIComponent(account.linkedAccess![0].id)}`);
+    expect(container.textContent).not.toContain("mailbox-password");
   });
 });

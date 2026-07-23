@@ -4,7 +4,7 @@ Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten ko
 
 ## Betrieb
 
-Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.7.0-email-otp-20260720` und Infisical als Registry-Provider.
+Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.7.1-dashboard-integrity-20260723` und Infisical als Registry-Provider.
 
 ```bash
 ssh m4dreambau 'kubectl get pod,svc,ingress,pvc -n wcr -l app.kubernetes.io/name=testmails'
@@ -168,12 +168,13 @@ nicht in einer dauerhaften Browserablage.
 
 ### Infisical-Mitgliedschaften für menschliche Projektzuordnungen
 
-Für nicht-administrative Benutzer ist Infisical die führende Quelle der
-Projektzuordnung. Eine Mitgliedschaft im jeweiligen Infisical-Projekt mit der
-eingebauten Rolle `no-access` dient als Zuordnungsmarker. Sie gewährt keine
-Projektberechtigungen und damit keinen Zugriff auf Secrets. Mitgliedschaften
-mit anderen oder zusätzlichen Rollen werden nicht als sicherer Zuordnungsmarker
-übernommen.
+Für nicht-administrative Testmails-Benutzer ist Infisical die führende Quelle
+der Projektzuordnung. Eine Mitgliedschaft im jeweiligen Infisical-Projekt mit
+der eingebauten Rolle `no-access` dient als reiner Zuordnungsmarker und gewährt
+keinen Zugriff auf Secrets. Eine bereits bestehende Infisical-`admin`-
+Mitgliedschaft gilt ebenfalls als Projektzuordnung; sie besitzt ohnehin die
+höheren Rechte im führenden System. Andere oder gemischte Rollen werden nicht
+automatisch übernommen.
 
 Die Anwendung liest Projektmitgliedschaften über die bereits gemountete
 Universal-Auth-Identität, cached das Ergebnis höchstens 60 Sekunden und
@@ -195,10 +196,15 @@ abgewiesen. Der Bootstrap-Administrator behält seine lokalen Projektzuordnungen
   Machine-Aktion `accounts:sync`. Der Record muss dieselbe synthetische
   Simpson-Mailadresse wie eines der 180 Konten verwenden. Projekt, Rolle,
   Version, Status und Notiz werden dann ohne Secret in den Katalog übernommen.
+- `GET /testmails/api/accounts/:email/application-secret?accountId=…` liefert
+  einer aktiven, projektspezifisch berechtigten Human-Session gezielt das
+  Anwendungspasswort eines verknüpften `app-user`- oder `admin`-Records und
+  antwortet mit `Cache-Control: no-store`.
 - `GET /testmails/api/accounts/:email/otp?accountId=…` steht einer aktiven
-  Passkey- oder E-Mail-OTP-Session im zugeordneten Projekt zur Verfügung. Der
-  Endpunkt bevorzugt App-TOTP, fällt andernfalls auf die neueste passende
-  Mail-OTP zurück und antwortet mit `Cache-Control: no-store`.
+  Passkey- oder E-Mail-OTP-Session im zugeordneten Projekt zur Verfügung.
+  Reine `mailbox`-Records sind kein App-Login und werden hier nicht akzeptiert.
+  Der Endpunkt bevorzugt App-TOTP und sucht andernfalls für den verknüpften
+  App-Record nach der neuesten passenden Mail-OTP.
 - Production ist kein gültiger Machine-Identity-Scope.
 - Unangemeldete, abgelaufene oder widerrufene Tokens erhalten keine Metadaten.
 - Die geschützte Human-Session sieht unter
@@ -218,6 +224,19 @@ drei konfigurierten Projekt-IDs und den vier Umgebungen `local`, `pre-dev`,
 `dev` und `production-test`. Ungültige, doppelte oder zum Infisical-Pfad
 widersprüchliche Records stoppen den Import. Upstream-Antworten und
 Credentials erscheinen nicht in Fehlern.
+
+### Mailbox und Anwendungslogin
+
+Ein Springfield-Konto ist immer zunächst eine Mailbox. Das in der Kontokarte
+angezeigte **Mail-Passwort** gehört ausschließlich zu Roundcube, IMAP, SMTP,
+JMAP, CalDAV und CardDAV. Es ist kein ORISO- oder ORIMO-Anwendungspasswort.
+
+Ein App-Login erscheint erst, wenn ein `app-user`- oder `admin`-Record mit
+derselben Simpsons-E-Mail in der Registry existiert. Reine `mailbox`-Records
+werden nicht als Anwendungskonto behandelt und bieten deshalb kein OTP an.
+Technische Rollen eines echten App-Records werden in der Kontokarte angezeigt
+und zusätzlich auf die verständlichen Dashboard-Rollen abgebildet. Das
+Anwendungspasswort wird erst nach einer gezielten Anfrage geladen.
 
 ### Verbindlicher Account-Workflow für KI-Tests
 

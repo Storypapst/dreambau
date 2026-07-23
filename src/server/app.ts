@@ -23,7 +23,7 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
-import { dashboardRoles, linkedApplicationRecordsForEmail, linkedRecordsForEmail, publicLinkedAccount } from "./account-link.js";
+import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
 import { generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
@@ -223,6 +223,33 @@ export function createApp(options: AppOptions = {}) {
     accountId: z.string().min(1).max(240).optional(),
     query: z.string().max(200).optional()
   });
+  api.get("/accounts/:email/application-secret", requireActiveHumanSession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    try {
+      const parsed = z.object({ accountId: z.string().min(1).max(240) }).parse(req.query);
+      const selected = linkedApplicationRecordsForEmail(email, await registryProvider.list())
+        .filter((record) => user.projects.includes(record.project))
+        .find((record) => record.id === parsed.accountId);
+      if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
+      const accessedAt = options.now?.() ?? new Date();
+      database.recordAccountAccess({
+        accountId: selected.id,
+        email,
+        actorId: user.id,
+        action: "secret_requested",
+        createdAt: accessedAt.toISOString(),
+        context: { environment: selected.environment }
+      });
+      res.set("Cache-Control", "no-store");
+      res.json({ accountId: selected.id, secret: selected.secret });
+    } catch (error) {
+      if (error instanceof z.ZodError) return handleValidation(error, res);
+      next(error);
+    }
+  });
   api.get("/accounts/:email/otp", requireActiveHumanSession, async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
@@ -230,7 +257,7 @@ export function createApp(options: AppOptions = {}) {
     if (!current) return res.status(404).json({ error: "account_not_found" });
     try {
       const parsed = humanOtpQuerySchema.parse(req.query);
-      const linked = linkedRecordsForEmail(email, await registryProvider.list())
+      const linked = linkedApplicationRecordsForEmail(email, await registryProvider.list())
         .filter((record) => user.projects.includes(record.project));
       const selected = parsed.accountId
         ? linked.find((record) => record.id === parsed.accountId)

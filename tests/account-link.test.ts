@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  dashboardRoles,
   derivedCatalogPatch,
   isKnownSyntheticEmail,
+  linkedApplicationRecordsForEmail,
   linkedRecordsForEmail
 } from "../src/server/account-link.js";
 import type { AccountRecord } from "../src/server/accounts.js";
@@ -62,6 +64,8 @@ describe("Springfield account links", () => {
 
     expect(linkedRecordsForEmail("ABE.SIMPSON@dreambau.de", [mailbox, other, appUser]).map((item) => item.id))
       .toEqual([appUser.id, mailbox.id]);
+    expect(linkedApplicationRecordsForEmail("ABE.SIMPSON@dreambau.de", [mailbox, other, appUser]).map((item) => item.id))
+      .toEqual([appUser.id]);
   });
 
   it("accepts only a mailbox from the established synthetic directory", () => {
@@ -97,8 +101,6 @@ describe("Springfield account links", () => {
     [["tenant"], ["Träger"]],
     [["consultant", "user-admin"], ["Admin", "Berater"]]
   ])("maps technical roles %j to dashboard roles", (roles, expected) => {
-    expect(derivedCatalogPatch(record({ roles }), {
-      applicationVersion: "2.02"
-    }).metadata.roles).toEqual(expected);
+    expect(dashboardRoles(roles)).toEqual(expected);
   });
 });
