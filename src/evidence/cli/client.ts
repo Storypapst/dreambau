@@ -11,7 +11,12 @@ export interface GatewayClientOptions {
   baseUrl: string;
   token: string;
   fetch: typeof fetch;
+  /** Per-request ceiling. A blackholing gateway must not hang a CI job forever. */
+  timeoutMs?: number;
 }
+
+/** Generous enough for a 64 MiB part on a slow link, short enough to fail. */
+export const defaultRequestTimeoutMs = 10 * 60 * 1000;
 
 const runSchema = z.object({ id: z.string(), publicId: z.string().nullable() }).passthrough();
 const fileSchema = z.object({ id: z.string() }).passthrough();
@@ -34,16 +39,39 @@ export function createGatewayClient(options: GatewayClientOptions) {
 
   async function call<T>(path: string, init: RequestInit & { expect?: number[]; binary?: boolean } = {}): Promise<T> {
     const { expect: _expect, binary, ...request } = init;
-    const response = await options.fetch(`${base}${path}`, {
-      ...request,
-      headers: {
-        authorization: `Bearer ${options.token}`,
-        ...(init.body ? { "content-type": binary ? "application/octet-stream" : "application/json" } : {}),
-        ...(init.headers ?? {})
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? defaultRequestTimeoutMs);
+    let response: Response;
+    try {
+      response = await options.fetch(`${base}${path}`, {
+        ...request,
+        signal: controller.signal,
+        headers: {
+          authorization: `Bearer ${options.token}`,
+          ...(init.body ? { "content-type": binary ? "application/octet-stream" : "application/json" } : {}),
+          ...(init.headers ?? {})
+        }
+      });
+    } catch (error) {
+      if ((error as { name?: string }).name === "AbortError") {
+        throw new GatewayError(0, "gateway_timeout", `the evidence gateway did not answer ${path} in time`);
       }
-    });
+      throw new GatewayError(0, "gateway_unreachable", `could not reach the evidence gateway at ${base}`);
+    } finally {
+      clearTimeout(timeout);
+    }
     const text = await response.text();
-    const payload: unknown = text ? JSON.parse(text) : {};
+    let payload: unknown = {};
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        // A proxy error page or an HTML login redirect must not surface as a
+        // raw SyntaxError from deep inside the client.
+        throw new GatewayError(response.status, "gateway_not_json",
+          `the evidence gateway answered ${path} with HTTP ${response.status} and a non-JSON body`);
+      }
+    }
     const acceptable = init.expect ?? [200, 201];
     if (!acceptable.includes(response.status)) {
       const code = (payload as { error?: string }).error ?? "gateway_error";
@@ -78,7 +106,9 @@ export function createGatewayClient(options: GatewayClientOptions) {
     uploadPart(runId: string, fileId: string, partNumber: number, body: Uint8Array): Promise<{ byteSize: number }> {
       return call(`/runs/${runId}/files/${fileId}/parts/${partNumber}`, {
         method: "PUT",
-        body: new Uint8Array(body).buffer as ArrayBuffer,
+        // A `Uint8Array` is a valid body at runtime; the bundled DOM typing
+        // just predates that. Casting beats copying a whole 64 MiB part.
+        body: body as unknown as BodyInit,
         binary: true,
         expect: [200]
       });

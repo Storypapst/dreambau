@@ -139,3 +139,30 @@ describe("detectGitHubLogin", () => {
     expect(detectGitHubLogin(runner({ "gh api user": fail() }))).toBe("");
   });
 });
+
+describe("findings raised by review", () => {
+  it("refuses a detached HEAD instead of matching an unrelated pull request", () => {
+    const detached = runner({ "git rev-parse --abbrev-ref": ok("HEAD\n") });
+    expect(() => detectRepositoryContext(detached)).toThrow(/detached/);
+    const failed = runner({ "git rev-parse --abbrev-ref": fail() });
+    expect(() => detectRepositoryContext(failed)).toThrow(/detached|could not be resolved/);
+  });
+
+  it("turns unparseable gh output into a clear error rather than a SyntaxError", () => {
+    const garbage = runner({ "gh pr view": ok("<html>proxy error</html>") });
+    expect(() => resolveTarget(garbage, { explicitPullRequest: 7 })).toThrow(/not valid JSON/);
+  });
+
+  it("treats unparseable pull request listings as no pull request", () => {
+    const garbage = runner({ "gh pr list": ok("not json at all") });
+    expect(() => detectPullRequests(garbage, "feat/x")).toThrow(/not valid JSON/);
+  });
+
+  it("refuses an explicitly named pull request that is closed or merged", () => {
+    for (const state of ["MERGED", "CLOSED"]) {
+      const view = JSON.stringify({ number: 900, url: "u", state, headRefOid: headSha });
+      expect(() => resolveTarget(runner({ "gh pr view": ok(view) }), { explicitPullRequest: 900 }), state)
+        .toThrow(new RegExp(state.toLowerCase()));
+    }
+  });
+});

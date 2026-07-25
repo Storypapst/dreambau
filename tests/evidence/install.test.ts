@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { readFileChunk } from "../../src/evidence/cli/index.js";
 
@@ -31,7 +32,11 @@ describe("portable dreambau-evidence installer", () => {
     expect(invoked.stderr).toContain("EVIDENCE_IDENTITY");
 
     const bundle = readFileSync(path.join(root, "data", "dreambau-agent-tools", "evidence", "dreambau-evidence.mjs"), "utf8");
-    expect(bundle).not.toContain("/Users/frankgerhardt");
+    // Derived from this checkout, so the assertion also holds on CI and on
+    // another workstation rather than only rejecting one developer's home.
+    const checkout = fileURLToPath(new URL("../..", import.meta.url)).replace(/\/$/, "");
+    expect(bundle).not.toContain(checkout);
+    expect(bundle).not.toContain(homedir());
     expect(statSync(path.join(root, "data", "dreambau-agent-tools", "evidence")).mode & 0o077).toBe(0);
   }, 60_000);
 
@@ -40,6 +45,38 @@ describe("portable dreambau-evidence installer", () => {
     expect(script).toContain("--external:@aws-sdk/client-s3");
     expect(script).toContain("src/evidence/cli/index.ts");
   });
+
+  it("bakes the resolved bundle path into the wrapper and uses mktemp", () => {
+    const script = readFileSync(new URL("../../scripts/install-evidence-cli.sh", import.meta.url), "utf8");
+    expect(script).toContain("mktemp");
+    expect(script).not.toContain(".tmp.$$");
+    // The wrapper must not recompute the location from XDG_DATA_HOME at runtime.
+    expect(script).not.toMatch(/exec node "\$\{XDG_DATA_HOME/);
+  });
+
+  it("still runs when XDG_DATA_HOME is unset afterwards", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "evidence-install-path-"));
+    const installEnv = {
+      ...process.env,
+      HOME: path.join(root, "home"),
+      XDG_BIN_HOME: path.join(root, "bin"),
+      XDG_DATA_HOME: path.join(root, "data")
+    };
+    const installed = spawnSync("bash", ["scripts/install-evidence-cli.sh"], {
+      cwd: new URL("../..", import.meta.url),
+      env: installEnv,
+      encoding: "utf8"
+    });
+    expect(installed.status).toBe(0);
+
+    const { XDG_DATA_HOME: _dropped, ...withoutXdg } = installEnv;
+    const invoked = spawnSync(path.join(root, "bin", "dreambau-evidence"), ["help"], {
+      env: { ...withoutXdg, EVIDENCE_IDENTITY: "" },
+      encoding: "utf8"
+    });
+    expect(invoked.status).toBe(0);
+    expect(invoked.stdout).toContain("dreambau-evidence <command>");
+  }, 60_000);
 
   it("prints usage when invoked without a command", () => {
     const usage = spawnSync("npx", ["tsx", "src/evidence/cli/index.ts"], {

@@ -8,6 +8,8 @@ interface MachineCredentialOptions {
   readKeychain: (identity: string) => string;
   /** Directory under `~/.config` holding the file fallback. */
   configDirectory?: string;
+  /** Named in errors, so an evidence failure does not point at Test Access. */
+  subsystem?: string;
 }
 
 interface KeychainOptions {
@@ -36,8 +38,12 @@ export function readMacOSKeychainCredential(identity: string, options: KeychainO
   return result.status === 0 ? String(result.stdout).trim() : "";
 }
 
+const safeNamePattern = /^[A-Za-z0-9._-]+$/;
+
 export function machineCredentialPath(identity: string, home = homedir(), configDirectory = "dreambau-test-access") {
-  if (!/^[A-Za-z0-9._-]+$/.test(identity)) throw new Error("invalid Test Access identity name");
+  if (!safeNamePattern.test(identity)) throw new Error("invalid machine identity name");
+  // Both halves are joined into a path, so both are checked.
+  if (!safeNamePattern.test(configDirectory)) throw new Error("invalid credential directory name");
   return join(home, ".config", configDirectory, "identities", `${identity}.token`);
 }
 
@@ -45,18 +51,19 @@ export function readMachineCredential(identity: string, options: MachineCredenti
   const keychainCredential = options.readKeychain(identity).trim();
   if (keychainCredential) return keychainCredential;
 
+  const subsystem = options.subsystem ?? "Test Access";
   const path = machineCredentialPath(identity, options.home, options.configDirectory);
   const metadata = lstatSync(path);
   if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    throw new Error("Test Access machine credential must be a regular file");
+    throw new Error(`${subsystem} machine credential must be a regular file`);
   }
   if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) {
-    throw new Error("Test Access machine credential must belong to the current user");
+    throw new Error(`${subsystem} machine credential must belong to the current user`);
   }
   if ((metadata.mode & 0o077) !== 0) {
-    throw new Error("Test Access machine credential must not grant group or world access");
+    throw new Error(`${subsystem} machine credential must not grant group or world access`);
   }
   const fileCredential = readFileSync(path, "utf8").trim();
-  if (!fileCredential) throw new Error("Test Access machine credential is empty");
+  if (!fileCredential) throw new Error(`${subsystem} machine credential is empty`);
   return fileCredential;
 }

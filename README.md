@@ -56,6 +56,13 @@ bevor der Pull Request sie festhält.
 
 ### dreambau-evidence CLI
 
+`npm run evidence:install` legt das CLI unter `~/.local/bin/dreambau-evidence`
+ab und ändert die eigene Shell nicht. Liegt `~/.local/bin` nicht im `PATH`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 Das CLI ermittelt Repository, Commit und offenen PR selbst:
 
 ```bash

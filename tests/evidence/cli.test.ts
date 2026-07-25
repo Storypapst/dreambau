@@ -376,3 +376,47 @@ describe("token handling", () => {
     }
   });
 });
+
+describe("findings raised by review", () => {
+  it("rejects a --pr value that is not a number", async () => {
+    const code = await runEvidenceCommand(
+      uploadArgs(writeScreenshot(), ["--pr", "abc"]),
+      dependencies(baseUrl)
+    );
+    expect(code).toBe(1);
+    expect(stderr.join("")).toContain('--pr expects a pull request number, got "abc"');
+  });
+
+  it("reports an unreachable gateway in doctor instead of passing", async () => {
+    const unreachable = dependencies("http://127.0.0.1:1/api/v1");
+    const code = await runEvidenceCommand(["doctor"], unreachable);
+    expect(code).toBe(1);
+    expect(stdout.join("")).toMatch(/fail gateway|fail {2}gateway/);
+  });
+
+  it("reports a reachable gateway in doctor", async () => {
+    const code = await runEvidenceCommand(["doctor"], dependencies(baseUrl));
+    expect(code).toBe(0);
+    expect(stdout.join("")).toContain("reachable");
+  });
+
+  it("fails doctor on an empty keychain entry rather than staying silent", async () => {
+    const code = await runEvidenceCommand(
+      ["doctor"],
+      dependencies(baseUrl, { readKeychainToken: () => "" })
+    );
+    expect(code).toBe(1);
+    expect(stdout.join("")).toContain("empty entry");
+  });
+
+  it("explains a gateway that answers with something other than JSON", async () => {
+    const htmlFetch: typeof fetch = async () =>
+      new Response("<html>gateway error</html>", { status: 502, headers: { "content-type": "text/html" } });
+    const code = await runEvidenceCommand(
+      uploadArgs(writeScreenshot()),
+      dependencies(baseUrl, { fetch: htmlFetch })
+    );
+    expect(code).toBe(1);
+    expect(stderr.join("")).toContain("non-JSON body");
+  });
+});

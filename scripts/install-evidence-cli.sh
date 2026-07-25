@@ -11,9 +11,11 @@ install -d -m 0755 "$bin_dir"
 install -d -m 0700 "$data_dir"
 
 bundle="$data_dir/dreambau-evidence.mjs"
-temporary="$bundle.tmp.$$"
 wrapper="$bin_dir/dreambau-evidence"
-wrapper_temporary="$wrapper.tmp.$$"
+# mktemp, not $$: a predictable name in a writable directory can be pre-empted
+# by a symlink and redirect the write.
+temporary=$(mktemp "$data_dir/.dreambau-evidence.XXXXXXXX")
+wrapper_temporary=$(mktemp "$bin_dir/.dreambau-evidence.XXXXXXXX")
 trap 'rm -f "$temporary" "$wrapper_temporary"' EXIT HUP INT TERM
 
 # The CLI never talks to MinIO, so the AWS SDK stays out of the portable bundle.
@@ -29,13 +31,13 @@ trap 'rm -f "$temporary" "$wrapper_temporary"' EXIT HUP INT TERM
 chmod 0600 "$temporary"
 mv "$temporary" "$bundle"
 
-printf '%s\n' \
-  '#!/bin/sh' \
-  'set -eu' \
-  'PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"' \
-  'export PATH' \
-  'exec node "${XDG_DATA_HOME:-$HOME/.local/share}/dreambau-agent-tools/evidence/dreambau-evidence.mjs" "$@"' \
-  > "$wrapper_temporary"
+# The bundle path is resolved at install time and baked in. Recomputing it from
+# XDG_DATA_HOME at runtime would break every later invocation that does not
+# happen to carry the same value the install used.
+{
+  printf '%s\n' '#!/bin/sh' 'set -eu' 'PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"' 'export PATH'
+  printf 'exec node %s "$@"\n' "$(printf '%q' "$bundle")"
+} > "$wrapper_temporary"
 chmod 0755 "$wrapper_temporary"
 mv "$wrapper_temporary" "$wrapper"
 trap - EXIT HUP INT TERM

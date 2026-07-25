@@ -39,7 +39,9 @@ export function escapeMarkdown(value: string): string {
 function actorLine(file: EvidenceFile): string | null {
   if (!file.primaryActor) return null;
   const actor = file.primaryActor;
-  return `Test user: \`${escapeMarkdown(actor.username)}\` (\`${actor.syntheticEmail}\`) — ${escapeMarkdown(actor.role)}`;
+  // Not code spans: a backtick in a value would close the span, and the
+  // backslash escaping that neutralises markdown does not work inside one.
+  return `Test user: ${escapeMarkdown(actor.username)} (${escapeMarkdown(actor.syntheticEmail)}) — ${escapeMarkdown(actor.role)}`;
 }
 
 function fileSection(file: EvidenceFile, run: EvidenceRun, reportBaseUrl: string): string[] {

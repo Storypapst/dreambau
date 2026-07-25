@@ -31,7 +31,15 @@ function parseNdjson(stdout: string): Array<z.infer<typeof commentSchema>> {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .flatMap((line) => {
-      const parsed = commentSchema.safeParse(JSON.parse(line));
+      // A `gh` that printed a warning, a proxy error page or anything else
+      // unexpected must surface as a GitHub failure, not a raw SyntaxError.
+      let value: unknown;
+      try {
+        value = JSON.parse(line);
+      } catch {
+        throw new GitHubError("gh returned output that is not valid JSON while listing comments");
+      }
+      const parsed = commentSchema.safeParse(value);
       return parsed.success ? [parsed.data] : [];
     });
 }
@@ -56,7 +64,13 @@ export function findRunComment(
 function writeComment(gh: GhRunner, args: string[], body: string): ExistingComment {
   const result = gh(args, JSON.stringify({ body }));
   if (result.code !== 0) throw new GitHubError(`GitHub rejected the evidence comment: ${result.stderr.trim()}`);
-  const parsed = commentSchema.safeParse(JSON.parse(result.stdout || "{}"));
+  let value: unknown;
+  try {
+    value = JSON.parse(result.stdout || "{}");
+  } catch {
+    throw new GitHubError("GitHub returned output that is not valid JSON for the comment");
+  }
+  const parsed = commentSchema.safeParse(value);
   if (!parsed.success) throw new GitHubError("GitHub returned an unexpected comment payload");
   return { id: parsed.data.id, url: parsed.data.html_url };
 }

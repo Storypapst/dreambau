@@ -275,7 +275,7 @@ Publishing runs in two stages so the state rule holds literally. The comment nee
 
 The CLI reads files in 64 MiB windows and streams the digest, so a 2 GiB OBS recording never has to fit in memory.
 
-**Acceptance:** met — one command uploads an image, returns the public URL and creates the correct PR comment; publishing the same run again updates that comment instead of adding a second one, while a different run on the same PR gets its own.
+**Acceptance:** met — one command uploads an image, returns the *minted* public URL and creates the correct PR comment; publishing the same run again updates that comment instead of adding a second one, while a different run on the same PR gets its own. Whether that address *resolves* is Task 4's business, not this task's.
 
 ## Task 6: Portable agent skill and machine installation
 

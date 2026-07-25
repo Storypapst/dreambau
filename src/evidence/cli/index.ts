@@ -177,6 +177,9 @@ async function runUpload(args: string[], dependencies: CliDependencies, client: 
   if (paths.length === 0) throw new Error("upload requires at least one file");
   const draft = flag(args, "--draft");
   const explicit = option(args, "--pr");
+  if (explicit !== undefined && !/^[0-9]+$/.test(explicit)) {
+    throw new Error(`--pr expects a pull request number, got "${explicit}"`);
+  }
   const target = resolveTarget(dependencies.runCommand, {
     explicitPullRequest: explicit === undefined ? undefined : Number(explicit),
     allowOlderCommit: flag(args, "--allow-older-commit"),
@@ -256,26 +259,52 @@ async function runStatus(runId: string, dependencies: CliDependencies, client: G
   return 0;
 }
 
-function runDoctor(dependencies: CliDependencies): number {
+async function runDoctor(dependencies: CliDependencies): Promise<number> {
   const checks: Array<[string, boolean, string]> = [];
   const git = dependencies.runCommand("git", ["rev-parse", "HEAD"]);
   checks.push(["git repository", git.code === 0, git.code === 0 ? git.stdout.trim().slice(0, 7) : "not a repository"]);
   const gh = dependencies.runCommand("gh", ["auth", "status"]);
   const login = gh.code === 0 ? detectGitHubLogin(dependencies.runCommand) : "";
   checks.push(["gh authentication", gh.code === 0, gh.code === 0 ? `signed in as ${login || "unknown"}` : "run gh auth login"]);
-  let tokenPresent = false;
+
+  // An unreadable *or empty* token is a failure worth reporting. Reporting
+  // nothing at all is what made an earlier version exit 0 on a missing token.
+  let token = "";
   try {
-    tokenPresent = dependencies.readKeychainToken(dependencies.identity).length > 0;
+    token = dependencies.readKeychainToken(dependencies.identity);
+    checks.push([
+      "keychain token",
+      token.length > 0,
+      token.length > 0 ? `${keychainService}/${dependencies.identity}` : `empty entry for ${dependencies.identity}`
+    ]);
   } catch (error) {
-    tokenPresent = false;
     checks.push(["keychain token", false, error instanceof Error ? error.message : "unreadable"]);
   }
-  if (tokenPresent) checks.push(["keychain token", true, `${keychainService}/${dependencies.identity}`]);
-  checks.push(["gateway", true, dependencies.baseUrl]);
+
+  // Actually ask the gateway rather than echoing the configured address.
+  const probe = await probeGateway(dependencies);
+  checks.push(["gateway", probe.ok, `${dependencies.baseUrl} — ${probe.detail}`]);
+
   for (const [name, ok, detail] of checks) {
     dependencies.write(`${ok ? "ok  " : "fail"} ${name.padEnd(20)} ${detail}\n`);
   }
   return checks.every(([, ok]) => ok) ? 0 : 1;
+}
+
+async function probeGateway(dependencies: CliDependencies): Promise<{ ok: boolean; detail: string }> {
+  const health = `${dependencies.baseUrl.replace(/\/api\/v1$/, "")}/health/live`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await dependencies.fetch(health, { signal: controller.signal });
+    return response.ok
+      ? { ok: true, detail: "reachable" }
+      : { ok: false, detail: `HTTP ${response.status}` };
+  } catch (error) {
+    return { ok: false, detail: (error as { name?: string }).name === "AbortError" ? "timed out" : "unreachable" };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function runEvidenceCommand(args: string[], dependencies: CliDependencies): Promise<number> {
@@ -289,7 +318,7 @@ export async function runEvidenceCommand(args: string[], dependencies: CliDepend
       dependencies.writeError("watch arrives with Task 7 (OBS and Cap capture); upload the finished file for now\n");
       return 1;
     }
-    if (command === "doctor") return runDoctor(dependencies);
+    if (command === "doctor") return await runDoctor(dependencies);
 
     if (!dependencies.identity) throw new Error("EVIDENCE_IDENTITY or --identity is required");
     const token = dependencies.readKeychainToken(dependencies.identity);
@@ -353,7 +382,8 @@ async function main() {
     identity,
     readKeychainToken: (name) => readMachineCredential(name, {
       readKeychain: (value) => readMacOSKeychainCredential(value, { service: keychainService }),
-      configDirectory
+      configDirectory,
+      subsystem: "dreambau-evidence"
     }),
     fetch,
     runCommand: (command, args) => spawn(command, args),

@@ -27,11 +27,25 @@ export class GitContextError extends Error {}
 
 const repositoryPattern = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 
+/** `JSON.parse` on subprocess output, normalised into this module's error type. */
+function parseJson(raw: string, what: string): unknown {
+  try {
+    return JSON.parse(raw || "null");
+  } catch {
+    throw new GitContextError(`gh returned output that is not valid JSON while reading ${what}`);
+  }
+}
+
 /** `gh repo view` is authoritative; it resolves the remote the user is signed in to. */
 export function detectRepositoryContext(run: CommandRunner): RepositoryContext {
   const head = run("git", ["rev-parse", "HEAD"]);
   if (head.code !== 0) throw new GitContextError("not inside a Git repository");
   const branch = run("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+  // An unchecked failure here yields "" or "HEAD", which would turn into an
+  // empty `--head` filter and silently match an unrelated pull request.
+  if (branch.code !== 0 || !branch.stdout.trim() || branch.stdout.trim() === "HEAD") {
+    throw new GitContextError("HEAD is detached or the branch could not be resolved; check out a branch first");
+  }
   const repository = run("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
   if (repository.code !== 0) {
     throw new GitContextError("could not resolve the GitHub repository; run `gh auth login` first");
@@ -58,7 +72,7 @@ export function detectPullRequests(run: CommandRunner, branch: string): PullRequ
     "--json", "number,url,state,headRefOid"
   ]);
   if (result.code !== 0) return [];
-  const parsed = pullRequestListSchema.safeParse(JSON.parse(result.stdout || "[]"));
+  const parsed = pullRequestListSchema.safeParse(parseJson(result.stdout || "[]", "the open pull requests"));
   if (!parsed.success) return [];
   return parsed.data.map((entry) => ({
     number: entry.number,
@@ -75,13 +89,16 @@ const pullRequestViewSchema = z.object({
   headRefOid: z.string()
 });
 
+/** Only an open pull request may receive evidence. */
+export const openStates = ["OPEN"];
+
 export function viewPullRequest(run: CommandRunner, pullRequestNumber: number): PullRequestContext | null {
   const result = run("gh", [
     "pr", "view", String(pullRequestNumber),
     "--json", "number,url,state,headRefOid"
   ]);
   if (result.code !== 0) return null;
-  const parsed = pullRequestViewSchema.safeParse(JSON.parse(result.stdout || "{}"));
+  const parsed = pullRequestViewSchema.safeParse(parseJson(result.stdout || "{}", "the pull request"));
   if (!parsed.success) return null;
   return {
     number: parsed.data.number,
@@ -118,6 +135,13 @@ export function resolveTarget(run: CommandRunner, options: ResolveOptions = {}):
   if (options.explicitPullRequest !== undefined) {
     const pullRequest = viewPullRequest(run, options.explicitPullRequest);
     if (!pullRequest) throw new GitContextError(`pull request #${options.explicitPullRequest} was not found`);
+    // `gh pr view` is not state-filtered, unlike the branch lookup, so a closed
+    // or merged pull request would otherwise accept evidence.
+    if (!openStates.includes(pullRequest.state.toUpperCase())) {
+      throw new GitContextError(
+        `pull request #${pullRequest.number} is ${pullRequest.state.toLowerCase()}; evidence only goes onto an open pull request`
+      );
+    }
     assertCommitMatches(pullRequest, context.commitSha, options.allowOlderCommit ?? false);
     return { ...context, pullRequest };
   }

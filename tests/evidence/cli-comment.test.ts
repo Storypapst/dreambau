@@ -83,8 +83,23 @@ describe("renderComment", () => {
         role: "consultant"
       }
     })]);
-    expect(body).toContain("Test user: `brave\\_otter` (`brave.otter@oriso.org`) — consultant");
+    expect(body).toContain("Test user: brave\\_otter (brave\\.otter@oriso\\.org) — consultant");
     expect(body).not.toMatch(/password|secret|token/i);
+  });
+
+  it("keeps a backtick in an actor field from breaking the comment", () => {
+    const body = render([file({
+      primaryActor: {
+        accountId: "a",
+        username: "brave`otter`|pipe",
+        syntheticEmail: "brave@oriso.org",
+        role: "consultant"
+      }
+    })]);
+    // Actor values are plain escaped text, not code spans, so a backtick
+    // cannot close a span and a pipe cannot break the summary table.
+    expect(body).toContain("brave\\`otter\\`\\|pipe");
+    expect(body).not.toContain("`brave`");
   });
 
   it("says so plainly when a file has no public address", () => {
