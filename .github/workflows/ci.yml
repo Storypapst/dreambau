@@ -17,17 +17,23 @@ jobs:
     name: Lint, test and build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # .nvmrc is the single source of truth for the supported Node major.
       # It must stay aligned with the Dockerfile base image (node:20-bookworm-slim).
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
+
+      # tests/playwright-login-broker.test.ts launches a real browser, so the
+      # unit suite needs the Chromium download even though the Playwright E2E
+      # project is excluded from `npm test`.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Lint
         run: npm run lint
