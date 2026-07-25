@@ -6,18 +6,24 @@ import { join } from "node:path";
 interface MachineCredentialOptions {
   home?: string;
   readKeychain: (identity: string) => string;
+  /** Directory under `~/.config` holding the file fallback. */
+  configDirectory?: string;
+  /** Named in errors, so an evidence failure does not point at Test Access. */
+  subsystem?: string;
 }
 
 interface KeychainOptions {
   home?: string;
   spawn?: typeof spawnSync;
+  /** Keychain service name; the evidence CLI uses its own. */
+  service?: string;
 }
 
 export function readMacOSKeychainCredential(identity: string, options: KeychainOptions = {}) {
   const spawn = options.spawn ?? spawnSync;
   const find = () => spawn(
     "security",
-    ["find-generic-password", "-s", "dreambau-test-access", "-a", identity, "-w"],
+    ["find-generic-password", "-s", options.service ?? "dreambau-test-access", "-a", identity, "-w"],
     { encoding: "utf8", timeout: 2_000 }
   );
   let result = find();
@@ -32,27 +38,32 @@ export function readMacOSKeychainCredential(identity: string, options: KeychainO
   return result.status === 0 ? String(result.stdout).trim() : "";
 }
 
-export function machineCredentialPath(identity: string, home = homedir()) {
-  if (!/^[A-Za-z0-9._-]+$/.test(identity)) throw new Error("invalid Test Access identity name");
-  return join(home, ".config", "dreambau-test-access", "identities", `${identity}.token`);
+const safeNamePattern = /^[A-Za-z0-9._-]+$/;
+
+export function machineCredentialPath(identity: string, home = homedir(), configDirectory = "dreambau-test-access") {
+  if (!safeNamePattern.test(identity)) throw new Error("invalid machine identity name");
+  // Both halves are joined into a path, so both are checked.
+  if (!safeNamePattern.test(configDirectory)) throw new Error("invalid credential directory name");
+  return join(home, ".config", configDirectory, "identities", `${identity}.token`);
 }
 
 export function readMachineCredential(identity: string, options: MachineCredentialOptions) {
   const keychainCredential = options.readKeychain(identity).trim();
   if (keychainCredential) return keychainCredential;
 
-  const path = machineCredentialPath(identity, options.home);
+  const subsystem = options.subsystem ?? "Test Access";
+  const path = machineCredentialPath(identity, options.home, options.configDirectory);
   const metadata = lstatSync(path);
   if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    throw new Error("Test Access machine credential must be a regular file");
+    throw new Error(`${subsystem} machine credential must be a regular file`);
   }
   if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) {
-    throw new Error("Test Access machine credential must belong to the current user");
+    throw new Error(`${subsystem} machine credential must belong to the current user`);
   }
   if ((metadata.mode & 0o077) !== 0) {
-    throw new Error("Test Access machine credential must not grant group or world access");
+    throw new Error(`${subsystem} machine credential must not grant group or world access`);
   }
   const fileCredential = readFileSync(path, "utf8").trim();
-  if (!fileCredential) throw new Error("Test Access machine credential is empty");
+  if (!fileCredential) throw new Error(`${subsystem} machine credential is empty`);
   return fileCredential;
 }
