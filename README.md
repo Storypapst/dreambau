@@ -34,6 +34,7 @@ unberührt — eigener Entrypoint (`src/evidence/server/index.ts`), eigenes
 npm run evidence:dev        # Gateway lokal starten
 npm run evidence:test       # nur die Evidence-Tests
 npm run evidence:build      # nach dist/evidence bauen
+npm run evidence:install    # portables dreambau-evidence CLI installieren
 ```
 
 Das Gateway hält als einziger Prozess MinIO-Zugangsdaten und gibt niemals eine
@@ -52,6 +53,40 @@ und liefert die Adressen, die eine Veröffentlichung erzeugen würde, ohne den L
 erreichbar zu machen; `stage: "commit"` schaltet frei und speichert die
 Kommentar-URL im selben Schritt. So existiert nie eine öffentliche Adresse,
 bevor der Pull Request sie festhält.
+
+### dreambau-evidence CLI
+
+`npm run evidence:install` legt das CLI unter `~/.local/bin/dreambau-evidence`
+ab und ändert die eigene Shell nicht. Liegt `~/.local/bin` nicht im `PATH`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Das CLI ermittelt Repository, Commit und offenen PR selbst:
+
+```bash
+dreambau-evidence upload redirect.png \
+  --project oriso --environment pre-dev --result PASS \
+  --title "Invitation redirect verified" \
+  --caption "Redirect and landing page validated" \
+  --publish
+```
+
+Ohne offenen PR bricht es ab; `--draft` erlaubt einen privaten Lauf ohne
+öffentliche Adresse. Hat ein Branch mehrere offene PRs, ist `--pr` Pflicht, und
+ein Upload gegen einen PR mit weitergewandertem Head verlangt ausdrücklich
+`--allow-older-commit`.
+
+Das Token kommt aus dem Keychain-Service `dreambau-evidence`, der GitHub-Zugriff
+aus der vorhandenen `gh`-Anmeldung — das Gateway besitzt keinen eigenen
+GitHub-Token. Weder Token noch Kommentartext stehen je in einer Argumentliste;
+der Kommentar wird über stdin übergeben.
+
+Der Kommentar ist pro Run idempotent: derselbe Lauf aktualisiert seinen eigenen
+Kommentar, ein anderer Lauf am selben PR bekommt einen eigenen. Dateien werden in
+64-MiB-Fenstern gelesen, damit auch eine 2-GiB-Aufnahme nicht in den Speicher
+muss; ein abgebrochener Upload nimmt die fehlenden Teile wieder auf.
 
 ## Menschlicher Passkey-Zugang
 

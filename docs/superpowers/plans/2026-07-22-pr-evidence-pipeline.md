@@ -34,12 +34,13 @@ flowchart LR
 
 ## Execution status — 2026-07-25
 
-- **Tasks 1 and 3 are implemented** on `feat/pr-evidence-gateway`: the service foundation and the upload/processing/quarantine pipeline. Task 5 (the CLI) follows in a separate pull request stacked on this one.
-- Local gate: all TypeScript projects typecheck, the full test suite passes, `npm run build` and `npm run evidence:build` succeed, and the built gateway answers `/health/live` and `/health/ready` while refusing an unauthenticated API call with 401.
+- **Tasks 1, 3 and 5 are implemented.** Tasks 1 and 3 landed on `feat/pr-evidence-gateway`; this branch adds task 5, the portable CLI and its GitHub linkage.
+- Local gate: the full test suite passes, all three TypeScript projects typecheck, `npm run build` and `npm run evidence:build` succeed, and the built gateway answers `/health/live` and `/health/ready` while refusing an unauthenticated API call with 401.
 - Three sub-steps are deliberately left open and marked as such below: the optional OCR preflight, image thumbnails (nothing consumes one until the viewer exists) and the seven-day deletion of original video uploads (that is the Task 10 retention job).
 - Video processing shells out to ffmpeg through an injected runner. The argument lists are unit-tested; the binary itself is installed by `Dockerfile.evidence` and is a Task 2 deployment concern.
-- **Public URLs are minted but do not resolve yet.** `/r/`, `/e/` and `/reports/` are Task 4, so Task 4 makes existing PR comments work rather than changing them.
-- Open before this is usable end to end: Task 2 (MinIO bucket, DNS, Kubernetes, Infisical credentials), Task 4 (viewer) and Task 5 (CLI).
+- `dreambau-evidence watch` is registered but reports that folder watching arrives with Task 7.
+- **Public URLs are minted but do not resolve yet.** `/r/`, `/e/` and `/reports/` are Task 4. The CLI already returns the final addresses and writes them into the PR comment, so Task 4 makes existing comments work rather than changing them.
+- Open before this is usable end to end: Task 2 (MinIO bucket, DNS, Kubernetes, Infisical credentials) and Task 4 (viewer).
 
 ## Global Constraints
 
@@ -261,20 +262,20 @@ Two rules were sharpened against real evidence rather than taken literally:
 
 ## Task 5: CLI and GitHub linkage
 
-- [ ] Build the portable CLI with esbuild following the existing `test-access` installation pattern.
-- [ ] Install to `~/.local/share/dreambau-agent-tools/evidence` with a `~/.local/bin/dreambau-evidence` wrapper.
-- [ ] Read the token from the macOS Keychain service `dreambau-evidence`; never place tokens in arguments, the process list, logs or markdown. (Comment bodies also travel on stdin, not argv.)
-- [ ] Resolve PR and head SHA through `gh pr view`; require `--pr` when several candidates match.
-- [ ] Block uploads to a PR whose head SHA differs unless `--allow-older-commit` is set explicitly.
-- [ ] Find the comment by run marker and create or update it idempotently.
-- [ ] Set the gateway state to `published` only after the GitHub comment succeeds; on GitHub failure leave the run upload-complete but not published.
-- [ ] Implement `status`, `archive` and `doctor`.
+- [x] Build the portable CLI with esbuild following the existing `test-access` installation pattern.
+- [x] Install to `~/.local/share/dreambau-agent-tools/evidence` with a `~/.local/bin/dreambau-evidence` wrapper.
+- [x] Read the token from the macOS Keychain service `dreambau-evidence`; never place tokens in arguments, the process list, logs or markdown. (Comment bodies also travel on stdin, not argv.)
+- [x] Resolve PR and head SHA through `gh pr view`; require `--pr` when several candidates match.
+- [x] Block uploads to a PR whose head SHA differs unless `--allow-older-commit` is set explicitly.
+- [x] Find the comment by run marker and create or update it idempotently.
+- [x] Set the gateway state to `published` only after the GitHub comment succeeds; on GitHub failure leave the run upload-complete but not published.
+- [x] Implement `status`, `archive` and `doctor`.
 
 Publishing runs in two stages so the state rule holds literally. The comment needs the public addresses, but no address may exist before the pull request records it, so `publish` accepts `stage: "prepare"` — which fixes the public id and returns the addresses a publication *would* create while the run stays unpublished and unreachable — and `stage: "commit"`, which flips the run to `published` and stores the comment url in one step. A GitHub failure between the two leaves an unpublished run with no reachable file; running `publish` again completes it.
 
 The CLI reads files in 64 MiB windows and streams the digest, so a 2 GiB OBS recording never has to fit in memory.
 
-**Acceptance:** one command uploads an image, returns the public URL and creates the correct PR comment; a repeat run creates no second comment.
+**Acceptance:** met — one command uploads an image, returns the *minted* public URL and creates the correct PR comment; publishing the same run again updates that comment instead of adding a second one, while a different run on the same PR gets its own. Whether that address *resolves* is Task 4's business, not this task's.
 
 ## Task 6: Portable agent skill and machine installation
 

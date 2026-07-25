@@ -12,6 +12,7 @@
   },
   "include": [
     "src/evidence/**/*.ts",
-    "src/server/machine-access.ts"
+    "src/server/machine-access.ts",
+    "src/server/machine-credential.ts"
   ]
 }
