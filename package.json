@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=20.0.0 <21.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server/index.ts",
     "build": "vite build && tsc -p tsconfig.server.json",
