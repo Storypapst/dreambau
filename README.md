@@ -13,6 +13,33 @@ ssh m4dreambau 'kubectl logs deployment/testmails -n wcr --tail=100'
 
 Secrets werden ausschließlich aus stdin erzeugt. Das Account-JSON kommt aus Keychain-Service `dreambau-test-mailbox`; der gemeinsame Login aus `dreambau-testmails-auth`. Private S/MIME-Identitäten bleiben im Service `dreambau-test-smime` und werden nie in die Anwendung kopiert.
 
+## Verifikation
+
+Die unterstützte Node-Version steht in `.nvmrc` und entspricht dem Basis-Image
+des Dockerfiles (`node:20-bookworm-slim`). Auf neueren Node-Versionen schlägt
+die Testsuite fehl: Node 26 belegt `localStorage` global, wodurch die
+jsdom-Umgebung von vitest ihre eigene Implementierung nicht mehr einsetzt.
+
+Lokal:
+
+```bash
+npm ci
+npm run lint
+npm test
+npm run build
+```
+
+Vollständig im Container — dieselbe Laufzeit, die auch ausgeliefert wird, damit
+ein grünes Ergebnis weder von der Node-Version der Workstation noch von lokal
+installierten Playwright-Browsern abhängt:
+
+```bash
+docker build --target verify -t dreambau-testmails:verify .
+```
+
+Die `verify`-Stage führt Lint, Tests und Build aus und schlägt fehl, sobald ein
+Gate rot ist. Das ausgelieferte `runtime`-Image enthält sie nicht.
+
 ## Test Access API v1
 
 Maschinen greifen mit einzeln widerrufbaren Bearer-Tokens auf die projekt- und
