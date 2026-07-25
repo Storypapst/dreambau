@@ -39,7 +39,7 @@ Verified locally on Node 20.20.2 (matching the Dockerfile base `node:20-bookworm
 | Gate | Result |
 |---|---|
 | `npm run lint` | pass |
-| `npm test` | pass — 53 files, 195 tests (plus 2 recorded known-defect contracts) |
+| `npm test` | pass — 54 files, 196 tests plus 2 recorded known-defect contracts |
 | `npm run build` | pass |
 
 ### Toolchain finding
@@ -154,7 +154,7 @@ is not byte-identical to either.
 
 ## 6. Root cause of the reported incident
 
-Proven end to end against production data.
+Proven end-to-end against production data.
 
 1. `createUser` requires at least one project (`projects: z.array(...).min(1)`).
 2. `updateUserProjects` — which exists **only on the branch and in the live

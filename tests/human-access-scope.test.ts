@@ -77,7 +77,12 @@ async function authenticatedWithoutGrant() {
   });
   const agent = request.agent(app);
   const authOptions = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
-  await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: authOptions.body.flowId, response: { id: "credential-id" } });
+  const verification = await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: authOptions.body.flowId, response: { id: "credential-id" } });
+
+  expect(authOptions.status).toBe(200);
+  expect(authOptions.body.flowId).toEqual(expect.any(String));
+  expect(verification.status).toBe(200);
+
   return { agent };
 }
 
@@ -91,6 +96,22 @@ async function authenticatedWithoutGrant() {
  * plain `it`. That flip is the acceptance signal, not an inconvenience.
  */
 describe("human account scope errors", () => {
+  // Guard for the two it.fails contracts below. `it.fails` passes when the body
+  // throws for ANY reason, so a broken sign-in would return 401, the
+  // expectations would still throw, and both contracts would stay green while
+  // testing nothing. This plain `it` fails loudly in that case, so it must run
+  // as its own test rather than as an assertion inside the contracts.
+  it("authenticates the grantless employee before the scope contracts run", async () => {
+    const { agent } = await authenticatedWithoutGrant();
+
+    const response = await agent.get("/testmails/api/accounts");
+
+    // Only unauthenticated is excluded. 403 becomes the correct answer once
+    // Package C lands, so asserting against it would turn this guard into a
+    // second copy of the contract.
+    expect(response.status).not.toBe(401);
+  });
+
   it.fails("answers a grantless employee with a scope error instead of an empty catalog", async () => {
     const { agent } = await authenticatedWithoutGrant();
 
