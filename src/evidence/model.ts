@@ -39,7 +39,7 @@ const captionText = (max: number) => z.string().trim().max(max).refine(
 export const primaryActorSchema = z.object({
   accountId: z.string().trim().min(1).max(240),
   username: z.string().trim().min(1).max(120),
-  syntheticEmail: z.string().email().max(240),
+  syntheticEmail: z.email().max(240),
   role: z.string().trim().min(1).max(60)
 }).strict();
 export type PrimaryActor = z.infer<typeof primaryActorSchema>;
@@ -109,7 +109,7 @@ export const publishInputSchema = z.object({
 export type PublishInput = z.infer<typeof publishInputSchema>;
 
 export const githubReferenceSchema = z.object({
-  githubCommentUrl: z.string().url().max(400).refine(
+  githubCommentUrl: z.url().max(400).refine(
     (value) => new URL(value).hostname === "github.com",
     "githubCommentUrl must point at github.com"
   )

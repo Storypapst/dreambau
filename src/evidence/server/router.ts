@@ -68,10 +68,15 @@ export function createEvidenceRouter(options: EvidenceRouterOptions) {
     return true;
   };
 
-  /** A run is only visible to identities scoped to its project. */
+  /**
+   * A run is only visible to identities scoped to both its project and its
+   * environment. Checking the project alone would let a `pre-dev` identity read
+   * and publish a `dev` run of the same project.
+   */
   const runFor = (req: express.Request, res: express.Response): EvidenceRun | null => {
+    const identity = identityOf(res);
     const run = options.store.getRun(String(req.params.runId));
-    if (!run || !identityOf(res).projects.includes(run.project)) {
+    if (!run || !identity.projects.includes(run.project) || !identity.environments.includes(run.environment)) {
       res.status(404).json({ error: "run_not_found" });
       return null;
     }
@@ -80,7 +85,7 @@ export function createEvidenceRouter(options: EvidenceRouterOptions) {
 
   const invalid = (res: express.Response, error: unknown, code: string) => {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: code, fieldErrors: error.flatten().fieldErrors });
+      return res.status(400).json({ error: code, fieldErrors: z.flattenError(error).fieldErrors });
     }
     throw error;
   };
@@ -193,6 +198,10 @@ export function createEvidenceRouter(options: EvidenceRouterOptions) {
     if (denied(res, "evidence:upload")) return;
     const run = runFor(req, res);
     if (!run) return;
+    // A published, quarantined or archived run must not gain another file.
+    if (run.state !== "draft" && run.state !== "processing") {
+      return res.status(409).json({ error: "run_not_open" });
+    }
     const file = options.store.getFile(String(req.params.fileId));
     if (!file || file.runId !== run.id) return res.status(404).json({ error: "file_not_found" });
     const uploadId = options.store.uploadIdFor(file.id);
@@ -200,10 +209,17 @@ export function createEvidenceRouter(options: EvidenceRouterOptions) {
     const parts = options.store.listParts(file.id);
     const received = parts.reduce((total, part) => total + part.byteSize, 0);
     if (received !== file.byteSize) {
+      // Nothing more is coming for a size that can no longer add up, so the
+      // multipart upload is abandoned instead of being left open in MinIO.
+      await options.objectStore.abortMultipartUpload(objectKey(run.id, file.id, "original"), uploadId).catch(() => undefined);
+      options.store.clearUploadId(file.id);
       return res.status(409).json({ error: "upload_incomplete", receivedBytes: received, expectedBytes: file.byteSize });
     }
     try {
       await options.objectStore.completeMultipartUpload(objectKey(run.id, file.id, "original"), uploadId, parts);
+      // The upload id is dead once MinIO has completed it; keeping it would let
+      // a later part upload address an upload that no longer exists.
+      options.store.clearUploadId(file.id);
       options.store.completeFile(file.id, now());
       if (run.state === "draft") options.store.transitionRun(run.id, "processing", now());
       const result = await options.processor.processFile(file.id);

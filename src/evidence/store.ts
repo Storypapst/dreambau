@@ -98,6 +98,14 @@ export const migrations: Migration[] = [
       `CREATE INDEX IF NOT EXISTS evidence_runs_pull_request ON evidence_runs(repository, pull_request_number)`,
       `CREATE INDEX IF NOT EXISTS evidence_events_order ON evidence_events(run_id, id)`
     ]
+  },
+  {
+    // Version 1 is already applied on the server, so the column arrives as its
+    // own forward-only step rather than by editing history.
+    version: 2,
+    statements: [
+      `ALTER TABLE evidence_files ADD COLUMN report_index TEXT`
+    ]
   }
 ];
 
@@ -166,6 +174,11 @@ export interface EvidenceStore {
   recordPart(fileId: string, part: UploadedPart, receivedAt: string): void;
   listParts(fileId: string): UploadedPart[];
   completeFile(fileId: string, at: string): void;
+  /** Drops the multipart upload id once it can no longer be used. */
+  clearUploadId(fileId: string): void;
+  setContentType(fileId: string, contentType: string): void;
+  setReportIndex(fileId: string, entry: string): void;
+  reportIndexFor(fileId: string): string | null;
   setProcessingState(fileId: string, state: FileProcessingState): void;
   setProcessingOutcome(fileId: string, outcome: ProcessingOutcome): void;
   servedKeyFor(fileId: string): string | null;
@@ -176,6 +189,8 @@ export interface EvidenceStore {
   events(runId: string): Array<{ eventType: string; actorId: string; createdAt: string; payload: Record<string, unknown> }>;
   expiredDrafts(before: string): EvidenceRun[];
   uploadIdFor(fileId: string): string | null;
+  /** Cheapest possible proof that the database is reachable, for readiness. */
+  schemaVersion(): number;
   close(): void;
 }
 
@@ -366,6 +381,19 @@ export function createEvidenceStore(path: string, options: StoreOptions): Eviden
     completeFile(fileId, at) {
       sqlite.prepare("UPDATE evidence_files SET completed_at=? WHERE id=?").run(at, fileId);
     },
+    clearUploadId(fileId) {
+      sqlite.prepare("UPDATE evidence_files SET upload_id=NULL WHERE id=?").run(fileId);
+    },
+    setContentType(fileId, contentType) {
+      sqlite.prepare("UPDATE evidence_files SET content_type=? WHERE id=?").run(contentType, fileId);
+    },
+    setReportIndex(fileId, entry) {
+      sqlite.prepare("UPDATE evidence_files SET report_index=? WHERE id=?").run(entry, fileId);
+    },
+    reportIndexFor(fileId) {
+      const row = sqlite.prepare("SELECT report_index FROM evidence_files WHERE id=?").get(fileId) as { report_index: string | null } | undefined;
+      return row?.report_index ?? null;
+    },
     setProcessingState(fileId, state) {
       sqlite.prepare("UPDATE evidence_files SET processing_state=? WHERE id=?").run(state, fileId);
     },
@@ -415,6 +443,10 @@ export function createEvidenceStore(path: string, options: StoreOptions): Eviden
     uploadIdFor(fileId) {
       const row = sqlite.prepare("SELECT upload_id FROM evidence_files WHERE id=?").get(fileId) as { upload_id: string | null } | undefined;
       return row?.upload_id ?? null;
+    },
+    schemaVersion() {
+      const row = sqlite.prepare("SELECT MAX(version) AS version FROM evidence_schema_migrations").get() as { version: number | null };
+      return row.version ?? 0;
     },
     close: () => sqlite.close()
   };

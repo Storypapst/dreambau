@@ -196,7 +196,15 @@ export async function createS3ObjectStore(options: S3ObjectStoreOptions): Promis
       }));
     },
     async abortMultipartUpload(Key, UploadId) {
-      await client.send(new AbortMultipartUploadCommand({ Bucket, Key, UploadId }));
+      try {
+        await client.send(new AbortMultipartUploadCommand({ Bucket, Key, UploadId }));
+      } catch (error) {
+        // Aborting an upload that MinIO has already resolved or forgotten is
+        // the outcome the caller wanted, not a failure to report.
+        const name = (error as { name?: string }).name;
+        if (isMissing(error) || name === "NoSuchUpload") return;
+        throw error;
+      }
     },
     async put(Key, Body, ContentType) {
       await client.send(new PutObjectCommand({ Bucket, Key, Body, ContentType }));

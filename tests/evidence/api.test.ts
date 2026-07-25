@@ -14,6 +14,8 @@ import { digest, makePng } from "./fixtures.js";
 
 const token = "evidence-token-for-tests";
 const otherToken = "evidence-token-for-orimo";
+// Same project as the main identity, but only one of its two environments.
+const narrowToken = "evidence-token-for-pre-dev-only";
 
 const stores: EvidenceStore[] = [];
 afterEach(() => { while (stores.length > 0) stores.pop()?.close(); });
@@ -50,6 +52,15 @@ function target(actions: MachineAction[] = allActions) {
         id: "evidence-m4-orimo",
         tokenHash: createHash("sha256").update(otherToken).digest("hex"),
         projects: ["orimo"],
+        environments: ["pre-dev"],
+        actions: allActions,
+        expiresAt: "2027-01-01T00:00:00.000Z",
+        revokedAt: null
+      },
+      {
+        id: "evidence-m4-oriso-pre-dev",
+        tokenHash: createHash("sha256").update(narrowToken).digest("hex"),
+        projects: ["oriso"],
         environments: ["pre-dev"],
         actions: allActions,
         expiresAt: "2027-01-01T00:00:00.000Z",
@@ -402,5 +413,90 @@ describe("request validation", () => {
       .set("authorization", `Bearer ${token}`)
       .send({ githubCommentUrl: "https://evil.example/comment" })
       .expect(400);
+  });
+});
+
+describe("scope and lifecycle findings raised by review", () => {
+  it("hides a run whose environment is outside the identity scope", async () => {
+    const { app } = target();
+    // Created by an identity scoped to pre-dev and dev.
+    const run = await createRun(app, { environment: "dev" });
+
+    // A pre-dev-only identity of the *same project* must not see it, and must
+    // not be able to act on it either.
+    await request(app).get(`/api/v1/runs/${run.id}`)
+      .set("authorization", `Bearer ${narrowToken}`)
+      .expect(404, { error: "run_not_found" });
+    await request(app).post(`/api/v1/runs/${run.id}/publish`)
+      .set("authorization", `Bearer ${narrowToken}`)
+      .send({ repository: runBody.repository, pullRequestNumber: 42, commitSha: "abc1234", stage: "prepare" })
+      .expect(404);
+    await request(app).post(`/api/v1/runs/${run.id}/archive`)
+      .set("authorization", `Bearer ${narrowToken}`)
+      .expect(404);
+
+    // The identity that does cover dev still sees it.
+    await request(app).get(`/api/v1/runs/${run.id}`)
+      .set("authorization", `Bearer ${token}`)
+      .expect(200);
+  });
+
+  it("refuses to add a file to a run that is no longer open", async () => {
+    const { app } = target();
+    const run = await createRun(app);
+    await uploadFile(app, run.id, makePng());
+    await request(app).post(`/api/v1/runs/${run.id}/publish`)
+      .set("authorization", `Bearer ${token}`)
+      .send({ repository: runBody.repository, pullRequestNumber: 42, commitSha: "abc1234", stage: "commit" })
+      .expect(200);
+
+    const second = await request(app).post(`/api/v1/runs/${run.id}/files/init`)
+      .set("authorization", `Bearer ${token}`)
+      .send({
+        kind: "screenshot", filename: "later.png", caption: "", contentType: "image/png",
+        byteSize: 10, sha256: digest(Buffer.from("later")), head: makePng().subarray(0, 4096).toString("base64")
+      });
+    expect(second.status).toBe(409);
+    expect(second.body).toEqual({ error: "run_not_open" });
+  });
+
+  it("drops the upload id once the multipart upload is complete", async () => {
+    const { app, store } = target();
+    const run = await createRun(app);
+    const png = makePng();
+    const { init } = await uploadFile(app, run.id, png);
+    const fileId = init.body.file.id as string;
+    expect(store.uploadIdFor(fileId)).toBeNull();
+
+    await request(app).put(`/api/v1/runs/${run.id}/files/${fileId}/parts/2`)
+      .set("authorization", `Bearer ${token}`)
+      .set("content-type", "application/octet-stream")
+      .send(png)
+      .expect(409, { error: "upload_already_completed" });
+  });
+
+  it("abandons the multipart upload when the received size cannot add up", async () => {
+    const { app, store } = target();
+    const run = await createRun(app);
+    const png = makePng();
+    const init = await request(app).post(`/api/v1/runs/${run.id}/files/init`)
+      .set("authorization", `Bearer ${token}`)
+      .send({
+        kind: "screenshot", filename: "redirect.png", caption: "", contentType: "image/png",
+        byteSize: png.length * 2, sha256: digest(png), head: png.subarray(0, 4096).toString("base64")
+      })
+      .expect(201);
+    const fileId = init.body.file.id as string;
+    await request(app).put(`/api/v1/runs/${run.id}/files/${fileId}/parts/1`)
+      .set("authorization", `Bearer ${token}`)
+      .set("content-type", "application/octet-stream")
+      .send(png)
+      .expect(200);
+
+    await request(app).post(`/api/v1/runs/${run.id}/files/${fileId}/complete`)
+      .set("authorization", `Bearer ${token}`)
+      .expect(409, /upload_incomplete/);
+    // Nothing is left open in storage for an upload that can never complete.
+    expect(store.uploadIdFor(fileId)).toBeNull();
   });
 });

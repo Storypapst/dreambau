@@ -7,7 +7,7 @@ import { MemoryObjectStore, objectKey } from "../../src/evidence/storage.js";
 import { createEvidenceStore, type EvidenceStore } from "../../src/evidence/store.js";
 import type { CreateFileRecord } from "../../src/evidence/store.js";
 import type { VideoProcessor } from "../../src/evidence/media.js";
-import { makePng, makeZip } from "./fixtures.js";
+import { digest, makePng, makeZip } from "./fixtures.js";
 
 const stores: EvidenceStore[] = [];
 afterEach(() => { while (stores.length > 0) stores.pop()?.close(); });
@@ -50,7 +50,8 @@ async function stage(
     caption: "Redirect validated",
     contentType: "image/png",
     byteSize: bytes.length,
-    sha256: "a".repeat(64),
+    // The real digest: processing verifies it against the stored object.
+    sha256: digest(bytes),
     partSize: 64 * 1024 * 1024,
     expectedParts: 1,
     uploadId: null,
@@ -250,7 +251,7 @@ describe("upload integrity", () => {
     const png = makePng();
     value.store.createFile("run-1", "file-1", {
       kind: "screenshot", filename: "redirect.png", caption: "", contentType: "image/png",
-      byteSize: png.length + 10, sha256: "a".repeat(64),
+      byteSize: png.length + 10, sha256: digest(png),
       partSize: 64 * 1024 * 1024, expectedParts: 1, uploadId: null
     }, "2026-07-22T09:00:00.000Z");
     await value.objectStore.put(objectKey("run-1", "file-1", "original"), png, "image/png");
@@ -276,3 +277,88 @@ async function writeSample(target: string, contents: string) {
   const { writeFile } = await import("node:fs/promises");
   await writeFile(target, contents);
 }
+
+describe("findings raised by review", () => {
+  it("quarantines a file whose stored bytes do not match the declared digest", async () => {
+    const value = harness();
+    const png = makePng();
+    value.store.createFile("run-1", "file-1", {
+      kind: "screenshot", filename: "redirect.png", caption: "", contentType: "image/png",
+      byteSize: png.length, sha256: "b".repeat(64),
+      partSize: 64 * 1024 * 1024, expectedParts: 1, uploadId: null
+    }, "2026-07-22T09:00:00.000Z");
+    await value.objectStore.put(objectKey("run-1", "file-1", "original"), png, "image/png");
+
+    const result = await value.processor.processFile("file-1");
+    expect(result.findings.map((entry) => entry.rule)).toEqual(["checksum_mismatch"]);
+    expect(value.store.getRun("run-1")?.state).toBe("quarantined");
+  });
+
+  it("records the served type as MP4 once a MOV upload is normalised", async () => {
+    const video: VideoProcessor = {
+      normalise: vi.fn(async (_input, output) => { await writeSample(output, "normalised"); }),
+      poster: vi.fn(async (_input, output) => { await writeSample(output, "poster"); }),
+      probe: vi.fn(async () => ({ durationSeconds: 2, width: 640, height: 360 }))
+    };
+    const value = harness(video);
+    const mov = Buffer.concat([Buffer.alloc(4), Buffer.from("ftypqt  ", "latin1"), Buffer.alloc(64)]);
+    await stage(value, "file-1", mov, { kind: "video", filename: "flow.mov", contentType: "video/quicktime" });
+
+    await value.processor.processFile("file-1");
+    expect(value.store.getFile("file-1")?.contentType).toBe("video/mp4");
+  });
+
+  it("remembers where a nested report index actually lives", async () => {
+    const value = harness();
+    const archive = makeZip([
+      { name: "playwright-report/index.html", body: Buffer.from("<html>report</html>") },
+      { name: "playwright-report/data/shot.png", body: makePng() }
+    ]);
+    await stage(value, "file-1", archive, {
+      kind: "playwright-report", filename: "report.zip", contentType: "application/zip"
+    });
+
+    expect((await value.processor.processFile("file-1")).state).toBe("ready");
+    expect(value.store.reportIndexFor("file-1")).toBe("playwright-report/index.html");
+  });
+
+  it("quarantines an archive whose entry cannot be read", async () => {
+    const value = harness();
+    const archive = makeZip([{ name: "a.txt", body: Buffer.from("hello world") }]);
+    // Break the local header the entry points at, leaving the directory intact.
+    archive.writeUInt32LE(0xdeadbeef, 0);
+    await stage(value, "file-1", archive, {
+      kind: "trace", filename: "trace.zip", contentType: "application/zip"
+    });
+
+    const result = await value.processor.processFile("file-1");
+    expect(result.findings.map((entry) => entry.rule)).toEqual(["archive:corrupt_archive"]);
+  });
+
+  it("finds a secret inside a Flate-compressed PDF stream", async () => {
+    const value = harness();
+    const { deflateSync } = await import("node:zlib");
+    const body = deflateSync(Buffer.from("(client_secret=abcdefgh12345678) Tj"));
+    const pdf = Buffer.concat([
+      Buffer.from("%PDF-1.7\n1 0 obj<</Length 40/Filter/FlateDecode>>stream\n"),
+      body,
+      Buffer.from("\nendstream endobj\n%%EOF\n")
+    ]);
+    await stage(value, "file-1", pdf, {
+      kind: "document", filename: "report.pdf", contentType: "application/pdf"
+    });
+
+    const result = await value.processor.processFile("file-1");
+    expect(result.state).toBe("rejected");
+    expect(result.findings.map((entry) => entry.rule)).toContain("secret:secret_assignment");
+  });
+
+  it("accepts a PDF that carries nothing sensitive", async () => {
+    const value = harness();
+    const pdf = Buffer.from("%PDF-1.7\n1 0 obj<<>>stream\n(step one passed) Tj\nendstream endobj\n%%EOF\n");
+    await stage(value, "file-1", pdf, {
+      kind: "document", filename: "report.pdf", contentType: "application/pdf"
+    });
+    expect((await value.processor.processFile("file-1")).state).toBe("ready");
+  });
+});

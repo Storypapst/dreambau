@@ -49,7 +49,8 @@ export function createEvidenceApp(options: EvidenceAppOptions = {}): EvidenceApp
   app.get("/health/live", (_req, res) => res.json({ status: "ok" }));
   app.get("/health/ready", async (_req, res) => {
     try {
-      store.listRuns({ state: "published" });
+      // A point read, not a table scan: this is polled every few seconds.
+      store.schemaVersion();
       await objectStore.head("health/ready");
       res.json({ status: "ok" });
     } catch {
@@ -77,6 +78,8 @@ export function createEvidenceApp(options: EvidenceAppOptions = {}): EvidenceApp
     if (type === "entity.parse.failed" || type === "encoding.unsupported") {
       return res.status(400).json({ error: "invalid_body" });
     }
+    // The client is told nothing, but an unexplained 500 must leave a trail.
+    console.error("evidence gateway error:", error instanceof Error ? error.stack ?? error.message : error);
     return res.status(500).json({ error: "internal_error" });
   });
 

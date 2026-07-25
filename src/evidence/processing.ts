@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { inflateSync } from "node:zlib";
 import type { EvidenceFile } from "./model.js";
 import { stripImageMetadata, type OcrScanner, type StrippableImageFormat, type VideoProcessor } from "./media.js";
 import { isScannableContentType, scanTextForSecrets, type SecretFinding } from "./secret-scan.js";
@@ -21,6 +22,8 @@ const scanWindowBytes = 8 * 1024 * 1024;
 const scanOverlapBytes = 16 * 1024;
 const maxArchiveInspectionBytes = 256 * 1024 * 1024;
 const maxImageProcessingBytes = 64 * 1024 * 1024;
+/** Window used when copying or hashing an object without buffering it whole. */
+const transferWindowBytes = 8 * 1024 * 1024;
 
 export interface ProcessingResult {
   fileId: string;
@@ -77,6 +80,17 @@ export function createProcessor(options: ProcessorOptions): Processor {
       secret.entry ? `${secret.entry}:${secret.line}` : `line ${secret.line}`
     ));
 
+  /** Hashes a stored object in windows, so the digest never needs it in memory. */
+  async function digestOf(key: string, byteSize: number): Promise<string> {
+    const hash = createHash("sha256");
+    for (let offset = 0; offset < byteSize; offset += transferWindowBytes) {
+      const chunk = await objectStore.getRange(key, offset, transferWindowBytes);
+      if (chunk.length === 0) break;
+      hash.update(chunk);
+    }
+    return hash.digest("hex");
+  }
+
   /** Scans a stored object in overlapping windows so a 400 MiB trace stays affordable. */
   async function scanStoredText(file: EvidenceFile, key: string): Promise<StoredFinding[]> {
     const head = await objectStore.head(key);
@@ -104,11 +118,24 @@ export function createProcessor(options: ProcessorOptions): Processor {
       return [finding(file, `archive:${reason}`)];
     }
     const findings: StoredFinding[] = [];
+    const bodies = new Map<string, Buffer>();
     for (const entry of entries) {
-      const body = entry.read();
+      let body: Buffer;
+      try {
+        // Central-directory metadata can be valid while the compressed payload
+        // is corrupt or the local header was tampered with. An entry we cannot
+        // read is an entry we cannot vouch for.
+        body = entry.read();
+      } catch (error) {
+        const reason = error instanceof ZipError ? error.reason : "corrupt_archive";
+        return [finding(file, `archive:${reason}`, entry.name)];
+      }
+      bodies.set(entry.name, body);
       const detected = detectFormat(body);
       if (detected === "text") {
         findings.push(...toStoredFindings(file, scanTextForSecrets(body.toString("utf8"), { entry: entry.name, limit: 10 })));
+      } else if (detected === "pdf") {
+        findings.push(...toStoredFindings(file, scanPdfForSecrets(body, entry.name)));
       }
       if (findings.length >= 20) break;
     }
@@ -118,10 +145,16 @@ export function createProcessor(options: ProcessorOptions): Processor {
       const index = entries.find((entry) => entry.name === "index.html" || entry.name.endsWith("/index.html"));
       if (!index) return [finding(file, "report_index_missing")];
       // Report entries live on their own key prefix so the isolated report route
-      // can serve them without ever exposing the archive layout.
+      // can serve them without ever exposing the archive layout. The index may
+      // sit in a subdirectory, so its real path is recorded rather than assumed.
       for (const entry of entries) {
-        await objectStore.put(reportEntryKey(file.runId, file.id, entry.name), entry.read(), contentTypeForEntry(entry.name));
+        await objectStore.put(
+          reportEntryKey(file.runId, file.id, entry.name),
+          bodies.get(entry.name) ?? entry.read(),
+          contentTypeForEntry(entry.name)
+        );
       }
+      store.setReportIndex(file.id, index.name);
     }
     return [];
   }
@@ -148,13 +181,30 @@ export function createProcessor(options: ProcessorOptions): Processor {
     return [];
   }
 
+  /**
+   * Copies a stored object to disk in windows. A 2 GiB recording must never sit
+   * in the gateway's heap: the container limit is far below the upload ceiling.
+   */
+  async function downloadToFile(key: string, target: string, byteSize: number): Promise<void> {
+    const handle = await open(target, "w");
+    try {
+      for (let offset = 0; offset < byteSize; offset += transferWindowBytes) {
+        const chunk = await objectStore.getRange(key, offset, transferWindowBytes);
+        if (chunk.length === 0) break;
+        await handle.write(chunk);
+      }
+    } finally {
+      await handle.close();
+    }
+  }
+
   async function processVideo(file: EvidenceFile, key: string): Promise<StoredFinding[]> {
     if (!options.video) return [finding(file, "video_processor_unavailable")];
     return workspace.withDirectory(async (directory) => {
       const source = join(directory, "source");
       const normalised = join(directory, "normalised.mp4");
       const poster = join(directory, "poster.jpg");
-      await writeFile(source, await objectStore.get(key));
+      await downloadToFile(key, source, file.byteSize);
       try {
         await options.video!.normalise(source, normalised);
         await options.video!.poster(source, poster);
@@ -163,6 +213,9 @@ export function createProcessor(options: ProcessorOptions): Processor {
       }
       await objectStore.put(objectKey(file.runId, file.id, "public"), await readFile(normalised), "video/mp4");
       await objectStore.put(objectKey(file.runId, file.id, "poster"), await readFile(poster), "image/jpeg");
+      // The served bytes are MP4 whatever the upload was, so the recorded type
+      // has to follow or a MOV upload would be served as video/quicktime.
+      store.setContentType(file.id, "video/mp4");
       return [];
     });
   }
@@ -177,6 +230,14 @@ export function createProcessor(options: ProcessorOptions): Processor {
     }
     if (head.byteSize !== file.byteSize) {
       return reject(file, [finding(file, "size_mismatch", `${head.byteSize} != ${file.byteSize}`)]);
+    }
+
+    // The declared digest is what deduplication keys on, so it has to be true
+    // of the bytes that actually arrived — otherwise a later upload claiming the
+    // same digest would be served this file's content instead of its own.
+    const actualDigest = await digestOf(originalKey, head.byteSize);
+    if (actualDigest !== file.sha256.toLowerCase()) {
+      return reject(file, [finding(file, "checksum_mismatch")]);
     }
 
     const isVideo = file.contentType.startsWith("video/");
@@ -198,6 +259,10 @@ export function createProcessor(options: ProcessorOptions): Processor {
       servedKey = objectKey(file.runId, file.id, "public");
     } else if (isScannableContentType(file.contentType)) {
       findings = await scanStoredText(file, originalKey);
+    } else if (file.contentType.startsWith("application/pdf")) {
+      findings = file.byteSize > maxArchiveInspectionBytes
+        ? [finding(file, "pdf_too_large_to_inspect", `${file.byteSize} bytes`)]
+        : toStoredFindings(file, scanPdfForSecrets(await objectStore.get(originalKey)));
     } else {
       findings = [];
     }
@@ -267,4 +332,36 @@ export function contentTypeForEntry(name: string): string {
 /** Convenience for callers that already hold the bytes, e.g. tests and the CLI. */
 export function sha256(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+/**
+ * Pulls readable text out of a PDF: the literal strings, plus anything inside a
+ * Flate-compressed stream that inflates. It is not a full PDF parser, so it is
+ * paired with a scan of the raw bytes — between them, a credential pasted into a
+ * document is caught whether or not the producer compressed it.
+ */
+export function extractPdfText(bytes: Buffer): string {
+  const parts: string[] = [bytes.toString("latin1")];
+  const marker = Buffer.from("stream");
+  let index = bytes.indexOf(marker);
+  let budget = 64;
+  while (index !== -1 && budget > 0) {
+    let start = index + marker.length;
+    if (bytes[start] === 0x0d) start += 1;
+    if (bytes[start] === 0x0a) start += 1;
+    const end = bytes.indexOf(Buffer.from("endstream"), start);
+    if (end === -1) break;
+    try {
+      parts.push(inflateSync(bytes.subarray(start, end)).toString("utf8"));
+    } catch {
+      // Not a Flate stream, or not inflatable. The raw pass still covers it.
+    }
+    budget -= 1;
+    index = bytes.indexOf(marker, end);
+  }
+  return parts.join("\n");
+}
+
+export function scanPdfForSecrets(bytes: Buffer, entry?: string): SecretFinding[] {
+  return scanTextForSecrets(extractPdfText(bytes), { limit: 10, ...(entry ? { entry } : {}) });
 }
