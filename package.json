@@ -19,6 +19,8 @@
     "evidence:dev": "tsx watch src/evidence/server/index.ts",
     "evidence:build": "tsc -p tsconfig.evidence.json",
     "evidence:test": "vitest run tests/evidence",
+    "evidence:cli": "tsx src/evidence/cli/index.ts",
+    "evidence:install": "bash scripts/install-evidence-cli.sh",
     "lint": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.evidence.json --noEmit"
   },
   "dependencies": {

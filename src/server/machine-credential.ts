@@ -6,18 +6,22 @@ import { join } from "node:path";
 interface MachineCredentialOptions {
   home?: string;
   readKeychain: (identity: string) => string;
+  /** Directory under `~/.config` holding the file fallback. */
+  configDirectory?: string;
 }
 
 interface KeychainOptions {
   home?: string;
   spawn?: typeof spawnSync;
+  /** Keychain service name; the evidence CLI uses its own. */
+  service?: string;
 }
 
 export function readMacOSKeychainCredential(identity: string, options: KeychainOptions = {}) {
   const spawn = options.spawn ?? spawnSync;
   const find = () => spawn(
     "security",
-    ["find-generic-password", "-s", "dreambau-test-access", "-a", identity, "-w"],
+    ["find-generic-password", "-s", options.service ?? "dreambau-test-access", "-a", identity, "-w"],
     { encoding: "utf8", timeout: 2_000 }
   );
   let result = find();
@@ -32,16 +36,16 @@ export function readMacOSKeychainCredential(identity: string, options: KeychainO
   return result.status === 0 ? String(result.stdout).trim() : "";
 }
 
-export function machineCredentialPath(identity: string, home = homedir()) {
+export function machineCredentialPath(identity: string, home = homedir(), configDirectory = "dreambau-test-access") {
   if (!/^[A-Za-z0-9._-]+$/.test(identity)) throw new Error("invalid Test Access identity name");
-  return join(home, ".config", "dreambau-test-access", "identities", `${identity}.token`);
+  return join(home, ".config", configDirectory, "identities", `${identity}.token`);
 }
 
 export function readMachineCredential(identity: string, options: MachineCredentialOptions) {
   const keychainCredential = options.readKeychain(identity).trim();
   if (keychainCredential) return keychainCredential;
 
-  const path = machineCredentialPath(identity, options.home);
+  const path = machineCredentialPath(identity, options.home, options.configDirectory);
   const metadata = lstatSync(path);
   if (!metadata.isFile() || metadata.isSymbolicLink()) {
     throw new Error("Test Access machine credential must be a regular file");
