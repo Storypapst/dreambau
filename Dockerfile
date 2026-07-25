@@ -13,6 +13,10 @@ COPY src ./src
 #   docker build --target verify -t dreambau-testmails:verify .
 FROM deps AS verify
 COPY vitest.config.ts playwright.config.ts ./
+# `npm run lint` also type-checks the evidence gateway, and its tests read the
+# installer script, so both must be present even though the shipped testmails
+# runtime never uses them.
+COPY tsconfig.evidence.json ./
 COPY tests ./tests
 COPY k8s ./k8s
 COPY ops ./ops

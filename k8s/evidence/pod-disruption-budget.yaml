@@ -1,0 +1,12 @@
+# The gateway is a single writer against a ReadWriteOnce volume, so it cannot
+# scale out. This budget keeps a voluntary drain from taking it down without a
+# replacement being schedulable first.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dreambau-evidence
+  namespace: wcr
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels: { app.kubernetes.io/name: dreambau-evidence }
