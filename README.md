@@ -22,6 +22,37 @@ unter `/testmails/api/v1` zu. Die Datei
 SHA-256-Token-Hashes, Projekt-/Umgebungs-Scopes, Ablaufzeit und Widerrufszeit;
 nie die Tokenwerte selbst.
 
+## PR Evidence Gateway
+
+Zweiter, eigenständig deploybarer Dienst im selben Repository: er nimmt
+Screenshots, Videos, Playwright-Reports, Traces und Logs entgegen, prüft sie und
+verknüpft sie mit dem zugehörigen GitHub-PR. Die Testmails-Anwendung bleibt davon
+unberührt — eigener Entrypoint (`src/evidence/server/index.ts`), eigenes
+`Dockerfile.evidence`, eigene SQLite-Datei.
+
+```bash
+npm run evidence:dev        # Gateway lokal starten
+npm run evidence:test       # nur die Evidence-Tests
+npm run evidence:build      # nach dist/evidence bauen
+```
+
+Das Gateway hält als einziger Prozess MinIO-Zugangsdaten und gibt niemals eine
+Bucket-Adresse an einen Client. Uploads laufen über projektgebundene Machine
+Identities (`evidence:upload`, `evidence:publish`, `evidence:read`,
+`evidence:archive`) aus derselben Datei wie die Test-Access-Identitäten.
+
+Jeder Upload durchläuft einen Preflight (Dateiname, Magic Bytes gegen
+Content-Type, Größenlimits) und danach eine Verarbeitung, die Bildmetadaten
+entfernt, Videos nach MP4/H.264/AAC normalisiert und Logs, Reports und
+Archivinhalte auf Secret-Muster prüft. Was auffällt, landet in `quarantine` und
+bekommt keine öffentliche URL — es gibt keine automatische Schwärzung.
+
+Veröffentlicht wird zweistufig: `stage: "prepare"` reserviert die öffentliche ID
+und liefert die Adressen, die eine Veröffentlichung erzeugen würde, ohne den Lauf
+erreichbar zu machen; `stage: "commit"` schaltet frei und speichert die
+Kommentar-URL im selben Schritt. So existiert nie eine öffentliche Adresse,
+bevor der Pull Request sie festhält.
+
 ## Menschlicher Passkey-Zugang
 
 Der gemeinsame Argon2id-Passwortlogin ist nur noch als Bootstrap-Pfad für den
