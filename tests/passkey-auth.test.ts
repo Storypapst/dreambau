@@ -199,15 +199,20 @@ describe("passkey authentication", () => {
     const adminOptions = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
     await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: adminOptions.body.flowId, response: { id: "admin-credential" } });
     const listed = await admin.get("/testmails/api/auth/users");
-    expect(listed.body.find((entry: { email: string }) => entry.email === member.email).projects).toEqual(["orimo"]);
+    // The member was invited with a local "oriso" grant and Infisical reports
+    // "orimo". The effective scope is the union of both sources: a sync adds and
+    // removes Infisical-derived access and never touches a local grant. This
+    // previously returned ["orimo"], silently discarding what an administrator
+    // had granted — the defect behind the "0 of 0 accounts" report.
+    expect(listed.body.find((entry: { email: string }) => entry.email === member.email).projects).toEqual(["orimo", "oriso"]);
 
     const agent = request.agent(app);
     const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
     await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
     const accounts = await agent.get("/testmails/api/accounts");
     expect(accounts.status).toBe(200);
-    expect(accounts.body.map((entry: AccountRecord) => entry.email)).toEqual(["orimo-user@trail.ist"]);
-    expect(passkeyStore.getUser(member.id)?.projects).toEqual(["orimo"]);
+    expect(accounts.body.map((entry: AccountRecord) => entry.email).sort()).toEqual(["orimo-user@trail.ist", "oriso-user@oriso.org"]);
+    expect(passkeyStore.getUser(member.id)?.projects).toEqual(["orimo", "oriso"]);
     passkeyStore.close();
   });
 
@@ -230,7 +235,7 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
-  it("removes all member account visibility when no Infisical access group remains", async () => {
+  it("keeps the local grant when no Infisical access group remains", async () => {
     const humanAccessProvider: HumanAccessProvider = { projectsFor: vi.fn(async () => []) };
     const { app, passkeyStore } = setup([account("oriso-user@oriso.org")], humanAccessProvider);
     const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
@@ -238,9 +243,35 @@ describe("passkey authentication", () => {
     const agent = request.agent(app);
     const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
     await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+
     const accounts = await agent.get("/testmails/api/accounts");
+
+    // An Infisical sync may only add and remove Infisical-derived access. The
+    // invitation's local grant survives a sync that reports nothing, which is
+    // what stops an authenticated employee from dropping to an empty catalog.
+    // Removing this member's access means revoking the local grant as well.
     expect(accounts.status).toBe(200);
-    expect(accounts.body).toEqual([]);
+    expect(accounts.body.map((entry: AccountRecord) => entry.email)).toEqual(["oriso-user@oriso.org"]);
+    passkeyStore.close();
+  });
+
+  it("removes all visibility once both grant sources are revoked", async () => {
+    const humanAccessProvider: HumanAccessProvider = { projectsFor: vi.fn(async () => []) };
+    const { app, passkeyStore } = setup([account("oriso-user@oriso.org")], humanAccessProvider);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+    expect((await agent.get("/testmails/api/accounts")).body).toHaveLength(1);
+
+    passkeyStore.grants.revoke(member.id, "local");
+
+    // Revocation takes effect on the next request of an already-active session,
+    // not only at the next sign-in.
+    const afterRevocation = await agent.get("/testmails/api/accounts");
+    expect(afterRevocation.status).toBe(200);
+    expect(afterRevocation.body).toEqual([]);
     passkeyStore.close();
   });
 });

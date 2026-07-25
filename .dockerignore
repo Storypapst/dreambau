@@ -1,7 +1,8 @@
 .git
 node_modules
 dist
-tests
+# `tests` is intentionally not ignored: the verify stage copies it. The shipped
+# runtime image never does, so this only widens the build context.
 playwright-report
 test-results
 .env*

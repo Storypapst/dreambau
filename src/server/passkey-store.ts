@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { z } from "zod";
+import { ALL_TEST_ENVIRONMENTS, createHumanGrantStore, migrateLegacyProjectGrants } from "./human-grants.js";
 
 const projectSchema = z.enum(["oriso", "orimo", "dreambau"]);
 const synchronizedProjectsSchema = z.array(projectSchema).max(3);
@@ -105,11 +106,45 @@ export function createPasskeyStore(path: string) {
   const userColumns = new Set((sqlite.prepare("PRAGMA table_info(human_users)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!userColumns.has("role")) sqlite.exec("ALTER TABLE human_users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
 
+  // Existing project assignments become explicit local grants before the column
+  // stops being authoritative. Idempotent, so opening the store never duplicates.
+  migrateLegacyProjectGrants(sqlite);
+  const rawGrants = createHumanGrantStore(sqlite);
+
+  /**
+   * The grant rows are authoritative. `human_users.projects` is kept in step as
+   * a mirror so that rolling back to the previous image still reads a correct
+   * scope, per the rollback contract: a rollback changes the image, never the
+   * data.
+   */
+  const mirrorLegacyProjects = (userId: string) => {
+    const projects = rawGrants.effective(userId).map((grant) => grant.project);
+    sqlite.prepare("UPDATE human_users SET projects=? WHERE id=?").run(JSON.stringify(projects), userId);
+  };
+  const grants: typeof rawGrants = {
+    ...rawGrants,
+    replaceLocal(userId, input) {
+      const result = rawGrants.replaceLocal(userId, input);
+      mirrorLegacyProjects(userId);
+      return result;
+    },
+    replaceInfisical(userId, input) {
+      const result = rawGrants.replaceInfisical(userId, input);
+      mirrorLegacyProjects(userId);
+      return result;
+    },
+    revoke(userId, source) {
+      rawGrants.revoke(userId, source);
+      mirrorLegacyProjects(userId);
+    }
+  };
+
   const rowToUser = (row: any): HumanUser => ({
     id: row.id,
     email: row.email,
     name: row.name,
-    projects: z.array(projectSchema).parse(JSON.parse(row.projects)),
+    // Derived from the grant rows, not from the legacy column.
+    projects: rawGrants.effective(row.id).map((grant) => grant.project),
     status: row.status,
     role: row.role,
     createdAt: row.created_at
@@ -144,8 +179,17 @@ export function createPasskeyStore(path: string) {
       } catch {
         throw new Error("A user with this email already exists");
       }
+      // An invitation grants access explicitly and locally, rather than hoping
+      // an Infisical membership shows up later.
+      grants.replaceLocal(user.id, user.projects.map((project) => ({
+        userId: user.id,
+        project,
+        environments: [...ALL_TEST_ENVIRONMENTS],
+        source: "local" as const
+      })));
       return user;
     },
+    grants,
     getUser(id: string) {
       const row = sqlite.prepare("SELECT * FROM human_users WHERE id=?").get(id);
       return row ? rowToUser(row) : null;
@@ -163,12 +207,11 @@ export function createPasskeyStore(path: string) {
       if (result.changes !== 1) throw new Error("Human user not found");
       return rowToUser(sqlite.prepare("SELECT * FROM human_users WHERE id=?").get(id));
     },
-    updateUserProjects(id: string, projects: HumanProject[]) {
-      const parsed = [...new Set(synchronizedProjectsSchema.parse(projects))];
-      const result = sqlite.prepare("UPDATE human_users SET projects=? WHERE id=?").run(JSON.stringify(parsed), id);
-      if (result.changes !== 1) throw new Error("Human user not found");
-      return rowToUser(sqlite.prepare("SELECT * FROM human_users WHERE id=?").get(id));
-    },
+    // `updateUserProjects` is deliberately gone. It overwrote every project
+    // assignment from a single source and accepted an empty array, which is how
+    // an Infisical sync silently erased administrator-granted access. Callers
+    // use `grants.replaceLocal` or `grants.replaceInfisical`, which can only
+    // affect their own source.
     addCredential(input: z.input<typeof credentialInputSchema>) {
       const credential = credentialInputSchema.parse(input);
       const createdAt = new Date().toISOString();

@@ -86,11 +86,24 @@ describe("human project grants", () => {
   });
 });
 
+/**
+ * Reproduces a pre-migration database: `human_users` rows carry the legacy
+ * `projects` column and no grant rows exist yet. `createUser` seeds grants for
+ * new invitations, so the rows it writes are cleared to model the existing
+ * production data that migration actually has to convert.
+ */
+function legacyDatabase(projects: string, email = "legacy@dreambau.com") {
+  const { file, store } = freshDatabase();
+  const user = store.createUser({ email, name: "Legacy", projects: ["oriso"] });
+  const sqlite = new Database(file);
+  sqlite.prepare("DELETE FROM human_project_grants WHERE user_id=?").run(user.id);
+  sqlite.prepare("UPDATE human_users SET projects=? WHERE id=?").run(projects, user.id);
+  return { sqlite, user };
+}
+
 describe("legacy project migration", () => {
   it("converts stored projects into active local grants exactly once", () => {
-    const { file, store } = freshDatabase();
-    const user = store.createUser({ email: "legacy@dreambau.com", name: "Legacy", projects: ["oriso", "dreambau"] });
-    const sqlite = new Database(file);
+    const { sqlite, user } = legacyDatabase(JSON.stringify(["oriso", "dreambau"]));
 
     migrateLegacyProjectGrants(sqlite);
     migrateLegacyProjectGrants(sqlite);
@@ -103,10 +116,7 @@ describe("legacy project migration", () => {
   });
 
   it("does not invent a grant for a user whose projects are already empty", () => {
-    const { file, store } = freshDatabase();
-    const user = store.createUser({ email: "empty@dreambau.com", name: "Empty", projects: ["oriso"] });
-    const sqlite = new Database(file);
-    sqlite.prepare("UPDATE human_users SET projects=? WHERE id=?").run("[]", user.id);
+    const { sqlite, user } = legacyDatabase("[]", "empty@dreambau.com");
 
     migrateLegacyProjectGrants(sqlite);
 

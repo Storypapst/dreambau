@@ -28,11 +28,21 @@ describe("passkey store", () => {
     target.close();
   });
 
-  it("updates effective project scopes and permits an empty synchronized scope", () => {
+  it("derives effective project scopes from the grant sources", () => {
     const target = store();
     const member = target.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
-    expect(target.updateUserProjects(member.id, ["dreambau", "dreambau"])).toMatchObject({ projects: ["dreambau"] });
-    expect(target.updateUserProjects(member.id, [])).toMatchObject({ projects: [] });
+
+    // The invitation itself is the local grant.
+    expect(target.getUser(member.id)?.projects).toEqual(["oriso"]);
+
+    target.grants.replaceInfisical(member.id, [{ userId: member.id, project: "dreambau", environments: ["pre-dev"], source: "infisical" }]);
+    expect(target.getUser(member.id)?.projects).toEqual(["dreambau", "oriso"]);
+
+    // An empty synchronized scope removes only what Infisical granted.
+    target.grants.replaceInfisical(member.id, []);
+    expect(target.getUser(member.id)?.projects).toEqual(["oriso"]);
+
+    target.grants.revoke(member.id, "local");
     expect(target.getUser(member.id)?.projects).toEqual([]);
     target.close();
   });

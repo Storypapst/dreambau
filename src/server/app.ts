@@ -26,6 +26,7 @@ import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
 import { linkedRecordsForEmail, publicLinkedAccount } from "./account-link.js";
 import { generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
+import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
 
 interface AppOptions {
@@ -70,9 +71,25 @@ export function createApp(options: AppOptions = {}) {
       projectIds: config.infisical.projectIds
     })
     : undefined);
+  /**
+   * Synchronizes only the Infisical-derived grants and leaves local grants
+   * alone. The effective scope is the union of both sources, so an employee an
+   * administrator granted access to locally keeps it whatever Infisical
+   * reports — including reporting nothing at all.
+   *
+   * `user.projects` is now a derived projection of the grant rows rather than
+   * authoritative storage.
+   */
   const syncHumanUser = async (user: HumanUser) => {
     if (!humanAccessProvider || user.role === "admin") return user;
-    return passkeyStore.updateUserProjects(user.id, await humanAccessProvider.projectsFor(user.email));
+    const projects = await humanAccessProvider.projectsFor(user.email);
+    passkeyStore.grants.replaceInfisical(user.id, projects.map((project) => ({
+      userId: user.id,
+      project,
+      environments: [...ALL_TEST_ENVIRONMENTS],
+      source: "infisical" as const
+    })));
+    return { ...user, projects: passkeyStore.grants.effective(user.id).map((grant) => grant.project) };
   };
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
