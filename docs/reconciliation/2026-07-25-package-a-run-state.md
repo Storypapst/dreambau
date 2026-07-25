@@ -192,8 +192,17 @@ acceptance signal.
 
 ## 8. Follow-ups opened by this package
 
-- Reconstruct §5.1–§5.4 into reviewed commits with tests — lands with Package B
-  ([#26](https://github.com/Storypapst/dreambau/issues/26)), which is where the
-  human-access base branch merges.
-- Security review of §5.1 (secret endpoint) and §5.2 (widened `admin` rule).
-- Dependency drift: 36 of 42 dependencies are declared as `"latest"`.
+- §5.3 is reconstructed with tests in Package B
+  ([#26](https://github.com/Storypapst/dreambau/issues/26), PR
+  [#37](https://github.com/Storypapst/dreambau/pull/37)).
+- §5.1 (secret endpoint) and §5.2 (widened `admin` rule) are **deliberately not
+  reconstructed**. Committing either would formalise a privilege decision that
+  has never been reviewed, so both wait on an explicit security ruling. Their
+  behaviour is recorded in §5 above and no longer depends on the live image
+  surviving.
+- §5.4 (broker login hardening) overlaps PRs
+  [#21](https://github.com/Storypapst/dreambau/pull/21) and
+  [#23](https://github.com/Storypapst/dreambau/pull/23). Reconcile it there
+  rather than reconstructing it a third time.
+- Dependency drift: 36 of 42 dependencies are declared as `"latest"`
+  ([#33](https://github.com/Storypapst/dreambau/issues/33)).
