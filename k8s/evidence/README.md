@@ -51,6 +51,23 @@ kubectl -n wcr set image deployment/dreambau-evidence evidence=dreambau-evidence
 The runtime image carries ffmpeg, which is what normalises video and extracts
 posters.
 
+## NetworkPolicy is declared but not enforced
+
+Verified on 2026-07-26: a pod in the `default` namespace reaches this gateway,
+and reaches the pre-existing `testmails` service too, despite either policy.
+The node carries no `KUBE-ROUTER`/`KUBE-NWPLCY` iptables chains and the k3s
+journal never mentions network policy, so the controller is not running.
+
+That is a cluster-wide condition, not something this deployment introduced. The
+policy stays in the repository because it is correct and takes effect the moment
+a controller is enabled; today it documents intent. What actually bounds the
+gateway is the machine-identity check on every API route and a MinIO credential
+scoped to one bucket — both verified by `ops/evidence/validate-storage.sh`.
+
+Turning enforcement on would change behaviour for every workload in the cluster,
+several of which have no policy declared at all, so it is left as an operator
+decision rather than done as a side effect of this deployment.
+
 ## Not deployed yet, on purpose
 
 - **No worker Deployment.** Processing happens synchronously in the request that

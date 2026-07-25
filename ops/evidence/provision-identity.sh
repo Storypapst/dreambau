@@ -6,6 +6,7 @@ set -euo pipefail
 
 namespace="wcr"
 identity="${1:?identity name required}"
+valid_days="${VALID_DAYS:-365}"
 projects="${2:-\"oriso\"}"
 environments="${3:-\"local\",\"pre-dev\",\"dev\"}"
 out="/root/.evidence-token-${identity}"
@@ -25,11 +26,14 @@ fi
 
 payload=$(mktemp)
 trap 'rm -f "$payload"' EXIT
-EXISTING="$existing" IDENTITY="$identity" HASH="$hash" \
+EXISTING="$existing" IDENTITY="$identity" HASH="$hash" VALID_DAYS="$valid_days" \
 PROJECTS="$projects" ENVIRONMENTS="$environments" \
 python3 - > "$payload" <<'PY'
-import json, os
+import datetime, json, os
 existing = json.loads(os.environ["EXISTING"])
+# Derived from now: a hardcoded date silently produces identities that are
+# already expired once that date passes.
+expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=int(os.environ["VALID_DAYS"]))
 identity = os.environ["IDENTITY"]
 entry = {
     "id": identity,
@@ -37,7 +41,7 @@ entry = {
     "projects": json.loads("[" + os.environ["PROJECTS"] + "]"),
     "environments": json.loads("[" + os.environ["ENVIRONMENTS"] + "]"),
     "actions": ["evidence:upload", "evidence:publish", "evidence:read", "evidence:archive"],
-    "expiresAt": "2027-07-25T00:00:00.000Z",
+    "expiresAt": expires.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
     "revokedAt": None,
 }
 kept = [item for item in existing if item.get("id") != identity]
