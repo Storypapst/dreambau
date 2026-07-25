@@ -5,6 +5,7 @@ import { createProcessor, type Processor } from "../processing.js";
 import { MemoryObjectStore, type ObjectStore } from "../storage.js";
 import { createEvidenceStore, type EvidenceStore } from "../store.js";
 import { createEvidenceRouter } from "./router.js";
+import { createEvidenceViewer } from "./viewer.js";
 import { createFfmpegVideoProcessor, type VideoProcessor } from "../media.js";
 import { spawnMediaTool } from "./media-runner.js";
 
@@ -57,6 +58,11 @@ export function createEvidenceApp(options: EvidenceAppOptions = {}): EvidenceApp
       res.status(503).json({ status: "unavailable" });
     }
   });
+
+  // The public viewer is mounted before the API so a run page never sees a
+  // JSON body parser, and it deliberately has no session or cookie middleware
+  // anywhere in front of it.
+  app.use(createEvidenceViewer({ store, objectStore }));
 
   app.use("/api/v1", express.json({ limit: "256kb" }), createEvidenceRouter({
     store,

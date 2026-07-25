@@ -34,14 +34,15 @@ flowchart LR
 
 ## Execution status — 2026-07-25
 
-- **Tasks 1, 3, 5 and 2 are implemented** across a stack of three pull requests: `feat/pr-evidence-gateway` (tasks 1 and 3), `feat/pr-evidence-cli` (task 5) and `feat/pr-evidence-deploy` (task 2).
+- **Tasks 1, 2, 3, 4 and 5 are implemented** across a stack of four pull requests: `feat/pr-evidence-gateway` (tasks 1 and 3), `feat/pr-evidence-cli` (task 5), `feat/pr-evidence-deploy` (task 2) and `feat/pr-evidence-viewer` (task 4).
 - **The gateway runs on the Dreambau server** in namespace `wcr` against the real MinIO bucket, validated end to end on 2026-07-25. One item is blocked on an action only Frank can take: the DNS record for `evidence.dreambau.com`.
+- Remaining from the plan: tasks 6 to 10 — the portable agent skill, OBS/Cap watching, the ORISO-E2E pilot, the organisation-wide rollout and operations.
 - Local gate: the full test suite passes, all three TypeScript projects typecheck, `npm run build` and `npm run evidence:build` succeed, and the built gateway answers `/health/live` and `/health/ready` while refusing an unauthenticated API call with 401.
 - Three sub-steps are deliberately left open and marked as such below: the optional OCR preflight, image thumbnails (nothing consumes one until the viewer exists) and the seven-day deletion of original video uploads (that is the Task 10 retention job).
 - Video processing shells out to ffmpeg through an injected runner. The argument lists are unit-tested; the binary itself is installed by `Dockerfile.evidence` and is a Task 2 deployment concern.
 - `dreambau-evidence watch` is registered but reports that folder watching arrives with Task 7.
-- **Public URLs are minted but do not resolve yet.** `/r/`, `/e/` and `/reports/` are Task 4. The CLI already returns the final addresses and writes them into the PR comment, so Task 4 makes existing comments work rather than changing them.
-- Open before this is usable end to end: Task 2 (MinIO bucket, DNS, Kubernetes, Infisical credentials) and Task 4 (viewer).
+- **`/r/`, `/e/` and `/reports/` resolve.** The addresses the CLI writes into a PR comment are the ones the viewer serves, so nothing already published needs changing.
+- The only thing standing between this and a working public link is the DNS record.
 
 ## Global Constraints
 
@@ -252,15 +253,15 @@ Two rules were sharpened against real evidence rather than taken literally:
 
 ## Task 4: Public evidence viewer
 
-- [ ] Render `/r/:publicId` with title, result, environment, commit, repository and PR link.
-- [ ] Render chronological evidence cards: image with caption, HTML5 video player with poster, download links for logs and traces, link to the isolated Playwright report.
-- [ ] Show the test-user assignment without any password material.
-- [ ] Set `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow` and `Cross-Origin-Resource-Policy: cross-origin`.
-- [ ] Set no cookies on public pages.
-- [ ] Support range requests for video scrubbing.
-- [ ] HTML-escape captions, filenames and metadata.
-- [ ] Use immutable cache headers for direct files while allowing run pages to update.
-- [ ] Return 404 without information leakage for unknown public IDs.
+- [x] Render `/r/:publicId` with title, result, environment, commit, repository and PR link.
+- [x] Render chronological evidence cards: image with caption, HTML5 video player with poster, download links for logs and traces, link to the isolated Playwright report.
+- [x] Show the test-user assignment without any password material.
+- [x] Set `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow` and `Cross-Origin-Resource-Policy: cross-origin`.
+- [x] Set no cookies on public pages.
+- [x] Support range requests for video scrubbing.
+- [x] HTML-escape captions, filenames and metadata.
+- [x] Use immutable cache headers for direct files while allowing run pages to update.
+- [x] Return 404 without information leakage for unknown public IDs.
 
 **Acceptance:** GitHub renders the images, videos play in the browser, reports run on the isolated origin, and no public index lists runs.
 
