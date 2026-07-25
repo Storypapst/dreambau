@@ -6,6 +6,9 @@ import { objectKey, reportEntryKey, ObjectNotFoundError, type ObjectStore } from
 import type { EvidenceStore } from "../store.js";
 import { escapeAttribute, escapeHtml, renderNotFound, renderPage } from "./html.js";
 
+/** Window used when relaying a stored object, so no download is buffered whole. */
+const streamWindowBytes = 4 * 1024 * 1024;
+
 /**
  * The public surface. It reads nothing but published runs, sets no cookies and
  * hands out no bucket address: every byte is relayed from storage by key.
@@ -74,7 +77,7 @@ function assetPath(run: EvidenceRun, file: EvidenceFile, name: string): string {
   return `/e/${run.publicId}/${file.id}/${encodeURIComponent(name)}`;
 }
 
-function fileCard(run: EvidenceRun, file: EvidenceFile, posterUrl: string | null): string {
+function fileCard(run: EvidenceRun, file: EvidenceFile, posterUrl: string | null, reportIndex: string): string {
   const heading = escapeHtml(file.caption || file.filename);
   const url = escapeAttribute(assetPath(run, file, file.filename));
   const parts = [`<section class="card">`, `<h2>${heading}</h2>`];
@@ -91,7 +94,8 @@ function fileCard(run: EvidenceRun, file: EvidenceFile, posterUrl: string | null
       `</video>`
     );
   } else if (file.kind === "playwright-report") {
-    const report = escapeAttribute(`/reports/${run.publicId}/${file.id}/index.html`);
+    // The archive's own index path, which is not always top-level.
+    const report = escapeAttribute(`/reports/${run.publicId}/${file.id}/${reportIndex}`);
     parts.push(`<p class="actions"><a href="${report}">Open the Playwright report</a></p>`);
   }
 
@@ -112,7 +116,12 @@ function fileCard(run: EvidenceRun, file: EvidenceFile, posterUrl: string | null
   return parts.join("\n");
 }
 
-function runPage(run: EvidenceRun, files: EvidenceFile[], posterFor: (file: EvidenceFile) => string | null): string {
+function runPage(
+  run: EvidenceRun,
+  files: EvidenceFile[],
+  posterFor: (file: EvidenceFile) => string | null,
+  reportIndexFor: (file: EvidenceFile) => string
+): string {
   const repositoryUrl = `https://github.com/${run.repository}`;
   const meta = [
     `<span class="result result-${escapeAttribute(run.result)}">${escapeHtml(run.result)}</span>`,
@@ -130,7 +139,7 @@ function runPage(run: EvidenceRun, files: EvidenceFile[], posterFor: (file: Evid
     `<div class="meta">${meta.join("\n")}</div>`,
     files.length === 0
       ? `<p class="empty">This run has no evidence files.</p>`
-      : files.map((file) => fileCard(run, file, posterFor(file))).join("\n"),
+      : files.map((file) => fileCard(run, file, posterFor(file), reportIndexFor(file))).join("\n"),
     `<footer>Published ${escapeHtml(run.publishedAt ?? run.createdAt)}. `
     + `Anyone with this link can read it, so it holds synthetic test data only.</footer>`
   ];
@@ -171,7 +180,8 @@ export function createEvidenceViewer(options: ViewerOptions) {
     applyPublicHeaders(res, viewerCsp);
     // The run page may gain files or change state, so it must not be pinned.
     res.setHeader("Cache-Control", "no-cache");
-    return res.type("text/html; charset=utf-8").send(runPage(run, files, posterFor));
+    const reportIndexFor = (file: EvidenceFile) => options.store.reportIndexFor(file.id) ?? "index.html";
+    return res.type("text/html; charset=utf-8").send(runPage(run, files, posterFor, reportIndexFor));
   });
 
   /**
@@ -215,9 +225,18 @@ export function createEvidenceViewer(options: ViewerOptions) {
       return res.end(body);
     }
 
-    const body = await options.objectStore.get(key);
-    res.setHeader("Content-Length", String(body.length));
-    return res.end(body);
+    // Streamed in windows: a direct download of a large video must not put the
+    // whole object into the gateway's heap, and the first bytes should leave
+    // before the last ones are read.
+    res.setHeader("Content-Length", String(head.byteSize));
+    for (let offset = 0; offset < head.byteSize; offset += streamWindowBytes) {
+      const chunk = await options.objectStore.getRange(key, offset, streamWindowBytes);
+      if (chunk.length === 0) break;
+      if (!res.write(chunk)) {
+        await new Promise((resolve) => res.once("drain", resolve));
+      }
+    }
+    return res.end();
   }
 
   router.get("/e/:publicId/:fileId/:filename", async (req, res, next) => {
@@ -251,7 +270,8 @@ export function createEvidenceViewer(options: ViewerOptions) {
       return notFoundAsset(res);
     }
     const segments = ([] as string[]).concat((req.params as Record<string, string[] | string>).entry ?? []);
-    const entry = (Array.isArray(segments) ? segments.join("/") : String(segments)) || "index.html";
+    const recordedIndex = options.store.reportIndexFor(file.id) ?? "index.html";
+    const entry = (Array.isArray(segments) ? segments.join("/") : String(segments)) || recordedIndex;
     if (entry.split("/").some((segment) => segment === ".." || segment === "." || segment === "")) {
       return notFoundAsset(res);
     }

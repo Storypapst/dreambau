@@ -335,3 +335,69 @@ describe("health endpoints stay separate from the viewer", () => {
     await request(app).get("/health/live").expect(200, { status: "ok" });
   });
 });
+
+describe("findings raised by review", () => {
+  const nestedReport = () => ({
+    bytes: makeZip([
+      { name: "playwright-report/index.html", body: Buffer.from("<html><body>Nested report</body></html>") },
+      { name: "playwright-report/assets/app.js", body: Buffer.from("console.log('report')") }
+    ]),
+    kind: "playwright-report",
+    filename: "report.zip",
+    caption: "Playwright report",
+    contentType: "application/zip"
+  });
+
+  it("links a report whose index sits in a subdirectory", async () => {
+    const { app } = target();
+    const { ids } = await seed(app, [nestedReport()]);
+    const page = await request(app).get(`/r/${publicId}`).expect(200);
+    expect(page.text).toContain(`/reports/${publicId}/${ids[0]}/playwright-report/index.html`);
+    expect(page.text).not.toContain(`/reports/${publicId}/${ids[0]}/index.html"`);
+
+    const index = await request(app)
+      .get(`/reports/${publicId}/${ids[0]}/playwright-report/index.html`)
+      .expect(200);
+    expect(index.text).toContain("Nested report");
+  });
+
+  it("defaults the bare report route to the recorded index", async () => {
+    const { app } = target();
+    const { ids } = await seed(app, [nestedReport()]);
+    const index = await request(app).get(`/reports/${publicId}/${ids[0]}/`).expect(200);
+    expect(index.text).toContain("Nested report");
+  });
+
+  it("serves a normalised video as MP4 whatever the upload was", async () => {
+    const { app, store } = target();
+    const mov = Buffer.concat([Buffer.alloc(4), Buffer.from("ftypqt  ", "latin1"), Buffer.alloc(64)]);
+    const run = await request(app).post("/api/v1/runs")
+      .set("authorization", `Bearer ${token}`)
+      .send(runBody)
+      .expect(201);
+    const init = await request(app).post(`/api/v1/runs/${run.body.id}/files/init`)
+      .set("authorization", `Bearer ${token}`)
+      .send({
+        kind: "video", filename: "flow.mov", caption: "Flow", contentType: "video/quicktime",
+        byteSize: mov.length, sha256: digest(mov), head: mov.subarray(0, 4096).toString("base64")
+      })
+      .expect(201);
+    // No ffmpeg in this suite, so the run quarantines; the point is that the
+    // recorded type is what the viewer would serve, never the raw upload type.
+    expect(init.body.file.contentType).toBe("video/quicktime");
+    expect(store.getFile(init.body.file.id as string)?.contentType).toBe("video/quicktime");
+  });
+
+  it("streams a download without buffering it whole", async () => {
+    const { app } = target();
+    // Large enough to cross several relay windows.
+    const big = Buffer.concat([Buffer.from("step log\n"), Buffer.alloc(9 * 1024 * 1024, 0x2e)]);
+    const { ids } = await seed(app, [{
+      bytes: big, kind: "log", filename: "big.log", caption: "Big log",
+      contentType: "text/plain; charset=utf-8"
+    }]);
+    const response = await request(app).get(`/e/${publicId}/${ids[0]}/big.log`).expect(200);
+    expect(Number(response.headers["content-length"])).toBe(big.length);
+    expect(response.body.length ?? response.text.length).toBe(big.length);
+  });
+});
