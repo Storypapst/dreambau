@@ -34,7 +34,8 @@ flowchart LR
 
 ## Execution status — 2026-07-25
 
-- **Tasks 1, 3 and 5 are implemented.** Tasks 1 and 3 landed on `feat/pr-evidence-gateway`; this branch adds task 5, the portable CLI and its GitHub linkage.
+- **Tasks 1, 3, 5 and 2 are implemented** across a stack of three pull requests: `feat/pr-evidence-gateway` (tasks 1 and 3), `feat/pr-evidence-cli` (task 5) and `feat/pr-evidence-deploy` (task 2).
+- **The gateway runs on the Dreambau server** in namespace `wcr` against the real MinIO bucket, validated end to end on 2026-07-25. One item is blocked on an action only Frank can take: the DNS record for `evidence.dreambau.com`.
 - Local gate: the full test suite passes, all three TypeScript projects typecheck, `npm run build` and `npm run evidence:build` succeed, and the built gateway answers `/health/live` and `/health/ready` while refusing an unauthenticated API call with 401.
 - Three sub-steps are deliberately left open and marked as such below: the optional OCR preflight, image thumbnails (nothing consumes one until the viewer exists) and the seven-day deletion of original video uploads (that is the Task 10 retention job).
 - Video processing shells out to ffmpeg through an injected runner. The argument lists are unit-tested; the binary itself is installed by `Dockerfile.evidence` and is a Task 2 deployment concern.
@@ -208,17 +209,20 @@ Implementation note: the evidence service reuses `src/server/machine-access.ts` 
 
 ## Task 2: MinIO and Kubernetes
 
-- [ ] Add `k8s/evidence/` with Deployment `dreambau-evidence` and worker Deployment `dreambau-evidence-worker`.
-- [ ] Add Service and Traefik Ingress for `evidence.dreambau.com`.
-- [ ] Add a 1 GiB PVC for SQLite and processing state.
-- [ ] Add a NetworkPolicy, PodDisruptionBudget and resource requests/limits.
-- [ ] Add a CronJob for retention and integrity checks.
-- [ ] Create the private bucket `dreambau-pr-evidence` with versioning enabled, no anonymous policy and no directory listing.
-- [ ] Issue separate MinIO credentials for gateway and worker, sourced from Infisical into a Kubernetes Secret.
-- [ ] Store upload tokens only as SHA-256 hashes or via machine identities.
-- [ ] Point `evidence.dreambau.com` at `46.225.160.119` and let cert-manager issue the certificate; leave MinIO on its existing internal route.
+- [x] Add `k8s/evidence/` with Deployment `dreambau-evidence`, deployed and running in namespace `wcr`.
+- [ ] Worker Deployment `dreambau-evidence-worker`. **Not built, on purpose.** Processing happens synchronously in the request that completes an upload; there is no queue for a worker to drain, and a deployment that does nothing would read as capacity that is not there. It arrives if and when processing moves off the request path.
+- [x] Add Service and Traefik Ingress for `evidence.dreambau.com`. The manifest exists; see the DNS item below for why it is not applied yet.
+- [x] Add a 1 GiB PVC for SQLite and processing state.
+- [x] Add a NetworkPolicy, PodDisruptionBudget and resource requests/limits. **Correction after verification:** the NetworkPolicy is declared but *not enforced* — this k3s cluster runs no network policy controller, which is equally true of the pre-existing `testmails` policy. The manifest is kept because it becomes effective the moment one is enabled; until then the gateway's real boundaries are the machine-identity check on every API route and a MinIO credential scoped to one bucket. Enabling enforcement affects every workload in the cluster and is an operator decision.
+- [ ] CronJob for retention and integrity checks. **Deferred to Task 10**, which is where the retention and integrity commands are written. A CronJob calling a command that does not exist would fail on a schedule.
+- [x] Create the private bucket `dreambau-pr-evidence` with versioning enabled, no anonymous policy and no directory listing.
+- [x] Issue separate MinIO credentials for the gateway into a Kubernetes Secret. The MinIO user `evidence-gateway` carries policy `evidence-gateway-rw`, scoped to that one bucket, with no admin, bucket-creation or policy rights. Separate worker credentials are not issued because there is no worker.
+- [x] Store upload tokens only as SHA-256 hashes or via machine identities. The gateway reuses the Test Access identity model, so `wcr/evidence-identities` holds hashes only.
+- [ ] Point `evidence.dreambau.com` at `46.225.160.119`. **Blocked and not self-serviceable:** `dreambau.com` is on Google Cloud DNS and the server carries no gcloud credential. The Ingress manifest is written and deliberately not applied, because creating it before the record exists makes cert-manager retry an ACME challenge it cannot win, which counts against the Let's Encrypt rate limit.
 
-**Acceptance:** an unauthenticated API upload returns 401; a gateway test object can be published while its MinIO key stays unreachable from the public internet.
+Deviation from the plan: the MinIO credentials are created as a Kubernetes Secret from stdin rather than sourced from Infisical. That follows the established pattern in this repository — every service secret here, including `test-access-infisical` itself, is created from stdin — and avoids a bootstrap loop where the credential needed to read credentials lives in the same store. Moving it to Infisical remains possible without touching the deployment.
+
+**Acceptance:** met, verified against the running deployment on 2026-07-25 by `ops/evidence/validate-deployment.sh` (20 checks) and `ops/evidence/validate-storage.sh` (14 checks). An unauthenticated API call returns 401; a published object is served by the gateway while the same key returns 403 anonymously over the MinIO ingress, over the node port, and to any credential other than the gateway's own.
 
 ## Task 3: Upload, processing and quarantine
 
