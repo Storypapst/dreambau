@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, openSync, readSync, realpathSync, statSync } from "node:fs";
-import { basename } from "node:path";
+import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
@@ -19,6 +20,13 @@ import { multipartChunkSize } from "../security.js";
 import { renderComment } from "./comment.js";
 import { createGatewayClient, GatewayError, type GatewayClient } from "./client.js";
 import { detectGitHubLogin, GitContextError, resolveTarget, type CommandRunner } from "./git.js";
+import {
+  defaultWatchOptions,
+  emptyWatchState,
+  runWatch,
+  type WatchDependencies,
+  type WatchState
+} from "./watch.js";
 import { GitHubError, upsertRunComment, type GhRunner } from "./github.js";
 
 export const keychainService = "dreambau-evidence";
@@ -47,7 +55,7 @@ const usage = `usage: dreambau-evidence <command> [options]
   status <run-id>     show a run, its files and any quarantine findings
   archive <run-id>    remove public reachability for a run
   doctor              check gh, git, the token and gateway reachability
-  watch <directory>   OBS/Cap folder watching (arrives with Task 7)
+  watch <directory>   upload OBS/Cap recordings as they finish
 
 options:
   --project <oriso|orimo|dreambau>      required for upload
@@ -62,6 +70,8 @@ options:
   --draft                               allow an upload without an open pull request
   --allow-older-commit                  upload against a PR whose head has moved on
   --identity <name>                     machine identity (or EVIDENCE_IDENTITY)
+  --stable-seconds <n>                  watch: how long a file must stop growing
+  --once                                watch: make a single sweep and exit
 `;
 
 function option(args: string[], name: string): string | undefined {
@@ -75,9 +85,9 @@ function flag(args: string[], name: string): boolean {
 
 const valueOptions = new Set([
   "--project", "--environment", "--result", "--source", "--title", "--caption",
-  "--kind", "--pr", "--identity"
+  "--kind", "--pr", "--identity", "--stable-seconds"
 ]);
-const booleanOptions = new Set(["--publish", "--draft", "--allow-older-commit"]);
+const booleanOptions = new Set(["--publish", "--draft", "--allow-older-commit", "--once"]);
 
 export function positionals(args: string[]): string[] {
   const values: string[] = [];
@@ -253,6 +263,79 @@ async function publishRun(runId: string, dependencies: CliDependencies, client: 
   return 0;
 }
 
+/**
+ * Each finished recording becomes its own run and is published straight away,
+ * so a long session produces one comment per recording rather than one comment
+ * that keeps changing underneath the reader.
+ */
+async function runWatchCommand(args: string[], dependencies: CliDependencies, client: GatewayClient): Promise<number> {
+  const directory = positionals(args)[1];
+  if (!directory) throw new Error("watch requires a directory");
+  const explicit = option(args, "--pr");
+  if (explicit !== undefined && !/^[0-9]+$/.test(explicit)) {
+    throw new Error(`--pr expects a pull request number, got "${explicit}"`);
+  }
+  const draft = flag(args, "--draft");
+  const target = resolveTarget(dependencies.runCommand, {
+    explicitPullRequest: explicit === undefined ? undefined : Number(explicit),
+    allowOlderCommit: flag(args, "--allow-older-commit"),
+    draft
+  });
+  const shared = uploadOptionsSchema.parse({
+    project: option(args, "--project"),
+    environment: option(args, "--environment"),
+    result: option(args, "--result") ?? "PASS",
+    source: option(args, "--source") ?? "obs",
+    title: option(args, "--title") ?? "Screen recording"
+  });
+
+  dependencies.writeError(
+    `repository ${target.repository}, commit ${target.commitSha.slice(0, 7)}, environment ${shared.environment}, `
+    + `${target.pullRequest ? `pull request #${target.pullRequest.number}` : "no pull request (draft)"}\n`
+  );
+
+  return runWatch(
+    {
+      directory,
+      stableMs: stableWindowMs(option(args, "--stable-seconds")),
+      pollMs: defaultWatchOptions.pollMs,
+      // `--once` makes a single sweep, which is what a CI step wants.
+      maxTicks: flag(args, "--once") ? 1 : undefined,
+      extensions: defaultWatchOptions.extensions
+    },
+    {
+      ...watchFileSystem(dependencies),
+      async upload(path) {
+        try {
+          const run = await client.createRun({
+            ...shared,
+            title: `${shared.title}: ${basename(path)}`,
+            repository: target.repository,
+            commitSha: target.commitSha,
+            pullRequestNumber: target.pullRequest?.number ?? null
+          });
+          const file = await uploadOneFile(
+            client, dependencies, run.id, path,
+            option(args, "--caption") ?? "",
+            detectKind(basename(path))
+          );
+          if (!target.pullRequest) {
+            return { ok: true, publicUrl: null, runId: run.id };
+          }
+          await publishRun(run.id, dependencies, client);
+          return { ok: true, publicUrl: file.publicUrl, runId: run.id };
+        } catch (error) {
+          const message = messageFor(error);
+          // A quarantine is final for this file; anything else may be transient.
+          return { ok: false, message, retryable: !/quarantined/i.test(message) };
+        }
+      },
+      write: dependencies.write,
+      writeError: dependencies.writeError
+    }
+  );
+}
+
 async function runStatus(runId: string, dependencies: CliDependencies, client: GatewayClient): Promise<number> {
   const detail = await client.getRun(runId);
   dependencies.write(`${JSON.stringify(detail, null, 2)}\n`);
@@ -314,10 +397,7 @@ export async function runEvidenceCommand(args: string[], dependencies: CliDepend
       dependencies.write(usage);
       return command ? 0 : 1;
     }
-    if (command === "watch") {
-      dependencies.writeError("watch arrives with Task 7 (OBS and Cap capture); upload the finished file for now\n");
-      return 1;
-    }
+
     if (command === "doctor") return await runDoctor(dependencies);
 
     if (!dependencies.identity) throw new Error("EVIDENCE_IDENTITY or --identity is required");
@@ -327,6 +407,7 @@ export async function runEvidenceCommand(args: string[], dependencies: CliDepend
     const client = factory({ baseUrl: dependencies.baseUrl, token, fetch: dependencies.fetch });
 
     if (command === "upload") return await runUpload(args, dependencies, client);
+    if (command === "watch") return await runWatchCommand(args, dependencies, client);
     const runId = positionals(args)[1];
     if (!runId) throw new Error(`${command} requires a run id`);
     if (command === "publish") return await publishRun(runId, dependencies, client);
@@ -353,6 +434,42 @@ function messageFor(error: unknown): string {
     return `invalid options: ${fields}`;
   }
   return error instanceof Error ? error.message : "dreambau-evidence failed";
+}
+
+/** `--stable-seconds 0` is a legitimate value, so this cannot use `||`. */
+export function stableWindowMs(raw: string | undefined): number {
+  if (raw === undefined) return defaultWatchOptions.stableMs;
+  if (!/^[0-9]+$/.test(raw)) throw new Error(`--stable-seconds expects a whole number of seconds, got "${raw}"`);
+  return Number(raw) * 1000;
+}
+
+/** Real filesystem and clock for the watcher; tests substitute their own. */
+export function watchFileSystem(dependencies: CliDependencies): Omit<WatchDependencies, "upload" | "write" | "writeError"> {
+  const statePath = join(homedir(), ".config", configDirectory, "watch-state.json");
+  return {
+    listFiles: (directory) => readdirSync(directory),
+    statFile: (path) => {
+      try {
+        const stat = statSync(path);
+        return stat.isFile() ? { size: stat.size, mtimeMs: stat.mtimeMs } : null;
+      } catch {
+        return null;
+      }
+    },
+    now: () => Date.now(),
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    loadState: () => {
+      try {
+        return JSON.parse(readFileSync(statePath, "utf8")) as WatchState;
+      } catch {
+        return emptyWatchState;
+      }
+    },
+    saveState: (state) => {
+      mkdirSync(dirname(statePath), { recursive: true, mode: 0o700 });
+      writeFileSync(statePath, JSON.stringify(state, null, 2), { mode: 0o600 });
+    }
+  };
 }
 
 export function readFileChunk(path: string, start: number, length: number): Buffer {

@@ -88,6 +88,23 @@ Kommentar, ein anderer Lauf am selben PR bekommt einen eigenen. Dateien werden i
 64-MiB-Fenstern gelesen, damit auch eine 2-GiB-Aufnahme nicht in den Speicher
 muss; ein abgebrochener Upload nimmt die fehlenden Teile wieder auf.
 
+### OBS- und Cap-Aufnahmen
+
+```bash
+dreambau-evidence watch ~/Movies/OBS \
+  --project oriso --environment pre-dev --pr 553
+```
+
+Der Watcher wartet, bis eine Datei nicht mehr wächst, und lädt sie dann hoch;
+jede Aufnahme wird ein eigener Lauf mit eigenem PR-Kommentar. Vor dem ersten
+Upload nennt er Repository, Commit, Umgebung und PR. Fehlgeschlagene Uploads
+bleiben liegen und werden erneut versucht — nur eine Datei in Quarantäne nicht,
+denn daran ändert sich nichts mehr. `--once` macht einen einzelnen Durchlauf.
+
+Eine Cap-Aufnahme zählt erst dann als dauerhafte PR-Evidence, wenn sie über das
+CLI gespiegelt wurde. Ein blosser Cap-Link ist kein Nachweis: er hängt an einem
+Dienst, der die Datei jederzeit anders ausliefern oder entfernen kann.
+
 ## Menschlicher Passkey-Zugang
 
 Der gemeinsame Argon2id-Passwortlogin ist nur noch als Bootstrap-Pfad für den

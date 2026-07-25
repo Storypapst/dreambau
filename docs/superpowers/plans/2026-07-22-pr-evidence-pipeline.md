@@ -40,7 +40,7 @@ flowchart LR
 - Local gate: the full test suite passes, all three TypeScript projects typecheck, `npm run build` and `npm run evidence:build` succeed, and the built gateway answers `/health/live` and `/health/ready` while refusing an unauthenticated API call with 401.
 - Three sub-steps are deliberately left open and marked as such below: the optional OCR preflight, image thumbnails (nothing consumes one until the viewer exists) and the seven-day deletion of original video uploads (that is the Task 10 retention job).
 - Video processing shells out to ffmpeg through an injected runner. The argument lists are unit-tested; the binary itself is installed by `Dockerfile.evidence` and is a Task 2 deployment concern.
-- `dreambau-evidence watch` is registered but reports that folder watching arrives with Task 7.
+- `dreambau-evidence watch` uploads recordings as they finish (Task 7).
 - **`/r/`, `/e/` and `/reports/` resolve.** The addresses the CLI writes into a PR comment are the ones the viewer serves, so nothing already published needs changing.
 - The only thing standing between this and a working public link is the DNS record.
 
@@ -294,14 +294,16 @@ The CLI reads files in 64 MiB windows and streams the digest, so a 2 GiB OBS rec
 
 ## Task 7: OBS, Cap and manual captures
 
-- [ ] Implement `dreambau-evidence watch <directory>` with `--project`, `--environment` and `--pr`.
-- [ ] Wait until the file size is stable and the writer has closed the file before uploading.
-- [ ] Show the detected file, PR, commit and target environment before upload.
-- [ ] Publish directly after a successful upload in automatic mode.
-- [ ] Keep failed uploads locally and make them resumable.
-- [ ] Document that a Cap recording only counts as durable PR evidence once mirrored through the CLI; a bare Cap link may register as a draft but does not satisfy the PR evidence gate.
+- [x] Implement `dreambau-evidence watch <directory>` with `--project`, `--environment` and `--pr`.
+- [x] Wait until the file size is stable and the writer has closed the file before uploading.
+- [x] Show the detected file, PR, commit and target environment before upload.
+- [x] Publish directly after a successful upload in automatic mode.
+- [x] Keep failed uploads locally and make them resumable.
+- [x] Document that a Cap recording only counts as durable PR evidence once mirrored through the CLI; a bare Cap link may register as a draft but does not satisfy the PR evidence gate.
 
-**Acceptance:** a finished OBS recording appears as an MP4 with poster on the right PR, and an interrupted upload resumes after a restart.
+Settling is anchored on the file's own last-write time, not on when the watcher started, so a recording that finished before the watcher was launched is picked up on the first sweep. `--once` makes a single sweep and exits, which is what a CI step wants; without it the watcher polls until stopped. Uploads that fail stay on disk and are retried on later sweeps, while a quarantined file is not retried — nothing about it will change.
+
+**Acceptance:** met — a finished recording is uploaded and published to the right PR, one run and one comment per recording. Covered by unit tests over the settling logic and an end-to-end test that watches a real directory and drives the real gateway over HTTP.
 
 ## Task 8: ORISO E2E pilot
 
