@@ -1,7 +1,6 @@
 import path from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import Database from "better-sqlite3";
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/server/app.js";
@@ -39,10 +38,10 @@ const webauthn: WebAuthnAdapter = {
  *
  * This models a state that production is actually in: on 2026-07-25, four of the
  * seven rows in the live `human_users` table were active members with
- * `projects = "[]"`. `createUser` still enforces at least one project, so the
- * row is created with a grant and then emptied directly, which is what the
- * Infisical scope synchronization does in the running image when Infisical
- * reports no matching membership for the address.
+ * `projects = "[]"`.
+ *
+ * The grant rows are authoritative, so emptying the legacy `human_users.projects`
+ * column no longer reaches this state — revoking every grant source does.
  */
 async function authenticatedWithoutGrant() {
   const abe = mailbox();
@@ -58,9 +57,9 @@ async function authenticatedWithoutGrant() {
   const user = passkeyStore.createUser({ email: "invited@dreambau.com", name: "Invited Employee", projects: ["oriso"], role: "member" });
   passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
 
-  const raw = new Database(authPath);
-  raw.prepare("UPDATE human_users SET projects=? WHERE id=?").run("[]", user.id);
-  raw.close();
+  passkeyStore.grants.revoke(user.id, "local");
+  passkeyStore.grants.revoke(user.id, "infisical");
+  expect(passkeyStore.grants.effective(user.id)).toEqual([]);
 
   const app = createApp({
     passwordHash: "unused",
