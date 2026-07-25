@@ -23,7 +23,7 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
-import { linkedRecordsForEmail, publicLinkedAccount } from "./account-link.js";
+import { dashboardRoles, linkedApplicationRecordsForEmail, linkedRecordsForEmail, publicLinkedAccount } from "./account-link.js";
 import { generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
@@ -196,14 +196,25 @@ export function createApp(options: AppOptions = {}) {
     try {
       const user = res.locals.humanUser as HumanUser;
       const records = await registryProvider.list();
-      res.json(scopedAccountViews(user).map((account) => ({
-        ...account,
-        linkedAccess: linkedRecordsForEmail(account.email, records)
-          .filter((record) => user.projects.includes(record.project))
-          .map(publicLinkedAccount)
-          .filter((record) => record !== null),
-        access: database.getAccountAccess(account.email)
-      })));
+      res.json(scopedAccountViews(user).map((account) => {
+        const linked = linkedApplicationRecordsForEmail(account.email, records)
+          .filter((record) => user.projects.includes(record.project));
+        // The roles a mailbox can actually sign in with are shown alongside the
+        // roles recorded in the catalog. Recovered from the running image
+        // (Package A run-state §5.3).
+        const linkedRoles = dashboardRoles(linked.flatMap((record) => record.roles));
+        return {
+          ...account,
+          metadata: {
+            ...account.metadata,
+            roles: [...new Set([...account.metadata.roles, ...linkedRoles])]
+          },
+          linkedAccess: linked
+            .map(publicLinkedAccount)
+            .filter((record) => record !== null),
+          access: database.getAccountAccess(account.email)
+        };
+      }));
     } catch (error) {
       next(error);
     }

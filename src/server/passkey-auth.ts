@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { RequestHandler, Router } from "express";
+import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -189,23 +190,54 @@ export function installPasskeyAuth(router: Router, options: {
     next();
   });
 
+  /** Which sources an administrator granted access from: local, Infisical or both. */
+  const accessSourcesFor = (userId: string) =>
+    [...new Set(options.store.grants.list(userId).filter((grant) => grant.status === "active").map((grant) => grant.source))].sort();
+
   router.get("/auth/users", requireAdmin, async (_req, res) => {
     try {
       const users = options.store.listUsers();
-      res.json(options.syncHumanUser ? await Promise.all(users.map(options.syncHumanUser)) : users);
+      const synchronized = options.syncHumanUser ? await Promise.all(users.map(options.syncHumanUser)) : users;
+      res.json(synchronized.map((user) => ({ ...user, accessSources: accessSourcesFor(user.id) })));
     } catch {
       res.status(503).json({ error: "human_access_unavailable" });
     }
   });
   router.post("/auth/users", requireAdmin, (req, res) => {
     const parsed = z.object({
-      email: z.email(),
+      email: z.string().trim().pipe(z.email()),
       name: z.string().min(1),
       projects: z.array(z.enum(["oriso", "orimo", "dreambau"])).min(1)
     }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_user" });
+    const email = parsed.data.email.toLowerCase();
+    const localGrants = (userId: string) => [...new Set(parsed.data.projects)].map((project) => ({
+      userId,
+      project,
+      environments: [...ALL_TEST_ENVIRONMENTS],
+      source: "local" as const
+    }));
+
+    // Re-inviting an address updates its local grants rather than failing or
+    // creating a second identity. Infisical-derived grants are untouched.
+    const existing = options.store.getUserByEmail(email);
+    if (existing) {
+      if (existing.status !== "active") return res.status(409).json({ error: "user_disabled" });
+      options.store.grants.replaceLocal(existing.id, localGrants(existing.id));
+      res.set("Cache-Control", "no-store");
+      // A fresh enrollment code is only issued while enrollment is still
+      // pending; re-inviting an enrolled employee must not reset their
+      // recovery material.
+      if (options.store.getCredentialsForUser(existing.id).length > 0) {
+        return res.status(200).json(options.store.getUser(existing.id));
+      }
+      const enrollmentCode = randomBytes(16).toString("base64url");
+      options.store.replaceRecoveryCodeHashes(existing.id, [createHash("sha256").update(enrollmentCode).digest("hex")]);
+      return res.status(200).json({ ...options.store.getUser(existing.id), enrollmentCode });
+    }
+
     try {
-      const user = options.store.createUser({ ...parsed.data, role: "member" });
+      const user = options.store.createUser({ ...parsed.data, email, role: "member" });
       const enrollmentCode = randomBytes(16).toString("base64url");
       options.store.replaceRecoveryCodeHashes(user.id, [createHash("sha256").update(enrollmentCode).digest("hex")]);
       res.set("Cache-Control", "no-store");

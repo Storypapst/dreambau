@@ -100,7 +100,20 @@ export function isKnownSyntheticEmail(email: string, accounts: AccountRecord[]) 
   return accounts.some((account) => normalizeEmail(account.email) === normalized);
 }
 
-function dashboardRoles(roles: string[]) {
+/**
+ * Records a person can actually sign in to. A mailbox record is a credential
+ * store rather than an application login, so it contributes no application
+ * roles to the dashboard.
+ *
+ * Recovered from the running image; it was built from source present in no
+ * commit (Package A, issue #25, run-state §5.3).
+ */
+export function linkedApplicationRecordsForEmail(email: string, records: TestAccessRecord[]): TestAccessRecord[] {
+  return linkedRecordsForEmail(email, records)
+    .filter((record) => record.kind === "app-user" || record.kind === "admin");
+}
+
+export function dashboardRoles(roles: string[]) {
   const result = new Set<string>();
   if (roles.some((role) => role === "admin" || role === "platform-admin" || role.endsWith("-admin"))) result.add("Admin");
   if (roles.some((role) => role === "consultant" || role === "counselor")) result.add("Berater");
