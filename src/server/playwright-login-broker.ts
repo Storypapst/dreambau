@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import type { Locator, Page } from "@playwright/test";
+import type { BrowserContext, Locator, Page } from "@playwright/test";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
 const FIELD_TIMEOUT_MS = 20_000;
@@ -14,6 +14,7 @@ const FIELD_TIMEOUT_MS = 20_000;
  * the check races the navigation, so a normal login is not delayed.
  */
 const OTP_CHALLENGE_GRACE_MS = 6_000;
+const AUTH_STATE_TIMEOUT_MS = 10_000;
 
 interface AccountMetadata {
   id: string;
@@ -30,6 +31,10 @@ export interface BrowserLoginRequest {
   statePath: string;
   ignoreHTTPSErrors: boolean;
   getOtp: () => Promise<string>;
+  requiredAuthState?: {
+    cookieNames: string[];
+    localStorageKeys: string[];
+  };
 }
 
 export interface BrokerDependencies {
@@ -89,6 +94,37 @@ async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) 
   const response = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` } });
   if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
   return response.json() as Promise<any>;
+}
+
+async function waitForRestorableAuthState(
+  context: BrowserContext,
+  applicationOrigin: string,
+  requirement: NonNullable<BrowserLoginRequest["requiredAuthState"]>,
+  timeoutMs = AUTH_STATE_TIMEOUT_MS
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const state = await context.storageState();
+    const hasCookie = state.cookies.some(
+      (cookie) =>
+        requirement.cookieNames.includes(cookie.name) && cookie.value.length > 0
+    );
+    const applicationState = state.origins.find(
+      (origin) => origin.origin === applicationOrigin
+    );
+    const hasLocalStorage = applicationState?.localStorage.some(
+      (item) =>
+        requirement.localStorageKeys.includes(item.name) && item.value.length > 0
+    );
+
+    if (hasCookie || hasLocalStorage) return;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        "login reached the application but no reusable authentication state was persisted"
+      );
+    }
+    await delay(100);
+  }
 }
 
 // The ORISO admin login renders through React and no longer emits the legacy
@@ -248,6 +284,13 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
       const http = failedResponses.length ? ` | failed requests: ${failedResponses.slice(-5).join(", ")}` : "";
       throw new Error(`${error instanceof Error ? error.message : "login failed"} | ${await describeLoginFailure(page)}${http}`);
     }
+    if (request.requiredAuthState) {
+      await waitForRestorableAuthState(
+        context,
+        applicationOrigin,
+        request.requiredAuthState
+      );
+    }
     await context.storageState({ path: request.statePath });
   } finally {
     await context.close();
@@ -298,7 +341,13 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       loginUrl: account.loginUrl,
       statePath,
       ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
-      getOtp
+      getOtp,
+      requiredAuthState: account.project === "oriso"
+        ? {
+            cookieNames: ["keycloak"],
+            localStorageKeys: ["auth.keycloak"]
+          }
+        : undefined
     });
     await chmod(statePath, 0o600);
     (dependencies.scheduleCleanup ?? scheduleCleanup)(stateDirectory, STATE_TTL_MS);

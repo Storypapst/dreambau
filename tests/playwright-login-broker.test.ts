@@ -124,7 +124,11 @@ describe("Playwright login broker", () => {
       username: "test-consultant-001",
       password,
       loginUrl: "https://app.oriso-dev.site",
-      ignoreHTTPSErrors: true
+      ignoreHTTPSErrors: true,
+      requiredAuthState: {
+        cookieNames: ["keycloak"],
+        localStorageKeys: ["auth.keycloak"]
+      }
     }));
     const response = JSON.parse(output.join(""));
     expect(response).toMatchObject({
@@ -169,6 +173,108 @@ describe("Playwright login broker", () => {
       const state = JSON.parse(await readFile(statePath, "utf8"));
       expect(appRequests).toBe(1);
       expect(state.cookies).toEqual(expect.arrayContaining([expect.objectContaining({ name: "logged_in", value: "1" })]));
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 20_000);
+
+  it("waits for delayed ORISO auth persistence before writing browser state", async () => {
+    const server = createServer((req, res) => {
+      if (req.url === "/app") {
+        res.setHeader("Content-Type", "text/html");
+        res.end(`<!doctype html><p>signed in</p>
+          <script>
+            setTimeout(() => {
+              localStorage.setItem('auth.keycloak', 'delayed-access-token');
+            }, 250);
+          </script>`);
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.end(`<!doctype html><form id="login">
+          <input id="username">
+          <input id="passwordInput" type="password">
+          <button>Login</button>
+        </form>
+        <script>
+          document.querySelector('#login').addEventListener('submit', (event) => {
+            event.preventDefault();
+            location.href = '/app';
+          });
+        </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-delayed-auth-"));
+    const statePath = join(root, "state.json");
+    try {
+      await playwrightLogin({
+        username: "test-user",
+        password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/`,
+        statePath,
+        ignoreHTTPSErrors: false,
+        getOtp: async () => { throw new Error("OTP should not be requested"); },
+        requiredAuthState: {
+          cookieNames: ["keycloak"],
+          localStorageKeys: ["auth.keycloak"]
+        }
+      });
+
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      expect(state.origins).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          origin: `http://127.0.0.1:${address.port}`,
+          localStorage: expect.arrayContaining([
+            expect.objectContaining({
+              name: "auth.keycloak",
+              value: "delayed-access-token"
+            })
+          ])
+        })
+      ]));
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 20_000);
+
+  it("rejects an ORISO login transition without restorable authentication state", async () => {
+    const server = createServer((req, res) => {
+      if (req.url === "/app") {
+        res.end("signed in without persisted authentication");
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.end(`<!doctype html><form id="login">
+          <input id="username">
+          <input id="passwordInput" type="password">
+          <button>Login</button>
+        </form>
+        <script>
+          document.querySelector('#login').addEventListener('submit', (event) => {
+            event.preventDefault();
+            location.href = '/app';
+          });
+        </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-missing-auth-"));
+    try {
+      await expect(playwrightLogin({
+        username: "test-user",
+        password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/`,
+        statePath: join(root, "state.json"),
+        ignoreHTTPSErrors: false,
+        getOtp: async () => { throw new Error("OTP should not be requested"); },
+        requiredAuthState: {
+          cookieNames: ["keycloak"],
+          localStorageKeys: ["auth.keycloak"]
+        }
+      })).rejects.toThrow(/no reusable authentication state/i);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
