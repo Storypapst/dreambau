@@ -290,6 +290,22 @@ describe("provisioned record and password", () => {
     expect(counsellor.roles).toEqual(["consultant"]);
     expect(counsellor.loginUrl).toBe("https://app.oriso-dev.site");
   });
+
+  it("keeps record ids disjoint across mail domains with the same local part", () => {
+    const base = {
+      displayName: "Lisa Simpson",
+      role: "tenant-admin" as const,
+      adminBaseUrl: "https://admin.oriso-dev.site",
+      appBaseUrl: "https://app.oriso-dev.site",
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    };
+    expect(buildProvisionedRecord({ ...base, email: "lisa.simpson@oriso.org" }).id)
+      .toBe("oriso/pre-dev/lisa.simpson");
+    expect(buildProvisionedRecord({ ...base, email: "lisa.simpson@openresilience.cc" }).id)
+      .toBe("oriso/pre-dev/lisa.simpson-openresilience.cc");
+  });
 });
 
 describe("service construction", () => {

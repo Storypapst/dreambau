@@ -151,6 +151,10 @@ export function generateApplicationPassword(length = 24) {
   return characters.join("");
 }
 
+export function recordRolesForProvisioningRole(role: OrisoProvisioningRole) {
+  return [...roleContract[role].recordRoles];
+}
+
 export function buildProvisionedRecord(input: {
   email: string;
   displayName: string;
@@ -162,10 +166,13 @@ export function buildProvisionedRecord(input: {
   secret: string;
 }): TestAccessRecord {
   const contract = roleContract[input.role];
-  const localPart = input.email.trim().toLowerCase().split("@")[0];
+  const [localPart, domain] = input.email.trim().toLowerCase().split("@");
   const timestamp = input.now.toISOString();
+  // Local parts repeat across the pool's mail domains; only the canonical
+  // oriso.org identities get the short id, every other domain stays disjoint.
+  const recordId = domain === "oriso.org" ? localPart : `${localPart}-${domain}`;
   return testAccessRecordSchema.parse({
-    id: `oriso/pre-dev/${localPart}`,
+    id: `oriso/pre-dev/${recordId}`,
     project: "oriso",
     environment: "pre-dev",
     kind: contract.recordKind,
@@ -218,8 +225,14 @@ export interface OrisoProvisioningService {
   }): Promise<{ created: boolean; state: OrisoProvisioningStateView }>;
 }
 
+const defaultFetch: ProvisioningFetch = (input, init) =>
+  globalThis.fetch(input, { ...init, signal: AbortSignal.timeout(15_000) });
+
 export function createOrisoProvisioningService(options: ServiceOptions): OrisoProvisioningService {
-  const fetch = options.fetch ?? (globalThis.fetch as ProvisioningFetch);
+  for (const url of [options.apiBaseUrl, options.tokenUrl]) {
+    if (new URL(url).protocol !== "https:") throw new Error("ORISO provisioning endpoints must use HTTPS");
+  }
+  const fetch = options.fetch ?? defaultFetch;
   const now = options.now ?? (() => new Date());
   const apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, "");
   let cachedToken: { value: string; expiresAt: number } | null = null;
