@@ -9,7 +9,7 @@ import { CopyButton } from "./copy-button";
 
 export function OtpAccess({ account, locale, compact = false }: { account: AccountView; locale: Locale; compact?: boolean }) {
   const linked = account.linkedAccess?.[0];
-  const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse } | null>(null);
+  const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);
   const [applicationSecret, setApplicationSecret] = useState<{ email: string; accountId: string; value: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -20,8 +20,7 @@ export function OtpAccess({ account, locale, compact = false }: { account: Accou
     : "";
   useEffect(() => {
     if (!displayedResult) return;
-    const expiresAt = displayedResult.source === "totp" ? new Date(displayedResult.expiresAt).getTime() : Date.now() + 5 * 60_000;
-    const timeout = window.setTimeout(() => setResult(null), Math.max(0, expiresAt - Date.now()));
+    const timeout = window.setTimeout(() => setResult(null), Math.max(0, result!.expiresAt - Date.now()));
     return () => window.clearTimeout(timeout);
   }, [displayedResult]);
   if (!linked) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span></div>;
@@ -48,7 +47,12 @@ export function OtpAccess({ account, locale, compact = false }: { account: Accou
     try {
       const value = await api<OtpResponse>(`/accounts/${encodeURIComponent(requestedEmail)}/otp?accountId=${encodeURIComponent(requestedAccountId)}`);
       if (value.accountId !== requestedAccountId) throw new Error("Unexpected account");
-      setResult({ email: requestedEmail, accountId: requestedAccountId, value });
+      setResult({
+        email: requestedEmail,
+        accountId: requestedAccountId,
+        value,
+        expiresAt: value.source === "totp" ? new Date(value.expiresAt).getTime() : Date.now() + 5 * 60_000
+      });
     } catch {
       setError(true);
     } finally {

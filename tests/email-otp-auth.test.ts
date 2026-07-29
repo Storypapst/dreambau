@@ -127,9 +127,16 @@ describe("email OTP authentication", () => {
     expect(limited.body).toEqual({ accepted: true });
     expect(sent).toHaveLength(0);
 
+    const otherIp = await request(app)
+      .post("/testmails/api/auth/email-otp/request")
+      .set("X-Forwarded-For", "203.0.113.7")
+      .send({ email: member.email });
+    expect(otherIp.status).toBe(202);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+
     setNow("2026-07-20T12:11:00.000Z");
     await request(app).post("/testmails/api/auth/email-otp/request").send({ email: member.email });
-    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
     passkeyStore.close();
   });
 });

@@ -48,6 +48,8 @@ describe("runtime config", () => {
     vi.stubEnv("TESTMAILS_SMTP_PASSWORD", "test-only-secret");
     vi.stubEnv("TESTMAILS_SMTP_FROM_ADDRESS", "otp@dreambau.com");
     expect(() => loadConfig()).toThrow(/HMAC/);
+    vi.stubEnv("TESTMAILS_EMAIL_OTP_HMAC_KEY", "1234567890123456789012345678901");
+    expect(() => loadConfig()).toThrow(/at least 32 characters/);
     vi.stubEnv("TESTMAILS_EMAIL_OTP_HMAC_KEY", "separate-hmac-key-with-at-least-32-bytes");
     expect(loadConfig().smtp).toMatchObject({ host: "mail.dreambau.com", port: 465, secure: true });
   });
