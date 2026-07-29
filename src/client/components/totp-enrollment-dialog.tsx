@@ -99,6 +99,9 @@ export function TotpEnrollmentDialog({
               name="totpSecret"
               type="password"
               autoComplete="off"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
               spellCheck={false}
               value={totpSecret}
               onChange={(event) => setTotpSecret(event.target.value)}

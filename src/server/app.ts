@@ -29,6 +29,7 @@ import { generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
+import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -303,26 +304,26 @@ export function createApp(options: AppOptions = {}) {
         .filter((record) => user.projects.includes(record.project))
         .find((record) => record.id === parsed.accountId);
       if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
-      const normalizedSecret = parsed.totpSecret.replace(/\s+/g, "").toUpperCase();
-      try { generateTotp(normalizedSecret, options.now?.() ?? new Date()); }
-      catch { return res.status(400).json({ error: "validation_failed" }); }
-      const updatedAt = (options.now?.() ?? new Date()).toISOString();
-      const result = await registryWriter.enrollTotp(selected, normalizedSecret, updatedAt);
+      const result = await enrollTotpForRecord({
+        record: selected,
+        rawSecret: parsed.totpSecret,
+        writer: registryWriter,
+        now: options.now?.() ?? new Date()
+      });
       database.recordAccountAccess({
         accountId: selected.id,
         email,
         actorId: user.id,
         action: "totp_enrolled",
-        createdAt: updatedAt,
+        createdAt: result.updatedAt,
         context: { environment: selected.environment }
       });
       res.set("Cache-Control", "no-store");
       res.json({ accountId: result.recordId, enrolled: true, updatedAt: result.updatedAt });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: "validation_failed" });
-      if (error instanceof Error && error.message.startsWith("Infisical TOTP")) {
-        return res.status(502).json({ error: "totp_enrollment_failed" });
-      }
+      const mapped = totpEnrollmentHttpError(error);
+      if (mapped) return res.status(mapped.status).json(mapped.body);
       next(error);
     }
   });

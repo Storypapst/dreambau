@@ -5,6 +5,7 @@ import {
   type TestAccessRecord,
   type TestProject
 } from "./infisical-provider.js";
+import { assertTotpNotEnrolled } from "./totp-enrollment.js";
 
 export type WriterFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -52,6 +53,7 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
   const now = options.now ?? Date.now;
   let cachedToken: { value: string; expiresAt: number } | null = null;
   let pendingToken: Promise<string> | null = null;
+  const enrollmentLocks = new Map<string, Promise<unknown>>();
   const requestSignal = () => AbortSignal.timeout(15_000);
 
   async function authenticate() {
@@ -81,58 +83,72 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
     return pendingToken;
   }
 
+  async function serializeEnrollment<T>(recordId: string, operation: () => Promise<T>) {
+    const previous = enrollmentLocks.get(recordId) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    enrollmentLocks.set(recordId, current);
+    try {
+      return await current;
+    } finally {
+      if (enrollmentLocks.get(recordId) === current) enrollmentLocks.delete(recordId);
+    }
+  }
+
   return {
     async enrollTotp(expectedRecord, totpSecret, updatedAt) {
       const expected = testAccessRecordSchema.parse(expectedRecord);
       if (expected.kind !== "app-user" && expected.kind !== "admin") {
         throw new Error("Infisical TOTP record validation failed");
       }
-      const secretName = secretNameForRecord(expected.id);
-      const query = new URLSearchParams({
-        projectId: options.projectIds[expected.project],
-        environment: expected.environment,
-        secretPath: "/records",
-        type: "shared",
-        viewSecretValue: "true",
-        expandSecretReferences: "false",
-        includeImports: "false"
-      });
-      const url = new URL(`/api/v4/secrets/${secretName}`, baseUrl);
-      url.search = query.toString();
-      const headers = { Authorization: `Bearer ${await accessToken()}` };
-      const response = await fetch(url, { headers, signal: requestSignal() });
-      if (!response.ok) throw new Error("Infisical TOTP record lookup failed");
-      let current: TestAccessRecord;
-      try {
-        const parsed = secretResponseSchema.parse(await response.json());
-        if (parsed.secret.secretKey !== secretName) throw new Error("secret name mismatch");
-        current = testAccessRecordSchema.parse(JSON.parse(parsed.secret.secretValue));
-        if (
-          current.id !== expected.id
-          || current.project !== expected.project
-          || current.environment !== expected.environment
-          || (current.kind !== "app-user" && current.kind !== "admin")
-        ) throw new Error("record scope mismatch");
-      } catch {
-        throw new Error("Infisical TOTP record validation failed");
-      }
-      const updated = testAccessRecordSchema.parse({ ...current, totpSecret, updatedAt });
-      const patchResponse = await fetch(new URL(`/api/v4/secrets/${secretName}`, baseUrl), {
-        method: "PATCH",
-        headers: { ...headers, "Content-Type": "application/json" },
-        signal: requestSignal(),
-        body: JSON.stringify({
-          projectId: options.projectIds[current.project],
-          environment: current.environment,
+      return serializeEnrollment(expected.id, async () => {
+        const secretName = secretNameForRecord(expected.id);
+        const query = new URLSearchParams({
+          projectId: options.projectIds[expected.project],
+          environment: expected.environment,
           secretPath: "/records",
-          secretValue: JSON.stringify(updated),
-          skipMultilineEncoding: true,
           type: "shared",
-          secretComment: "TOTP managed by Dreambau Test Access Hub"
-        })
+          viewSecretValue: "true",
+          expandSecretReferences: "false",
+          includeImports: "false"
+        });
+        const url = new URL(`/api/v4/secrets/${secretName}`, baseUrl);
+        url.search = query.toString();
+        const headers = { Authorization: `Bearer ${await accessToken()}` };
+        const response = await fetch(url, { headers, signal: requestSignal() });
+        if (!response.ok) throw new Error("Infisical TOTP record lookup failed");
+        let current: TestAccessRecord;
+        try {
+          const parsed = secretResponseSchema.parse(await response.json());
+          if (parsed.secret.secretKey !== secretName) throw new Error("secret name mismatch");
+          current = testAccessRecordSchema.parse(JSON.parse(parsed.secret.secretValue));
+          if (
+            current.id !== expected.id
+            || current.project !== expected.project
+            || current.environment !== expected.environment
+            || (current.kind !== "app-user" && current.kind !== "admin")
+          ) throw new Error("record scope mismatch");
+        } catch {
+          throw new Error("Infisical TOTP record validation failed");
+        }
+        assertTotpNotEnrolled(current);
+        const updated = testAccessRecordSchema.parse({ ...current, totpSecret, updatedAt });
+        const patchResponse = await fetch(new URL(`/api/v4/secrets/${secretName}`, baseUrl), {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json" },
+          signal: requestSignal(),
+          body: JSON.stringify({
+            projectId: options.projectIds[current.project],
+            environment: current.environment,
+            secretPath: "/records",
+            secretValue: JSON.stringify(updated),
+            skipMultilineEncoding: true,
+            type: "shared",
+            secretComment: "TOTP managed by Dreambau Test Access Hub"
+          })
+        });
+        if (!patchResponse.ok) throw new Error("Infisical TOTP update failed");
+        return { recordId: current.id, updatedAt };
       });
-      if (!patchResponse.ok) throw new Error("Infisical TOTP update failed");
-      return { recordId: current.id, updatedAt };
     }
   };
 }

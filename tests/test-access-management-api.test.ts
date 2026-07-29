@@ -153,6 +153,25 @@ describe("machine Test Access management API", () => {
     expect(forbidden.body).toEqual({ error: "action_denied" });
   });
 
+  it("refuses to replace an existing TOTP through the machine API", async () => {
+    const record = appRecord({ totpSecret: seed });
+    const writer: RegistryWriter = { enrollTotp: vi.fn() };
+    const app = target({
+      actions: ["accounts:read", "accounts:totp:write"],
+      writer,
+      records: [record]
+    });
+
+    const response = await request(app)
+      .post(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/totp`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ totpSecret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "totp_already_enrolled" });
+    expect(writer.enrollTotp).not.toHaveBeenCalled();
+  });
+
   it("hides foreign-scope records and requires sync permission for repair", async () => {
     const foreign = target({
       actions: ["accounts:read", "accounts:totp:write"],

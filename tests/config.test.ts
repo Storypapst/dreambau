@@ -46,6 +46,21 @@ describe("runtime config", () => {
     expect(() => loadConfig()).toThrow(/INFISICAL_WRITER/);
   });
 
+  it("rejects reusing the reader identity as the TOTP writer", () => {
+    vi.stubEnv("TEST_ACCESS_PROVIDER", "infisical");
+    vi.stubEnv("INFISICAL_BASE_URL", "https://secrets.dreambau.com");
+    vi.stubEnv("INFISICAL_ORGANIZATION_SLUG", "dreambau-test-access");
+    vi.stubEnv("INFISICAL_CLIENT_ID", "shared-identity");
+    vi.stubEnv("INFISICAL_CLIENT_SECRET", "reader-secret");
+    vi.stubEnv("INFISICAL_WRITER_CLIENT_ID", "shared-identity");
+    vi.stubEnv("INFISICAL_WRITER_CLIENT_SECRET", "writer-secret");
+    vi.stubEnv("TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID", "project-oriso");
+    vi.stubEnv("TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID", "project-orimo");
+    vi.stubEnv("TEST_ACCESS_INFISICAL_DREAMBAU_PROJECT_ID", "project-dreambau");
+
+    expect(() => loadConfig()).toThrow(/separate.*identity/i);
+  });
+
   it("rejects incomplete Infisical configuration instead of silently falling back to files", () => {
     vi.stubEnv("TEST_ACCESS_PROVIDER", "infisical");
     vi.stubEnv("INFISICAL_BASE_URL", "https://secrets.dreambau.com");

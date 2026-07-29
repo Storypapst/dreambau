@@ -123,6 +123,71 @@ describe("Infisical TOTP writer", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("serializes enrollment per record so concurrent requests cannot replace a TOTP", async () => {
+    let current = record();
+    const fetch: WriterFetch = async (input, init) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body));
+        current = JSON.parse(body.secretValue) as TestAccessRecord;
+        return Response.json({ secret: { id: "updated" } });
+      }
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    const results = await Promise.allSettled([
+      writer.enrollTotp(record(), totpSecret, "2026-07-29T10:00:00.000Z"),
+      writer.enrollTotp(record(), "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", "2026-07-29T10:00:01.000Z")
+    ]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(current.totpSecret).toBe(totpSecret);
+  });
+
+  it("refuses an enrollment when the latest Infisical record already has TOTP", async () => {
+    const current = record({ totpSecret });
+    const fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") throw new Error("must not patch");
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    });
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch: fetch as WriterFetch
+    });
+
+    await expect(writer.enrollTotp(record(), "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP", "2026-07-29T10:00:00.000Z"))
+      .rejects.toThrow("TOTP already enrolled");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("never includes credentials, seed or upstream bodies in errors", async () => {
     const fetch: WriterFetch = async () => new Response(`leaked ${writerSecret} ${totpSecret}`, { status: 403 });
     const writer = createInfisicalRegistryWriter({

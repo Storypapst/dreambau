@@ -234,6 +234,27 @@ describe("human Springfield OTP access", () => {
     expect(otp.body).toMatchObject({ accountId: pending.id, source: "totp", code: "287082" });
   });
 
+  it("refuses to replace an existing app TOTP", async () => {
+    const enrolled = appRecord("abe.simpson@dreambau.de");
+    const writer: RegistryWriter = { enrollTotp: vi.fn() };
+    const { agent, abe } = await authenticatedSetup({
+      records: [enrolled],
+      registryWriter: writer
+    });
+    await agent.get("/testmails/api/accounts");
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/totp`)
+      .send({
+        accountId: enrolled.id,
+        totpSecret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "totp_already_enrolled" });
+    expect(writer.enrollTotp).not.toHaveBeenCalled();
+  });
+
   it("rejects malformed enrollment and fails closed without a writer", async () => {
     const pending = { ...appRecord("abe.simpson@dreambau.de"), totpSecret: undefined };
     const writer: RegistryWriter = { enrollTotp: vi.fn() };
