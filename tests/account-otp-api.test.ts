@@ -10,6 +10,7 @@ import type { RegistryProvider, TestAccessRecord } from "../src/server/infisical
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
 import type { TestMailReader } from "../src/server/test-mail.js";
+import type { RegistryWriter } from "../src/server/infisical-writer.js";
 
 function mailbox(email = "abe.simpson@dreambau.de"): AccountRecord {
   const domain = email.split("@")[1];
@@ -58,7 +59,11 @@ const webauthn: WebAuthnAdapter = {
   verifyAuthenticationResponse: vi.fn(async () => ({ verified: true, authenticationInfo: { newCounter: 1 } }))
 };
 
-async function authenticatedSetup(options: { records?: TestAccessRecord[]; mailReader?: TestMailReader } = {}) {
+async function authenticatedSetup(options: {
+  records?: TestAccessRecord[];
+  mailReader?: TestMailReader;
+  registryWriter?: RegistryWriter;
+} = {}) {
   const abe = mailbox();
   const records = options.records ?? [appRecord(abe.email)];
   const record = records[0];
@@ -79,6 +84,7 @@ async function authenticatedSetup(options: { records?: TestAccessRecord[]; mailR
     database,
     passkeyStore,
     registryProvider,
+    registryWriter: options.registryWriter,
     mailReader: options.mailReader,
     webauthn,
     now: () => new Date(59_000),
@@ -185,5 +191,67 @@ describe("human Springfield OTP access", () => {
     const anonymous = await request(createApp({ passwordHash: "unused", secureCookies: false, loadAccounts: () => [abe] }))
       .get(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/otp`);
     expect(anonymous.status).toBe(401);
+  });
+
+  it("enrolls a missing app TOTP without returning or auditing its seed", async () => {
+    const pending = { ...appRecord("abe.simpson@dreambau.de"), totpSecret: undefined };
+    const registryWriter: RegistryWriter = {
+      async enrollTotp(expected, secret, updatedAt) {
+        expect(expected.id).toBe(pending.id);
+        expect(secret).toBe("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+        Object.assign(pending, { totpSecret: secret, updatedAt });
+        return { recordId: expected.id, updatedAt };
+      }
+    };
+    const { agent, database, abe } = await authenticatedSetup({
+      records: [pending],
+      registryWriter
+    });
+    await agent.get("/testmails/api/accounts");
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/totp`)
+      .send({
+        accountId: pending.id,
+        totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body).toEqual({
+      accountId: pending.id,
+      enrolled: true,
+      updatedAt: "1970-01-01T00:00:59.000Z"
+    });
+    expect(JSON.stringify(response.body)).not.toContain("GEZDGNBV");
+    expect(JSON.stringify(database.getAccountAccess(abe.email))).not.toContain("GEZDGNBV");
+    expect(database.getAccountAccess(abe.email).latest).toMatchObject({
+      accountId: pending.id,
+      action: "totp_enrolled"
+    });
+
+    const otp = await agent.get(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/otp?accountId=${encodeURIComponent(pending.id)}`);
+    expect(otp.body).toMatchObject({ accountId: pending.id, source: "totp", code: "287082" });
+  });
+
+  it("rejects malformed enrollment and fails closed without a writer", async () => {
+    const pending = { ...appRecord("abe.simpson@dreambau.de"), totpSecret: undefined };
+    const writer: RegistryWriter = { enrollTotp: vi.fn() };
+    const withWriter = await authenticatedSetup({ records: [pending], registryWriter: writer });
+    await withWriter.agent.get("/testmails/api/accounts");
+    const invalid = await withWriter.agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(withWriter.abe.email)}/totp`)
+      .send({ accountId: pending.id, totpSecret: "not-base32!" });
+    expect(invalid.status).toBe(400);
+    expect(invalid.body).toEqual({ error: "validation_failed" });
+    expect(writer.enrollTotp).not.toHaveBeenCalled();
+
+    const withoutWriter = await authenticatedSetup({ records: [pending] });
+    await withoutWriter.agent.get("/testmails/api/accounts");
+    const unavailable = await withoutWriter.agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(withoutWriter.abe.email)}/totp`)
+      .send({ accountId: pending.id, totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" });
+    expect(unavailable.status).toBe(503);
+    expect(unavailable.body).toEqual({ error: "totp_enrollment_unavailable" });
   });
 });

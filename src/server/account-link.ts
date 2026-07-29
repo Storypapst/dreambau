@@ -21,6 +21,10 @@ export const accountAccessActions = [
   "secret_requested",
   "mail_requested",
   "otp_requested",
+  "lookup_requested",
+  "totp_enrolled",
+  "doctor_checked",
+  "record_linked",
   "environment_requested",
   "browser_session_opened"
 ] as const;

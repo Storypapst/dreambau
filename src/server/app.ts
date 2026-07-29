@@ -13,7 +13,8 @@ import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
 import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
 import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
-import { createInfisicalRegistryProvider, type RegistryProvider, type TestEnvironment, type TestProject } from "./infisical-provider.js";
+import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
+import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
 import { createPasskeyStore, type HumanUser, type PasskeyStore } from "./passkey-store.js";
 import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
 import type { SessionPrincipal } from "./sessions.js";
@@ -23,7 +24,7 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
-import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
+import { dashboardRoles, publicLinkedAccount } from "./account-link.js";
 import { generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
@@ -40,6 +41,7 @@ interface AppOptions {
   machineIdentityLoader?: () => MachineIdentity[];
   mailReader?: TestMailReader;
   registryProvider?: RegistryProvider;
+  registryWriter?: RegistryWriter;
   now?: () => Date;
   passkeyStore?: PasskeyStore;
   webauthn?: WebAuthnAdapter;
@@ -179,7 +181,30 @@ export function createApp(options: AppOptions = {}) {
     });
   };
   const registryProvider = options.registryProvider ?? runtimeRegistryProvider();
+  const registryWriter = options.registryWriter ?? (
+    config.registryProvider === "infisical" && config.infisical?.writer
+      ? createInfisicalRegistryWriter({
+          baseUrl: config.infisical.baseUrl,
+          organizationSlug: config.infisical.organizationSlug,
+          clientId: config.infisical.writer.clientId,
+          clientSecret: config.infisical.writer.clientSecret,
+          projectIds: config.infisical.projectIds
+        })
+      : undefined
+  );
   const mailReader = options.mailReader ?? createJmapTestMailReader();
+  const reconcileRecords = (records: TestAccessRecord[]) =>
+    database.reconcileTestAccessLinks(
+      accountLoader().map((account) => account.email),
+      records,
+      (options.now?.() ?? new Date()).toISOString()
+    );
+  const linkedFromStore = (email: string, records: TestAccessRecord[]) => {
+    const ids = new Set(database.getTestAccessLinks(email).map((link) => link.recordId));
+    return records
+      .filter((record) => ids.has(record.id))
+      .filter((record) => record.kind === "app-user" || record.kind === "admin");
+  };
   app.get("/testmails/health/ready", async (_req, res) => {
     try {
       if (registryProvider.health) await registryProvider.health();
@@ -193,6 +218,7 @@ export function createApp(options: AppOptions = {}) {
     identities: options.machineIdentityLoader
       ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath)),
     registryProvider,
+    registryWriter,
     database,
     accounts: accountLoader,
     mailReader,
@@ -202,8 +228,9 @@ export function createApp(options: AppOptions = {}) {
     try {
       const user = res.locals.humanUser as HumanUser;
       const records = await registryProvider.list();
+      reconcileRecords(records);
       res.json(scopedAccountViews(user).map((account) => {
-        const linked = linkedApplicationRecordsForEmail(account.email, records)
+        const linked = linkedFromStore(account.email, records)
           .filter((record) => user.projects.includes(record.project));
         // The roles a mailbox can actually sign in with are shown alongside the
         // roles recorded in the catalog. Recovered from the running image
@@ -236,7 +263,9 @@ export function createApp(options: AppOptions = {}) {
     if (!current) return res.status(404).json({ error: "account_not_found" });
     try {
       const parsed = z.object({ accountId: z.string().min(1).max(240) }).parse(req.query);
-      const selected = linkedApplicationRecordsForEmail(email, await registryProvider.list())
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const selected = linkedFromStore(email, records)
         .filter((record) => user.projects.includes(record.project))
         .find((record) => record.id === parsed.accountId);
       if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
@@ -256,6 +285,47 @@ export function createApp(options: AppOptions = {}) {
       next(error);
     }
   });
+  const humanTotpEnrollmentSchema = z.object({
+    accountId: z.string().min(1).max(240),
+    totpSecret: z.string().trim().min(16).max(256)
+  }).strict();
+  api.post("/accounts/:email/totp", requireActiveHumanSession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    if (!registryWriter) return res.status(503).json({ error: "totp_enrollment_unavailable" });
+    try {
+      const parsed = humanTotpEnrollmentSchema.parse(req.body);
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const selected = linkedFromStore(email, records)
+        .filter((record) => user.projects.includes(record.project))
+        .find((record) => record.id === parsed.accountId);
+      if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
+      const normalizedSecret = parsed.totpSecret.replace(/\s+/g, "").toUpperCase();
+      try { generateTotp(normalizedSecret, options.now?.() ?? new Date()); }
+      catch { return res.status(400).json({ error: "validation_failed" }); }
+      const updatedAt = (options.now?.() ?? new Date()).toISOString();
+      const result = await registryWriter.enrollTotp(selected, normalizedSecret, updatedAt);
+      database.recordAccountAccess({
+        accountId: selected.id,
+        email,
+        actorId: user.id,
+        action: "totp_enrolled",
+        createdAt: updatedAt,
+        context: { environment: selected.environment }
+      });
+      res.set("Cache-Control", "no-store");
+      res.json({ accountId: result.recordId, enrolled: true, updatedAt: result.updatedAt });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: "validation_failed" });
+      if (error instanceof Error && error.message.startsWith("Infisical TOTP")) {
+        return res.status(502).json({ error: "totp_enrollment_failed" });
+      }
+      next(error);
+    }
+  });
   api.get("/accounts/:email/otp", requireActiveHumanSession, async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
@@ -263,7 +333,9 @@ export function createApp(options: AppOptions = {}) {
     if (!current) return res.status(404).json({ error: "account_not_found" });
     try {
       const parsed = humanOtpQuerySchema.parse(req.query);
-      const linked = linkedApplicationRecordsForEmail(email, await registryProvider.list())
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const linked = linkedFromStore(email, records)
         .filter((record) => user.projects.includes(record.project));
       const selected = parsed.accountId
         ? linked.find((record) => record.id === parsed.accountId)
