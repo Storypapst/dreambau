@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CircleCheckIcon, MailPlusIcon, RefreshCwIcon } from "lucide-react";
+import { CircleCheckIcon, KeyRoundIcon, MailPlusIcon, RefreshCwIcon, ShieldCheckIcon } from "lucide-react";
 import { api } from "@/api";
 import type { Locale } from "@/i18n";
 import type {
@@ -9,7 +9,8 @@ import type {
   OrisoProvisioningResult,
   OrisoProvisioningRole,
   OrisoProvisioningStateView,
-  OrisoProvisioningView
+  OrisoProvisioningView,
+  OtpResponse
 } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -30,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { CopyButton } from "./copy-button";
 
 const stateLabels: Record<OrisoOnboardingState, { de: string; en: string }> = {
   invited: { de: "Eingeladen", en: "Invited" },
@@ -48,8 +51,8 @@ const nextStepLabels: Record<OrisoProvisioningStateView["nextStep"], { de: strin
     en: "Complete onboarding: set the password from the Test Access record (Get app password)."
   },
   "store-totp": {
-    de: "TOTP-Schlüssel aus dem ORISO-Onboarding über „2FA hinterlegen“ im verknüpften Record speichern.",
-    en: "Store the TOTP key from ORISO onboarding via “Set up 2FA” in the linked record."
+    de: "TOTP-Schlüssel aus dem ORISO-Onboarding unten einfügen — der Antwortcode für ORISO erscheint direkt danach.",
+    en: "Paste the TOTP key from ORISO onboarding below — the response code for ORISO appears right after."
   },
   none: {
     de: "Konto ist bereit. OTP über „OTP abrufen“ verfügbar.",
@@ -93,6 +96,11 @@ export function OrisoProvisioningDialog({
   const [role, setRole] = useState<OrisoProvisioningRole>("tenant-admin");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [totpSecret, setTotpSecret] = useState("");
+  const [enrollBusy, setEnrollBusy] = useState(false);
+  const [enrollError, setEnrollError] = useState(false);
+  const [otp, setOtp] = useState<{ code: string } | null>(null);
+  const [otpError, setOtpError] = useState(false);
 
   async function load() {
     setError(null);
@@ -106,9 +114,47 @@ export function OrisoProvisioningDialog({
   function changeOpen(value: boolean) {
     setOpen(value);
     setError(null);
+    setTotpSecret("");
+    setEnrollError(false);
+    setOtp(null);
+    setOtpError(false);
     if (value) {
       setView(null);
       void load();
+    }
+  }
+
+  async function requestOtp(accountId: string) {
+    setOtpError(false);
+    try {
+      const value = await api<OtpResponse>(
+        `/accounts/${encodeURIComponent(account.email)}/otp?accountId=${encodeURIComponent(accountId)}`
+      );
+      setOtp({ code: value.code });
+    } catch {
+      setOtpError(true);
+    }
+  }
+
+  async function enrollAndGenerate() {
+    const linked = view?.linked;
+    if (!linked) return;
+    setEnrollBusy(true);
+    setEnrollError(false);
+    try {
+      await api(`/accounts/${encodeURIComponent(account.email)}/totp`, {
+        method: "POST",
+        body: JSON.stringify({ accountId: linked.id, totpSecret })
+      });
+      setTotpSecret("");
+      const updated = { ...linked, hasTotp: true };
+      setView((current) => current ? { ...current, linked: updated } : current);
+      onProvisioned(account.email, updated);
+      await requestOtp(linked.id);
+    } catch {
+      setEnrollError(true);
+    } finally {
+      setEnrollBusy(false);
     }
   }
 
@@ -160,6 +206,54 @@ export function OrisoProvisioningDialog({
           ? "Für diese Einladung existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen „App-Passwort abrufen“ und „2FA hinterlegen“ in der Zeile."
           : "This invitation has no Test Access record yet. “Get app password” and “Set up 2FA” appear in the row only after linking."}
       </p>}
+      {view?.configured && view.linked && !view.linked.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
+        <p className="text-sm font-medium">{locale === "de" ? "2FA direkt hier abschließen" : "Finish 2FA right here"}</p>
+        <p className="text-xs text-muted-foreground">
+          {locale === "de"
+            ? "Base32-Schlüssel aus dem ORISO-2FA-Dialog einfügen. Er wird nur im verknüpften Infisical-Record gespeichert; danach erscheint sofort der Antwortcode für ORISO."
+            : "Paste the Base32 key from the ORISO 2FA dialog. It is stored only in the linked Infisical record; the response code for ORISO appears right after."}
+        </p>
+        <Input
+          aria-label={locale === "de" ? "TOTP-Schlüssel" : "TOTP key"}
+          name="dialogTotpSecret"
+          type="password"
+          autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
+          spellCheck={false}
+          placeholder={locale === "de" ? "TOTP-Schlüssel (Base32)" : "TOTP key (Base32)"}
+          value={totpSecret}
+          onChange={(event) => setTotpSecret(event.target.value)}
+          aria-invalid={enrollError}
+          disabled={enrollBusy}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" onClick={enrollAndGenerate} disabled={enrollBusy || !totpSecret.trim()}>
+            <ShieldCheckIcon data-icon="inline-start" />
+            {enrollBusy
+              ? (locale === "de" ? "Wird gespeichert…" : "Saving…")
+              : (locale === "de" ? "Hinterlegen & Code erzeugen" : "Store & generate code")}
+          </Button>
+        </div>
+        {enrollError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Der TOTP-Schlüssel wurde nicht gespeichert." : "The TOTP key was not stored."}</p>}
+      </div>}
+      {view?.configured && view.linked?.hasTotp && !otp && <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => requestOtp(view.linked!.id)}>
+          <KeyRoundIcon data-icon="inline-start" />
+          {locale === "de" ? "Antwortcode erzeugen" : "Generate response code"}
+        </Button>
+      </div>}
+      {otp && <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
+        <span className="text-sm">{locale === "de" ? "Code für ORISO:" : "Code for ORISO:"}</span>
+        <code className="font-semibold tabular-nums" data-testid="oriso-dialog-otp">{otp.code}</code>
+        <CopyButton value={otp.code} label={locale === "de" ? "Code kopieren" : "Copy code"} compact />
+        <Button type="button" variant="ghost" size="sm" onClick={() => view?.linked && requestOtp(view.linked.id)}>
+          <RefreshCwIcon data-icon="inline-start" />
+          {locale === "de" ? "Neu" : "Refresh"}
+        </Button>
+      </div>}
+      {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
       {view?.configured && !view.state && <div className="flex flex-col gap-3">
         <p className="text-sm">{locale === "de" ? "Keine aktive Einladung. Rolle wählen und Einladung senden:" : "No active invitation. Choose a role and send the invitation:"}</p>
         <Select value={role} onValueChange={(value) => setRole(value as OrisoProvisioningRole)}>

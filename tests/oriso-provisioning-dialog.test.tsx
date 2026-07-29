@@ -104,7 +104,7 @@ describe("OrisoProvisioningDialog", () => {
     });
     await openDialog();
     await vi.waitFor(() => expect(document.body.textContent).toContain("2FA ausstehend"));
-    expect(document.body.textContent).toContain("2FA hinterlegen");
+    expect(document.body.textContent).toContain("2FA direkt hier abschließen");
     expect(Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Einladung senden"))).toBe(false);
   });
 
@@ -133,6 +133,43 @@ describe("OrisoProvisioningDialog", () => {
       { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "tenant-admin" }) }
     );
     await vi.waitFor(() => expect(document.body.textContent).not.toContain("noch kein Test-Access-Record"));
+  });
+
+  it("stores the TOTP key inline and immediately shows the response code for ORISO", async () => {
+    vi.mocked(api).mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/oriso-provisioning") && !init?.method) {
+        return {
+          configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
+          environment: "pre-dev",
+          state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+          linked: linkedFixture
+        };
+      }
+      if (path.endsWith("/totp")) return { accountId: linkedFixture.id, enrolled: true, updatedAt: "2026-07-29T18:00:00.000Z" };
+      if (path.includes("/otp?")) return { accountId: linkedFixture.id, source: "totp", code: "287082", generatedAt: "", expiresAt: "" };
+      throw new Error(`unexpected ${path}`);
+    });
+    const onProvisioned = await openDialog();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("2FA direkt hier abschließen"));
+
+    const input = document.querySelector<HTMLInputElement>("input[name=dialogTotpSecret]")!;
+    expect(input.type).toBe("password");
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const submit = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Hinterlegen & Code erzeugen"));
+    await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(document.querySelector("[data-testid=oriso-dialog-otp]")?.textContent).toBe("287082"));
+    expect(api).toHaveBeenCalledWith(
+      `/accounts/${encodeURIComponent("lisa.simpson@oriso.org")}/totp`,
+      { method: "POST", body: JSON.stringify({ accountId: linkedFixture.id, totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" }) }
+    );
+    expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@oriso.org", { ...linkedFixture, hasTotp: true });
+    expect(document.body.textContent).not.toContain("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
   });
 
   it("explains when provisioning is not configured on the server", async () => {
