@@ -58,16 +58,17 @@ const webauthn: WebAuthnAdapter = {
   verifyAuthenticationResponse: vi.fn(async () => ({ verified: true, authenticationInfo: { newCounter: 1 } }))
 };
 
-async function authenticatedSetup(options: { record?: TestAccessRecord; mailReader?: TestMailReader } = {}) {
+async function authenticatedSetup(options: { records?: TestAccessRecord[]; mailReader?: TestMailReader } = {}) {
   const abe = mailbox();
-  const record = options.record ?? appRecord(abe.email);
+  const records = options.records ?? [appRecord(abe.email)];
+  const record = records[0];
   const registryProvider: RegistryProvider = {
-    async list() { return [record]; },
-    async get(id) { return id === record.id ? record : null; }
+    async list() { return records; },
+    async get(id) { return records.find((candidate) => candidate.id === id) ?? null; }
   };
   const root = mkdtempSync(path.join(tmpdir(), "account-otp-"));
   const database = createDatabase(path.join(root, "catalog.sqlite"));
-  database.upsertMetadata(abe.email, { project: "ORISO", roles: ["Admin"], shippedVersion: "2.02", lifecycleStatus: "active" });
+  database.upsertMetadata(abe.email, { project: "ORISO", roles: [], shippedVersion: "2.02", lifecycleStatus: "active" });
   const passkeyStore = createPasskeyStore(path.join(root, "auth.sqlite"));
   const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso"], role: "admin" });
   passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
@@ -109,6 +110,7 @@ describe("human Springfield OTP access", () => {
       loginUrl: "https://pre-dev.oriso.example.test",
       hasTotp: true
     }]);
+    expect(before.body[0].metadata.roles).toEqual(["Admin"]);
     expect(before.body[0].access.latest).toBeNull();
     expect(JSON.stringify(before.body)).not.toContain(record.totpSecret);
     expect(JSON.stringify(before.body)).not.toContain(record.secret);
@@ -128,7 +130,7 @@ describe("human Springfield OTP access", () => {
   });
 
   it("falls back to the latest matching mailbox OTP when no app TOTP exists", async () => {
-    const mailboxRecord = { ...appRecord("abe.simpson@dreambau.de"), kind: "mailbox" as const, totpSecret: undefined };
+    const emailOtpAppRecord = { ...appRecord("abe.simpson@dreambau.de"), kind: "app-user" as const, totpSecret: undefined };
     const mailReader: TestMailReader = {
       async latest() { return null; },
       async otp(account, query) {
@@ -137,10 +139,45 @@ describe("human Springfield OTP access", () => {
         return { code: "654321", receivedAt: "2026-07-19T17:00:00.000Z", messageId: "mail-1", subject: "ORISO login code" };
       }
     };
-    const { agent, abe } = await authenticatedSetup({ record: mailboxRecord, mailReader });
+    const { agent, abe } = await authenticatedSetup({ records: [emailOtpAppRecord], mailReader });
     const otp = await agent.get(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/otp?query=ORISO`);
     expect(otp.status).toBe(200);
-    expect(otp.body).toMatchObject({ accountId: mailboxRecord.id, source: "mail", code: "654321" });
+    expect(otp.body).toMatchObject({ accountId: emailOtpAppRecord.id, source: "mail", code: "654321" });
+  });
+
+  it("does not present a mailbox-only record as an application login or search arbitrary mail for an OTP", async () => {
+    const mailboxRecord = {
+      ...appRecord("abe.simpson@dreambau.de"),
+      id: "mailbox:abe.simpson@dreambau.de",
+      kind: "mailbox" as const,
+      roles: ["mailbox"],
+      totpSecret: undefined
+    };
+    const mailReader: TestMailReader = {
+      async latest() { return null; },
+      otp: vi.fn(async () => ({ code: "654321", receivedAt: "2026-07-19T17:00:00.000Z", messageId: "unrelated-mail", subject: "Unrelated code" }))
+    };
+    const { agent, abe } = await authenticatedSetup({ records: [mailboxRecord], mailReader });
+
+    const accounts = await agent.get("/testmails/api/accounts");
+    expect(accounts.status).toBe(200);
+    expect(accounts.body[0].linkedAccess).toEqual([]);
+
+    const otp = await agent.get(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/otp`);
+    expect(otp.status).toBe(404);
+    expect(otp.body).toEqual({ error: "linked_account_not_found" });
+    expect(mailReader.otp).not.toHaveBeenCalled();
+  });
+
+  it("retrieves an application password only on demand for the exact scoped linked account", async () => {
+    const { agent, abe, record } = await authenticatedSetup();
+    const accounts = await agent.get("/testmails/api/accounts");
+    expect(JSON.stringify(accounts.body)).not.toContain(record.secret);
+
+    const secret = await agent.get(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/application-secret?accountId=${encodeURIComponent(record.id)}`);
+    expect(secret.status).toBe(200);
+    expect(secret.headers["cache-control"]).toBe("no-store");
+    expect(secret.body).toEqual({ accountId: record.id, secret: record.secret });
   });
 
   it("requires a strong human session", async () => {

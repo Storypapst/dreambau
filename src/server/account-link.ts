@@ -79,6 +79,11 @@ export function linkedRecordsForEmail(email: string, records: TestAccessRecord[]
     .sort((left, right) => recordPriority(left) - recordPriority(right) || left.id.localeCompare(right.id));
 }
 
+export function linkedApplicationRecordsForEmail(email: string, records: TestAccessRecord[]): TestAccessRecord[] {
+  return linkedRecordsForEmail(email, records)
+    .filter((record) => record.kind === "app-user" || record.kind === "admin");
+}
+
 export function publicLinkedAccount(record: TestAccessRecord): LinkedTestAccount | null {
   if (!record.email) return null;
   return {
@@ -100,7 +105,7 @@ export function isKnownSyntheticEmail(email: string, accounts: AccountRecord[]) 
   return accounts.some((account) => normalizeEmail(account.email) === normalized);
 }
 
-function dashboardRoles(roles: string[]) {
+export function dashboardRoles(roles: string[]) {
   const result = new Set<string>();
   if (roles.some((role) => role === "admin" || role === "platform-admin" || role.endsWith("-admin"))) result.add("Admin");
   if (roles.some((role) => role === "consultant" || role === "counselor")) result.add("Berater");

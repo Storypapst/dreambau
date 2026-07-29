@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { KeyRoundIcon, LanguagesIcon, LockKeyholeIcon } from "lucide-react";
+import { KeyRoundIcon, LanguagesIcon, LockKeyholeIcon, MailIcon } from "lucide-react";
 import { api } from "@/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState(rememberedLoginEmail);
   const [recoveryCode, setRecoveryCode] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
+  const [emailOtpRequestedFor, setEmailOtpRequestedFor] = useState<string | null>(null);
   const [bootstrapEnabled, setBootstrapEnabled] = useState<boolean | "error" | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -27,7 +29,9 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   async function passkeyLogin() {
     setBusy(true); setError("");
     try { await authenticateWithPasskey(email); rememberLoginEmail(email); onAuthenticated(); }
-    catch { setError(locale === "de" ? "Passkey-Anmeldung fehlgeschlagen." : "Passkey sign-in failed."); }
+    catch (reason) { setError(reason instanceof Error && reason.message === "passkey_not_registered"
+      ? (locale === "de" ? "Für dieses Konto ist noch kein Passkey registriert. Bitte den Enrollment-Code unten verwenden und danach den Passkey einrichten." : "No passkey is registered for this account yet. Use the enrollment code below, then set up the passkey.")
+      : (locale === "de" ? "Passkey-Anmeldung fehlgeschlagen." : "Passkey sign-in failed.")); }
     finally { setBusy(false); }
   }
   async function recoveryLogin() {
@@ -35,6 +39,28 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
     try { await api("/auth/recovery", { method: "POST", body: JSON.stringify({ email, code: recoveryCode }) }); onAuthenticated(); }
     catch { setError(locale === "de" ? "Recovery-Code ungültig oder bereits verwendet." : "Recovery code is invalid or already used."); }
     finally { setBusy(false); }
+  }
+  async function requestEmailOtp() {
+    setBusy(true); setError("");
+    const requestedEmail = email.trim().toLowerCase();
+    try {
+      await api("/auth/email-otp/request", { method: "POST", body: JSON.stringify({ email: requestedEmail }) });
+      setEmailOtp("");
+      setEmailOtpRequestedFor(requestedEmail);
+    } catch {
+      setError(locale === "de" ? "Der Code konnte gerade nicht angefordert werden." : "The code could not be requested right now.");
+    } finally { setBusy(false); }
+  }
+  async function verifyEmailOtp() {
+    setBusy(true); setError("");
+    const requestedEmail = email.trim().toLowerCase();
+    try {
+      if (emailOtpRequestedFor !== requestedEmail) throw new Error("email_changed");
+      await api("/auth/email-otp/verify", { method: "POST", body: JSON.stringify({ email: requestedEmail, code: emailOtp }) });
+      rememberLoginEmail(requestedEmail); onAuthenticated();
+    } catch {
+      setError(locale === "de" ? "Der E-Mail-Code ist ungültig oder abgelaufen." : "The email code is invalid or expired.");
+    } finally { setBusy(false); }
   }
   return <main className="grid min-h-screen place-items-center p-6">
     <Card className="w-full max-w-md">
@@ -54,11 +80,18 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
               <Input id="email" type="email" autoComplete="username webauthn" value={email} onChange={(event) => setEmail(event.target.value)} />
             </Field>
             <Button type="button" onClick={passkeyLogin} disabled={busy || !email}><KeyRoundIcon />{locale === "de" ? "Mit Passkey anmelden" : "Sign in with passkey"}</Button>
+            <Button type="button" variant="outline" onClick={requestEmailOtp} disabled={busy || !email}><MailIcon data-icon="inline-start" />{locale === "de" ? "Code per E-Mail senden" : "Send code by email"}</Button>
+            {emailOtpRequestedFor === email.trim().toLowerCase() && <><Alert><MailIcon /><AlertTitle>{locale === "de" ? "Postfach prüfen" : "Check your inbox"}</AlertTitle><AlertDescription>{locale === "de" ? "Wenn das Konto berechtigt ist, wurde ein sechsstelliger Code gesendet." : "If the account is eligible, a six-digit code was sent."}</AlertDescription></Alert>
             <Field data-invalid={Boolean(error)}>
-              <FieldLabel htmlFor="recovery-code">Recovery-Code</FieldLabel>
+              <FieldLabel htmlFor="email-otp">{locale === "de" ? "Sechsstelliger Code" : "Six-digit code"}</FieldLabel>
+              <Input id="email-otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={emailOtp} onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} />
+            </Field>
+            <Button type="button" onClick={verifyEmailOtp} disabled={busy || emailOtp.length !== 6}>{locale === "de" ? "Code bestätigen" : "Confirm code"}</Button></>}
+            <Field data-invalid={Boolean(error)}>
+              <FieldLabel htmlFor="recovery-code">{locale === "de" ? "Enrollment-/Recovery-Code" : "Enrollment/recovery code"}</FieldLabel>
               <Input id="recovery-code" type="password" autoComplete="one-time-code" value={recoveryCode} onChange={(event) => setRecoveryCode(event.target.value)} />
             </Field>
-            <Button type="button" variant="outline" onClick={recoveryLogin} disabled={busy || !email || !recoveryCode}>{locale === "de" ? "Recovery-Code verwenden" : "Use recovery code"}</Button></>}
+            <Button type="button" variant="outline" onClick={recoveryLogin} disabled={busy || !email || !recoveryCode}>{locale === "de" ? "Enrollment-/Recovery-Code verwenden" : "Use enrollment/recovery code"}</Button></>}
             {bootstrapEnabled === true && <><div className="text-center"><div className="font-medium">{locale === "de" ? "Ersteinrichtung auf diesem System" : "First-time setup on this system"}</div><div className="mt-1 text-xs text-muted-foreground">{locale === "de" ? "Lege jetzt den ersten Passkey für den geschützten Zugang an." : "Create the first passkey for protected access now."}</div></div>
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="password">{locale === "de" ? "Gemeinsames Passwort" : "Shared password"}</FieldLabel>

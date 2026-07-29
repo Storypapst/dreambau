@@ -19,6 +19,9 @@ export async function authenticateWithPasskey(
     method: "POST",
     body: JSON.stringify({ email })
   });
+  if (Array.isArray(request.options?.allowCredentials) && request.options.allowCredentials.length === 0) {
+    throw new Error("passkey_not_registered");
+  }
   const response = await dependencies.startAuthentication({ optionsJSON: request.options });
   return dependencies.api("/auth/passkeys/authentication/verify", {
     method: "POST",
