@@ -22,7 +22,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: testmails
-          image: dreambau-testmails:0.9.0-oriso-provisioning-3d70779
+          image: dreambau-testmails:0.9.1-oriso-provisioning-39beb9a
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 3000 }
