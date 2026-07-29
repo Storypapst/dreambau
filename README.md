@@ -325,8 +325,8 @@ Infisical bleibt der einzige Speicherort für App-Passwort und TOTP-Seed.
 Lesen und Schreiben verwenden getrennte Universal-Auth-Identitäten:
 
 - `test-access-infisical` darf die Registry unter `/records` lesen;
-- `test-access-infisical-writer` darf bestehende Secrets unter `/records`
-  lesen und aktualisieren, aber keine Secrets anlegen oder löschen;
+- `test-access-infisical-writer` darf Secrets unter `/records` lesen, anlegen
+  und aktualisieren, aber keine Secrets löschen;
 - beide Rollen werden in Infisical auf die drei Test-Access-Projekte und die
   Testumgebungen `local`, `pre-dev`, `dev` und `production-test` begrenzt;
 - `production` ist weder ein gültiger API-Scope noch ein gültiger
@@ -410,25 +410,39 @@ Maschinen-Bootstrap-Credential. Testkonto-Passwörter verbleiben in Infisical.
 ### ORISO PreDev self-service provisioning
 
 Administrators can provision a real ORISO PreDev account for a free
-Springfield mailbox directly from the Testmails UI (issue #49). The server
-authenticates with the managed platform-admin record, creates an ORISO
-account invitation for the selected role (`tenant-admin`, `agency-admin`,
-`counsellor`) and stores a stable Test Access record
-(`oriso/pre-dev/<mailbox-local-part>`) with a generated application password
-in Infisical. Credentials and OTPs never reach the browser; the invitation
-travels only through the Springfield mailbox. The operation is idempotent and
-reports existing invitations; every environment except `pre-dev` is rejected.
+Springfield mailbox directly from the Testmails UI (issues #49 and #57). The
+server authenticates with the managed platform-admin record and supports
+`platform-admin`, `tenant-admin`, `agency-admin`, `counsellor` and
+`advice-seeker`. It stores a stable Test Access record
+(`oriso/pre-dev/<mailbox-local-part>`) with a generated application password,
+creates or reconciles the ORISO identity by API, assigns agency admins and
+counsellors to the configured test agency, stores a generated TOTP seed only
+in Infisical, activates app-TOTP and proves a second login.
+
+Credentials and server-generated TOTP seeds never reach the browser or audit
+log. The legacy manual enrollment flow accepts a TOTP seed pasted by the user
+in the browser and sends it once to the protected `/totp` endpoint. One-time
+response codes reach the browser only after an explicit generation request and
+must never be persisted or logged. The linked record has an explicit
+`pending`, `ready` or `failed` provisioning state so a locally stored seed
+alone can never claim a successful ORISO setup. Repeating the same request
+reconciles the existing account; every environment except `pre-dev` is
+rejected.
 
 Configuration (feature is disabled until `ORISO_PREDEV_ADMIN_RECORD_ID` is
 set): `ORISO_PREDEV_ADMIN_RECORD_ID` (e.g.
 `oriso/pre-dev/e2e-platform-admin-predev`), optional overrides
 `ORISO_PREDEV_API_BASE_URL`, `ORISO_PREDEV_TOKEN_URL`,
-`ORISO_PREDEV_CLIENT_ID`, `ORISO_PREDEV_ADMIN_URL`, `ORISO_PREDEV_APP_URL`.
+`ORISO_PREDEV_CLIENT_ID`, `ORISO_PREDEV_ADMIN_URL`, `ORISO_PREDEV_APP_URL`,
+`ORISO_PREDEV_DEFAULT_TENANT_ID`, `ORISO_PREDEV_DEFAULT_AGENCY_ID`,
+`ORISO_PREDEV_DEFAULT_CONSULTING_TYPE`, `ORISO_PREDEV_DEFAULT_POSTCODE` and
+`ORISO_PREDEV_DEFAULT_MAIN_TOPIC_ID`.
 Because the public DNS of `oriso-dev.site` still points at the retired host
 and PreDev serves a certificate from the internal "ORISO Dev Local CA", set
 `ORISO_PREDEV_RESOLVE_IP=46.224.170.69` and mount the CA via
-`ORISO_PREDEV_CA_FILE`. Record creation additionally requires the Infisical
-writer identity to have create permission on the `/records` path.
+`ORISO_PREDEV_CA_FILE`. Record creation and provisioning-state transitions
+require the Infisical writer identity to have create and update permission on
+the `/records` path.
 
 ### ORISO PreDev seed import
 

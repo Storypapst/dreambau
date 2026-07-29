@@ -16,6 +16,7 @@ export interface RegistryWriter {
     updatedAt: string
   ): Promise<{ recordId: string; updatedAt: string }>;
   createRecord?(record: TestAccessRecord): Promise<{ recordId: string }>;
+  updateRecord?(record: TestAccessRecord): Promise<{ recordId: string; updatedAt: string }>;
 }
 
 interface WriterOptions {
@@ -140,6 +141,69 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
         }
         if (!response.ok) throw new Error("Infisical record creation failed");
         return { recordId: record.id };
+      });
+    },
+    async updateRecord(input) {
+      const record = testAccessRecordSchema.parse(input);
+      if (record.kind !== "app-user" && record.kind !== "admin") {
+        throw new Error("Infisical record update only supports application records");
+      }
+      return serializeEnrollment(record.id, async () => {
+        const secretName = secretNameForRecord(record.id);
+        const query = new URLSearchParams({
+          projectId: options.projectIds[record.project],
+          environment: record.environment,
+          secretPath: "/records",
+          type: "shared",
+          viewSecretValue: "true",
+          expandSecretReferences: "false",
+          includeImports: "false"
+        });
+        const lookupUrl = new URL(`/api/v4/secrets/${secretName}`, baseUrl);
+        lookupUrl.search = query.toString();
+        const headers = { Authorization: `Bearer ${await accessToken()}` };
+        const currentResponse = await fetch(lookupUrl, { headers, signal: requestSignal() });
+        if (!currentResponse.ok) throw new Error("Infisical record update lookup failed");
+        let current: TestAccessRecord;
+        try {
+          const parsed = secretResponseSchema.parse(await currentResponse.json());
+          if (parsed.secret.secretKey !== secretName) throw new Error("secret name mismatch");
+          current = testAccessRecordSchema.parse(JSON.parse(parsed.secret.secretValue));
+          if (
+            current.id !== record.id
+            || current.project !== record.project
+            || current.environment !== record.environment
+          ) throw new Error("record scope mismatch");
+        } catch {
+          throw new Error("Infisical record update validation failed");
+        }
+        // updateRecord owns the provisioning state only. Re-reading under the
+        // per-record lock preserves concurrent metadata and TOTP enrollment.
+        const updated = testAccessRecordSchema.parse({
+          ...current,
+          provisioningStatus: record.provisioningStatus,
+          updatedAt: record.updatedAt,
+          totpSecret: record.totpSecret ?? current.totpSecret
+        });
+        const response = await fetch(new URL(`/api/v4/secrets/${secretName}`, baseUrl), {
+          method: "PATCH",
+          headers: {
+            ...headers,
+            "Content-Type": "application/json"
+          },
+          signal: requestSignal(),
+          body: JSON.stringify({
+            projectId: options.projectIds[updated.project],
+            environment: updated.environment,
+            secretPath: "/records",
+            secretValue: JSON.stringify(updated),
+            skipMultilineEncoding: true,
+            type: "shared",
+            secretComment: "Provisioning state managed by Dreambau Test Access Hub"
+          })
+        });
+        if (!response.ok) throw new Error("Infisical record update failed");
+        return { recordId: updated.id, updatedAt: updated.updatedAt };
       });
     },
     async enrollTotp(expectedRecord, totpSecret, updatedAt) {

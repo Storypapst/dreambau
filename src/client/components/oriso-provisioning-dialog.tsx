@@ -61,9 +61,11 @@ const nextStepLabels: Record<OrisoProvisioningStateView["nextStep"], { de: strin
 };
 
 const roleLabels: Record<OrisoProvisioningRole, { de: string; en: string }> = {
+  "platform-admin": { de: "Plattform-Admin", en: "Platform admin" },
   "tenant-admin": { de: "Träger-Admin", en: "Tenant admin" },
-  "agency-admin": { de: "Agentur-Admin", en: "Agency admin" },
-  counsellor: { de: "Berater:in", en: "Counsellor" }
+  "agency-admin": { de: "Beratungsstellen-Admin", en: "Agency admin" },
+  counsellor: { de: "Berater:in", en: "Counsellor" },
+  "advice-seeker": { de: "Ratsuchende:r", en: "Advice seeker" }
 };
 
 function StateSummary({ state, locale }: { state: OrisoProvisioningStateView; locale: Locale }) {
@@ -170,8 +172,8 @@ export function OrisoProvisioningDialog({
       onProvisioned(account.email, result.linked);
     } catch {
       setError(locale === "de"
-        ? "Einladung konnte nicht angelegt werden. Details stehen im Server-Log; Zugangsdaten erscheinen dort nicht."
-        : "Could not create the invitation. Details are in the server log; credentials never appear there.");
+        ? "Konto konnte nicht vollständig angelegt oder geprüft werden. Details stehen im Server-Log; Zugangsdaten erscheinen dort nicht."
+        : "Could not fully provision or verify the account. Details are in the server log; credentials never appear there.");
     } finally {
       setBusy(false);
     }
@@ -190,8 +192,8 @@ export function OrisoProvisioningDialog({
         <DialogTitle>{locale === "de" ? "ORISO PreDev Konto" : "ORISO PreDev account"}</DialogTitle>
         <DialogDescription>
           {locale === "de"
-            ? "Legt über den verwalteten Platform-Admin eine echte ORISO-Einladung für dieses Springfield-Postfach an. Zugangsdaten bleiben im Test-Access-Record."
-            : "Creates a real ORISO invitation for this Springfield mailbox through the managed platform admin. Credentials stay inside the Test Access record."}
+            ? "Legt über den verwalteten Plattform-Admin ein wiederverwendbares ORISO-Konto für dieses Springfield-Postfach an, aktiviert 2FA und prüft den Login. Zugangsdaten bleiben im Test-Access-Record."
+            : "Creates a reusable ORISO account for this Springfield mailbox through the managed platform admin, activates 2FA, and verifies login. Credentials stay inside the Test Access record."}
         </DialogDescription>
       </DialogHeader>
       {!view && !error && <p className="text-sm text-muted-foreground">{locale === "de" ? "Status wird geladen…" : "Loading status…"}</p>}
@@ -203,8 +205,8 @@ export function OrisoProvisioningDialog({
       {view?.configured && view.state && <StateSummary state={view.state} locale={locale} />}
       {view?.configured && view.state && !view.linked && view.state.role && <p className="text-sm text-muted-foreground">
         {locale === "de"
-          ? "Für diese Einladung existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen „App-Passwort abrufen“ und „2FA hinterlegen“ in der Zeile."
-          : "This invitation has no Test Access record yet. “Get app password” and “Set up 2FA” appear in the row only after linking."}
+          ? "Für dieses ORISO-Konto existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen „App-Passwort abrufen“ und „2FA hinterlegen“ in der Zeile."
+          : "This ORISO account has no Test Access record yet. “Get app password” and “Set up 2FA” appear in the row only after linking."}
       </p>}
       {view?.configured && view.linked && !view.linked.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
         <p className="text-sm font-medium">{locale === "de" ? "2FA direkt hier abschließen" : "Finish 2FA right here"}</p>
@@ -255,7 +257,7 @@ export function OrisoProvisioningDialog({
       </div>}
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
       {view?.configured && !view.state && <div className="flex flex-col gap-3">
-        <p className="text-sm">{locale === "de" ? "Keine aktive Einladung. Rolle wählen und Einladung senden:" : "No active invitation. Choose a role and send the invitation:"}</p>
+        <p className="text-sm">{locale === "de" ? "Noch kein ORISO-Konto. Rolle wählen und Konto vollständig anlegen:" : "No ORISO account yet. Choose a role and provision the complete account:"}</p>
         <Select value={role} onValueChange={(value) => setRole(value as OrisoProvisioningRole)}>
           <SelectTrigger aria-label={locale === "de" ? "Rolle" : "Role"}><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>
@@ -272,7 +274,7 @@ export function OrisoProvisioningDialog({
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
-            : (locale === "de" ? "Einladung senden" : "Send invitation")}
+            : (locale === "de" ? "Konto anlegen & prüfen" : "Provision & verify account")}
         </Button>}
         {view?.configured && view.state && !view.linked && view.state.role && <Button type="button" onClick={() => provision(view.state!.role!)} disabled={busy}>
           <CircleCheckIcon data-icon="inline-start" />

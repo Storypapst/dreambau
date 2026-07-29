@@ -40,6 +40,23 @@ function stateFixture(patch: Partial<OrisoProvisioningStateView> = {}): OrisoPro
   };
 }
 
+function readyStateFixture(): OrisoProvisioningStateView {
+  return {
+    state: "ready",
+    role: "tenant-admin",
+    targetRole: "TENANT_ADMIN",
+    inviteId: 0,
+    inviteStatus: "DIRECT_CREATED",
+    emailVerificationStatus: "VERIFIED",
+    twoFactorStatus: "ACTIVE",
+    accessGateStatus: "READY",
+    createdAt: "2026-07-29T14:00:00",
+    expiresAt: null,
+    acceptedAt: "2026-07-29T14:00:00",
+    nextStep: "none"
+  };
+}
+
 const linkedFixture: LinkedTestAccount = {
   id: "oriso/pre-dev/lisa.simpson", project: "oriso", environment: "pre-dev", kind: "admin",
   displayName: "Lisa Simpson — ORISO PreDev tenant-admin", username: "lisa.simpson@oriso.org",
@@ -71,28 +88,49 @@ describe("OrisoProvisioningDialog", () => {
     return onProvisioned;
   }
 
-  it("provisions with the selected role and reports the invited state", async () => {
+  it("provisions with the selected role and reports the ready state", async () => {
     vi.mocked(api).mockResolvedValueOnce({
       configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
       environment: "pre-dev", state: null, linked: null
     });
     vi.mocked(api).mockResolvedValueOnce({
-      created: true, recordCreated: true, state: stateFixture(), linked: linkedFixture
+      created: true,
+      recordCreated: true,
+      state: readyStateFixture(),
+      linked: { ...linkedFixture, hasTotp: true }
+    });
+    vi.mocked(api).mockResolvedValueOnce({
+      accountId: linkedFixture.id,
+      source: "totp",
+      code: "287082",
+      generatedAt: "2026-07-29T16:00:00.000Z",
+      expiresAt: "2026-07-29T16:00:30.000Z"
     });
     const onProvisioned = await openDialog();
-    await vi.waitFor(() => expect(document.body.textContent).toContain("Keine aktive Einladung"));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Noch kein ORISO-Konto"));
 
     const submit = Array.from(document.querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("Einladung senden"));
+      .find((button) => button.textContent?.includes("Konto anlegen & prüfen"));
     await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-    await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@oriso.org", linkedFixture));
+    await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith(
+      "lisa.simpson@oriso.org",
+      { ...linkedFixture, hasTotp: true }
+    ));
     expect(api).toHaveBeenCalledWith(
       `/accounts/${encodeURIComponent("lisa.simpson@oriso.org")}/oriso-provisioning`,
       { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "tenant-admin" }) }
     );
-    expect(document.body.textContent).toContain("Eingeladen");
-    expect(document.body.textContent).toContain("Einladungsmail im Springfield-Postfach");
+    expect(document.body.textContent).toContain("Bereit");
+    expect(document.body.textContent).toContain("Antwortcode erzeugen");
+
+    const otpButton = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Antwortcode erzeugen"));
+    await act(async () => otpButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.querySelector("[data-testid=oriso-dialog-otp]")?.textContent).toBe("287082"));
+    expect(api).toHaveBeenLastCalledWith(
+      `/accounts/${encodeURIComponent("lisa.simpson@oriso.org")}/otp?accountId=${encodeURIComponent(linkedFixture.id)}`
+    );
   });
 
   it("shows the two-factor-pending state with the enrollment next step", async () => {

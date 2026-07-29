@@ -1,11 +1,17 @@
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
 import https from "node:https";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
 import { generateTotp } from "./totp.js";
 
-export const orisoProvisioningRoles = ["tenant-admin", "agency-admin", "counsellor"] as const;
+export const orisoProvisioningRoles = [
+  "platform-admin",
+  "tenant-admin",
+  "agency-admin",
+  "counsellor",
+  "advice-seeker"
+] as const;
 export type OrisoProvisioningRole = typeof orisoProvisioningRoles[number];
 
 export const orisoOnboardingStates = ["invited", "onboarding-pending", "two-factor-pending", "ready"] as const;
@@ -18,9 +24,11 @@ const roleContract: Record<OrisoProvisioningRole, {
   recordRoles: string[];
   loginArea: "admin" | "app";
 }> = {
+  "platform-admin": { targetRole: "PLATFORM_ADMIN", templateKind: "TENANT_INVITE", recordKind: "admin", recordRoles: ["platform-admin"], loginArea: "admin" },
   "tenant-admin": { targetRole: "TENANT_ADMIN", templateKind: "TENANT_INVITE", recordKind: "admin", recordRoles: ["tenant-admin"], loginArea: "admin" },
   "agency-admin": { targetRole: "AGENCY_ADMIN", templateKind: "COUNSELLOR_INVITE", recordKind: "admin", recordRoles: ["agency-admin"], loginArea: "admin" },
-  counsellor: { targetRole: "COUNSELLOR", templateKind: "COUNSELLOR_INVITE", recordKind: "app-user", recordRoles: ["consultant"], loginArea: "app" }
+  counsellor: { targetRole: "COUNSELLOR", templateKind: "COUNSELLOR_INVITE", recordKind: "app-user", recordRoles: ["consultant"], loginArea: "app" },
+  "advice-seeker": { targetRole: "ADVICE_SEEKER", templateKind: "COUNSELLOR_INVITE", recordKind: "app-user", recordRoles: ["asker"], loginArea: "app" }
 };
 
 const targetRoleToRole = new Map(
@@ -33,7 +41,12 @@ export type OrisoProvisioningErrorCode =
   | "oriso_authentication_failed"
   | "invite_lookup_failed"
   | "invite_template_missing"
-  | "invite_create_failed";
+  | "invite_create_failed"
+  | "account_create_failed"
+  | "account_credentials_mismatch"
+  | "totp_store_failed"
+  | "totp_setup_failed"
+  | "totp_verification_failed";
 
 export class OrisoProvisioningError extends Error {
   constructor(readonly code: OrisoProvisioningErrorCode) {
@@ -151,8 +164,61 @@ export function generateApplicationPassword(length = 24) {
   return characters.join("");
 }
 
+const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+/**
+ * Generates the 32-character Base32 seed accepted by ORISO's app-TOTP API.
+ * The seed is never returned to the browser; the caller persists it directly
+ * in the linked Test Access record before activation.
+ */
+export function generateTotpSecret() {
+  const bytes = randomBytes(20);
+  let bits = "";
+  for (const byte of bytes) bits += byte.toString(2).padStart(8, "0");
+  let encoded = "";
+  for (let offset = 0; offset < bits.length; offset += 5) {
+    encoded += base32Alphabet[Number.parseInt(bits.slice(offset, offset + 5).padEnd(5, "0"), 2)];
+  }
+  return encoded;
+}
+
 export function recordRolesForProvisioningRole(role: OrisoProvisioningRole) {
   return [...roleContract[role].recordRoles];
+}
+
+export function provisioningRoleForRecord(record: Pick<TestAccessRecord, "roles">): OrisoProvisioningRole | null {
+  return (Object.entries(roleContract) as Array<[OrisoProvisioningRole, typeof roleContract[OrisoProvisioningRole]]>)
+    .find(([, contract]) => contract.recordRoles.join(",") === record.roles.join(","))?.[0] ?? null;
+}
+
+function directStateView(
+  record: Pick<TestAccessRecord, "createdAt" | "updatedAt">,
+  role: OrisoProvisioningRole,
+  inviteStatus: "DIRECT_CREATED" | "DIRECT_RECONCILED"
+): OrisoProvisioningStateView {
+  return {
+    state: "ready",
+    role,
+    targetRole: roleContract[role].targetRole,
+    inviteId: 0,
+    inviteStatus,
+    emailVerificationStatus: "VERIFIED",
+    twoFactorStatus: "ACTIVE",
+    accessGateStatus: "READY",
+    createdAt: record.createdAt,
+    expiresAt: null,
+    acceptedAt: record.updatedAt,
+    nextStep: "none"
+  };
+}
+
+export function readyStateForProvisionedRecord(
+  record: Pick<TestAccessRecord, "roles" | "createdAt" | "updatedAt" | "provisioningStatus">
+): OrisoProvisioningStateView | null {
+  if (record.provisioningStatus !== "ready") return null;
+  const role = provisioningRoleForRecord(record);
+  if (!role) return null;
+  return directStateView(record, role, "DIRECT_RECONCILED");
 }
 
 export function buildProvisionedRecord(input: {
@@ -189,6 +255,7 @@ export function buildProvisionedRecord(input: {
     expiresAt: null,
     shared: true,
     rotationStatus: "current",
+    provisioningStatus: "pending",
     documentationUrl: "https://dreambau.com/testmails/"
   });
 }
@@ -197,6 +264,7 @@ export type ProvisioningFetch = (input: string | URL, init?: {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+  signal?: AbortSignal;
 }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 export interface OrisoProvisioningTarget {
@@ -206,6 +274,11 @@ export interface OrisoProvisioningTarget {
   adminRecordId: string;
   adminBaseUrl: string;
   appBaseUrl: string;
+  defaultTenantId: number;
+  defaultAgencyId: number;
+  defaultConsultingType: string;
+  defaultPostcode: string;
+  defaultMainTopicId: number;
 }
 
 interface ServiceOptions extends OrisoProvisioningTarget {
@@ -223,6 +296,13 @@ export interface OrisoProvisioningService {
     lastName: string;
     role: OrisoProvisioningRole;
   }): Promise<{ created: boolean; state: OrisoProvisioningStateView }>;
+  provision(input: {
+    record: TestAccessRecord;
+    firstName: string;
+    lastName: string;
+    role: OrisoProvisioningRole;
+    storeTotp(secret: string): Promise<void>;
+  }): Promise<{ created: boolean; state: OrisoProvisioningStateView }>;
 }
 
 const defaultFetch: ProvisioningFetch = (input, init) =>
@@ -235,6 +315,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   const fetch = options.fetch ?? defaultFetch;
   const now = options.now ?? (() => new Date());
   const apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, "");
+  const requestSignal = () => AbortSignal.timeout(15_000);
   let cachedToken: { value: string; expiresAt: number } | null = null;
   let pendingToken: Promise<string> | null = null;
 
@@ -253,7 +334,8 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     const response = await fetch(options.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString()
+      body: form.toString(),
+      signal: requestSignal()
     });
     if (!response.ok) throw new OrisoProvisioningError("oriso_authentication_failed");
     try {
@@ -278,9 +360,99 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         Authorization: `Bearer ${await accessToken()}`,
         ...(init?.body ? { "Content-Type": "application/json" } : {})
       },
-      body: init?.body
+      body: init?.body,
+      signal: requestSignal()
     });
     return response;
+  }
+
+  async function credentialToken(record: TestAccessRecord, totpSecret?: string) {
+    const form = new URLSearchParams({
+      client_id: options.clientId,
+      grant_type: "password",
+      username: record.username,
+      password: record.secret
+    });
+    if (totpSecret) form.set("otp", generateTotp(totpSecret, now()).code);
+    const response = await fetch(options.tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+      signal: requestSignal()
+    });
+    if (!response.ok) {
+      if (response.status === 400 || response.status === 401) {
+        return { kind: "rejected" as const, status: response.status };
+      }
+      throw new OrisoProvisioningError("oriso_authentication_failed");
+    }
+    try {
+      return {
+        kind: "authenticated" as const,
+        token: tokenResponseSchema.parse(await response.json()).access_token
+      };
+    } catch {
+      throw new OrisoProvisioningError("oriso_authentication_failed");
+    }
+  }
+
+  async function userJson(accessTokenValue: string, path: string, init: { method: string; body?: string }) {
+    return fetch(`${apiBaseUrl}${path}`, {
+      method: init.method,
+      headers: {
+        Authorization: `Bearer ${accessTokenValue}`,
+        ...(init.body ? { "Content-Type": "application/json" } : {})
+      },
+      body: init.body,
+      signal: requestSignal()
+    });
+  }
+
+  function creationRequest(input: {
+    record: TestAccessRecord;
+    firstName: string;
+    lastName: string;
+    role: OrisoProvisioningRole;
+  }) {
+    const common = {
+      username: input.record.username,
+      password: input.record.secret,
+      firstname: input.firstName,
+      lastname: input.lastName,
+      email: input.record.email ?? input.record.username
+    };
+    switch (input.role) {
+      case "platform-admin":
+        return { path: "/useradmin/tenantadmins", body: { ...common, tenantId: 0 } };
+      case "tenant-admin":
+        return { path: "/useradmin/tenantadmins", body: { ...common, tenantId: options.defaultTenantId } };
+      case "agency-admin":
+        return { path: "/useradmin/agencyadmins", body: { ...common, tenantId: options.defaultTenantId } };
+      case "counsellor":
+        return {
+          path: "/useradmin/consultants",
+          body: {
+            ...common,
+            formalLanguage: true,
+            absent: false,
+            tenantId: options.defaultTenantId,
+            topicIds: [options.defaultMainTopicId]
+          }
+        };
+      case "advice-seeker":
+        return {
+          path: "/users/askers/new",
+          body: {
+            username: input.record.username,
+            password: encodeURIComponent(input.record.secret),
+            postcode: options.defaultPostcode,
+            agencyId: options.defaultAgencyId,
+            termsAccepted: "true",
+            consultingType: options.defaultConsultingType,
+            mainTopicId: options.defaultMainTopicId
+          }
+        };
+    }
   }
 
   async function findInvite(recipientEmail: string) {
@@ -332,7 +504,12 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       clientId: options.clientId,
       adminRecordId: options.adminRecordId,
       adminBaseUrl: options.adminBaseUrl,
-      appBaseUrl: options.appBaseUrl
+      appBaseUrl: options.appBaseUrl,
+      defaultTenantId: options.defaultTenantId,
+      defaultAgencyId: options.defaultAgencyId,
+      defaultConsultingType: options.defaultConsultingType,
+      defaultPostcode: options.defaultPostcode,
+      defaultMainTopicId: options.defaultMainTopicId
     },
     async status(recipientEmail) {
       const invite = await findInvite(recipientEmail);
@@ -361,6 +538,102 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         throw new OrisoProvisioningError("invite_create_failed");
       }
       return { created: true, state: publicInviteState(invite) };
+    },
+    async provision(input) {
+      const expectedRoles = roleContract[input.role].recordRoles;
+      if (
+        input.record.project !== "oriso"
+        || input.record.environment !== "pre-dev"
+        || input.record.roles.join(",") !== expectedRoles.join(",")
+      ) {
+        throw new OrisoProvisioningError("account_create_failed");
+      }
+
+      // A successful login with the stored TOTP proves that the account is
+      // already fully managed and makes repeated provisioning idempotent.
+      if (input.record.totpSecret) {
+        const verified = await credentialToken(input.record, input.record.totpSecret);
+        if (verified.kind === "authenticated") {
+          return { created: false, state: directStateView(input.record, input.role, "DIRECT_RECONCILED") };
+        }
+      }
+
+      const initialProbe = await credentialToken(input.record);
+      let userToken = initialProbe.kind === "authenticated" ? initialProbe.token : null;
+      let created = false;
+      if (!userToken) {
+        const request = creationRequest(input);
+        const createResponse = await authorizedJson(request.path, {
+          method: "POST",
+          body: JSON.stringify(request.body)
+        });
+        if (!createResponse.ok) {
+          if (createResponse.status === 409) {
+            throw new OrisoProvisioningError("account_credentials_mismatch");
+          }
+          throw new OrisoProvisioningError("account_create_failed");
+        }
+        if (input.role === "agency-admin" || input.role === "counsellor") {
+          let createdId: string;
+          try {
+            createdId = z.object({
+              _embedded: z.object({ id: z.string().min(1) }).passthrough()
+            }).passthrough().parse(await createResponse.json())._embedded.id;
+          } catch {
+            throw new OrisoProvisioningError("account_create_failed");
+          }
+          const relation = input.role === "agency-admin"
+            ? { path: `/useradmin/agencyadmins/${encodeURIComponent(createdId)}/agencies`, body: [{ agencyId: options.defaultAgencyId, role: "ADMIN_DEFAULT" }] }
+            : { path: `/useradmin/consultants/${encodeURIComponent(createdId)}/agencies`, body: [{ agencyId: options.defaultAgencyId, roleSetKey: "CONSULTANT_DEFAULT" }] };
+          const relationResponse = await authorizedJson(relation.path, {
+            method: "PUT",
+            body: JSON.stringify(relation.body)
+          });
+          if (!relationResponse.ok) throw new OrisoProvisioningError("account_create_failed");
+        }
+        created = true;
+        const postCreateProbe = await credentialToken(input.record);
+        if (postCreateProbe.kind !== "authenticated") {
+          throw new OrisoProvisioningError("account_credentials_mismatch");
+        }
+        userToken = postCreateProbe.token;
+      }
+
+      if (input.role === "advice-seeker" && input.record.email) {
+        const emailResponse = await userJson(userToken, "/users/email", {
+          method: "PUT",
+          body: JSON.stringify(input.record.email)
+        });
+        if (!emailResponse.ok && emailResponse.status !== 409) {
+          throw new OrisoProvisioningError("account_create_failed");
+        }
+      }
+
+      const totpSecret = input.record.totpSecret ?? generateTotpSecret();
+      if (!input.record.totpSecret) {
+        try {
+          await input.storeTotp(totpSecret);
+        } catch {
+          throw new OrisoProvisioningError("totp_store_failed");
+        }
+      }
+      const activation = await userJson(userToken, "/users/2fa/app", {
+        method: "PUT",
+        body: JSON.stringify({
+          secret: totpSecret,
+          otp: generateTotp(totpSecret, now()).code
+        })
+      });
+      if (!activation.ok) throw new OrisoProvisioningError("totp_setup_failed");
+
+      const verified = await credentialToken(input.record, totpSecret);
+      if (verified.kind !== "authenticated") {
+        throw new OrisoProvisioningError("totp_verification_failed");
+      }
+      return {
+        created,
+        state: directStateView(input.record, input.role, created ? "DIRECT_CREATED" : "DIRECT_RECONCILED")
+      };
     }
   };
 }

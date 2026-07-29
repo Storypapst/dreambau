@@ -19,10 +19,10 @@ export interface LinkedTestAccount {
 }
 export interface AccountAccessEvent {
   id: number; accountId: string; email: string; actorId: string;
-  action: "catalog_sync" | "secret_requested" | "mail_requested" | "otp_requested" | "environment_requested" | "browser_session_opened" | "totp_enrolled" | "record_linked" | "oriso_invite_requested";
+  action: "catalog_sync" | "secret_requested" | "mail_requested" | "otp_requested" | "environment_requested" | "browser_session_opened" | "totp_enrolled" | "record_linked" | "oriso_invite_requested" | "oriso_account_provisioned";
   createdAt: string; context: { runId?: string; applicationVersion?: string; environment?: "local" | "pre-dev" | "dev" | "production-test" };
 }
-export type OrisoProvisioningRole = "tenant-admin" | "agency-admin" | "counsellor";
+export type OrisoProvisioningRole = "platform-admin" | "tenant-admin" | "agency-admin" | "counsellor" | "advice-seeker";
 export type OrisoOnboardingState = "invited" | "onboarding-pending" | "two-factor-pending" | "ready";
 export interface OrisoProvisioningStateView {
   state: OrisoOnboardingState; role: OrisoProvisioningRole | null; targetRole: string;

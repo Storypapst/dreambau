@@ -36,6 +36,7 @@ import {
   createPinnedHttpsFetch,
   generateApplicationPassword,
   orisoProvisioningRoles,
+  readyStateForProvisionedRecord,
   recordRolesForProvisioningRole,
   OrisoProvisioningError,
   type OrisoProvisioningService
@@ -399,6 +400,7 @@ export function createApp(options: AppOptions = {}) {
   const orisoProvisioningHttpError = (error: unknown, res: express.Response) => {
     if (!(error instanceof OrisoProvisioningError)) return false;
     const status = error.code === "invite_template_missing" ? 409
+      : error.code === "account_credentials_mismatch" ? 409
       : error.code === "admin_record_unavailable" ? 503
       : 502;
     res.status(status).json({ error: error.code });
@@ -417,7 +419,8 @@ export function createApp(options: AppOptions = {}) {
       const records = await registryProvider.list();
       reconcileRecords(records);
       const linked = orisoLinkedRecord(email, records);
-      const state = await orisoProvisioning.status(email);
+      const managedState = linked?.totpSecret ? readyStateForProvisionedRecord(linked) : null;
+      const state = managedState ?? await orisoProvisioning.status(email);
       res.json({
         configured: true,
         supportedRoles: [...orisoProvisioningRoles],
@@ -446,11 +449,13 @@ export function createApp(options: AppOptions = {}) {
     if (body.environment !== "pre-dev") return res.status(422).json({ error: "environment_not_supported" });
     if (viewProject(current) !== "oriso") return res.status(422).json({ error: "mailbox_project_mismatch" });
     if (!orisoProvisioning) return res.status(503).json({ error: "oriso_provisioning_unavailable" });
-    if (!registryWriter?.createRecord) return res.status(503).json({ error: "record_creation_unavailable" });
+    if (!registryWriter?.createRecord || !registryWriter.updateRecord) {
+      return res.status(503).json({ error: "record_creation_unavailable" });
+    }
     try {
       // A mailbox that already carries a pre-dev record is only re-provisioned
-      // with the same role; a different role would leave record and invite in
-      // contradiction.
+      // with the same role; a different role would leave record and ORISO
+      // identity in contradiction.
       const existingRecords = await registryProvider.list();
       const existingRecord = orisoLinkedRecord(email, existingRecords)
         ?? linkedApplicationRecordsForEmail(email, existingRecords)
@@ -459,13 +464,6 @@ export function createApp(options: AppOptions = {}) {
       if (existingRecord && existingRecord.roles.join(",") !== requestedRoles.join(",")) {
         return res.status(409).json({ error: "record_role_conflict", linked: publicLinkedAccount(existingRecord) });
       }
-      const nameParts = current.displayName.trim().split(/\s+/);
-      const { created, state } = await orisoProvisioning.ensureInvite({
-        recipientEmail: email,
-        firstName: nameParts[0] || email.split("@")[0],
-        lastName: nameParts.slice(1).join(" ") || "Springfield",
-        role: body.role
-      });
       const records = existingRecords;
       let linkedRecord = existingRecord;
       const nowDate = options.now?.() ?? new Date();
@@ -484,18 +482,57 @@ export function createApp(options: AppOptions = {}) {
         try {
           await registryWriter.createRecord(linkedRecord);
         } catch {
-          // The invite may already exist at this point; a retry is idempotent
-          // on the invite side and generates a fresh record password.
           return res.status(502).json({ error: "record_creation_failed" });
         }
         recordCreated = true;
+      }
+      const nameParts = current.displayName.trim().split(/\s+/);
+      let provisioned: Awaited<ReturnType<OrisoProvisioningService["provision"]>>;
+      try {
+        provisioned = await orisoProvisioning.provision({
+          record: linkedRecord,
+          firstName: nameParts[0] || email.split("@")[0],
+          lastName: nameParts.slice(1).join(" ") || "-",
+          role: body.role,
+          storeTotp: async (totpSecret) => {
+            await registryWriter.enrollTotp(linkedRecord!, totpSecret, nowDate.toISOString());
+            linkedRecord = {
+              ...linkedRecord!,
+              totpSecret,
+              provisioningStatus: "pending",
+              updatedAt: nowDate.toISOString()
+            };
+          }
+        });
+        const readyRecord = {
+          ...linkedRecord,
+          provisioningStatus: "ready" as const,
+          updatedAt: nowDate.toISOString()
+        };
+        await registryWriter.updateRecord(readyRecord);
+        linkedRecord = readyRecord;
+      } catch (error) {
+        if (linkedRecord.provisioningStatus !== "ready") {
+          linkedRecord = {
+            ...linkedRecord,
+            provisioningStatus: "failed",
+            updatedAt: nowDate.toISOString()
+          };
+          try {
+            await registryWriter.updateRecord(linkedRecord);
+          } catch {
+            // Preserve the original provisioning error. A failed status update
+            // must never turn a recoverable ORISO failure into a misleading one.
+          }
+        }
+        throw error;
       }
       reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
       database.recordAccountAccess({
         accountId: linkedRecord.id,
         email,
         actorId: user.id,
-        action: "oriso_invite_requested",
+        action: "oriso_account_provisioned",
         createdAt: nowDate.toISOString(),
         context: { environment: "pre-dev" }
       });
@@ -510,10 +547,10 @@ export function createApp(options: AppOptions = {}) {
         });
       }
       res.set("Cache-Control", "no-store");
-      res.status(created ? 201 : 200).json({
-        created,
+      res.status(provisioned.created ? 201 : 200).json({
+        created: provisioned.created,
         recordCreated,
-        state,
+        state: provisioned.state,
         linked: publicLinkedAccount(linkedRecord)
       });
     } catch (error) {
