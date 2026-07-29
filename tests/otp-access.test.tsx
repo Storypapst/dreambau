@@ -66,4 +66,23 @@ describe("OtpAccess", () => {
     expect(api).toHaveBeenCalledWith(`/accounts/${encodeURIComponent(account.email)}/application-secret?accountId=${encodeURIComponent(account.linkedAccess![0].id)}`);
     expect(container.textContent).not.toContain("mailbox-password");
   });
+
+  it("never renders a late password response after switching accounts", async () => {
+    let resolveRequest!: (value: { accountId: string; secret: string }) => void;
+    vi.mocked(api).mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
+    await act(async () => root.render(<OtpAccess account={account} locale="de" compact />));
+    const button = Array.from(container.querySelectorAll("button")).find((candidate) => candidate.textContent?.includes("App-Passwort abrufen"));
+    await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    const other = {
+      ...account,
+      email: "lisa.simpson@dreambau.de",
+      displayName: "Lisa Simpson",
+      linkedAccess: [{ ...account.linkedAccess![0], id: "oriso/dev/lisa", email: "lisa.simpson@dreambau.de", username: "lisasimpsondev" }]
+    };
+    await act(async () => root.render(<OtpAccess account={other} locale="de" compact />));
+    await act(async () => resolveRequest({ accountId: account.linkedAccess![0].id, secret: "late-secret" }));
+
+    expect(container.textContent).not.toContain("late-secret");
+  });
 });

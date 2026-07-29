@@ -61,6 +61,10 @@ export function ensureHumanGrantSchema(sqlite: DatabaseType.Database) {
     );
     CREATE INDEX IF NOT EXISTS human_project_grants_user_status
       ON human_project_grants(user_id, status);
+    CREATE TABLE IF NOT EXISTS human_grant_migrations (
+      key TEXT PRIMARY KEY,
+      completed_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -78,6 +82,8 @@ export function ensureHumanGrantSchema(sqlite: DatabaseType.Database) {
  */
 export function migrateLegacyProjectGrants(sqlite: DatabaseType.Database, now = new Date()) {
   ensureHumanGrantSchema(sqlite);
+  const migrationKey = "legacy-projects-to-local-grants-v1";
+  if (sqlite.prepare("SELECT 1 FROM human_grant_migrations WHERE key=?").get(migrationKey)) return;
   const timestamp = now.toISOString();
   const rows = sqlite.prepare("SELECT id, projects FROM human_users").all() as Array<{ id: string; projects: string }>;
   const insert = sqlite.prepare(`
@@ -86,12 +92,20 @@ export function migrateLegacyProjectGrants(sqlite: DatabaseType.Database, now = 
     ON CONFLICT(user_id, project, source) DO NOTHING
   `);
   const environments = JSON.stringify(ALL_TEST_ENVIRONMENTS);
+  const markComplete = sqlite.prepare("INSERT INTO human_grant_migrations(key, completed_at) VALUES(?, ?)");
   const run = sqlite.transaction(() => {
     for (const row of rows) {
-      const parsed = z.array(projectSchema).safeParse(JSON.parse(row.projects));
+      let raw: unknown;
+      try {
+        raw = JSON.parse(row.projects);
+      } catch {
+        continue;
+      }
+      const parsed = z.array(projectSchema).safeParse(raw);
       if (!parsed.success) continue;
       for (const project of new Set(parsed.data)) insert.run(row.id, project, environments, timestamp, timestamp);
     }
+    markComplete.run(migrationKey, timestamp);
   });
   run();
 }

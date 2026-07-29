@@ -64,9 +64,17 @@ export function installEmailOtpAuth(router: Router, options: {
   const now = () => options.now?.() ?? new Date();
   const hmac = (userId: string, code: string) => createHmac("sha256", options.hmacKey!).update(`${userId}:${code}`).digest("hex");
   const pendingRequests = new Set<string>();
+  const requestsByIp = new Map<string, number[]>();
 
   router.post("/auth/email-otp/request", async (req, res) => {
     const accepted = () => res.status(202).json({ accepted: true });
+    const requestedAt = now();
+    const ip = req.ip ?? "unknown";
+    const windowStart = requestedAt.getTime() - 10 * 60_000;
+    const recent = (requestsByIp.get(ip) ?? []).filter((timestamp) => timestamp > windowStart);
+    if (recent.length >= 5) return accepted();
+    recent.push(requestedAt.getTime());
+    requestsByIp.set(ip, recent);
     const parsed = requestSchema.safeParse(req.body);
     if (!parsed.success || !options.sender || !options.hmacKey) return accepted();
     void (async () => {
@@ -77,7 +85,6 @@ export function installEmailOtpAuth(router: Router, options: {
       try {
         if (options.syncHumanUser) user = await options.syncHumanUser(user);
         if (user.role !== "admin" && user.projects.length === 0) return;
-        const requestedAt = now();
         const previous = options.store.latestEmailOtpRequestedAt(user.id);
         if (previous && requestedAt.getTime() - new Date(previous).getTime() < 60_000) return;
         const code = randomInt(0, 1_000_000).toString().padStart(6, "0");

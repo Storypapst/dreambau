@@ -97,6 +97,7 @@ function legacyDatabase(projects: string, email = "legacy@dreambau.com") {
   const user = store.createUser({ email, name: "Legacy", projects: ["oriso"] });
   const sqlite = new Database(file);
   sqlite.prepare("DELETE FROM human_project_grants WHERE user_id=?").run(user.id);
+  sqlite.prepare("DELETE FROM human_grant_migrations WHERE key='legacy-projects-to-local-grants-v1'").run();
   sqlite.prepare("UPDATE human_users SET projects=? WHERE id=?").run(projects, user.id);
   return { sqlite, user };
 }
@@ -137,5 +138,14 @@ describe("legacy project migration", () => {
     const local = grants.list(user.id).filter((row) => row.source === "local");
     expect(local).toHaveLength(1);
     expect(local[0].environments).toEqual(["pre-dev"]);
+  });
+
+  it("skips malformed legacy project JSON and still marks the migration complete", () => {
+    const { sqlite, user } = legacyDatabase("{not-json", "malformed@dreambau.com");
+
+    expect(() => migrateLegacyProjectGrants(sqlite)).not.toThrow();
+    expect(createHumanGrantStore(sqlite).effective(user.id)).toEqual([]);
+    expect(sqlite.prepare("SELECT completed_at FROM human_grant_migrations WHERE key=?")
+      .get("legacy-projects-to-local-grants-v1")).toBeTruthy();
   });
 });
