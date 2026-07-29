@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { api } from "@/api";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { api, onUnauthorized } from "@/api";
 import { LoginForm } from "@/components/login-form";
 import { AccountDirectory } from "@/components/account-directory";
 import { Toaster } from "@/components/ui/sonner";
@@ -22,6 +23,21 @@ export function App() {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   async function refreshSession() { setSession(await api<Session>("/auth/session").catch(() => ({ authenticated: false } as const))); }
   useEffect(() => { void refreshSession(); }, []);
+  const sessionRef = useRef<Session | null>(null);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+  useEffect(() => onUnauthorized(() => {
+    // Only a session that was live is worth reporting: an anonymous 401 on the
+    // first load already lands on the login screen by itself.
+    if (sessionRef.current?.authenticated) {
+      toast.error(locale === "de"
+        ? "Die Sitzung ist abgelaufen. Bitte erneut anmelden."
+        : "The session has expired. Please sign in again.");
+    }
+    setSession({ authenticated: false });
+    setAccounts([]);
+    setCurrentUser(null);
+    setAccountsLoaded(false);
+  }), [locale]);
   useEffect(() => {
     let current = true;
     if (session?.authenticated && (session.method === "passkey" || session.method === "email-otp")) {
