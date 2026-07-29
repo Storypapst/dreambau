@@ -4,7 +4,7 @@ Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten ko
 
 ## Betrieb
 
-Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.7.1-dashboard-integrity-20260723` und Infisical als Registry-Provider.
+Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.10.4-fixed-creds-6fc95bf` und Infisical als Registry-Provider.
 
 ```bash
 ssh m4dreambau 'kubectl get pod,svc,ingress,pvc -n wcr -l app.kubernetes.io/name=testmails'
