@@ -3,10 +3,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@/api";
+import { api, onUnauthorized } from "@/api";
 import { App } from "../src/client/app.js";
 
-vi.mock("@/api", () => ({ api: vi.fn() }));
+vi.mock("@/api", () => ({ api: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
 vi.mock("@/components/account-directory", () => ({
   AccountDirectory: ({ initialAccounts, onLogout }: { initialAccounts: unknown[]; onLogout: () => void }) => <div data-testid="directory">accounts:{initialAccounts.length}<button onClick={onLogout}>logout</button></div>
 }));
@@ -25,6 +25,8 @@ describe("App authenticated loading", () => {
     document.body.append(container);
     root = createRoot(container);
     vi.mocked(api).mockReset();
+    vi.mocked(onUnauthorized).mockReset();
+    vi.mocked(onUnauthorized).mockImplementation(() => () => undefined);
   });
 
   afterEach(async () => {
@@ -43,6 +45,27 @@ describe("App authenticated loading", () => {
 
     await act(async () => root.render(<App />));
     await vi.waitFor(() => expect(container.querySelector('[data-testid="directory"]')?.textContent).toContain("accounts:0"));
+  });
+
+  it("returns to the login screen when the session is lost mid-session", async () => {
+    // A server restart drops the in-memory session while the tab keeps its
+    // rendered rows, so the stale directory must not stay on screen.
+    let lostSession: (() => void) | null = null;
+    vi.mocked(onUnauthorized).mockImplementation((handler) => { lostSession = handler; return () => undefined; });
+    vi.mocked(api).mockImplementation(async (path) => {
+      if (path === "/auth/session") return { authenticated: true, method: "passkey", userId: "admin" };
+      if (path === "/accounts") return [];
+      if (path === "/taxonomies") return { roles: [], topics: [], conversationTypes: [] };
+      if (path === "/auth/me") return { id: "admin", email: "admin@dreambau.com", name: "Admin", projects: ["dreambau"], status: "active", role: "admin", createdAt: "2026-07-15T00:00:00.000Z" };
+      throw new Error(`unexpected ${path}`);
+    });
+
+    await act(async () => root.render(<App />));
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="directory"]')).not.toBeNull());
+
+    await act(async () => { lostSession?.(); });
+    expect(container.querySelector('[data-testid="directory"]')).toBeNull();
+    expect(container.textContent).toContain("login");
   });
 
   it("treats email OTP as a complete member login instead of passkey enrollment", async () => {
