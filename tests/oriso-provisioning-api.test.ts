@@ -190,6 +190,39 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(vi.mocked(writer!.createRecord!)).toHaveBeenCalledTimes(1);
   });
 
+  it("refuses to re-provision a mailbox with a different role than its linked record", async () => {
+    const { agent, lisa, service, writer } = await setup();
+    await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+
+    const conflict = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "counsellor" });
+
+    expect(conflict.status).toBe(409);
+    expect(conflict.body).toMatchObject({
+      error: "record_role_conflict",
+      linked: { id: "oriso/pre-dev/lisa.simpson", roles: ["tenant-admin"] }
+    });
+    expect(service.ensureInvite).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(writer!.createRecord!)).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps record-write failures to a dedicated error after the invite succeeded", async () => {
+    const { agent, lisa } = await setup({
+      writer: {
+        enrollTotp: vi.fn(),
+        createRecord: vi.fn(async () => { throw new Error("Infisical record creation failed"); })
+      }
+    });
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "record_creation_failed" });
+  });
+
   it("rejects production and every non-pre-dev environment before any ORISO call", async () => {
     const { agent, lisa, service } = await setup();
     for (const environment of ["production-test", "dev", "local"]) {

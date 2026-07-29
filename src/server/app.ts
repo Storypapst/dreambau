@@ -36,6 +36,7 @@ import {
   createPinnedHttpsFetch,
   generateApplicationPassword,
   orisoProvisioningRoles,
+  recordRolesForProvisioningRole,
   OrisoProvisioningError,
   type OrisoProvisioningService
 } from "./oriso-provisioning.js";
@@ -447,6 +448,17 @@ export function createApp(options: AppOptions = {}) {
     if (!orisoProvisioning) return res.status(503).json({ error: "oriso_provisioning_unavailable" });
     if (!registryWriter?.createRecord) return res.status(503).json({ error: "record_creation_unavailable" });
     try {
+      // A mailbox that already carries a pre-dev record is only re-provisioned
+      // with the same role; a different role would leave record and invite in
+      // contradiction.
+      const existingRecords = await registryProvider.list();
+      const existingRecord = orisoLinkedRecord(email, existingRecords)
+        ?? linkedApplicationRecordsForEmail(email, existingRecords)
+          .find((record) => record.project === "oriso" && record.environment === "pre-dev") ?? null;
+      const requestedRoles = recordRolesForProvisioningRole(body.role);
+      if (existingRecord && existingRecord.roles.join(",") !== requestedRoles.join(",")) {
+        return res.status(409).json({ error: "record_role_conflict", linked: publicLinkedAccount(existingRecord) });
+      }
       const nameParts = current.displayName.trim().split(/\s+/);
       const { created, state } = await orisoProvisioning.ensureInvite({
         recipientEmail: email,
@@ -454,9 +466,8 @@ export function createApp(options: AppOptions = {}) {
         lastName: nameParts.slice(1).join(" ") || "Springfield",
         role: body.role
       });
-      const records = await registryProvider.list();
-      let linkedRecord = orisoLinkedRecord(email, records) ?? linkedApplicationRecordsForEmail(email, records)
-        .find((record) => record.project === "oriso" && record.environment === "pre-dev") ?? null;
+      const records = existingRecords;
+      let linkedRecord = existingRecord;
       const nowDate = options.now?.() ?? new Date();
       let recordCreated = false;
       if (!linkedRecord) {
@@ -470,7 +481,13 @@ export function createApp(options: AppOptions = {}) {
           now: nowDate,
           secret: generateApplicationPassword()
         });
-        await registryWriter.createRecord(linkedRecord);
+        try {
+          await registryWriter.createRecord(linkedRecord);
+        } catch {
+          // The invite may already exist at this point; a retry is idempotent
+          // on the invite side and generates a fresh record password.
+          return res.status(502).json({ error: "record_creation_failed" });
+        }
         recordCreated = true;
       }
       reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
