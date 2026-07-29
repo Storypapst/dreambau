@@ -8,6 +8,11 @@
 
 **Tech Stack:** Node.js 20, TypeScript, Express, SQLite/better-sqlite3, Zod, React, shadcn/ui, Vitest, Supertest, Playwright, Infisical REST API v4.
 
+**Implementation status (2026-07-29):** Tasks 1–5 are implemented on
+`feat/app-totp-test-access`. Task 6 verification is recorded in the final
+handoff; the mutating live Playwright enrollment remains conditional on a
+designated non-production record and runtime-only operator credentials.
+
 ## Global Constraints
 
 - Never log, persist in SQLite, return in errors, or expose through list/lookup responses a password, bearer token, OTP code outside its explicit OTP response, or `totpSecret`.
@@ -245,4 +250,3 @@ test fixtures remain.
 - [ ] **Step 4: Commit**
 
 Commit: `docs(test-access): document persistent TOTP access`
-

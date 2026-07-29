@@ -139,4 +139,3 @@ Seeds, Passwörter, OTP-Codes und Token werden nie persistiert.
 5. Keine API-, CLI-, Audit- oder Fehlermeldung gibt `totpSecret` aus.
 6. Unit-, Integrations-, UI- und Playwright-Happy-Path-Tests decken Migration,
    Schreiben, OTP, Berechtigungen und Enrollment ab.
-
