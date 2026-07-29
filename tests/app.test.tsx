@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { api, onUnauthorized } from "@/api";
 import { App } from "../src/client/app.js";
 
@@ -13,6 +14,7 @@ vi.mock("@/components/account-directory", () => ({
 vi.mock("@/components/login-form", () => ({ LoginForm: () => <div>login</div> }));
 vi.mock("@/components/passkey-enrollment", () => ({ PasskeyEnrollment: () => <div>enrollment</div> }));
 vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 describe("App authenticated loading", () => {
   let container: HTMLDivElement;
@@ -27,6 +29,7 @@ describe("App authenticated loading", () => {
     vi.mocked(api).mockReset();
     vi.mocked(onUnauthorized).mockReset();
     vi.mocked(onUnauthorized).mockImplementation(() => () => undefined);
+    vi.mocked(toast.error).mockReset();
   });
 
   afterEach(async () => {
@@ -66,6 +69,21 @@ describe("App authenticated loading", () => {
     await act(async () => { lostSession?.(); });
     expect(container.querySelector('[data-testid="directory"]')).toBeNull();
     expect(container.textContent).toContain("login");
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("says nothing when a first anonymous load is refused", async () => {
+    // Landing on the login screen already explains itself; an expiry notice
+    // there would only describe a session that never existed.
+    let lostSession: (() => void) | null = null;
+    vi.mocked(onUnauthorized).mockImplementation((handler) => { lostSession = handler; return () => undefined; });
+    vi.mocked(api).mockRejectedValue(new Error("unauthorized"));
+
+    await act(async () => root.render(<App />));
+    await act(async () => { lostSession?.(); });
+
+    expect(container.textContent).toContain("login");
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("treats email OTP as a complete member login instead of passkey enrollment", async () => {
