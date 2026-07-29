@@ -13,6 +13,19 @@
 handoff; the mutating live Playwright enrollment remains conditional on a
 designated non-production record and runtime-only operator credentials.
 
+**Verification (2026-07-29):**
+
+- `npm run lint`: passed.
+- `npm test`: 78 files passed; 504 tests passed and 2 expected failures.
+- `npm run build`: passed.
+- `npx playwright test --list`: 14 browser cases registered.
+- Live Playwright execution was attempted twice. Eight authenticated cases
+  cannot run because the documented `dreambau-testmails/shared` Keychain item
+  is absent on this Mac. Two public-login assertions currently differ from the
+  deployed `dreambau.com/testmails/` surface. The new mutating enrollment case
+  is skipped without a designated non-production account and runtime-only TOTP
+  seed. These are deployment/operator gates, not local test regressions.
+
 ## Global Constraints
 
 - Never log, persist in SQLite, return in errors, or expose through list/lookup responses a password, bearer token, OTP code outside its explicit OTP response, or `totpSecret`.
