@@ -318,9 +318,9 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   const now = options.now ?? (() => new Date());
   const sleep = options.sleep ?? ((milliseconds: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
-  // Current ORISO PreDev can need almost 15 seconds before a freshly assigned
+  // Current ORISO PreDev can need more than 20 seconds before a freshly assigned
   // consultant role is visible in newly issued tokens.
-  const provisioningRetryDelaysMs = options.provisioningRetryDelaysMs ?? [1_000, 2_000, 4_000, 8_000];
+  const provisioningRetryDelaysMs = options.provisioningRetryDelaysMs ?? [1_000, 2_000, 4_000, 8_000, 16_000];
   const apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, "");
   const requestSignal = () => AbortSignal.timeout(15_000);
   let cachedToken: { value: string; expiresAt: number } | null = null;
