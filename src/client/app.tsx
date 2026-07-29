@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api } from "@/api";
+import { toast } from "sonner";
+import { api, onUnauthorized } from "@/api";
 import { LoginForm } from "@/components/login-form";
 import { AccountDirectory } from "@/components/account-directory";
 import { Toaster } from "@/components/ui/sonner";
@@ -22,6 +23,19 @@ export function App() {
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   async function refreshSession() { setSession(await api<Session>("/auth/session").catch(() => ({ authenticated: false } as const))); }
   useEffect(() => { void refreshSession(); }, []);
+  useEffect(() => onUnauthorized(() => {
+    setSession((current) => {
+      if (current?.authenticated) {
+        toast.error(locale === "de"
+          ? "Die Sitzung ist abgelaufen. Bitte erneut anmelden."
+          : "The session has expired. Please sign in again.");
+      }
+      return { authenticated: false };
+    });
+    setAccounts([]);
+    setCurrentUser(null);
+    setAccountsLoaded(false);
+  }), [locale]);
   useEffect(() => {
     let current = true;
     if (session?.authenticated && (session.method === "passkey" || session.method === "email-otp")) {
