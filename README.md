@@ -312,6 +312,67 @@ npm run test-access -- run finish '<run-id>' --result passed
 npm run test-access -- run release '<run-id>'
 ```
 
+### Dauerhafte App-TOTP-Zuordnung
+
+Testmails persistiert die nicht geheimen Verknüpfungen zwischen Springfield-
+Mailkonto und App-/Admin-Record in SQLite. Die Erstzuordnung ist idempotent und
+verwendet ausschließlich exakte E-Mail-Treffer aus dem bekannten
+Testmail-Katalog. `test-access doctor --repair` führt denselben Abgleich für
+Projekt und Umgebungen der aktuellen Machine Identity aus. Nicht zuordenbare
+Records werden nur als Diagnose gemeldet; es wird nie geraten.
+
+Infisical bleibt der einzige Speicherort für App-Passwort und TOTP-Seed.
+Lesen und Schreiben verwenden getrennte Universal-Auth-Identitäten:
+
+- `test-access-infisical` darf die Registry unter `/records` lesen;
+- `test-access-infisical-writer` darf bestehende Secrets unter `/records`
+  lesen und aktualisieren, aber keine Secrets anlegen oder löschen;
+- beide Rollen werden in Infisical auf die drei Test-Access-Projekte und die
+  Testumgebungen `local`, `pre-dev`, `dev` und `production-test` begrenzt;
+- `production` ist weder ein gültiger API-Scope noch ein gültiger
+  Machine-Identity-Scope.
+
+Das Kubernetes Secret `wcr/test-access-infisical-writer` enthält nur
+`client-id` und `client-secret`. Es wird aus stdin oder dem zentralen
+Secret-System erzeugt, nie aus einer Klartextdatei im Repository. Fehlt die
+Writer-Konfiguration, bleiben Registry und OTP-Abruf lesbar, während TOTP-
+Hinterlegung fail-closed mit `totp_enrollment_unavailable` abgewiesen wird.
+
+Menschen benötigen eine starke Testmails-Session und Projektzugriff. In der
+Oberfläche erscheint bei einem verknüpften App-Login ohne TOTP der Dialog
+**2FA hinterlegen**. Der Base32-Seed wird einmalig übertragen, nicht im Browser
+gespeichert und nie von der API zurückgegeben. Anschließend liefert der
+bestehende Button **OTP abrufen** nur den aktuellen Code.
+
+Agenten verwenden dieselbe fachliche API mit getrennten Actions:
+
+- `accounts:read` für `lookup`, `otp` und `doctor`;
+- `accounts:sync` zusätzlich für `doctor --repair`;
+- `accounts:totp:write` für `enroll-totp`.
+
+Der portable Client liest weiterhin das Bearer-Token aus dem Keychain. Der
+TOTP-Seed ist kein Kommandozeilenargument: interaktiv wird er verdeckt gelesen,
+in Automationen kommt genau eine Zeile über stdin.
+
+```bash
+export TEST_ACCESS_IDENTITY=codex-m4-oriso
+test-access lookup --email abe.simpson@dreambau.de --project oriso --environment pre-dev
+test-access doctor --repair --json
+test-access enroll-totp oriso/pre-dev/e2e-platform-admin-predev
+test-access otp oriso/pre-dev/e2e-platform-admin-predev
+test-access otp oriso/pre-dev/e2e-platform-admin-predev --json
+```
+
+Audit-Ereignisse enthalten Actor-ID, Record-ID, E-Mail, Aktion, Projekt,
+Umgebung und Zeitpunkt. Passwort, Bearer-Token, TOTP-Seed und generierter OTP-
+Code werden nicht in SQLite-Auditdaten geschrieben.
+
+Der Live-Playwright-Happy-Path benötigt zusätzlich ein ausdrücklich dafür
+bestimmtes Non-Production-Konto. `TESTMAILS_E2E_PASSWORD`,
+`TESTMAILS_E2E_TOTP_EMAIL` und `TESTMAILS_E2E_TOTP_SECRET` werden ausschließlich
+zur Laufzeit aus der Operator-Umgebung gesetzt; der Test wird ohne diese
+Voraussetzungen übersprungen.
+
 ### Versionierte Test-Runs
 
 Ein Test-Run reserviert eine vollständige Rollenbelegung atomar aus den

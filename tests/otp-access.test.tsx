@@ -8,6 +8,7 @@ import { OtpAccess } from "../src/client/components/otp-access.js";
 import type { AccountView } from "@/types";
 
 vi.mock("@/api", () => ({ api: vi.fn() }));
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const account: AccountView = {
   displayName: "Abe Simpson",
@@ -65,6 +66,17 @@ describe("OtpAccess", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("application-password"));
     expect(api).toHaveBeenCalledWith(`/accounts/${encodeURIComponent(account.email)}/application-secret?accountId=${encodeURIComponent(account.linkedAccess![0].id)}`);
     expect(container.textContent).not.toContain("mailbox-password");
+  });
+
+  it("offers enrollment only while the linked app login has no TOTP", async () => {
+    await act(async () => root.render(
+      <OtpAccess
+        account={{ ...account, linkedAccess: [{ ...account.linkedAccess![0], hasTotp: false }] }}
+        locale="de"
+      />
+    ));
+    expect(container.textContent).toContain("2FA hinterlegen");
+    expect(container.textContent).not.toContain("OTP abrufen");
   });
 
   it("never renders a late password response after switching accounts", async () => {

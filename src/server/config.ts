@@ -30,6 +30,7 @@ export interface RuntimeConfig {
     organizationSlug: string;
     clientId: string;
     clientSecret: string;
+    writer: { clientId: string; clientSecret: string } | null;
     projectIds: { oriso: string; orimo: string; dreambau: string };
   } | null;
 }
@@ -45,11 +46,19 @@ export function loadConfig(): RuntimeConfig {
     throw new Error("TEST_ACCESS_PROVIDER must be file or infisical");
   }
   const registryProvider: RuntimeConfig["registryProvider"] = providerValue === "infisical" ? "infisical" : "file";
+  const writerClientId = fromFileOrEnv("writer-client-id", "INFISICAL_WRITER_CLIENT_ID");
+  const writerClientSecret = fromFileOrEnv("writer-client-secret", "INFISICAL_WRITER_CLIENT_SECRET");
+  if (Boolean(writerClientId) !== Boolean(writerClientSecret)) {
+    throw new Error("Complete INFISICAL_WRITER credentials are required to enable TOTP enrollment");
+  }
   const infisical = registryProvider === "infisical" ? {
     baseUrl: required(process.env.INFISICAL_BASE_URL?.trim() ?? "", "INFISICAL_BASE_URL"),
     organizationSlug: required(process.env.INFISICAL_ORGANIZATION_SLUG?.trim() ?? "", "INFISICAL_ORGANIZATION_SLUG"),
     clientId: required(fromFileOrEnv("client-id", "INFISICAL_CLIENT_ID"), "INFISICAL_CLIENT_ID"),
     clientSecret: required(fromFileOrEnv("client-secret", "INFISICAL_CLIENT_SECRET"), "INFISICAL_CLIENT_SECRET"),
+    writer: writerClientId && writerClientSecret
+      ? { clientId: writerClientId, clientSecret: writerClientSecret }
+      : null,
     projectIds: {
       oriso: required(process.env.TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID?.trim() ?? "", "TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID"),
       orimo: required(process.env.TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID?.trim() ?? "", "TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID"),

@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
@@ -17,6 +17,7 @@ export interface ApiRequest {
   output: OutputMode;
   method?: "POST";
   body?: Record<string, unknown>;
+  requiresTotpSecret?: true;
 }
 
 function option(args: string[], name: string) {
@@ -25,13 +26,15 @@ function option(args: string[], name: string) {
 }
 
 function positional(args: string[]) {
-  const options = new Set(["--project", "--environment", "--role", "--version", "--status", "--topics", "--note"]);
+  const options = new Set(["--project", "--environment", "--role", "--version", "--status", "--topics", "--note", "--email"]);
+  const switches = new Set(["--json", "--repair"]);
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     if (options.has(args[index])) {
       index += 1;
       continue;
     }
+    if (switches.has(args[index])) continue;
     if (args[index].startsWith("--")) throw new Error(`unknown option: ${args[index]}`);
     values.push(args[index]);
   }
@@ -47,6 +50,20 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
       if (value) query.set(key, value);
     }
     return { path: `/accounts${query.size ? `?${query}` : ""}`, output: "json" };
+  }
+  if (command === "lookup") {
+    const email = option(args, "--email");
+    if (!email) throw new Error("lookup requires --email");
+    const query = new URLSearchParams({ email });
+    for (const [flag, key] of [["--project", "project"], ["--environment", "environment"]] as const) {
+      const value = option(args, flag);
+      if (value) query.set(key, value);
+    }
+    return { path: `/lookup?${query}`, output: "json" };
+  }
+  if (command === "doctor") {
+    const query = args.includes("--repair") ? "?repair=true" : "";
+    return { path: `/doctor${query}`, output: "json" };
   }
   if (!id) throw new Error(`${command || "command"} requires an account id`);
   const encoded = encodeURIComponent(id);
@@ -68,10 +85,18 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
   }
   if (command === "get") return { path: `/accounts/${encoded}/secret`, output: "secret" };
   if (command === "env") return { path: `/accounts/${encoded}/env`, output: "env" };
+  if (command === "enroll-totp") {
+    return {
+      path: `/accounts/${encoded}/totp`,
+      output: "json",
+      method: "POST",
+      requiresTotpSecret: true
+    };
+  }
   const query = terms.length ? `?${new URLSearchParams({ query: terms.join(" ") })}` : "";
-  if (command === "otp") return { path: `/accounts/${encoded}/otp${query}`, output: "otp" };
+  if (command === "otp") return { path: `/accounts/${encoded}/otp${query}`, output: args.includes("--json") ? "json" : "otp" };
   if (command === "mail") return { path: `/accounts/${encoded}/mail/latest${query}`, output: "json" };
-  throw new Error("usage: test-access <list|get|otp|mail|env|sync|session open> ...");
+  throw new Error("usage: test-access <list|lookup|get|enroll-totp|otp|mail|env|doctor|sync|session open> ...");
 }
 
 interface CliDependencies {
@@ -81,6 +106,7 @@ interface CliDependencies {
   fetch: typeof fetch;
   write: (value: string) => void;
   writeError?: (value: string) => void;
+  readTotpSecret?: () => Promise<string>;
   playwrightLoginBroker?: typeof runPlaywrightLoginBroker;
 }
 
@@ -100,6 +126,11 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
   try {
     if (!dependencies.identity) throw new Error("TEST_ACCESS_IDENTITY or --identity is required");
     const request = buildApiRequest(args, dependencies.baseUrl);
+    if (request.requiresTotpSecret) {
+      const totpSecret = (await (dependencies.readTotpSecret ?? readHiddenTotpSecret)()).trim();
+      if (!totpSecret) throw new Error("TOTP secret is required");
+      request.body = { totpSecret };
+    }
     const token = dependencies.readKeychainToken(dependencies.identity);
     if (!token) throw new Error(`Keychain token missing for identity ${dependencies.identity}`);
     const headers: Record<string, string> = { authorization: `Bearer ${token}` };
@@ -123,6 +154,22 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
       const { variables } = z.object({ variables: z.record(z.string(), z.string()) }).passthrough().parse(body);
       dependencies.write(serializeDotenv(variables));
     }
+    else if (request.requiresTotpSecret) {
+      const value = z.object({
+        accountId: z.string(),
+        enrolled: z.literal(true),
+        updatedAt: z.string().datetime()
+      }).passthrough().parse(body);
+      dependencies.write(`${JSON.stringify({
+        accountId: value.accountId,
+        enrolled: value.enrolled,
+        updatedAt: value.updatedAt
+      }, null, 2)}\n`);
+    }
+    else if (args.includes("--json") && args[0] === "otp") {
+      z.object({ code: z.string().regex(/^\d{6,8}$/) }).passthrough().parse(body);
+      dependencies.write(`${JSON.stringify(body, null, 2)}\n`);
+    }
     else dependencies.write(`${JSON.stringify(body, null, 2)}\n`);
     return 0;
   } catch (error) {
@@ -130,6 +177,41 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
     writeError(`${message}\n`);
     return 1;
   }
+}
+
+async function readHiddenTotpSecret(): Promise<string> {
+  if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== "function") {
+    return readFileSync(0, "utf8").split(/\r?\n/, 1)[0] ?? "";
+  }
+  process.stderr.write("TOTP secret: ");
+  return new Promise<string>((resolve, reject) => {
+    let value = "";
+    const cleanup = () => {
+      process.stdin.off("data", onData);
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+      process.stderr.write("\n");
+    };
+    const onData = (chunk: Buffer | string) => {
+      for (const character of String(chunk)) {
+        if (character === "\u0003") {
+          cleanup();
+          reject(new Error("TOTP enrollment cancelled"));
+          return;
+        }
+        if (character === "\r" || character === "\n") {
+          cleanup();
+          resolve(value);
+          return;
+        }
+        if (character === "\u007f") value = value.slice(0, -1);
+        else value += character;
+      }
+    };
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.on("data", onData);
+  });
 }
 
 function readTestAccessCredential(identity: string) {

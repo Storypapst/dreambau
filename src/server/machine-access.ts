@@ -7,6 +7,7 @@ const environments = ["local", "pre-dev", "dev", "production-test"] as const;
 export const machineActions = [
   "accounts:read",
   "accounts:sync",
+  "accounts:totp:write",
   "sessions:open",
   "runs:read",
   "runs:create",

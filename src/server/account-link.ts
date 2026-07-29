@@ -21,6 +21,10 @@ export const accountAccessActions = [
   "secret_requested",
   "mail_requested",
   "otp_requested",
+  "lookup_requested",
+  "totp_enrolled",
+  "doctor_checked",
+  "record_linked",
   "environment_requested",
   "browser_session_opened"
 ] as const;
@@ -59,6 +63,22 @@ export interface LinkedTestAccount {
   roles: string[];
   loginUrl: string;
   hasTotp: boolean;
+}
+
+export interface TestAccessRecordLink {
+  email: string;
+  recordId: string;
+  secretName: string;
+  project: TestAccessRecord["project"];
+  environment: TestAccessRecord["environment"];
+  kind: "app-user" | "admin";
+  lastSeenAt: string;
+}
+
+export interface TestAccessLinkReconciliation {
+  linked: number;
+  unmappedRecords: string[];
+  unmappedAccounts: string[];
 }
 
 function normalizeEmail(email: string) {

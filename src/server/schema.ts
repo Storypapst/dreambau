@@ -29,6 +29,18 @@ export const accountAccessEvents = sqliteTable("account_access_events", {
   index("account_access_events_account").on(table.accountId, table.createdAt, table.id)
 ]);
 
+export const testAccessRecordLinks = sqliteTable("test_access_record_links", {
+  recordId: text("record_id").primaryKey(),
+  email: text("email").notNull(),
+  secretName: text("secret_name").notNull(),
+  project: text("project").notNull(),
+  environment: text("environment").notNull(),
+  kind: text("kind").notNull(),
+  lastSeenAt: text("last_seen_at").notNull()
+}, (table) => [
+  index("test_access_record_links_email").on(table.email, table.project, table.environment)
+]);
+
 export const testRuns = sqliteTable("test_runs", {
   id: text("id").primaryKey(),
   project: text("project").notNull(),

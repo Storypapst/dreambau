@@ -6,6 +6,7 @@ import type { AccountView, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "./copy-button";
+import { TotpEnrollmentDialog } from "./totp-enrollment-dialog";
 
 export function OtpAccess({ account, locale, compact = false }: { account: AccountView; locale: Locale; compact?: boolean }) {
   const linked = account.linkedAccess?.[0];
@@ -14,6 +15,8 @@ export function OtpAccess({ account, locale, compact = false }: { account: Accou
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [secretError, setSecretError] = useState(false);
+  const [enrolledRecordIds, setEnrolledRecordIds] = useState<Set<string>>(() => new Set());
+  const hasTotp = Boolean(linked?.hasTotp || (linked && enrolledRecordIds.has(linked.id)));
   const displayedResult = result?.email === account.email && result.accountId === linked?.id ? result.value : null;
   const displayedExpiresAt = displayedResult ? result?.expiresAt : undefined;
   const displayedApplicationSecret = applicationSecret?.email === account.email && applicationSecret.accountId === linked?.id
@@ -76,9 +79,16 @@ export function OtpAccess({ account, locale, compact = false }: { account: Accou
     </div>
     {secretError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "App-Passwort konnte nicht abgerufen werden." : "Could not retrieve app password."}</p>}
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={requestOtp}>
-        <KeyRoundIcon data-icon="inline-start" />{busy ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…") : (locale === "de" ? "OTP abrufen" : "Get OTP")}
-      </Button>
+      {hasTotp
+        ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={requestOtp}>
+            <KeyRoundIcon data-icon="inline-start" />{busy ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…") : (locale === "de" ? "OTP abrufen" : "Get OTP")}
+          </Button>
+        : <TotpEnrollmentDialog
+            email={account.email}
+            linked={linked}
+            locale={locale}
+            onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
+          />}
       {displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
     </div>
     {error && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "OTP konnte nicht abgerufen werden." : "Could not retrieve OTP."}</p>}
