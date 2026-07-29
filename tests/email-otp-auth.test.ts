@@ -109,4 +109,27 @@ describe("email OTP authentication", () => {
     expect(passkeyStore.debugEmailOtpChallenges(member.id)).toEqual([]);
     passkeyStore.close();
   });
+
+  it("limits anonymous OTP requests per IP without disclosing the limit", async () => {
+    const { app, passkeyStore, member, sent, setNow } = setup();
+    for (let index = 0; index < 5; index += 1) {
+      const response = await request(app)
+        .post("/testmails/api/auth/email-otp/request")
+        .send({ email: `unknown-${index}@example.test` });
+      expect(response.status).toBe(202);
+      expect(response.body).toEqual({ accepted: true });
+    }
+
+    const limited = await request(app)
+      .post("/testmails/api/auth/email-otp/request")
+      .send({ email: member.email });
+    expect(limited.status).toBe(202);
+    expect(limited.body).toEqual({ accepted: true });
+    expect(sent).toHaveLength(0);
+
+    setNow("2026-07-20T12:11:00.000Z");
+    await request(app).post("/testmails/api/auth/email-otp/request").send({ email: member.email });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    passkeyStore.close();
+  });
 });

@@ -82,6 +82,7 @@ export function loadConfig(): RuntimeConfig {
   } : null;
   const emailOtpHmacKey = fromFileOrEnv("hmac-key", "TESTMAILS_EMAIL_OTP_HMAC_KEY");
   if (smtp && !emailOtpHmacKey) throw new Error("TESTMAILS_EMAIL_OTP_HMAC_KEY is required when email OTP SMTP is enabled");
+  if (smtp && emailOtpHmacKey.length < 32) throw new Error("TESTMAILS_EMAIL_OTP_HMAC_KEY must be at least 32 characters");
   return {
     passwordHash: fromFileOrEnv("password-hash", "TESTMAILS_PASSWORD_HASH"),
     sessionSecret: fromFileOrEnv("session-secret", "TESTMAILS_SESSION_SECRET"),
