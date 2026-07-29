@@ -85,6 +85,68 @@ describe("test-access CLI", () => {
       path: "/accounts/oriso%2Fpre-dev%2Fe2e-default/env",
       output: "env"
     });
+    expect(buildApiRequest(["lookup", "--email", "abe.simpson@dreambau.de", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({
+      path: "/lookup?email=abe.simpson%40dreambau.de&project=oriso&environment=pre-dev",
+      output: "json"
+    });
+    expect(buildApiRequest(["doctor", "--repair", "--json"], baseUrl)).toEqual({
+      path: "/doctor?repair=true",
+      output: "json"
+    });
+    expect(buildApiRequest(["enroll-totp", "oriso/pre-dev/admin"], baseUrl)).toEqual({
+      path: "/accounts/oriso%2Fpre-dev%2Fadmin/totp",
+      output: "json",
+      method: "POST",
+      requiresTotpSecret: true
+    });
+    expect(buildApiRequest(["otp", "oriso/pre-dev/admin", "--json"], baseUrl)).toEqual({
+      path: "/accounts/oriso%2Fpre-dev%2Fadmin/otp",
+      output: "json"
+    });
+  });
+
+  it("reads TOTP enrollment input outside argv and never prints the seed", async () => {
+    const seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+    const output: string[] = [];
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(String(init.body))).toEqual({ totpSecret: seed });
+      return Response.json({
+        accountId: "oriso/pre-dev/admin",
+        enrolled: true,
+        updatedAt: "2026-07-29T10:00:00.000Z"
+      });
+    });
+    const result = await runTestAccessCli(["enroll-totp", "oriso/pre-dev/admin", "--json"], {
+      baseUrl: "https://dreambau.com/testmails/api/v1",
+      identity: "codex-m4-oriso",
+      readKeychainToken: () => "keychain-token",
+      readTotpSecret: async () => seed,
+      fetch: fetchMock as unknown as typeof fetch,
+      write: (value) => output.push(value)
+    });
+    expect(result).toBe(0);
+    expect(output.join("")).toContain('"enrolled": true');
+    expect(output.join("")).not.toContain(seed);
+  });
+
+  it("preserves plain OTP output and prints the validated response with --json", async () => {
+    const response = { accountId: "oriso/pre-dev/admin", code: "287082", generatedAt: "2026-07-29T10:00:00.000Z", expiresAt: "2026-07-29T10:00:30.000Z" };
+    for (const [args, expected] of [
+      [["otp", "oriso/pre-dev/admin"], "287082\n"],
+      [["otp", "oriso/pre-dev/admin", "--json"], `${JSON.stringify(response, null, 2)}\n`]
+    ] as const) {
+      const output: string[] = [];
+      const result = await runTestAccessCli([...args], {
+        baseUrl: "https://dreambau.com/testmails/api/v1",
+        identity: "codex-m4-oriso",
+        readKeychainToken: () => "keychain-token",
+        fetch: vi.fn(async () => Response.json(response)) as unknown as typeof fetch,
+        write: (value) => output.push(value)
+      });
+      expect(result).toBe(0);
+      expect(output).toEqual([expected]);
+    }
   });
 
   it("builds a secret-free Springfield catalog sync request", () => {
