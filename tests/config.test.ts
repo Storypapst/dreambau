@@ -17,6 +17,8 @@ describe("runtime config", () => {
     vi.stubEnv("TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID", "project-oriso");
     vi.stubEnv("TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID", "project-orimo");
     vi.stubEnv("TEST_ACCESS_INFISICAL_DREAMBAU_PROJECT_ID", "project-dreambau");
+    vi.stubEnv("INFISICAL_WRITER_CLIENT_ID", "hub-writer");
+    vi.stubEnv("INFISICAL_WRITER_CLIENT_SECRET", "fake-writer-secret");
     const config = loadConfig();
     expect(config.registryProvider).toBe("infisical");
     expect(config.infisical).toEqual({
@@ -24,9 +26,24 @@ describe("runtime config", () => {
       organizationSlug: "dreambau-test-access",
       clientId: "hub-service",
       clientSecret: "fake-client-secret",
+      writer: { clientId: "hub-writer", clientSecret: "fake-writer-secret" },
       projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" }
     });
     expect(JSON.stringify(config.infisical)).not.toContain("production");
+  });
+
+  it("keeps TOTP enrollment disabled unless both separate writer credentials exist", () => {
+    vi.stubEnv("TEST_ACCESS_PROVIDER", "infisical");
+    vi.stubEnv("INFISICAL_BASE_URL", "https://secrets.dreambau.com");
+    vi.stubEnv("INFISICAL_ORGANIZATION_SLUG", "dreambau-test-access");
+    vi.stubEnv("INFISICAL_CLIENT_ID", "hub-service");
+    vi.stubEnv("INFISICAL_CLIENT_SECRET", "fake-client-secret");
+    vi.stubEnv("TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID", "project-oriso");
+    vi.stubEnv("TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID", "project-orimo");
+    vi.stubEnv("TEST_ACCESS_INFISICAL_DREAMBAU_PROJECT_ID", "project-dreambau");
+    expect(loadConfig().infisical?.writer).toBeNull();
+    vi.stubEnv("INFISICAL_WRITER_CLIENT_ID", "writer-only");
+    expect(() => loadConfig()).toThrow(/INFISICAL_WRITER/);
   });
 
   it("rejects incomplete Infisical configuration instead of silently falling back to files", () => {

@@ -43,6 +43,8 @@ spec:
             - { name: INFISICAL_ORGANIZATION_SLUG, value: dreambau-test-access }
             - { name: INFISICAL_CLIENT_ID_FILE, value: /run/secrets/infisical/client-id }
             - { name: INFISICAL_CLIENT_SECRET_FILE, value: /run/secrets/infisical/client-secret }
+            - { name: INFISICAL_WRITER_CLIENT_ID_FILE, value: /run/secrets/infisical-writer/client-id }
+            - { name: INFISICAL_WRITER_CLIENT_SECRET_FILE, value: /run/secrets/infisical-writer/client-secret }
             - { name: TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID, value: 2808af88-2c60-4023-8754-98665192cfdf }
             - { name: TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID, value: cacf81e9-4d84-4352-99b8-4e3eb40bf338 }
             - { name: TEST_ACCESS_INFISICAL_DREAMBAU_PROJECT_ID, value: a7620a55-2f67-4bc1-9526-4efda230b247 }
@@ -52,6 +54,7 @@ spec:
             - { name: auth, mountPath: /run/secrets/auth, readOnly: true }
             - { name: test-access, mountPath: /run/secrets/test-access, readOnly: true }
             - { name: infisical, mountPath: /run/secrets/infisical, readOnly: true }
+            - { name: infisical-writer, mountPath: /run/secrets/infisical-writer, readOnly: true }
             - { name: email-otp, mountPath: /run/secrets/email-otp, readOnly: true }
             - { name: tmp, mountPath: /tmp }
           resources:
@@ -80,6 +83,8 @@ spec:
           secret: { secretName: test-access-identities, defaultMode: 256 }
         - name: infisical
           secret: { secretName: test-access-infisical, defaultMode: 256 }
+        - name: infisical-writer
+          secret: { secretName: test-access-infisical-writer, defaultMode: 256 }
         - name: email-otp
           secret: { secretName: testmails-email-otp, defaultMode: 256 }
         - name: tmp
