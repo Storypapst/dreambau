@@ -51,10 +51,16 @@ export function loadConfig(): RuntimeConfig {
   if (Boolean(writerClientId) !== Boolean(writerClientSecret)) {
     throw new Error("Complete INFISICAL_WRITER credentials are required to enable TOTP enrollment");
   }
+  const readerClientId = registryProvider === "infisical"
+    ? required(fromFileOrEnv("client-id", "INFISICAL_CLIENT_ID"), "INFISICAL_CLIENT_ID")
+    : "";
+  if (writerClientId && writerClientId === readerClientId) {
+    throw new Error("TOTP enrollment requires a separate Infisical writer identity");
+  }
   const infisical = registryProvider === "infisical" ? {
     baseUrl: required(process.env.INFISICAL_BASE_URL?.trim() ?? "", "INFISICAL_BASE_URL"),
     organizationSlug: required(process.env.INFISICAL_ORGANIZATION_SLUG?.trim() ?? "", "INFISICAL_ORGANIZATION_SLUG"),
-    clientId: required(fromFileOrEnv("client-id", "INFISICAL_CLIENT_ID"), "INFISICAL_CLIENT_ID"),
+    clientId: readerClientId,
     clientSecret: required(fromFileOrEnv("client-secret", "INFISICAL_CLIENT_SECRET"), "INFISICAL_CLIENT_SECRET"),
     writer: writerClientId && writerClientSecret
       ? { clientId: writerClientId, clientSecret: writerClientSecret }

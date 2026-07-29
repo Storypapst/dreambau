@@ -60,6 +60,9 @@ describe("TotpEnrollmentDialog", () => {
     expect(document.querySelector("[data-slot=dialog-description]")?.textContent).toContain("Infisical");
     expect(input?.type).toBe("password");
     expect(input?.autocomplete).toBe("off");
+    expect(input?.getAttribute("data-1p-ignore")).toBe("true");
+    expect(input?.getAttribute("data-lpignore")).toBe("true");
+    expect(input?.getAttribute("data-bwignore")).toBe("true");
 
     await act(async () => {
       if (!input) return;

@@ -16,6 +16,7 @@ import { generateTotp } from "./totp.js";
 import { parseSeedProfile } from "./seed-profile.js";
 import { createTestRunRouter } from "./test-run-router.js";
 import { derivedCatalogPatch, isKnownSyntheticEmail, publicLinkedAccount } from "./account-link.js";
+import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.js";
 
 const querySchema = z.object({
   project: z.enum(["oriso", "orimo", "dreambau"]).optional(),
@@ -114,19 +115,19 @@ export function createTestAccessRouter(options: {
         return res.status(404).json({ error: "account_not_found" });
       }
       const parsed = enrollmentSchema.parse(req.body);
-      const normalizedSecret = parsed.totpSecret.replace(/\s+/g, "").toUpperCase();
-      try { generateTotp(normalizedSecret, options.now?.() ?? new Date()); }
-      catch { return res.status(400).json({ error: "validation_failed" }); }
-      const updatedAt = accessedAt();
-      const result = await options.registryWriter.enrollTotp(match, normalizedSecret, updatedAt);
+      const result = await enrollTotpForRecord({
+        record: match,
+        rawSecret: parsed.totpSecret,
+        writer: options.registryWriter,
+        now: options.now?.() ?? new Date()
+      });
       recordAccess(match, identity, "totp_enrolled");
       res.set("Cache-Control", "no-store");
       res.json({ accountId: result.recordId, enrolled: true, updatedAt: result.updatedAt });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: "validation_failed" });
-      if (error instanceof Error && error.message.startsWith("Infisical TOTP")) {
-        return res.status(502).json({ error: "totp_enrollment_failed" });
-      }
+      const mapped = totpEnrollmentHttpError(error);
+      if (mapped) return res.status(mapped.status).json(mapped.body);
       next(error);
     }
   });
