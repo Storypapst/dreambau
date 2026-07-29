@@ -1,0 +1,27 @@
+# Apply this only once evidence.dreambau.com resolves to 46.225.160.119.
+# Creating it earlier makes cert-manager retry an ACME challenge it cannot win.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dreambau-evidence
+  namespace: wcr
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: [evidence.dreambau.com]
+      secretName: evidence-dreambau-com-tls
+  rules:
+    # A host of its own, not a path under dreambau.com: Playwright reports are
+    # served as HTML, so they must not share an origin with anything that holds
+    # a session cookie.
+    - host: evidence.dreambau.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dreambau-evidence
+                port: { name: http }

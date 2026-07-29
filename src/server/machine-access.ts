@@ -11,7 +11,11 @@ export const machineActions = [
   "runs:read",
   "runs:create",
   "runs:execute",
-  "runs:cleanup"
+  "runs:cleanup",
+  "evidence:upload",
+  "evidence:publish",
+  "evidence:read",
+  "evidence:archive"
 ] as const;
 export type MachineAction = typeof machineActions[number];
 

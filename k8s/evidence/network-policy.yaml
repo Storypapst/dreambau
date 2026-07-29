@@ -1,0 +1,45 @@
+# NOT ENFORCED ON THIS CLUSTER TODAY. Verified on 2026-07-26: a pod in the
+# `default` namespace reaches both this gateway and the pre-existing `testmails`
+# service despite either policy, and the node carries no KUBE-ROUTER/KUBE-NWPLCY
+# iptables chains — the k3s network policy controller is not running.
+#
+# The policy is kept because it is correct and becomes effective the moment a
+# controller is enabled. Until then it documents intent rather than enforcing
+# it, so the gateway's real boundaries are the machine-identity check on every
+# API route and the fact that the MinIO credential is scoped to one bucket.
+# Enabling enforcement cluster-wide would affect every other workload here and
+# is deliberately left as a decision for the operator.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dreambau-evidence
+  namespace: wcr
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: dreambau-evidence }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Only the ingress controller may reach the gateway.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - { protocol: TCP, port: 3100 }
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # MinIO is the only other thing the gateway is allowed to talk to. There is
+    # deliberately no egress to the public internet: the service holds no
+    # GitHub token and never calls out.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: wcr-storage
+      ports:
+        - { protocol: TCP, port: 9000 }

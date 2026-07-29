@@ -2,8 +2,19 @@ import { chmod, mkdir, mkdtemp } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
+
+import type { BrowserContext, Locator, Page } from "@playwright/test";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
+const FIELD_TIMEOUT_MS = 20_000;
+/**
+ * How long a revealed OTP field may wait for the password-only navigation to
+ * finish before it counts as a real challenge. Only bounds the stalled case:
+ * the check races the navigation, so a normal login is not delayed.
+ */
+const OTP_CHALLENGE_GRACE_MS = 6_000;
+const AUTH_STATE_TIMEOUT_MS = 10_000;
 
 interface AccountMetadata {
   id: string;
@@ -20,6 +31,10 @@ export interface BrowserLoginRequest {
   statePath: string;
   ignoreHTTPSErrors: boolean;
   getOtp: () => Promise<string>;
+  requiredAuthState?: {
+    cookieNames: string[];
+    localStorageKeys: string[];
+  };
 }
 
 export interface BrokerDependencies {
@@ -57,8 +72,27 @@ function redact(error: unknown, secrets: string[]) {
   return message;
 }
 
-export function isOtpChallenge(currentUrl: string, loginUrl: string, otpVisible: boolean) {
-  return otpVisible && new URL(currentUrl).origin !== new URL(loginUrl).origin;
+/**
+ * A visible OTP field is a real challenge when the identity provider took over
+ * (different origin), or when the login screen itself revealed a second factor
+ * inline and we have therefore not navigated away yet. Passing `preSubmitUrl`
+ * keeps the original guard intact: an application element merely *named* otp on
+ * a post-login page is still not treated as a challenge.
+ */
+export function isOtpChallenge(
+  currentUrl: string,
+  loginUrl: string,
+  otpVisible: boolean,
+  preSubmitUrl?: string
+) {
+  if (!otpVisible) return false;
+  const current = new URL(currentUrl);
+  const login = new URL(loginUrl);
+  const normalizePath = (value: string) => value.replace(/\/+$/, "") || "/";
+  if (current.origin !== login.origin) return true;
+  if (preSubmitUrl !== undefined && currentUrl === preSubmitUrl) return true;
+  return normalizePath(current.pathname) === normalizePath(login.pathname)
+    && /(?:^|\/)login\/?$/i.test(current.pathname);
 }
 
 async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) {
@@ -67,34 +101,211 @@ async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) 
   return response.json() as Promise<any>;
 }
 
+async function waitForRestorableAuthState(
+  context: BrowserContext,
+  applicationOrigin: string,
+  requirement: NonNullable<BrowserLoginRequest["requiredAuthState"]>,
+  timeoutMs = AUTH_STATE_TIMEOUT_MS
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const state = await context.storageState();
+    const hasCookie = state.cookies.some(
+      (cookie) =>
+        requirement.cookieNames.includes(cookie.name) && cookie.value.length > 0
+    );
+    const applicationState = state.origins.find(
+      (origin) => origin.origin === applicationOrigin
+    );
+    const hasLocalStorage = applicationState?.localStorage.some(
+      (item) =>
+        requirement.localStorageKeys.includes(item.name) && item.value.length > 0
+    );
+
+    if (hasCookie || hasLocalStorage) return;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        "login reached the application but no reusable authentication state was persisted"
+      );
+    }
+    await delay(100);
+  }
+}
+
+// The ORISO admin login renders through React and no longer emits the legacy
+// element ids. Resolve each field semantically first and keep the historical
+// ids as fallbacks so older login screens keep working.
+export function usernameCandidates(page: Page): Locator[] {
+  return [
+    page.locator("input[autocomplete='username']"),
+    page.getByRole("textbox", { name: /username|e-?mail/i }),
+    page.getByPlaceholder(/username\s*\/?\s*e-?mail/i),
+    page.locator("#username"),
+    page.locator("input[name='username']"),
+    // Last resort: the only visible free-text field that is not a search box.
+    page.locator(
+      "input[type='text']:not([name*='search' i]):not([placeholder*='search' i]):not([aria-label*='search' i]), " +
+      "input:not([type]):not([name*='search' i]):not([placeholder*='search' i]):not([aria-label*='search' i])"
+    )
+  ];
+}
+
+export function passwordCandidates(page: Page): Locator[] {
+  return [
+    page.locator("input[autocomplete='current-password']"),
+    page.getByPlaceholder(/^password$|passwort/i),
+    page.locator("#passwordInput"),
+    page.locator("#password"),
+    page.locator("input[type='password']")
+  ];
+}
+
+export function submitCandidates(page: Page): Locator[] {
+  return [
+    page.getByRole("button", { name: /sign in|log ?in|anmelden|einloggen/i }),
+    page.locator("button[type='submit']"),
+    page.locator("input[type='submit']")
+  ];
+}
+
+export function otpCandidates(page: Page): Locator[] {
+  return [
+    page.locator("input[autocomplete='one-time-code']"),
+    page.getByRole("textbox", { name: /one[- ]?time|otp|verification code|einmal|bestätigungscode/i }),
+    page.locator("#otp"),
+    page.locator("input[name='otp']")
+  ];
+}
+
+/**
+ * Return the first candidate that is actually visible on the page, polling
+ * until the deadline so a client-rendered form has time to mount.
+ */
+export async function resolveVisible(
+  candidates: Locator[],
+  field: string,
+  timeoutMs = FIELD_TIMEOUT_MS,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  shouldStop: () => boolean = () => false
+): Promise<Locator> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (shouldStop()) throw new Error(`login form field "${field}" polling was cancelled`);
+    for (const candidate of candidates) {
+      const first = candidate.first();
+      if (await first.isVisible().catch(() => false)) return first;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`login form field "${field}" was not found with any known selector`);
+    }
+    await sleep(250);
+  }
+}
+
+/**
+ * Describe where a login stalled: the current URL plus any visible alert text.
+ * Never includes field values, so it is safe to log.
+ */
+export async function describeLoginFailure(page: Page): Promise<string> {
+  try {
+    const url = page.url();
+    const alerts = await page
+      .locator("[role='alert'], .ant-message-error, .ant-form-item-explain-error, [class*='error' i]")
+      .allInnerTexts()
+      .catch(() => [] as string[]);
+    const message = alerts.map((text) => text.trim()).filter(Boolean).slice(0, 3).join(" / ");
+    const body = await page.locator("body").innerText().catch(() => "");
+    const visible = body.replace(/\s+/g, " ").trim().slice(0, 300);
+    return `stalled at ${url}${message ? ` | page said: ${message.slice(0, 300)}` : " | no visible error message"}`
+      + `${visible ? ` | body: ${visible}` : ""}`;
+  } catch {
+    return "stalled before the page could be inspected";
+  }
+}
+
 export async function playwrightLogin(request: BrowserLoginRequest) {
   const { chromium } = await import("@playwright/test");
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ ignoreHTTPSErrors: request.ignoreHTTPSErrors });
   try {
     const page = await context.newPage();
+    const failedResponses: string[] = [];
+    page.on("response", (response) => {
+      if (response.status() >= 400) failedResponses.push(`${response.status()} ${new URL(response.url()).pathname}`);
+    });
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
-    await page.locator("#username").fill(request.username);
-    await page.locator("#passwordInput").fill(request.password);
+    const usernameField = await resolveVisible(usernameCandidates(page), "username");
+    await usernameField.fill(request.username);
+    const passwordField = await resolveVisible(passwordCandidates(page), "password");
+    await passwordField.fill(request.password);
+
     const preSubmitUrl = page.url();
     const applicationOrigin = new URL(request.loginUrl).origin;
-    const otp = page.locator("#otp");
     const postLoginNavigation = page.waitForURL(
       (url) => url.href !== preSubmitUrl && url.origin === applicationOrigin,
       { waitUntil: "domcontentloaded", timeout: 15_000 }
     );
-    const otpChallenge = otp.waitFor({ state: "visible", timeout: 15_000 }).then(async () => {
-      if (isOtpChallenge(page.url(), request.loginUrl, true)) {
-        await otp.fill(await request.getOtp());
-        await otp.press("Enter");
+    // The ORISO admin reveals its second factor inline on the login screen
+    // after the first submit, so the challenge is same-origin.
+    let loginSettled = false;
+    const otpChallenge = resolveVisible(
+      otpCandidates(page),
+      "otp",
+      15_000,
+      undefined,
+      () => loginSettled
+    ).then(async (otp) => {
+      // A revealed OTP field is not yet proof of a challenge: ORISO renders its
+      // inline #otp input with a real bounding box on logins that need no second
+      // factor. Let the password-only navigation settle first — racing it keeps
+      // the common case fast, and the grace timer only bounds a genuine stall.
+      await Promise.race([postLoginNavigation.catch(() => {}), delay(OTP_CHALLENGE_GRACE_MS)]);
+      if (isOtpChallenge(page.url(), request.loginUrl, true, preSubmitUrl)) {
+        let code: string;
+        try {
+          code = await request.getOtp();
+        } catch {
+          // This account has no OTP source (the hub answers 404 for records
+          // without a TOTP secret or mailbox). Do not fail here: if the login
+          // genuinely needs a second factor, the navigation below times out and
+          // reports the visible stall, which is truthful. Failing on the lookup
+          // would break every password-only login behind a phantom field.
+          await postLoginNavigation;
+          return;
+        }
+        await otp.fill(code);
+        const otpSubmit = await resolveVisible(submitCandidates(page), "submit", 2_000).catch(() => null);
+        if (otpSubmit) await otpSubmit.click();
+        else await otp.press("Enter");
       }
       await postLoginNavigation;
     });
-    await page.locator("#passwordInput").press("Enter");
-    await Promise.race([
-      postLoginNavigation,
-      otpChallenge
-    ]);
+    otpChallenge.catch(() => {});
+
+    const submit = await resolveVisible(submitCandidates(page), "submit", 2_000).catch(() => null);
+    if (submit) await submit.click();
+    else await passwordField.press("Enter");
+
+    try {
+      await Promise.race([
+        postLoginNavigation,
+        otpChallenge
+      ]);
+    } catch (error) {
+      loginSettled = true;
+      // Secrets are stripped by the caller's redact(); surface where the login
+      // actually stalled instead of a bare navigation timeout.
+      const http = failedResponses.length ? ` | failed requests: ${failedResponses.slice(-5).join(", ")}` : "";
+      throw new Error(`${error instanceof Error ? error.message : "login failed"} | ${await describeLoginFailure(page)}${http}`);
+    }
+    loginSettled = true;
+    if (request.requiredAuthState) {
+      await waitForRestorableAuthState(
+        context,
+        applicationOrigin,
+        request.requiredAuthState
+      );
+    }
     await context.storageState({ path: request.statePath });
   } finally {
     await context.close();
@@ -118,6 +329,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const records = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts?${query}`, token) as AccountMetadata[];
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
+    secrets.push(account.username);
 
     const encoded = encodeURIComponent(accountId);
     const secretResponse = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts/${encoded}/secret`, token);
@@ -145,7 +357,13 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       loginUrl: account.loginUrl,
       statePath,
       ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
-      getOtp
+      getOtp,
+      requiredAuthState: account.project === "oriso"
+        ? {
+            cookieNames: ["keycloak"],
+            localStorageKeys: ["auth.keycloak"]
+          }
+        : undefined
     });
     await chmod(statePath, 0o600);
     (dependencies.scheduleCleanup ?? scheduleCleanup)(stateDirectory, STATE_TTL_MS);
