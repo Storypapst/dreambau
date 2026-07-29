@@ -61,6 +61,22 @@ export interface LinkedTestAccount {
   hasTotp: boolean;
 }
 
+export interface TestAccessRecordLink {
+  email: string;
+  recordId: string;
+  secretName: string;
+  project: TestAccessRecord["project"];
+  environment: TestAccessRecord["environment"];
+  kind: "app-user" | "admin";
+  lastSeenAt: string;
+}
+
+export interface TestAccessLinkReconciliation {
+  linked: number;
+  unmappedRecords: string[];
+  unmappedAccounts: string[];
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
