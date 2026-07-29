@@ -27,7 +27,8 @@ export const accountAccessActions = [
   "record_linked",
   "environment_requested",
   "browser_session_opened",
-  "oriso_invite_requested"
+  "oriso_invite_requested",
+  "oriso_account_provisioned"
 ] as const;
 export type AccountAccessAction = typeof accountAccessActions[number];
 

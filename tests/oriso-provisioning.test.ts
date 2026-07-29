@@ -73,7 +73,11 @@ function fakeOriso(options: FakeOrisoOptions = {}) {
   return { calls, fetch };
 }
 
-function service(fetch: ProvisioningFetch, registryProvider = provider()) {
+function service(
+  fetch: ProvisioningFetch,
+  registryProvider = provider(),
+  now = () => new Date(59_000)
+) {
   return createOrisoProvisioningService({
     apiBaseUrl: "https://api.oriso-dev.site/service",
     tokenUrl: "https://auth.oriso-dev.site/realms/online-beratung/protocol/openid-connect/token",
@@ -81,9 +85,14 @@ function service(fetch: ProvisioningFetch, registryProvider = provider()) {
     adminRecordId: "oriso/pre-dev/e2e-platform-admin-predev",
     adminBaseUrl: "https://admin.oriso-dev.site",
     appBaseUrl: "https://app.oriso-dev.site",
+    defaultTenantId: 7,
+    defaultAgencyId: 12,
+    defaultConsultingType: "1",
+    defaultPostcode: "10115",
+    defaultMainTopicId: 31,
     registryProvider,
     fetch,
-    now: () => new Date(59_000)
+    now
   });
 }
 
@@ -365,5 +374,276 @@ describe("service construction", () => {
       appBaseUrl: "https://app.oriso-dev.site"
     });
     expect(vi.isMockFunction(oriso.fetch)).toBe(false);
+  });
+});
+
+describe("reusable ORISO PreDev account factory", () => {
+  it.each([
+    ["platform-admin", "/useradmin/tenantadmins", { tenantId: 0 }, "admin", ["platform-admin"]],
+    ["tenant-admin", "/useradmin/tenantadmins", { tenantId: 7 }, "admin", ["tenant-admin"]],
+    ["agency-admin", "/useradmin/agencyadmins", { tenantId: 7 }, "admin", ["agency-admin"]],
+    ["counsellor", "/useradmin/consultants", { tenantId: 7 }, "app-user", ["consultant"]],
+    ["advice-seeker", "/users/askers/new", { agencyId: 12 }, "app-user", ["asker"]]
+  ] as const)(
+    "creates, protects and verifies a %s account without leaking credentials",
+    async (role, expectedPath, expectedPayload, expectedKind, expectedRoles) => {
+      const calls: Array<{ url: string; method: string; body?: string }> = [];
+      let accountCreated = false;
+      let totpActive = false;
+      const storedTotp: string[] = [];
+      const fetch: ProvisioningFetch = async (input, init) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        calls.push({ url, method, body: init?.body });
+        const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+        if (url.includes("/protocol/openid-connect/token")) {
+          const form = new URLSearchParams(init?.body);
+          const isAdmin = form.get("username") === "abe.simpson@dreambau.de";
+          if (isAdmin) return ok({ access_token: "admin-token", expires_in: 300 });
+          if (!accountCreated) return { ok: false, status: 401, async json() { return {}; } };
+          if (totpActive && !form.get("otp")) return { ok: false, status: 401, async json() { return {}; } };
+          return ok({ access_token: "user-token", expires_in: 300 });
+        }
+        if (url.endsWith(expectedPath) && method === "POST") {
+          accountCreated = true;
+          return ok({ _embedded: { id: "created-user-id" } });
+        }
+        if (url.includes("/created-user-id/agencies") && method === "PUT") return ok();
+        if (url.endsWith("/users/email") && method === "PUT") return ok();
+        if (url.endsWith("/users/2fa/app") && method === "PUT") {
+          const body = JSON.parse(String(init?.body));
+          expect(body.secret).toBe(storedTotp[0]);
+          expect(body.otp).toMatch(/^\d{6}$/);
+          totpActive = true;
+          return ok();
+        }
+        return { ok: false, status: 404, async json() { return {}; } };
+      };
+      const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"));
+      const record = buildProvisionedRecord({
+        email: "lisa.simpson@oriso.org",
+        displayName: "Lisa Simpson",
+        role,
+        adminBaseUrl: subject.target.adminBaseUrl,
+        appBaseUrl: subject.target.appBaseUrl,
+        responsiblePerson: "fg@dreambau.com",
+        now: new Date("2026-07-29T16:00:00.000Z"),
+        secret: "Gener4ted-Application*Pass"
+      });
+
+      const result = await subject.provision({
+        record,
+        firstName: "Lisa",
+        lastName: "Simpson",
+        role,
+        storeTotp: async (secret) => { storedTotp.push(secret); }
+      });
+
+      expect(result).toMatchObject({
+        created: true,
+        state: {
+          state: "ready",
+          role,
+          twoFactorStatus: "ACTIVE",
+          accessGateStatus: "READY",
+          nextStep: "none"
+        }
+      });
+      expect(record).toMatchObject({ kind: expectedKind, roles: expectedRoles });
+      expect(storedTotp).toHaveLength(1);
+      expect(storedTotp[0]).toMatch(/^[A-Z2-7]{32}$/);
+      const create = calls.find((call) => call.method === "POST" && call.url.endsWith(expectedPath));
+      expect(create).toBeDefined();
+      expect(JSON.parse(String(create?.body))).toMatchObject(expectedPayload);
+      if (role === "agency-admin" || role === "counsellor") {
+        const relation = calls.find((call) => call.method === "PUT" && call.url.includes("/created-user-id/agencies"));
+        expect(relation).toBeDefined();
+        expect(JSON.parse(String(relation?.body))).toEqual(role === "agency-admin"
+          ? [{ agencyId: 12, role: "ADMIN_DEFAULT" }]
+          : [{ agencyId: 12, roleSetKey: "CONSULTANT_DEFAULT" }]);
+      }
+      expect(JSON.stringify(result)).not.toContain(record.secret);
+      expect(JSON.stringify(result)).not.toContain(storedTotp[0]);
+    }
+  );
+
+  it("recovers an account whose TOTP seed was stored before activation", async () => {
+    let totpActive = false;
+    let totpStores = 0;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        if (totpActive && form.get("otp")) return ok({ access_token: "user-token", expires_in: 300 });
+        if (!totpActive && !form.get("otp")) return ok({ access_token: "user-token", expires_in: 300 });
+        return { ok: false, status: 401, async json() { return {}; } };
+      }
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
+        totpActive = true;
+        return ok();
+      }
+      return { ok: false, status: 409, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"));
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@oriso.org",
+      displayName: "Lisa Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+    const stored = { ...record, totpSecret: adminTotpSecret };
+
+    const result = await subject.provision({
+      record: stored,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: async () => { totpStores += 1; }
+    });
+
+    expect(result.created).toBe(false);
+    expect(result.state.state).toBe("ready");
+    expect(totpStores).toBe(0);
+    expect(totpActive).toBe(true);
+  });
+
+  it("does not create an account when the credential probe fails transiently", async () => {
+    const calls: string[] = [];
+    const fetch: ProvisioningFetch = async (input) => {
+      calls.push(String(input));
+      return { ok: false, status: 503, async json() { return {}; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@oriso.org",
+      displayName: "Lisa Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+    await expect(subject.provision({
+      record,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    })).rejects.toMatchObject({ code: "oriso_authentication_failed" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("/protocol/openid-connect/token");
+  });
+
+  it("maps an existing unmanaged account to a credential conflict", async () => {
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return { ok: true, status: 200, async json() { return { access_token: "admin", expires_in: 300 }; } };
+        }
+        return { ok: false, status: 401, async json() { return {}; } };
+      }
+      if (url.endsWith("/useradmin/tenantadmins")) {
+        return { ok: false, status: 409, async json() { return {}; } };
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@oriso.org",
+      displayName: "Lisa Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+    await expect(subject.provision({
+      record,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+  });
+
+  it.each([
+    ["totp_store_failed", "store"],
+    ["totp_setup_failed", "setup"],
+    ["totp_verification_failed", "verify"]
+  ] as const)("maps %s without exposing the TOTP seed", async (expectedCode, failure) => {
+    let tokenCalls = 0;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/protocol/openid-connect/token")) {
+        tokenCalls += 1;
+        if (failure === "verify" && tokenCalls > 1) {
+          return { ok: false, status: 401, async json() { return {}; } };
+        }
+        return { ok: true, status: 200, async json() { return { access_token: "user", expires_in: 300 }; } };
+      }
+      if (url.endsWith("/users/2fa/app")) {
+        return failure === "setup"
+          ? { ok: false, status: 409, async json() { return {}; } }
+          : { ok: true, status: 200, async json() { return {}; } };
+      }
+      return { ok: true, status: 200, async json() { return {}; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@oriso.org",
+      displayName: "Lisa Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+    const error = await subject.provision({
+      record,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: async () => {
+        if (failure === "store") throw new Error("writer failed");
+      }
+    }).catch((value: unknown) => value);
+    expect(error).toMatchObject({ code: expectedCode });
+    expect(JSON.stringify(error)).not.toContain(record.secret);
+  });
+
+  it("rejects a role that contradicts the Test Access record before any network call", async () => {
+    const fetch = vi.fn<ProvisioningFetch>();
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@oriso.org",
+      displayName: "Lisa Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+    await expect(subject.provision({
+      record,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "counsellor",
+      storeTotp: vi.fn()
+    })).rejects.toMatchObject({ code: "account_create_failed" });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

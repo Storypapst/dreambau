@@ -54,6 +54,11 @@ spec:
             - { name: ORISO_PREDEV_ADMIN_RECORD_ID, value: oriso/pre-dev/e2e-platform-admin-predev }
             - { name: ORISO_PREDEV_RESOLVE_IP, value: 46.224.170.69 }
             - { name: ORISO_PREDEV_CA_FILE, value: /run/config/oriso-predev/ca.pem }
+            - { name: ORISO_PREDEV_DEFAULT_TENANT_ID, value: "1" }
+            - { name: ORISO_PREDEV_DEFAULT_AGENCY_ID, value: "241" }
+            - { name: ORISO_PREDEV_DEFAULT_CONSULTING_TYPE, value: "1" }
+            - { name: ORISO_PREDEV_DEFAULT_POSTCODE, value: "10965" }
+            - { name: ORISO_PREDEV_DEFAULT_MAIN_TOPIC_ID, value: "2" }
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: accounts, mountPath: /run/secrets/testmails, readOnly: true }

@@ -23,6 +23,7 @@ export const testAccessRecordSchema = z.object({
   expiresAt: z.string().datetime().nullable(),
   shared: z.boolean(),
   rotationStatus: z.enum(["current", "due", "expired", "unknown"]),
+  provisioningStatus: z.enum(["pending", "ready", "failed"]).optional(),
   documentationUrl: z.string().url()
 }).strict();
 

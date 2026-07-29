@@ -31,6 +31,11 @@ export interface RuntimeConfig {
     adminRecordId: string;
     adminBaseUrl: string;
     appBaseUrl: string;
+    defaultTenantId: number;
+    defaultAgencyId: number;
+    defaultConsultingType: string;
+    defaultPostcode: string;
+    defaultMainTopicId: number;
     resolveIp: string | null;
     caFile: string | null;
   } | null;
@@ -48,6 +53,12 @@ export interface RuntimeConfig {
 function required(value: string, name: string) {
   if (!value) throw new Error(`${name} is required when TEST_ACCESS_PROVIDER=infisical`);
   return value;
+}
+
+function positiveInteger(value: string | undefined, fallback: number, name: string) {
+  const parsed = Number(value?.trim() || fallback);
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${name} must be a positive integer`);
+  return parsed;
 }
 
 export function loadConfig(): RuntimeConfig {
@@ -114,6 +125,11 @@ export function loadConfig(): RuntimeConfig {
     adminRecordId: orisoAdminRecordId,
     adminBaseUrl: process.env.ORISO_PREDEV_ADMIN_URL?.trim() || "https://admin.oriso-dev.site",
     appBaseUrl: process.env.ORISO_PREDEV_APP_URL?.trim() || "https://app.oriso-dev.site",
+    defaultTenantId: positiveInteger(process.env.ORISO_PREDEV_DEFAULT_TENANT_ID, 1, "ORISO_PREDEV_DEFAULT_TENANT_ID"),
+    defaultAgencyId: positiveInteger(process.env.ORISO_PREDEV_DEFAULT_AGENCY_ID, 1, "ORISO_PREDEV_DEFAULT_AGENCY_ID"),
+    defaultConsultingType: process.env.ORISO_PREDEV_DEFAULT_CONSULTING_TYPE?.trim() || "1",
+    defaultPostcode: process.env.ORISO_PREDEV_DEFAULT_POSTCODE?.trim() || "10115",
+    defaultMainTopicId: positiveInteger(process.env.ORISO_PREDEV_DEFAULT_MAIN_TOPIC_ID, 1, "ORISO_PREDEV_DEFAULT_MAIN_TOPIC_ID"),
     resolveIp: process.env.ORISO_PREDEV_RESOLVE_IP?.trim() || null,
     caFile: process.env.ORISO_PREDEV_CA_FILE?.trim() || null
   } : null;

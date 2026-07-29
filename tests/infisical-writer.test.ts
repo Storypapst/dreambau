@@ -224,6 +224,88 @@ describe("Infisical TOTP writer", () => {
     expect(JSON.parse(body.secretValue)).toEqual(created);
   });
 
+  it("updates only the scoped record when provisioning state changes", async () => {
+    const calls: Array<{ url: URL; init?: RequestInit }> = [];
+    const fetch: WriterFetch = async (input, init) => {
+      const url = new URL(String(input));
+      calls.push({ url, init });
+      if (url.pathname.endsWith("/login")) {
+        return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") return Response.json({ secret: { id: "updated" } });
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(record().id),
+          secretValue: JSON.stringify(record({ permissionsDescription: "Concurrent metadata survives" }))
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+    const updated = record({
+      provisioningStatus: "ready",
+      updatedAt: "2026-07-29T11:00:00.000Z"
+    });
+
+    await expect(writer.updateRecord!(updated)).resolves.toEqual({
+      recordId: updated.id,
+      updatedAt: updated.updatedAt
+    });
+    const patch = calls[2];
+    expect(patch.url.pathname).toBe(`/api/v4/secrets/${secretNameForRecord(updated.id)}`);
+    expect(patch.init?.method).toBe("PATCH");
+    const body = JSON.parse(String(patch.init?.body));
+    expect(body).toMatchObject({
+      projectId: "project-oriso",
+      environment: "pre-dev",
+      secretPath: "/records",
+      type: "shared",
+      secretComment: "Provisioning state managed by Dreambau Test Access Hub"
+    });
+    expect(JSON.parse(body.secretValue)).toEqual({
+      ...record({ permissionsDescription: "Concurrent metadata survives" }),
+      provisioningStatus: "ready",
+      updatedAt: updated.updatedAt
+    });
+  });
+
+  it("rejects failed and unsupported provisioning-state updates", async () => {
+    const fetch: WriterFetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/login")) {
+        return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method !== "PATCH") {
+        return Response.json({
+          secret: {
+            secretKey: secretNameForRecord(record().id),
+            secretValue: JSON.stringify(record())
+          }
+        });
+      }
+      return Response.json({ error: "upstream failed" }, { status: 502 });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.updateRecord!(record())).rejects.toThrow("Infisical record update failed");
+    await expect(writer.updateRecord!(record({ kind: "mailbox" }))).rejects.toThrow(
+      "Infisical record update only supports application records"
+    );
+  });
+
   it("creates the records folder once when the secret path does not exist yet", async () => {
     const calls: Array<{ url: URL; init?: RequestInit }> = [];
     let folderCreated = false;

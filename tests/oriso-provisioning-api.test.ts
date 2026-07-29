@@ -32,6 +32,32 @@ function mailbox(email: string, displayName: string): AccountRecord {
   };
 }
 
+function managedRecord(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
+  return {
+    id: "oriso/pre-dev/lisa.simpson",
+    project: "oriso",
+    environment: "pre-dev",
+    kind: "admin",
+    displayName: "Lisa Simpson — ORISO PreDev tenant-admin",
+    username: "lisa.simpson@oriso.org",
+    email: "lisa.simpson@oriso.org",
+    roles: ["tenant-admin"],
+    permissionsDescription: "Managed PreDev tenant administrator",
+    loginUrl: "https://admin.oriso-dev.site",
+    secret: "Gener4ted-Application*Pass",
+    totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    responsiblePerson: "qa",
+    createdAt: "2026-07-29T08:00:00.000Z",
+    updatedAt: "2026-07-29T08:00:00.000Z",
+    expiresAt: null,
+    shared: true,
+    rotationStatus: "current",
+    documentationUrl: "https://dreambau.com/testmails/",
+    provisioningStatus: "ready",
+    ...patch
+  };
+}
+
 const webauthn: WebAuthnAdapter = {
   generateRegistrationOptions: vi.fn(async () => ({ challenge: "registration" })),
   verifyRegistrationResponse: vi.fn(async () => ({ verified: false })),
@@ -63,10 +89,29 @@ function fakeService(overrides: Partial<OrisoProvisioningService> = {}): OrisoPr
       clientId: "app",
       adminRecordId: "oriso/pre-dev/e2e-platform-admin-predev",
       adminBaseUrl: "https://admin.oriso-dev.site",
-      appBaseUrl: "https://app.oriso-dev.site"
+      appBaseUrl: "https://app.oriso-dev.site",
+      defaultTenantId: 7,
+      defaultAgencyId: 12,
+      defaultConsultingType: "1",
+      defaultPostcode: "10115",
+      defaultMainTopicId: 31
     },
     status: vi.fn(async () => null),
     ensureInvite: vi.fn(async () => ({ created: true, state: inviteFixture() })),
+    provision: vi.fn(async ({ record, role, storeTotp }) => {
+      const alreadyManaged = Boolean(record.totpSecret);
+      const totpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+      if (!record.totpSecret) await storeTotp(totpSecret);
+      return {
+        created: !alreadyManaged,
+        state: inviteFixture({
+          targetRole: role === "tenant-admin" ? "TENANT_ADMIN" : "COUNSELLOR",
+          inviteStatus: "DIRECT_CREATED",
+          twoFactorStatus: "ACTIVE",
+          accessGateStatus: "READY"
+        })
+      };
+    }),
     ...overrides
   };
 }
@@ -86,11 +131,19 @@ async function setup(options: {
   };
   const createdRecords: TestAccessRecord[] = [];
   const writer = options.writer === null ? undefined : options.writer ?? {
-    enrollTotp: vi.fn(),
+    enrollTotp: vi.fn(async (record: TestAccessRecord, totpSecret: string, updatedAt: string) => {
+      Object.assign(record, { totpSecret, updatedAt });
+      return { recordId: record.id, updatedAt };
+    }),
     createRecord: vi.fn(async (record: TestAccessRecord) => {
       createdRecords.push(record);
       records.push(record);
       return { recordId: record.id };
+    }),
+    updateRecord: vi.fn(async (record: TestAccessRecord) => {
+      const index = records.findIndex((candidate) => candidate.id === record.id);
+      if (index >= 0) records[index] = record;
+      return { recordId: record.id, updatedAt: record.updatedAt };
     })
   };
   const root = mkdtempSync(path.join(tmpdir(), "oriso-provisioning-"));
@@ -127,7 +180,7 @@ async function setup(options: {
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
-  it("creates the invitation, links a stable record and never leaks the generated secret", async () => {
+  it("creates the account, links a stable record and never leaks generated secrets", async () => {
     const { agent, database, lisa, service, createdRecords } = await setup();
 
     const response = await agent
@@ -136,16 +189,17 @@ describe("human self-service ORISO PreDev provisioning", () => {
 
     expect(response.status).toBe(201);
     expect(response.headers["cache-control"]).toBe("no-store");
-    expect(service.ensureInvite).toHaveBeenCalledWith({
-      recipientEmail: lisa.email,
+    expect(service.provision).toHaveBeenCalledWith(expect.objectContaining({
+      record: expect.objectContaining({ email: lisa.email, roles: ["tenant-admin"] }),
       firstName: "Lisa",
       lastName: "Simpson",
-      role: "tenant-admin"
-    });
+      role: "tenant-admin",
+      storeTotp: expect.any(Function)
+    }));
     expect(response.body).toMatchObject({
       created: true,
       recordCreated: true,
-      state: { state: "invited", nextStep: "open-invitation-mail" },
+      state: { state: "ready", nextStep: "none" },
       linked: {
         id: "oriso/pre-dev/lisa.simpson",
         project: "oriso",
@@ -153,7 +207,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
         kind: "admin",
         email: lisa.email,
         roles: ["tenant-admin"],
-        hasTotp: false
+        hasTotp: true
       }
     });
 
@@ -165,20 +219,16 @@ describe("human self-service ORISO PreDev provisioning", () => {
     const links = database.getTestAccessLinks(lisa.email);
     expect(links.map((link) => link.recordId)).toContain("oriso/pre-dev/lisa.simpson");
     const access = database.getAccountAccess(lisa.email);
-    expect(access.events.map((event) => event.action).sort()).toEqual(["oriso_invite_requested", "record_linked"]);
+    expect(access.events.map((event) => event.action).sort()).toEqual(["oriso_account_provisioned", "record_linked"]);
     expect(JSON.stringify(access)).not.toContain(secret);
   });
 
-  it("is idempotent: reports the existing invitation and record instead of duplicating them", async () => {
+  it("is idempotent: reports the existing ready account and record instead of duplicating them", async () => {
     const { agent, lisa, service, writer } = await setup();
     await agent
       .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
       .send({ environment: "pre-dev", role: "tenant-admin" });
 
-    vi.mocked(service.ensureInvite).mockResolvedValueOnce({
-      created: false,
-      state: inviteFixture({ inviteStatus: "ACCEPTED", accessGateStatus: "BLOCKED_TWO_FACTOR" })
-    });
     const second = await agent
       .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
       .send({ environment: "pre-dev", role: "tenant-admin" });
@@ -186,7 +236,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(second.status).toBe(200);
     expect(second.body.created).toBe(false);
     expect(second.body.recordCreated).toBe(false);
-    expect(second.body.state.state).toBe("two-factor-pending");
+    expect(second.body.state.state).toBe("ready");
     expect(vi.mocked(writer!.createRecord!)).toHaveBeenCalledTimes(1);
   });
 
@@ -205,7 +255,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
       error: "record_role_conflict",
       linked: { id: "oriso/pre-dev/lisa.simpson", roles: ["tenant-admin"] }
     });
-    expect(service.ensureInvite).toHaveBeenCalledTimes(1);
+    expect(service.provision).toHaveBeenCalledTimes(1);
     expect(vi.mocked(writer!.createRecord!)).toHaveBeenCalledTimes(1);
   });
 
@@ -213,7 +263,8 @@ describe("human self-service ORISO PreDev provisioning", () => {
     const { agent, lisa } = await setup({
       writer: {
         enrollTotp: vi.fn(),
-        createRecord: vi.fn(async () => { throw new Error("Infisical record creation failed"); })
+        createRecord: vi.fn(async () => { throw new Error("Infisical record creation failed"); }),
+        updateRecord: vi.fn()
       }
     });
     const response = await agent
@@ -236,14 +287,14 @@ describe("human self-service ORISO PreDev provisioning", () => {
       .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
       .send({ environment: "production", role: "tenant-admin" });
     expect(invalid.status).toBe(400);
-    expect(service.ensureInvite).not.toHaveBeenCalled();
+    expect(service.provision).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported roles and mailboxes outside the ORISO scope", async () => {
     const { agent, lisa, moe, service } = await setup();
     const badRole = await agent
       .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
-      .send({ environment: "pre-dev", role: "platform-admin" });
+      .send({ environment: "pre-dev", role: "super-admin" });
     expect(badRole.status).toBe(400);
 
     const wrongProject = await agent
@@ -251,7 +302,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
       .send({ environment: "pre-dev", role: "tenant-admin" });
     expect(wrongProject.status).toBe(422);
     expect(wrongProject.body).toEqual({ error: "mailbox_project_mismatch" });
-    expect(service.ensureInvite).not.toHaveBeenCalled();
+    expect(service.provision).not.toHaveBeenCalled();
   });
 
   it("requires an administrator passkey session", async () => {
@@ -281,18 +332,18 @@ describe("human self-service ORISO PreDev provisioning", () => {
   it("maps provisioning failures to safe machine-readable errors", async () => {
     const { agent, lisa } = await setup({
       service: fakeService({
-        ensureInvite: vi.fn(async () => { throw new OrisoProvisioningError("invite_template_missing"); })
+        provision: vi.fn(async () => { throw new OrisoProvisioningError("account_credentials_mismatch"); })
       })
     });
     const missingTemplate = await agent
       .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
       .send({ environment: "pre-dev", role: "counsellor" });
     expect(missingTemplate.status).toBe(409);
-    expect(missingTemplate.body).toEqual({ error: "invite_template_missing" });
+    expect(missingTemplate.body).toEqual({ error: "account_credentials_mismatch" });
 
     const failing = await setup({
       service: fakeService({
-        ensureInvite: vi.fn(async () => { throw new OrisoProvisioningError("oriso_authentication_failed"); })
+        provision: vi.fn(async () => { throw new OrisoProvisioningError("oriso_authentication_failed"); })
       })
     });
     const upstream = await failing.agent
@@ -300,6 +351,81 @@ describe("human self-service ORISO PreDev provisioning", () => {
       .send({ environment: "pre-dev", role: "tenant-admin" });
     expect(upstream.status).toBe(502);
     expect(upstream.body).toEqual({ error: "oriso_authentication_failed" });
+  });
+
+  it("marks a newly created Test Access record as failed when ORISO provisioning fails", async () => {
+    const { agent, lisa, writer } = await setup({
+      service: fakeService({
+        provision: vi.fn(async () => { throw new OrisoProvisioningError("account_create_failed"); })
+      })
+    });
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "account_create_failed" });
+    expect(writer?.updateRecord).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: "oriso/pre-dev/lisa.simpson",
+      provisioningStatus: "failed"
+    }));
+  });
+
+  it("preserves a ready record when a retry fails transiently", async () => {
+    const linked = managedRecord();
+    const { agent, lisa, writer } = await setup({
+      records: [linked],
+      service: fakeService({
+        provision: vi.fn(async () => { throw new OrisoProvisioningError("oriso_authentication_failed"); })
+      })
+    });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "oriso_authentication_failed" });
+    expect(linked.provisioningStatus).toBe("ready");
+    expect(writer?.updateRecord).not.toHaveBeenCalled();
+  });
+
+  it("marks a new record failed when persisting the ready state fails", async () => {
+    const updateRecord = vi.fn()
+      .mockRejectedValueOnce(new Error("ready persistence failed"))
+      .mockResolvedValueOnce({ recordId: "oriso/pre-dev/lisa.simpson", updatedAt: "2026-07-29T16:00:00.000Z" });
+    const writer: RegistryWriter = {
+      createRecord: vi.fn(async (record) => ({ recordId: record.id })),
+      enrollTotp: vi.fn(async (record, _totpSecret, updatedAt) => ({ recordId: record.id, updatedAt })),
+      updateRecord
+    };
+    const { agent, lisa } = await setup({ writer });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+
+    expect(response.status).toBe(500);
+    expect(updateRecord).toHaveBeenCalledTimes(2);
+    expect(updateRecord).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: "oriso/pre-dev/lisa.simpson",
+      provisioningStatus: "failed"
+    }));
+  });
+
+  it("does not report ready from a generic local TOTP record without a successful provisioning marker", async () => {
+    const linked = managedRecord({
+      permissionsDescription: "Legacy manually enrolled record",
+      provisioningStatus: undefined
+    });
+    const remoteState = inviteFixture();
+    const { agent, lisa, service } = await setup({
+      records: [linked],
+      service: fakeService({ status: vi.fn(async () => remoteState) })
+    });
+    const response = await agent.get(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`);
+    expect(response.status).toBe(200);
+    expect(response.body.state.state).toBe("invited");
+    expect(service.status).toHaveBeenCalledWith(lisa.email);
   });
 
   it("returns the live onboarding state and linked record on GET", async () => {
@@ -311,7 +437,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(response.body).toMatchObject({
       configured: true,
       environment: "pre-dev",
-      supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
+      supportedRoles: ["platform-admin", "tenant-admin", "agency-admin", "counsellor", "advice-seeker"],
       state: { state: "ready", nextStep: "none" },
       linked: null
     });
