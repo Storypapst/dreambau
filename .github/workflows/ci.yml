@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, test and build
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned to immutable commit SHAs; tags are repointable.
+      # persist-credentials is off because no step here needs git write access,
+      # and npm lifecycle scripts run in this job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # .nvmrc is the single source of truth for the supported Node major.
+      # It must stay aligned with the Dockerfile base image (node:20-bookworm-slim).
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # tests/playwright-login-broker.test.ts launches a real browser, so the
+      # unit suite needs the Chromium download even though the Playwright E2E
+      # project is excluded from `npm test`.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
