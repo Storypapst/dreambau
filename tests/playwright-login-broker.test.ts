@@ -60,6 +60,18 @@ describe("Playwright login broker", () => {
     ).rejects.toThrow(/login form field "password" was not found/);
   });
 
+  it("cancels a visibility poll when the surrounding login already settled", async () => {
+    await expect(
+      resolveVisible(
+        [fakeLocator(false, "none")] as never,
+        "otp",
+        1_000,
+        async () => {},
+        () => true
+      )
+    ).rejects.toThrow(/polling was cancelled/);
+  });
+
   it("treats a locator that throws while probing as not visible", async () => {
     const broken = { first: () => broken, isVisible: vi.fn(async () => { throw new Error("detached"); }) };
     const good = fakeLocator(true, "semantic");
@@ -72,6 +84,8 @@ describe("Playwright login broker", () => {
   it("does not confuse an application element named otp with an identity-provider challenge", () => {
     expect(isOtpChallenge("https://app.oriso-dev.site/app", "https://app.oriso-dev.site", true)).toBe(false);
     expect(isOtpChallenge("https://identity.oriso-dev.site/realms/oriso/login-actions/authenticate", "https://app.oriso-dev.site", true)).toBe(true);
+    expect(isOtpChallenge("https://admin.oriso-dev.site/admin/login", "https://admin.oriso-dev.site/admin/login", true)).toBe(true);
+    expect(isOtpChallenge("https://admin.oriso-dev.site/admin/login/", "https://admin.oriso-dev.site/admin/login", true)).toBe(true);
   });
 
   it("treats a same-origin second factor revealed on the login screen as a challenge", () => {
@@ -458,6 +472,55 @@ describe("Playwright login broker", () => {
     }
   }, 40_000);
 
+  it("supports the same-origin ORISO Admin password and App-TOTP forms", async () => {
+    let submissions = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/admin/tenants") {
+        res.end("signed in");
+        return;
+      }
+      if (req.url === "/admin/login" && req.method === "POST") {
+        submissions += 1;
+        if (submissions === 1) {
+          res.setHeader("Content-Type", "text/html");
+          res.end('<form method="post"><input placeholder="One-time password"><button type="submit">Login</button></form>');
+          return;
+        }
+        res.statusCode = 302;
+        res.setHeader("Location", "/admin/tenants");
+        res.setHeader("Set-Cookie", "admin_logged_in=1; Path=/; HttpOnly");
+        res.end();
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.end('<form method="post" action="/admin/login"><input autocomplete="username"><input autocomplete="current-password" type="password"><button type="submit">Login</button></form>');
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-admin-login-"));
+    const statePath = join(root, "state.json");
+    const getOtp = vi.fn(async () => "123456");
+    try {
+      await playwrightLogin({
+        username: "platform-admin",
+        password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/admin/login`,
+        statePath,
+        ignoreHTTPSErrors: false,
+        getOtp
+      });
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      expect(submissions).toBe(2);
+      expect(getOtp).toHaveBeenCalledOnce();
+      expect(state.cookies).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "admin_logged_in", value: "1" })
+      ]));
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 20_000);
+
   it("fails closed and redacts output for missing identity, token, account, secret and OTP", async () => {
     const cases = [
       { identity: "", token: "token", records: [], secret: "password", otp: "123456", login: undefined },
@@ -486,6 +549,7 @@ describe("Playwright login broker", () => {
       expect(errors.join("")).not.toContain(entry.token || "never-match");
       expect(errors.join("")).not.toContain(entry.secret || "never-match");
       expect(errors.join("")).not.toContain(entry.otp || "never-match");
+      expect(errors.join("")).not.toContain("user");
     }
   });
 });

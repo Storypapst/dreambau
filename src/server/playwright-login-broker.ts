@@ -86,8 +86,13 @@ export function isOtpChallenge(
   preSubmitUrl?: string
 ) {
   if (!otpVisible) return false;
-  if (new URL(currentUrl).origin !== new URL(loginUrl).origin) return true;
-  return preSubmitUrl !== undefined && currentUrl === preSubmitUrl;
+  const current = new URL(currentUrl);
+  const login = new URL(loginUrl);
+  const normalizePath = (value: string) => value.replace(/\/+$/, "") || "/";
+  if (current.origin !== login.origin) return true;
+  if (preSubmitUrl !== undefined && currentUrl === preSubmitUrl) return true;
+  return normalizePath(current.pathname) === normalizePath(login.pathname)
+    && /(?:^|\/)login\/?$/i.test(current.pathname);
 }
 
 async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) {
@@ -180,10 +185,12 @@ export async function resolveVisible(
   candidates: Locator[],
   field: string,
   timeoutMs = FIELD_TIMEOUT_MS,
-  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  shouldStop: () => boolean = () => false
 ): Promise<Locator> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
+    if (shouldStop()) throw new Error(`login form field "${field}" polling was cancelled`);
     for (const candidate of candidates) {
       const first = candidate.first();
       if (await first.isVisible().catch(() => false)) return first;
@@ -227,7 +234,6 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
       if (response.status() >= 400) failedResponses.push(`${response.status()} ${new URL(response.url()).pathname}`);
     });
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
-
     const usernameField = await resolveVisible(usernameCandidates(page), "username");
     await usernameField.fill(request.username);
     const passwordField = await resolveVisible(passwordCandidates(page), "password");
@@ -241,7 +247,14 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     );
     // The ORISO admin reveals its second factor inline on the login screen
     // after the first submit, so the challenge is same-origin.
-    const otpChallenge = resolveVisible(otpCandidates(page), "otp", 15_000).then(async (otp) => {
+    let loginSettled = false;
+    const otpChallenge = resolveVisible(
+      otpCandidates(page),
+      "otp",
+      15_000,
+      undefined,
+      () => loginSettled
+    ).then(async (otp) => {
       // A revealed OTP field is not yet proof of a challenge: ORISO renders its
       // inline #otp input with a real bounding box on logins that need no second
       // factor. Let the password-only navigation settle first — racing it keeps
@@ -279,11 +292,13 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
         otpChallenge
       ]);
     } catch (error) {
+      loginSettled = true;
       // Secrets are stripped by the caller's redact(); surface where the login
       // actually stalled instead of a bare navigation timeout.
       const http = failedResponses.length ? ` | failed requests: ${failedResponses.slice(-5).join(", ")}` : "";
       throw new Error(`${error instanceof Error ? error.message : "login failed"} | ${await describeLoginFailure(page)}${http}`);
     }
+    loginSettled = true;
     if (request.requiredAuthState) {
       await waitForRestorableAuthState(
         context,
@@ -314,6 +329,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const records = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts?${query}`, token) as AccountMetadata[];
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
+    secrets.push(account.username);
 
     const encoded = encodeURIComponent(accountId);
     const secretResponse = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts/${encoded}/secret`, token);
