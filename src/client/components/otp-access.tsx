@@ -15,14 +15,15 @@ export function OtpAccess({ account, locale, compact = false }: { account: Accou
   const [error, setError] = useState(false);
   const [secretError, setSecretError] = useState(false);
   const displayedResult = result?.email === account.email && result.accountId === linked?.id ? result.value : null;
+  const displayedExpiresAt = displayedResult ? result?.expiresAt : undefined;
   const displayedApplicationSecret = applicationSecret?.email === account.email && applicationSecret.accountId === linked?.id
     ? applicationSecret.value
     : "";
   useEffect(() => {
-    if (!displayedResult) return;
-    const timeout = window.setTimeout(() => setResult(null), Math.max(0, result!.expiresAt - Date.now()));
+    if (!displayedResult || displayedExpiresAt === undefined) return;
+    const timeout = window.setTimeout(() => setResult(null), Math.max(0, displayedExpiresAt - Date.now()));
     return () => window.clearTimeout(timeout);
-  }, [displayedResult]);
+  }, [displayedResult, displayedExpiresAt]);
   if (!linked) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span></div>;
 
   async function requestApplicationSecret() {

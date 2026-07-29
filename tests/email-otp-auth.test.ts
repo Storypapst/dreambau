@@ -127,6 +127,7 @@ describe("email OTP authentication", () => {
     expect(limited.body).toEqual({ accepted: true });
     expect(sent).toHaveLength(0);
 
+    setNow("2026-07-20T12:01:01.000Z");
     const otherIp = await request(app)
       .post("/testmails/api/auth/email-otp/request")
       .set("X-Forwarded-For", "203.0.113.7")
