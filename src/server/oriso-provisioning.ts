@@ -313,9 +313,14 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     } catch {
       throw new OrisoProvisioningError("invite_template_missing");
     }
-    const candidate = templates
-      .filter((template) => template.active && template.kind === templateKind)
-      .sort((left, right) => (right.updateDate ?? "").localeCompare(left.updateDate ?? ""))[0];
+    // ORISO resolves a template by id alone and never checks its kind against
+    // the target role, so a matching kind is a preference and not a
+    // requirement. Demanding one only blocks roles whose kind nobody has
+    // created yet.
+    const active = templates
+      .filter((template) => template.active)
+      .sort((left, right) => (right.updateDate ?? "").localeCompare(left.updateDate ?? ""));
+    const candidate = active.find((template) => template.kind === templateKind) ?? active[0];
     if (!candidate) throw new OrisoProvisioningError("invite_template_missing");
     return candidate.id;
   }

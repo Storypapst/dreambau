@@ -191,9 +191,46 @@ describe("ORISO PreDev provisioning service", () => {
     expect(result.state.inviteId).toBe(4);
   });
 
-  it("refuses to create an invitation when no active template matches the role", async () => {
+  it("falls back to any active template when no kind matches the role", async () => {
+    // ORISO resolves a template by id and never checks its kind, so a missing
+    // COUNSELLOR_INVITE template must not block a counsellor invitation.
     const oriso = fakeOriso({
-      templates: [{ id: 2, kind: "TENANT_INVITE", active: true, updateDate: "2026-07-28T11:00:00" }]
+      templates: [{ id: 2, kind: "TENANT_INVITE", active: true, updateDate: "2026-07-28T11:00:00" }],
+      createdInvite: invite({ id: 5, targetRole: "COUNSELLOR" })
+    });
+    const result = await service(oriso.fetch).ensureInvite({
+      recipientEmail: "lisa.simpson@oriso.org",
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "counsellor"
+    });
+    expect(result.created).toBe(true);
+    const create = oriso.calls.find((call) => call.method === "POST" && call.url.includes("account-invites"));
+    expect(JSON.parse(String(create?.body))).toMatchObject({ targetRole: "COUNSELLOR", templateId: 2 });
+  });
+
+  it("still prefers a template whose kind matches the role", async () => {
+    const oriso = fakeOriso({
+      templates: [
+        { id: 2, kind: "TENANT_INVITE", active: true, updateDate: "2026-07-29T11:00:00" },
+        { id: 7, kind: "COUNSELLOR_INVITE", active: true, updateDate: "2026-07-20T11:00:00" },
+        { id: 8, kind: "COUNSELLOR_INVITE", active: false, updateDate: "2026-07-29T12:00:00" }
+      ],
+      createdInvite: invite({ id: 6, targetRole: "COUNSELLOR" })
+    });
+    await service(oriso.fetch).ensureInvite({
+      recipientEmail: "lisa.simpson@oriso.org",
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "counsellor"
+    });
+    const create = oriso.calls.find((call) => call.method === "POST" && call.url.includes("account-invites"));
+    expect(JSON.parse(String(create?.body)).templateId).toBe(7);
+  });
+
+  it("refuses to create an invitation when no active template exists at all", async () => {
+    const oriso = fakeOriso({
+      templates: [{ id: 2, kind: "TENANT_INVITE", active: false, updateDate: "2026-07-28T11:00:00" }]
     });
     await expect(service(oriso.fetch).ensureInvite({
       recipientEmail: "lisa.simpson@oriso.org",
