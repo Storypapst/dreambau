@@ -112,13 +112,13 @@ export function OrisoProvisioningDialog({
     }
   }
 
-  async function provision() {
+  async function provision(selectedRole: OrisoProvisioningRole) {
     setBusy(true);
     setError(null);
     try {
       const result = await api<OrisoProvisioningResult>(
         `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
-        { method: "POST", body: JSON.stringify({ environment: "pre-dev", role }) }
+        { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: selectedRole }) }
       );
       setView((current) => current ? { ...current, state: result.state, linked: result.linked } : current);
       onProvisioned(account.email, result.linked);
@@ -155,6 +155,11 @@ export function OrisoProvisioningDialog({
           : "ORISO provisioning is not configured on this server (ORISO_PREDEV_ADMIN_RECORD_ID missing)."}
       </p>}
       {view?.configured && view.state && <StateSummary state={view.state} locale={locale} />}
+      {view?.configured && view.state && !view.linked && view.state.role && <p className="text-sm text-muted-foreground">
+        {locale === "de"
+          ? "Für diese Einladung existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen „App-Passwort abrufen“ und „2FA hinterlegen“ in der Zeile."
+          : "This invitation has no Test Access record yet. “Get app password” and “Set up 2FA” appear in the row only after linking."}
+      </p>}
       {view?.configured && !view.state && <div className="flex flex-col gap-3">
         <p className="text-sm">{locale === "de" ? "Keine aktive Einladung. Rolle wählen und Einladung senden:" : "No active invitation. Choose a role and send the invitation:"}</p>
         <Select value={role} onValueChange={(value) => setRole(value as OrisoProvisioningRole)}>
@@ -169,11 +174,17 @@ export function OrisoProvisioningDialog({
         <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={busy}>
           {locale === "de" ? "Schließen" : "Close"}
         </Button>
-        {view?.configured && !view.state && <Button type="button" onClick={provision} disabled={busy}>
+        {view?.configured && !view.state && <Button type="button" onClick={() => provision(role)} disabled={busy}>
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
             : (locale === "de" ? "Einladung senden" : "Send invitation")}
+        </Button>}
+        {view?.configured && view.state && !view.linked && view.state.role && <Button type="button" onClick={() => provision(view.state!.role!)} disabled={busy}>
+          <CircleCheckIcon data-icon="inline-start" />
+          {busy
+            ? (locale === "de" ? "Wird verknüpft…" : "Linking…")
+            : (locale === "de" ? "Test-Access-Record verknüpfen" : "Link Test Access record")}
         </Button>}
       </DialogFooter>
     </DialogContent>

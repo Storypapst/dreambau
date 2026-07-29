@@ -108,6 +108,33 @@ describe("OrisoProvisioningDialog", () => {
     expect(Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Einladung senden"))).toBe(false);
   });
 
+  it("links a Test Access record for an invitation that predates provisioning", async () => {
+    vi.mocked(api).mockResolvedValueOnce({
+      configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
+      environment: "pre-dev",
+      state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+      linked: null
+    });
+    vi.mocked(api).mockResolvedValueOnce({
+      created: false, recordCreated: true,
+      state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+      linked: linkedFixture
+    });
+    const onProvisioned = await openDialog();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("noch kein Test-Access-Record"));
+
+    const link = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Test-Access-Record verknüpfen"));
+    await act(async () => link?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@oriso.org", linkedFixture));
+    expect(api).toHaveBeenCalledWith(
+      `/accounts/${encodeURIComponent("lisa.simpson@oriso.org")}/oriso-provisioning`,
+      { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "tenant-admin" }) }
+    );
+    await vi.waitFor(() => expect(document.body.textContent).not.toContain("noch kein Test-Access-Record"));
+  });
+
   it("explains when provisioning is not configured on the server", async () => {
     vi.mocked(api).mockResolvedValueOnce({
       configured: false, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
