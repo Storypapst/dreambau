@@ -154,3 +154,22 @@ test("taxonomy settings are editable and persist", async ({ page }, testInfo) =>
   expect(topics).toContain("E2E Thema");
   await page.evaluate(async (values) => { await fetch("/testmails/api/taxonomies/topics", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values }) }); }, originalTopics);
 });
+
+test("2FA enrollment stores the seed and retrieves an app TOTP", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "one enrollment is sufficient");
+  const email = process.env.TESTMAILS_E2E_TOTP_EMAIL;
+  const totpSecret = process.env.TESTMAILS_E2E_TOTP_SECRET;
+  test.skip(!email || !totpSecret, "requires a designated non-production record and a fresh runtime TOTP seed");
+  await login(page);
+  await page.getByPlaceholder("Name, E-Mail, Rolle, Thema, Projekt, Notiz …").fill(email!);
+  const row = page.locator("tbody tr").filter({ hasText: email! });
+  await expect(row).toHaveCount(1);
+  await row.locator("button").first().click();
+  await page.getByRole("button", { name: "2FA hinterlegen" }).click();
+  await page.getByLabel("TOTP-Schlüssel").fill(totpSecret!);
+  await page.getByRole("button", { name: "Sicher hinterlegen" }).click();
+  await expect(page.getByRole("button", { name: "OTP abrufen" })).toBeVisible();
+  await page.getByRole("button", { name: "OTP abrufen" }).click();
+  await expect(page.locator("code").filter({ hasText: /^\d{6}$/ })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(totpSecret!);
+});
