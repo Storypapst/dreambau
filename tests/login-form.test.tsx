@@ -83,6 +83,17 @@ describe("LoginForm passkey onboarding", () => {
     await act(async () => requestCode?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(container.textContent).toContain("Sechsstelliger Code");
 
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(email, "other@example.com");
+      email.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).not.toContain("Sechsstelliger Code");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(email, "bjoern.ludwig@caritas.de");
+      email.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("Sechsstelliger Code");
+
     const code = container.querySelector('input[inputmode="numeric"]') as HTMLInputElement;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(code, "123456");

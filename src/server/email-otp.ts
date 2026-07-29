@@ -31,6 +31,9 @@ export function createSmtpEmailOtpSender(config: SmtpEmailOtpConfig): EmailOtpSe
     port: config.port,
     secure: config.secure,
     requireTLS: !config.secure,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
     auth: { user: config.username, pass: config.password }
   });
   return {
@@ -60,29 +63,37 @@ export function installEmailOtpAuth(router: Router, options: {
 }) {
   const now = () => options.now?.() ?? new Date();
   const hmac = (userId: string, code: string) => createHmac("sha256", options.hmacKey!).update(`${userId}:${code}`).digest("hex");
+  const pendingRequests = new Set<string>();
 
   router.post("/auth/email-otp/request", async (req, res) => {
     const accepted = () => res.status(202).json({ accepted: true });
     const parsed = requestSchema.safeParse(req.body);
     if (!parsed.success || !options.sender || !options.hmacKey) return accepted();
-    let user = options.store.getUserByEmail(parsed.data.email.toLowerCase());
-    if (!user || user.status !== "active") return accepted();
-    try {
-      if (options.syncHumanUser) user = await options.syncHumanUser(user);
-      if (user.role !== "admin" && user.projects.length === 0) return accepted();
-      const requestedAt = now();
-      const previous = options.store.latestEmailOtpRequestedAt(user.id);
-      if (previous && requestedAt.getTime() - new Date(previous).getTime() < 60_000) return accepted();
-      const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
-      const expiresAt = new Date(requestedAt.getTime() + 10 * 60_000).toISOString();
-      await options.sender.send({ to: user.email, code, expiresAt });
-      options.store.putEmailOtpChallenge({
-        id: randomUUID(), userId: user.id, codeHmac: hmac(user.id, code), expiresAt,
-        attemptsRemaining: 5, requestedAt: requestedAt.toISOString()
-      });
-    } catch {
-      // Always return the same response; delivery and membership are intentionally private.
-    }
+    void (async () => {
+      let user = options.store.getUserByEmail(parsed.data.email.toLowerCase());
+      if (!user || user.status !== "active") return;
+      if (pendingRequests.has(user.id)) return;
+      pendingRequests.add(user.id);
+      try {
+        if (options.syncHumanUser) user = await options.syncHumanUser(user);
+        if (user.role !== "admin" && user.projects.length === 0) return;
+        const requestedAt = now();
+        const previous = options.store.latestEmailOtpRequestedAt(user.id);
+        if (previous && requestedAt.getTime() - new Date(previous).getTime() < 60_000) return;
+        const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
+        const expiresAt = new Date(requestedAt.getTime() + 10 * 60_000).toISOString();
+        await options.sender!.send({ to: user.email, code, expiresAt });
+        options.store.putEmailOtpChallenge({
+          id: randomUUID(), userId: user.id, codeHmac: hmac(user.id, code), expiresAt,
+          attemptsRemaining: 5, requestedAt: requestedAt.toISOString()
+        });
+      } finally {
+        pendingRequests.delete(user.id);
+      }
+    })().catch((error) => {
+      const kind = error instanceof Error ? error.name : "UnknownError";
+      console.error(`[email-otp] request processing failed (${kind})`);
+    });
     return accepted();
   });
 

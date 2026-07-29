@@ -4,7 +4,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY tsconfig.json tsconfig.server.json vite.config.ts components.json index.html ./
+COPY tsconfig.json tsconfig.server.json tsconfig.evidence.json vite.config.ts components.json index.html ./
 COPY src ./src
 
 # Runs the full quality gate inside the same runtime the image ships, so a

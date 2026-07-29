@@ -15,7 +15,7 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   const [email, setEmail] = useState(rememberedLoginEmail);
   const [recoveryCode, setRecoveryCode] = useState("");
   const [emailOtp, setEmailOtp] = useState("");
-  const [emailOtpRequested, setEmailOtpRequested] = useState(false);
+  const [emailOtpRequestedFor, setEmailOtpRequestedFor] = useState<string | null>(null);
   const [bootstrapEnabled, setBootstrapEnabled] = useState<boolean | "error" | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,18 +42,22 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   }
   async function requestEmailOtp() {
     setBusy(true); setError("");
+    const requestedEmail = email.trim().toLowerCase();
     try {
-      await api("/auth/email-otp/request", { method: "POST", body: JSON.stringify({ email }) });
-      setEmailOtpRequested(true);
+      await api("/auth/email-otp/request", { method: "POST", body: JSON.stringify({ email: requestedEmail }) });
+      setEmailOtp("");
+      setEmailOtpRequestedFor(requestedEmail);
     } catch {
       setError(locale === "de" ? "Der Code konnte gerade nicht angefordert werden." : "The code could not be requested right now.");
     } finally { setBusy(false); }
   }
   async function verifyEmailOtp() {
     setBusy(true); setError("");
+    const requestedEmail = email.trim().toLowerCase();
     try {
-      await api("/auth/email-otp/verify", { method: "POST", body: JSON.stringify({ email, code: emailOtp }) });
-      rememberLoginEmail(email); onAuthenticated();
+      if (emailOtpRequestedFor !== requestedEmail) throw new Error("email_changed");
+      await api("/auth/email-otp/verify", { method: "POST", body: JSON.stringify({ email: requestedEmail, code: emailOtp }) });
+      rememberLoginEmail(requestedEmail); onAuthenticated();
     } catch {
       setError(locale === "de" ? "Der E-Mail-Code ist ungültig oder abgelaufen." : "The email code is invalid or expired.");
     } finally { setBusy(false); }
@@ -77,7 +81,7 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
             </Field>
             <Button type="button" onClick={passkeyLogin} disabled={busy || !email}><KeyRoundIcon />{locale === "de" ? "Mit Passkey anmelden" : "Sign in with passkey"}</Button>
             <Button type="button" variant="outline" onClick={requestEmailOtp} disabled={busy || !email}><MailIcon data-icon="inline-start" />{locale === "de" ? "Code per E-Mail senden" : "Send code by email"}</Button>
-            {emailOtpRequested && <><Alert><MailIcon /><AlertTitle>{locale === "de" ? "Postfach prüfen" : "Check your inbox"}</AlertTitle><AlertDescription>{locale === "de" ? "Wenn das Konto berechtigt ist, wurde ein sechsstelliger Code gesendet." : "If the account is eligible, a six-digit code was sent."}</AlertDescription></Alert>
+            {emailOtpRequestedFor === email.trim().toLowerCase() && <><Alert><MailIcon /><AlertTitle>{locale === "de" ? "Postfach prüfen" : "Check your inbox"}</AlertTitle><AlertDescription>{locale === "de" ? "Wenn das Konto berechtigt ist, wurde ein sechsstelliger Code gesendet." : "If the account is eligible, a six-digit code was sent."}</AlertDescription></Alert>
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="email-otp">{locale === "de" ? "Sechsstelliger Code" : "Six-digit code"}</FieldLabel>
               <Input id="email-otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={emailOtp} onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} />

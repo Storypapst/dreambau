@@ -59,7 +59,7 @@ describe("email OTP authentication", () => {
 
     expect(requested.status).toBe(202);
     expect(requested.body).toEqual({ accepted: true });
-    expect(sent).toHaveLength(1);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]).toMatchObject({ to: member.email });
     expect(sent[0].code).toMatch(/^\d{6}$/);
     expect(JSON.stringify(passkeyStore.debugEmailOtpChallenges(member.id))).not.toContain(sent[0].code);
@@ -92,7 +92,7 @@ describe("email OTP authentication", () => {
 
     await request(app).post("/testmails/api/auth/email-otp/request").send({ email: member.email });
     await request(app).post("/testmails/api/auth/email-otp/request").send({ email: member.email });
-    expect(sent).toHaveLength(1);
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
 
     setNow("2026-07-20T12:11:00.000Z");
     expect((await request(app).post("/testmails/api/auth/email-otp/verify").send({ email: member.email, code: sent[0].code })).status).toBe(401);
@@ -105,6 +105,7 @@ describe("email OTP authentication", () => {
     const response = await request(app).post("/testmails/api/auth/email-otp/request").send({ email: member.email });
     expect(response.status).toBe(202);
     expect(response.body).toEqual({ accepted: true });
+    await vi.waitFor(() => expect(sender.send).toHaveBeenCalledOnce());
     expect(passkeyStore.debugEmailOtpChallenges(member.id)).toEqual([]);
     passkeyStore.close();
   });

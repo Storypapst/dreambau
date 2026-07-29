@@ -123,17 +123,23 @@ export function createApp(options: AppOptions = {}) {
     syncHumanUser
   });
   const requireActiveHumanSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
-    requireSession(req, res, async () => {
-      const principal = res.locals.session as SessionPrincipal;
-      if (principal.method !== "passkey" && principal.method !== "email-otp") {
-        return res.status(403).json({ error: "strong_auth_required" });
-      }
-      let user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
-      if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
-      try { user = await syncHumanUser(user); }
-      catch { return res.status(503).json({ error: "human_access_unavailable" }); }
-      res.locals.humanUser = user;
-      next();
+    requireSession(req, res, () => {
+      void (async () => {
+        try {
+          const principal = res.locals.session as SessionPrincipal;
+          if (principal.method !== "passkey" && principal.method !== "email-otp") {
+            return res.status(403).json({ error: "strong_auth_required" });
+          }
+          let user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
+          if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
+          try { user = await syncHumanUser(user); }
+          catch { return res.status(503).json({ error: "human_access_unavailable" }); }
+          res.locals.humanUser = user;
+          next();
+        } catch (error) {
+          next(error);
+        }
+      })();
     });
   const requireAdminSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
     requireStrongSession(req, res, () => {
