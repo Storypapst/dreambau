@@ -60,6 +60,18 @@ describe("Playwright login broker", () => {
     ).rejects.toThrow(/login form field "password" was not found/);
   });
 
+  it("cancels a visibility poll when the surrounding login already settled", async () => {
+    await expect(
+      resolveVisible(
+        [fakeLocator(false, "none")] as never,
+        "otp",
+        1_000,
+        async () => {},
+        () => true
+      )
+    ).rejects.toThrow(/polling was cancelled/);
+  });
+
   it("treats a locator that throws while probing as not visible", async () => {
     const broken = { first: () => broken, isVisible: vi.fn(async () => { throw new Error("detached"); }) };
     const good = fakeLocator(true, "semantic");
@@ -73,6 +85,7 @@ describe("Playwright login broker", () => {
     expect(isOtpChallenge("https://app.oriso-dev.site/app", "https://app.oriso-dev.site", true)).toBe(false);
     expect(isOtpChallenge("https://identity.oriso-dev.site/realms/oriso/login-actions/authenticate", "https://app.oriso-dev.site", true)).toBe(true);
     expect(isOtpChallenge("https://admin.oriso-dev.site/admin/login", "https://admin.oriso-dev.site/admin/login", true)).toBe(true);
+    expect(isOtpChallenge("https://admin.oriso-dev.site/admin/login/", "https://admin.oriso-dev.site/admin/login", true)).toBe(true);
   });
 
   it("treats a same-origin second factor revealed on the login screen as a challenge", () => {
@@ -536,6 +549,7 @@ describe("Playwright login broker", () => {
       expect(errors.join("")).not.toContain(entry.token || "never-match");
       expect(errors.join("")).not.toContain(entry.secret || "never-match");
       expect(errors.join("")).not.toContain(entry.otp || "never-match");
+      expect(errors.join("")).not.toContain("user");
     }
   });
 });
