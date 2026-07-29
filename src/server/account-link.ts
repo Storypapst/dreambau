@@ -26,7 +26,8 @@ export const accountAccessActions = [
   "doctor_checked",
   "record_linked",
   "environment_requested",
-  "browser_session_opened"
+  "browser_session_opened",
+  "oriso_invite_requested"
 ] as const;
 export type AccountAccessAction = typeof accountAccessActions[number];
 

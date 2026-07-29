@@ -407,6 +407,29 @@ die Datei muss dem aktuellen Benutzer gehören und darf keine Gruppen- oder
 Weltrechte besitzen. Dieser lokale Wert ist nur das eingeschränkte
 Maschinen-Bootstrap-Credential. Testkonto-Passwörter verbleiben in Infisical.
 
+### ORISO PreDev self-service provisioning
+
+Administrators can provision a real ORISO PreDev account for a free
+Springfield mailbox directly from the Testmails UI (issue #49). The server
+authenticates with the managed platform-admin record, creates an ORISO
+account invitation for the selected role (`tenant-admin`, `agency-admin`,
+`counsellor`) and stores a stable Test Access record
+(`oriso/pre-dev/<mailbox-local-part>`) with a generated application password
+in Infisical. Credentials and OTPs never reach the browser; the invitation
+travels only through the Springfield mailbox. The operation is idempotent and
+reports existing invitations; every environment except `pre-dev` is rejected.
+
+Configuration (feature is disabled until `ORISO_PREDEV_ADMIN_RECORD_ID` is
+set): `ORISO_PREDEV_ADMIN_RECORD_ID` (e.g.
+`oriso/pre-dev/e2e-platform-admin-predev`), optional overrides
+`ORISO_PREDEV_API_BASE_URL`, `ORISO_PREDEV_TOKEN_URL`,
+`ORISO_PREDEV_CLIENT_ID`, `ORISO_PREDEV_ADMIN_URL`, `ORISO_PREDEV_APP_URL`.
+Because the public DNS of `oriso-dev.site` still points at the retired host
+and PreDev serves a certificate from the internal "ORISO Dev Local CA", set
+`ORISO_PREDEV_RESOLVE_IP=46.224.170.69` and mount the CA via
+`ORISO_PREDEV_CA_FILE`. Record creation additionally requires the Infisical
+writer identity to have create permission on the `/records` path.
+
 ### ORISO PreDev seed import
 
 `npm run oriso-seed-import` accepts the decrypted Keycloak seed-store shape

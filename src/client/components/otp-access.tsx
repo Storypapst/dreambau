@@ -2,14 +2,31 @@ import { useEffect, useState } from "react";
 import { ExternalLinkIcon, KeyRoundIcon } from "lucide-react";
 import { api } from "@/api";
 import type { Locale } from "@/i18n";
-import type { AccountView, OtpResponse } from "@/types";
+import type { AccountView, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "./copy-button";
+import { OrisoProvisioningDialog } from "./oriso-provisioning-dialog";
 import { TotpEnrollmentDialog } from "./totp-enrollment-dialog";
 
-export function OtpAccess({ account, locale, compact = false }: { account: AccountView; locale: Locale; compact?: boolean }) {
+function isOrisoScoped(account: AccountView) {
+  if (account.metadata.project === "ORISO") return true;
+  if (["ORIMO", "TRAIL.IST", "DREAMBAU"].includes(account.metadata.project)) return false;
+  return account.domain === "oriso.org" || account.domain === "openresilience.cc";
+}
+
+export function OtpAccess({ account, locale, compact = false, isAdmin = false, onProvisioned }: {
+  account: AccountView;
+  locale: Locale;
+  compact?: boolean;
+  isAdmin?: boolean;
+  onProvisioned?: (email: string, linked: LinkedTestAccount) => void;
+}) {
   const linked = account.linkedAccess?.[0];
+  const provisioningDialog = isAdmin && onProvisioned && isOrisoScoped(account)
+    && (!linked || (linked.project === "oriso" && linked.environment === "pre-dev" && !linked.hasTotp))
+    ? <OrisoProvisioningDialog account={account} locale={locale} hasLinkedAccess={Boolean(linked)} onProvisioned={onProvisioned} />
+    : null;
   const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);
   const [applicationSecret, setApplicationSecret] = useState<{ email: string; accountId: string; value: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +44,7 @@ export function OtpAccess({ account, locale, compact = false }: { account: Accou
     const timeout = window.setTimeout(() => setResult(null), Math.max(0, displayedExpiresAt - Date.now()));
     return () => window.clearTimeout(timeout);
   }, [displayedResult, displayedExpiresAt]);
-  if (!linked) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span></div>;
+  if (!linked) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div>;
 
   async function requestApplicationSecret() {
     const requestedEmail = account.email;
@@ -83,12 +100,15 @@ export function OtpAccess({ account, locale, compact = false }: { account: Accou
         ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={requestOtp}>
             <KeyRoundIcon data-icon="inline-start" />{busy ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…") : (locale === "de" ? "OTP abrufen" : "Get OTP")}
           </Button>
-        : <TotpEnrollmentDialog
-            email={account.email}
-            linked={linked}
-            locale={locale}
-            onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
-          />}
+        : <>
+            <TotpEnrollmentDialog
+              email={account.email}
+              linked={linked}
+              locale={locale}
+              onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
+            />
+            {provisioningDialog}
+          </>}
       {displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
     </div>
     {error && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "OTP konnte nicht abgerufen werden." : "Could not retrieve OTP."}</p>}

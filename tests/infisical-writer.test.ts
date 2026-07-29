@@ -188,6 +188,94 @@ describe("Infisical TOTP writer", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("creates a new provisioned record secret in the right scope", async () => {
+    const calls: Array<{ url: URL; init?: RequestInit }> = [];
+    const fetch: WriterFetch = async (input, init) => {
+      const url = new URL(String(input));
+      calls.push({ url, init });
+      if (url.pathname.endsWith("/login")) {
+        return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      return Response.json({ secret: { id: "created" } });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+    const created = record({ id: "oriso/pre-dev/lisa.simpson", email: "lisa.simpson@oriso.org", username: "lisa.simpson@oriso.org" });
+
+    await expect(writer.createRecord!(created)).resolves.toEqual({ recordId: created.id });
+    const post = calls[1];
+    expect(post.url.pathname).toBe(`/api/v4/secrets/${secretNameForRecord(created.id)}`);
+    expect(post.init?.method).toBe("POST");
+    const body = JSON.parse(String(post.init?.body));
+    expect(body).toMatchObject({
+      projectId: "project-oriso",
+      environment: "pre-dev",
+      secretPath: "/records",
+      type: "shared",
+      skipMultilineEncoding: true,
+      secretComment: "Provisioned by Dreambau Test Access Hub"
+    });
+    expect(JSON.parse(body.secretValue)).toEqual(created);
+  });
+
+  it("creates the records folder once when the secret path does not exist yet", async () => {
+    const calls: Array<{ url: URL; init?: RequestInit }> = [];
+    let folderCreated = false;
+    const fetch: WriterFetch = async (input, init) => {
+      const url = new URL(String(input));
+      calls.push({ url, init });
+      if (url.pathname.endsWith("/login")) {
+        return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (url.pathname === "/api/v2/folders") {
+        folderCreated = true;
+        return Response.json({ folder: { id: "records" } });
+      }
+      if (!folderCreated) return Response.json({ error: "SecretPathNotFound" }, { status: 404 });
+      return Response.json({ secret: { id: "created" } });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.createRecord!(record({ id: "oriso/pre-dev/lisa.simpson" }))).resolves.toEqual({ recordId: "oriso/pre-dev/lisa.simpson" });
+    expect(calls.filter((call) => call.url.pathname === "/api/v2/folders")).toHaveLength(1);
+  });
+
+  it("refuses to create non-application records and reports creation failures generically", async () => {
+    const fetch: WriterFetch = async (input) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      return new Response(`duplicate ${writerSecret}`, { status: 400 });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.createRecord!(record({ kind: "mailbox" })))
+      .rejects.toThrow("Infisical record creation only supports application records");
+    const error = await writer.createRecord!(record()).catch((value: unknown) => value);
+    expect(String(error)).toContain("Infisical record creation failed");
+    expect(String(error)).not.toContain(writerSecret);
+  });
+
   it("never includes credentials, seed or upstream bodies in errors", async () => {
     const fetch: WriterFetch = async () => new Response(`leaked ${writerSecret} ${totpSecret}`, { status: 403 });
     const writer = createInfisicalRegistryWriter({

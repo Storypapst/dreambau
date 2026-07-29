@@ -15,6 +15,7 @@ export interface RegistryWriter {
     totpSecret: string,
     updatedAt: string
   ): Promise<{ recordId: string; updatedAt: string }>;
+  createRecord?(record: TestAccessRecord): Promise<{ recordId: string }>;
 }
 
 interface WriterOptions {
@@ -94,7 +95,53 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
     }
   }
 
+  async function postSecret(record: TestAccessRecord, headers: Record<string, string>) {
+    return fetch(new URL(`/api/v4/secrets/${secretNameForRecord(record.id)}`, baseUrl), {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      signal: requestSignal(),
+      body: JSON.stringify({
+        projectId: options.projectIds[record.project],
+        environment: record.environment,
+        secretPath: "/records",
+        secretValue: JSON.stringify(record),
+        secretComment: "Provisioned by Dreambau Test Access Hub",
+        skipMultilineEncoding: true,
+        type: "shared"
+      })
+    });
+  }
+
   return {
+    async createRecord(input) {
+      const record = testAccessRecordSchema.parse(input);
+      if (record.kind !== "app-user" && record.kind !== "admin") {
+        throw new Error("Infisical record creation only supports application records");
+      }
+      return serializeEnrollment(record.id, async () => {
+        const headers = { Authorization: `Bearer ${await accessToken()}` };
+        let response = await postSecret(record, headers);
+        if (response.status === 404) {
+          // The /records folder does not exist yet for this project/environment.
+          const folderResponse = await fetch(new URL("/api/v2/folders", baseUrl), {
+            method: "POST",
+            headers: { ...headers, "Content-Type": "application/json" },
+            signal: requestSignal(),
+            body: JSON.stringify({
+              projectId: options.projectIds[record.project],
+              environment: record.environment,
+              name: "records",
+              path: "/",
+              description: "Dreambau Test Access Hub records"
+            })
+          });
+          if (!folderResponse.ok) throw new Error("Infisical records folder creation failed");
+          response = await postSecret(record, headers);
+        }
+        if (!response.ok) throw new Error("Infisical record creation failed");
+        return { recordId: record.id };
+      });
+    },
     async enrollTotp(expectedRecord, totpSecret, updatedAt) {
       const expected = testAccessRecordSchema.parse(expectedRecord);
       if (expected.kind !== "app-user" && expected.kind !== "admin") {

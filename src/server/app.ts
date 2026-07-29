@@ -24,12 +24,21 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
-import { dashboardRoles, publicLinkedAccount } from "./account-link.js";
+import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
 import { generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
 import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.js";
+import {
+  buildProvisionedRecord,
+  createOrisoProvisioningService,
+  createPinnedHttpsFetch,
+  generateApplicationPassword,
+  orisoProvisioningRoles,
+  OrisoProvisioningError,
+  type OrisoProvisioningService
+} from "./oriso-provisioning.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -53,6 +62,7 @@ interface AppOptions {
   humanAccessProvider?: HumanAccessProvider;
   emailOtpSender?: EmailOtpSender;
   emailOtpHmacKey?: string;
+  orisoProvisioning?: OrisoProvisioningService;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -194,6 +204,19 @@ export function createApp(options: AppOptions = {}) {
       : undefined
   );
   const mailReader = options.mailReader ?? createJmapTestMailReader();
+  const orisoProvisioning = options.orisoProvisioning ?? (config.orisoProvisioning
+    ? createOrisoProvisioningService({
+        ...config.orisoProvisioning,
+        registryProvider,
+        now: options.now,
+        fetch: config.orisoProvisioning.resolveIp || config.orisoProvisioning.caFile
+          ? createPinnedHttpsFetch({
+              resolveIp: config.orisoProvisioning.resolveIp ?? undefined,
+              caFile: config.orisoProvisioning.caFile ?? undefined
+            })
+          : undefined
+      })
+    : undefined);
   const reconcileRecords = (records: TestAccessRecord[]) =>
     database.reconcileTestAccessLinks(
       accountLoader().map((account) => account.email),
@@ -362,6 +385,122 @@ export function createApp(options: AppOptions = {}) {
       res.json(result);
     } catch (error) {
       if (error instanceof z.ZodError) return handleValidation(error, res);
+      next(error);
+    }
+  });
+  const orisoProvisionBodySchema = z.object({
+    environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
+    role: z.enum(orisoProvisioningRoles)
+  }).strict();
+  const orisoLinkedRecord = (email: string, records: TestAccessRecord[]) =>
+    linkedFromStore(email, records)
+      .find((record) => record.project === "oriso" && record.environment === "pre-dev") ?? null;
+  const orisoProvisioningHttpError = (error: unknown, res: express.Response) => {
+    if (!(error instanceof OrisoProvisioningError)) return false;
+    const status = error.code === "invite_template_missing" ? 409
+      : error.code === "admin_record_unavailable" ? 503
+      : 502;
+    res.status(status).json({ error: error.code });
+    return true;
+  };
+  api.get("/accounts/:email/oriso-provisioning", requireAdminSession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    res.set("Cache-Control", "no-store");
+    if (!orisoProvisioning) {
+      return res.json({ configured: false, supportedRoles: [...orisoProvisioningRoles], environment: "pre-dev", state: null, linked: null });
+    }
+    try {
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const linked = orisoLinkedRecord(email, records);
+      const state = await orisoProvisioning.status(email);
+      res.json({
+        configured: true,
+        supportedRoles: [...orisoProvisioningRoles],
+        environment: "pre-dev",
+        state,
+        linked: linked ? publicLinkedAccount(linked) : null
+      });
+    } catch (error) {
+      if (orisoProvisioningHttpError(error, res)) return;
+      next(error);
+    }
+  });
+  api.post("/accounts/:email/oriso-provisioning", requireAdminSession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    let body: z.infer<typeof orisoProvisionBodySchema>;
+    try {
+      body = orisoProvisionBodySchema.parse(req.body);
+    } catch {
+      return res.status(400).json({ error: "validation_failed" });
+    }
+    // The self-service path targets ORISO PreDev only; production and every
+    // other environment are rejected before any ORISO call happens.
+    if (body.environment !== "pre-dev") return res.status(422).json({ error: "environment_not_supported" });
+    if (viewProject(current) !== "oriso") return res.status(422).json({ error: "mailbox_project_mismatch" });
+    if (!orisoProvisioning) return res.status(503).json({ error: "oriso_provisioning_unavailable" });
+    if (!registryWriter?.createRecord) return res.status(503).json({ error: "record_creation_unavailable" });
+    try {
+      const nameParts = current.displayName.trim().split(/\s+/);
+      const { created, state } = await orisoProvisioning.ensureInvite({
+        recipientEmail: email,
+        firstName: nameParts[0] || email.split("@")[0],
+        lastName: nameParts.slice(1).join(" ") || "Springfield",
+        role: body.role
+      });
+      const records = await registryProvider.list();
+      let linkedRecord = orisoLinkedRecord(email, records) ?? linkedApplicationRecordsForEmail(email, records)
+        .find((record) => record.project === "oriso" && record.environment === "pre-dev") ?? null;
+      const nowDate = options.now?.() ?? new Date();
+      let recordCreated = false;
+      if (!linkedRecord) {
+        linkedRecord = buildProvisionedRecord({
+          email,
+          displayName: current.displayName,
+          role: body.role,
+          adminBaseUrl: orisoProvisioning.target.adminBaseUrl,
+          appBaseUrl: orisoProvisioning.target.appBaseUrl,
+          responsiblePerson: user.email,
+          now: nowDate,
+          secret: generateApplicationPassword()
+        });
+        await registryWriter.createRecord(linkedRecord);
+        recordCreated = true;
+      }
+      reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
+      database.recordAccountAccess({
+        accountId: linkedRecord.id,
+        email,
+        actorId: user.id,
+        action: "oriso_invite_requested",
+        createdAt: nowDate.toISOString(),
+        context: { environment: "pre-dev" }
+      });
+      if (recordCreated) {
+        database.recordAccountAccess({
+          accountId: linkedRecord.id,
+          email,
+          actorId: user.id,
+          action: "record_linked",
+          createdAt: nowDate.toISOString(),
+          context: { environment: "pre-dev" }
+        });
+      }
+      res.set("Cache-Control", "no-store");
+      res.status(created ? 201 : 200).json({
+        created,
+        recordCreated,
+        state,
+        linked: publicLinkedAccount(linkedRecord)
+      });
+    } catch (error) {
+      if (orisoProvisioningHttpError(error, res)) return;
       next(error);
     }
   });
