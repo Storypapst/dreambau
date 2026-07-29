@@ -22,7 +22,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: testmails
-          image: dreambau-testmails:0.7.1-dashboard-integrity-20260723
+          image: dreambau-testmails:0.9.0-oriso-provisioning-3d70779
           imagePullPolicy: Never
           ports:
             - { name: http, containerPort: 3000 }
@@ -48,6 +48,12 @@ spec:
             - { name: TEST_ACCESS_INFISICAL_ORISO_PROJECT_ID, value: 2808af88-2c60-4023-8754-98665192cfdf }
             - { name: TEST_ACCESS_INFISICAL_ORIMO_PROJECT_ID, value: cacf81e9-4d84-4352-99b8-4e3eb40bf338 }
             - { name: TEST_ACCESS_INFISICAL_DREAMBAU_PROJECT_ID, value: a7620a55-2f67-4bc1-9526-4efda230b247 }
+            # Self-service ORISO PreDev provisioning (issue #49). The public DNS
+            # of oriso-dev.site points at the retired host, so the IP is pinned
+            # and the internal "ORISO Dev Local CA" is trusted explicitly.
+            - { name: ORISO_PREDEV_ADMIN_RECORD_ID, value: oriso/pre-dev/e2e-platform-admin-predev }
+            - { name: ORISO_PREDEV_RESOLVE_IP, value: 46.224.170.69 }
+            - { name: ORISO_PREDEV_CA_FILE, value: /run/config/oriso-predev/ca.pem }
           volumeMounts:
             - { name: data, mountPath: /data }
             - { name: accounts, mountPath: /run/secrets/testmails, readOnly: true }
@@ -56,6 +62,7 @@ spec:
             - { name: infisical, mountPath: /run/secrets/infisical, readOnly: true }
             - { name: infisical-writer, mountPath: /run/secrets/infisical-writer, readOnly: true }
             - { name: email-otp, mountPath: /run/secrets/email-otp, readOnly: true }
+            - { name: oriso-predev-ca, mountPath: /run/config/oriso-predev, readOnly: true }
             - { name: tmp, mountPath: /tmp }
           resources:
             requests: { cpu: 25m, memory: 96Mi }
@@ -87,5 +94,7 @@ spec:
           secret: { secretName: test-access-infisical-writer, defaultMode: 256 }
         - name: email-otp
           secret: { secretName: testmails-email-otp, defaultMode: 256 }
+        - name: oriso-predev-ca
+          configMap: { name: oriso-predev-ca }
         - name: tmp
           emptyDir: { sizeLimit: 32Mi }
