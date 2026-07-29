@@ -24,6 +24,16 @@ export interface RuntimeConfig {
     fromAddress: string;
     fromName: string;
   } | null;
+  orisoProvisioning: {
+    apiBaseUrl: string;
+    tokenUrl: string;
+    clientId: string;
+    adminRecordId: string;
+    adminBaseUrl: string;
+    appBaseUrl: string;
+    resolveIp: string | null;
+    caFile: string | null;
+  } | null;
   registryProvider: "file" | "infisical";
   infisical: {
     baseUrl: string;
@@ -95,6 +105,18 @@ export function loadConfig(): RuntimeConfig {
     fromAddress: smtpValues.fromAddress,
     fromName: process.env.TESTMAILS_SMTP_FROM_NAME?.trim() || "Dreambau Test Access"
   } : null;
+  const orisoAdminRecordId = process.env.ORISO_PREDEV_ADMIN_RECORD_ID?.trim() ?? "";
+  const orisoProvisioning = orisoAdminRecordId ? {
+    apiBaseUrl: process.env.ORISO_PREDEV_API_BASE_URL?.trim() || "https://api.oriso-dev.site/service",
+    tokenUrl: process.env.ORISO_PREDEV_TOKEN_URL?.trim()
+      || "https://auth.oriso-dev.site/realms/online-beratung/protocol/openid-connect/token",
+    clientId: process.env.ORISO_PREDEV_CLIENT_ID?.trim() || "app",
+    adminRecordId: orisoAdminRecordId,
+    adminBaseUrl: process.env.ORISO_PREDEV_ADMIN_URL?.trim() || "https://admin.oriso-dev.site",
+    appBaseUrl: process.env.ORISO_PREDEV_APP_URL?.trim() || "https://app.oriso-dev.site",
+    resolveIp: process.env.ORISO_PREDEV_RESOLVE_IP?.trim() || null,
+    caFile: process.env.ORISO_PREDEV_CA_FILE?.trim() || null
+  } : null;
   const emailOtpHmacKey = fromFileOrEnv("hmac-key", "TESTMAILS_EMAIL_OTP_HMAC_KEY");
   if (smtp && !emailOtpHmacKey) throw new Error("TESTMAILS_EMAIL_OTP_HMAC_KEY is required when email OTP SMTP is enabled");
   if (smtp && emailOtpHmacKey.length < 32) throw new Error("TESTMAILS_EMAIL_OTP_HMAC_KEY must be at least 32 characters");
@@ -108,6 +130,7 @@ export function loadConfig(): RuntimeConfig {
     secureCookies: process.env.NODE_ENV !== "test",
     emailOtpHmacKey,
     smtp,
+    orisoProvisioning,
     registryProvider,
     infisical
   };
