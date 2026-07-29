@@ -76,7 +76,11 @@ function fakeOriso(options: FakeOrisoOptions = {}) {
 function service(
   fetch: ProvisioningFetch,
   registryProvider = provider(),
-  now = () => new Date(59_000)
+  now = () => new Date(59_000),
+  retry: {
+    sleep?: (milliseconds: number) => Promise<void>;
+    provisioningRetryDelaysMs?: readonly number[];
+  } = {}
 ) {
   return createOrisoProvisioningService({
     apiBaseUrl: "https://api.oriso-dev.site/service",
@@ -92,7 +96,9 @@ function service(
     defaultMainTopicId: 31,
     registryProvider,
     fetch,
-    now
+    now,
+    sleep: retry.sleep ?? (async () => {}),
+    provisioningRetryDelaysMs: retry.provisioningRetryDelaysMs ?? [1, 2, 3]
   });
 }
 
@@ -378,6 +384,209 @@ describe("service construction", () => {
 });
 
 describe("reusable ORISO PreDev account factory", () => {
+  it("retries a delayed post-create credential until ORISO exposes the account", async () => {
+    let accountCreated = false;
+    let userTokenAttempts = 0;
+    let totpActive = false;
+    const sleep = vi.fn(async () => {});
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        userTokenAttempts += 1;
+        if (!accountCreated || userTokenAttempts < 4) {
+          return { ok: false, status: 401, async json() { return {}; } };
+        }
+        if (totpActive && !form.get("otp")) {
+          return { ok: false, status: 401, async json() { return {}; } };
+        }
+        return ok({ access_token: "user-token", expires_in: 300 });
+      }
+      if (url.endsWith("/useradmin/consultants") && init?.method === "POST") {
+        accountCreated = true;
+        return ok({ _embedded: { id: "created-user-id" } });
+      }
+      if (url.includes("/created-user-id/agencies") && init?.method === "PUT") return ok();
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
+        totpActive = true;
+        return ok();
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"), {
+      sleep,
+      provisioningRetryDelaysMs: [10, 20, 30]
+    });
+    const record = buildProvisionedRecord({
+      email: "apu.nahasapeemapetilon@oriso.org",
+      displayName: "Apu Nahasapeemapetilon",
+      role: "counsellor",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+
+    const result = await subject.provision({
+      record,
+      firstName: "Apu",
+      lastName: "Nahasapeemapetilon",
+      role: "counsellor",
+      storeTotp: vi.fn()
+    });
+
+    expect(result.state.state).toBe("ready");
+    expect(sleep).toHaveBeenNthCalledWith(1, 10);
+    expect(sleep).toHaveBeenNthCalledWith(2, 20);
+  });
+
+  it("refreshes the user token and retries a transient TOTP activation failure", async () => {
+    let userTokenNumber = 0;
+    let activationAttempts = 0;
+    let totpActive = false;
+    const sleep = vi.fn(async () => {});
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        if (totpActive && !form.get("otp")) {
+          return { ok: false, status: 401, async json() { return {}; } };
+        }
+        userTokenNumber += 1;
+        return ok({ access_token: `user-token-${userTokenNumber}`, expires_in: 300 });
+      }
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
+        activationAttempts += 1;
+        const authorization = init?.headers?.Authorization;
+        if (activationAttempts === 1) {
+          expect(authorization).toBe("Bearer user-token-1");
+          return { ok: false, status: 401, async json() { return {}; } };
+        }
+        expect(authorization).toBe("Bearer user-token-2");
+        totpActive = true;
+        return ok();
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"), {
+      sleep,
+      provisioningRetryDelaysMs: [25]
+    });
+    const record = buildProvisionedRecord({
+      email: "bart.simpson@oriso.org",
+      displayName: "Bart Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+
+    const result = await subject.provision({
+      record,
+      firstName: "Bart",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    });
+
+    expect(result.state.state).toBe("ready");
+    expect(activationAttempts).toBe(2);
+    expect(sleep).toHaveBeenCalledOnce();
+  });
+
+  it("stops after the bounded post-create retry window is exhausted", async () => {
+    let accountCreated = false;
+    const sleep = vi.fn(async () => {});
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        return { ok: false, status: 401, async json() { return {}; } };
+      }
+      if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
+        accountCreated = true;
+        return ok({ _embedded: { id: "created-user-id" } });
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"), {
+      sleep,
+      provisioningRetryDelaysMs: [10, 20]
+    });
+    const record = buildProvisionedRecord({
+      email: "ralph.wiggum@oriso.org",
+      displayName: "Ralph Wiggum",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+
+    await expect(subject.provision({
+      record,
+      firstName: "Ralph",
+      lastName: "Wiggum",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+    expect(accountCreated).toBe(true);
+    expect(sleep.mock.calls.map(([delay]) => delay)).toEqual([10, 20]);
+  });
+
+  it("does not retry a permanent TOTP activation conflict", async () => {
+    const sleep = vi.fn(async () => {});
+    const fetch: ProvisioningFetch = async (input) => {
+      const url = String(input);
+      if (url.includes("/protocol/openid-connect/token")) {
+        return { ok: true, status: 200, async json() { return { access_token: "user", expires_in: 300 }; } };
+      }
+      if (url.endsWith("/users/2fa/app")) {
+        return { ok: false, status: 409, async json() { return {}; } };
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"), {
+      sleep,
+      provisioningRetryDelaysMs: [10, 20]
+    });
+    const record = buildProvisionedRecord({
+      email: "bart.simpson@oriso.org",
+      displayName: "Bart Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+
+    await expect(subject.provision({
+      record,
+      firstName: "Bart",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    })).rejects.toMatchObject({ code: "totp_setup_failed" });
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["platform-admin", "/useradmin/tenantadmins", { tenantId: 0 }, "admin", ["platform-admin"]],
     ["tenant-admin", "/useradmin/tenantadmins", { tenantId: 7 }, "admin", ["tenant-admin"]],

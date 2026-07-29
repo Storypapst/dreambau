@@ -285,6 +285,8 @@ interface ServiceOptions extends OrisoProvisioningTarget {
   registryProvider: RegistryProvider;
   fetch?: ProvisioningFetch;
   now?: () => Date;
+  sleep?: (milliseconds: number) => Promise<void>;
+  provisioningRetryDelaysMs?: readonly number[];
 }
 
 export interface OrisoProvisioningService {
@@ -314,6 +316,9 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   }
   const fetch = options.fetch ?? defaultFetch;
   const now = options.now ?? (() => new Date());
+  const sleep = options.sleep ?? ((milliseconds: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  const provisioningRetryDelaysMs = options.provisioningRetryDelaysMs ?? [500, 1_000, 2_000, 4_000];
   const apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, "");
   const requestSignal = () => AbortSignal.timeout(15_000);
   let cachedToken: { value: string; expiresAt: number } | null = null;
@@ -406,6 +411,39 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       body: init.body,
       signal: requestSignal()
     });
+  }
+
+  async function retryAuthenticatedToken(record: TestAccessRecord, totpSecret?: string) {
+    let probe = await credentialToken(record, totpSecret);
+    for (const delay of provisioningRetryDelaysMs) {
+      if (probe.kind === "authenticated") return probe.token;
+      await sleep(delay);
+      probe = await credentialToken(record, totpSecret);
+    }
+    return probe.kind === "authenticated" ? probe.token : null;
+  }
+
+  async function activateTotpWithRetry(record: TestAccessRecord, initialToken: string, totpSecret: string) {
+    let userToken = initialToken;
+    for (let attempt = 0; ; attempt += 1) {
+      const activation = await userJson(userToken, "/users/2fa/app", {
+        method: "PUT",
+        body: JSON.stringify({
+          secret: totpSecret,
+          otp: generateTotp(totpSecret, now()).code
+        })
+      });
+      if (activation.ok) return;
+      if (
+        (activation.status !== 401 && activation.status !== 404)
+        || attempt >= provisioningRetryDelaysMs.length
+      ) {
+        throw new OrisoProvisioningError("totp_setup_failed");
+      }
+      await sleep(provisioningRetryDelaysMs[attempt]);
+      const refreshed = await credentialToken(record);
+      if (refreshed.kind === "authenticated") userToken = refreshed.token;
+    }
   }
 
   function creationRequest(input: {
@@ -592,11 +630,11 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           if (!relationResponse.ok) throw new OrisoProvisioningError("account_create_failed");
         }
         created = true;
-        const postCreateProbe = await credentialToken(input.record);
-        if (postCreateProbe.kind !== "authenticated") {
+        const postCreateToken = await retryAuthenticatedToken(input.record);
+        if (!postCreateToken) {
           throw new OrisoProvisioningError("account_credentials_mismatch");
         }
-        userToken = postCreateProbe.token;
+        userToken = postCreateToken;
       }
 
       if (input.role === "advice-seeker" && input.record.email) {
@@ -617,17 +655,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           throw new OrisoProvisioningError("totp_store_failed");
         }
       }
-      const activation = await userJson(userToken, "/users/2fa/app", {
-        method: "PUT",
-        body: JSON.stringify({
-          secret: totpSecret,
-          otp: generateTotp(totpSecret, now()).code
-        })
-      });
-      if (!activation.ok) throw new OrisoProvisioningError("totp_setup_failed");
+      await activateTotpWithRetry(input.record, userToken, totpSecret);
 
-      const verified = await credentialToken(input.record, totpSecret);
-      if (verified.kind !== "authenticated") {
+      const verifiedToken = await retryAuthenticatedToken(input.record, totpSecret);
+      if (!verifiedToken) {
         throw new OrisoProvisioningError("totp_verification_failed");
       }
       return {
