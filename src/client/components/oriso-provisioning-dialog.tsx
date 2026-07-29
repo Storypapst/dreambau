@@ -47,8 +47,8 @@ const nextStepLabels: Record<OrisoProvisioningStateView["nextStep"], { de: strin
     en: "Open the invitation mail in the Springfield mailbox and start onboarding."
   },
   "complete-onboarding": {
-    de: "Onboarding abschließen: Passwort aus dem Test-Access-Record (App-Passwort abrufen) setzen.",
-    en: "Complete onboarding: set the password from the Test Access record (Get app password)."
+    de: "Onboarding abschließen: das fest zugewiesene ORISO-App-Passwort aus der Testkonto-Zeile verwenden.",
+    en: "Complete onboarding with the permanently assigned ORISO app password from the test-account row."
   },
   "store-totp": {
     de: "TOTP-Schlüssel aus dem ORISO-Onboarding unten einfügen — der Antwortcode für ORISO erscheint direkt danach.",
@@ -192,8 +192,8 @@ export function OrisoProvisioningDialog({
         <DialogTitle>{locale === "de" ? "ORISO PreDev Konto" : "ORISO PreDev account"}</DialogTitle>
         <DialogDescription>
           {locale === "de"
-            ? "Legt über den verwalteten Plattform-Admin ein wiederverwendbares ORISO-Konto für dieses Springfield-Postfach an, aktiviert 2FA und prüft den Login. Zugangsdaten bleiben im Test-Access-Record."
-            : "Creates a reusable ORISO account for this Springfield mailbox through the managed platform admin, activates 2FA, and verifies login. Credentials stay inside the Test Access record."}
+            ? "Legt über den verwalteten Plattform-Admin ein wiederverwendbares ORISO-Konto für dieses Springfield-Postfach an, aktiviert 2FA und prüft den Login. Das App-Passwort wird genau einmal vergeben, bleibt unverändert und ist anschließend geschützt in der Testkonto-Zeile abrufbar."
+            : "Creates a reusable ORISO account for this Springfield mailbox through the managed platform admin, activates 2FA, and verifies login. The app password is assigned once, stays unchanged, and can then be retrieved securely from the test-account row."}
         </DialogDescription>
       </DialogHeader>
       {!view && !error && <p className="text-sm text-muted-foreground">{locale === "de" ? "Status wird geladen…" : "Loading status…"}</p>}
@@ -205,8 +205,8 @@ export function OrisoProvisioningDialog({
       {view?.configured && view.state && <StateSummary state={view.state} locale={locale} />}
       {view?.configured && view.state && !view.linked && view.state.role && <p className="text-sm text-muted-foreground">
         {locale === "de"
-          ? "Für dieses ORISO-Konto existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen „App-Passwort abrufen“ und „2FA hinterlegen“ in der Zeile."
-          : "This ORISO account has no Test Access record yet. “Get app password” and “Set up 2FA” appear in the row only after linking."}
+          ? "Für dieses ORISO-Konto existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen das fest zugewiesene ORISO-App-Passwort und „2FA hinterlegen“ in der Zeile."
+          : "This ORISO account has no Test Access record yet. The permanently assigned ORISO app password and “Set up 2FA” appear in the row only after linking."}
       </p>}
       {view?.configured && view.linked && !view.linked.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
         <p className="text-sm font-medium">{locale === "de" ? "2FA direkt hier abschließen" : "Finish 2FA right here"}</p>

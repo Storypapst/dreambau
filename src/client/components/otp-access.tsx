@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ExternalLinkIcon, KeyRoundIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/api";
 import type { Locale } from "@/i18n";
 import type { AccountView, LinkedTestAccount, OtpResponse } from "@/types";
@@ -30,6 +31,9 @@ export function OtpAccess({ account, locale, compact = false, isAdmin = false, o
   const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);
   const [applicationSecret, setApplicationSecret] = useState<{ email: string; accountId: string; value: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [secretBusy, setSecretBusy] = useState(false);
+  const [secretRevealed, setSecretRevealed] = useState(false);
+  const [secretCopied, setSecretCopied] = useState(false);
   const [error, setError] = useState(false);
   const [secretError, setSecretError] = useState(false);
   const [enrolledRecordIds, setEnrolledRecordIds] = useState<Set<string>>(() => new Set());
@@ -44,18 +48,50 @@ export function OtpAccess({ account, locale, compact = false, isAdmin = false, o
     const timeout = window.setTimeout(() => setResult(null), Math.max(0, displayedExpiresAt - Date.now()));
     return () => window.clearTimeout(timeout);
   }, [displayedResult, displayedExpiresAt]);
+  useEffect(() => {
+    setSecretRevealed(false);
+    setSecretCopied(false);
+    setSecretError(false);
+  }, [account.email, linked?.id]);
   if (!linked) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div>;
 
-  async function requestApplicationSecret() {
+  async function requestApplicationSecret(): Promise<string | null> {
     const requestedEmail = account.email;
     const requestedAccountId = linked!.id;
+    setSecretBusy(true);
     setSecretError(false);
     try {
       const response = await api<{ accountId: string; secret: string }>(`/accounts/${encodeURIComponent(requestedEmail)}/application-secret?accountId=${encodeURIComponent(requestedAccountId)}`);
       if (response.accountId !== requestedAccountId) throw new Error("Unexpected account");
       setApplicationSecret({ email: requestedEmail, accountId: requestedAccountId, value: response.secret });
+      return response.secret;
     } catch {
       setSecretError(true);
+      return null;
+    } finally {
+      setSecretBusy(false);
+    }
+  }
+
+  async function toggleApplicationSecret() {
+    if (secretRevealed) {
+      setSecretRevealed(false);
+      return;
+    }
+    const secret = displayedApplicationSecret || await requestApplicationSecret();
+    if (secret) setSecretRevealed(true);
+  }
+
+  async function copyApplicationSecret() {
+    const secret = displayedApplicationSecret || await requestApplicationSecret();
+    if (!secret) return;
+    try {
+      await navigator.clipboard.writeText(secret);
+      setSecretCopied(true);
+      toast.success(locale === "de" ? "ORISO-App-Passwort kopiert" : "ORISO app password copied");
+      window.setTimeout(() => setSecretCopied(false), 1500);
+    } catch {
+      toast.error(locale === "de" ? "Kopieren fehlgeschlagen" : "Copy failed");
     }
   }
 
@@ -88,11 +124,38 @@ export function OtpAccess({ account, locale, compact = false, isAdmin = false, o
       {!compact && <code className="min-w-0 truncate text-xs">{linked.username}</code>}
       {!compact && <Button asChild variant="ghost" size="sm"><a href={linked.loginUrl} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />{locale === "de" ? "App öffnen" : "Open app"}</a></Button>}
     </div>
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="sm" onClick={requestApplicationSecret}>
-        {locale === "de" ? "App-Passwort abrufen" : "Get app password"}
-      </Button>
-      {displayedApplicationSecret && <><code className="min-w-0 break-all font-mono text-xs">{displayedApplicationSecret}</code><CopyButton value={displayedApplicationSecret} label={locale === "de" ? "App-Passwort kopieren" : "Copy app password"} compact /></>}
+    <div className="flex min-w-0 flex-col gap-1 rounded-lg border p-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">{locale === "de" ? "ORISO-App-Passwort" : "ORISO app password"}</span>
+        <Badge variant="secondary">{locale === "de" ? "Fest zugewiesen" : "Permanently assigned"}</Badge>
+      </div>
+      <div className="flex min-w-0 items-center gap-1">
+        <code className="min-w-0 flex-1 truncate text-xs">
+          {secretRevealed && displayedApplicationSecret ? displayedApplicationSecret : "••••••••••••••••"}
+        </code>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={secretBusy}
+          onClick={toggleApplicationSecret}
+          aria-label={secretRevealed
+            ? (locale === "de" ? "ORISO-App-Passwort maskieren" : "Hide ORISO app password")
+            : (locale === "de" ? "ORISO-App-Passwort anzeigen" : "Show ORISO app password")}
+        >
+          {secretRevealed ? <EyeOffIcon /> : <EyeIcon />}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={secretBusy}
+          onClick={copyApplicationSecret}
+          aria-label={locale === "de" ? "ORISO-App-Passwort kopieren" : "Copy ORISO app password"}
+        >
+          {secretCopied ? <CheckIcon /> : <CopyIcon />}
+        </Button>
+      </div>
     </div>
     {secretError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "App-Passwort konnte nicht abgerufen werden." : "Could not retrieve app password."}</p>}
     <div className="flex min-w-0 flex-wrap items-center gap-2">

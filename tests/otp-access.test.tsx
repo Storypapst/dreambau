@@ -34,6 +34,10 @@ describe("OtpAccess", () => {
     document.body.append(container);
     root = createRoot(container);
     vi.mocked(api).mockReset();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) }
+    });
   });
   afterEach(async () => {
     await act(async () => root.unmount());
@@ -58,14 +62,24 @@ describe("OtpAccess", () => {
     expect(api).not.toHaveBeenCalled();
   });
 
-  it("loads the application password separately from the mailbox password", async () => {
+  it("presents the fixed application password as a masked credential and reveals it on demand", async () => {
     vi.mocked(api).mockResolvedValue({ accountId: account.linkedAccess![0].id, secret: "application-password" });
     await act(async () => root.render(<OtpAccess account={account} locale="de" compact />));
-    const button = Array.from(container.querySelectorAll("button")).find((candidate) => candidate.textContent?.includes("App-Passwort abrufen"));
+    expect(container.textContent).toContain("ORISO-App-Passwort");
+    expect(container.textContent).toContain("Fest zugewiesen");
+    expect(container.textContent).toContain("••••••••••••••••");
+    expect(container.textContent).not.toContain("application-password");
+
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="ORISO-App-Passwort anzeigen"]');
     await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await vi.waitFor(() => expect(container.textContent).toContain("application-password"));
     expect(api).toHaveBeenCalledWith(`/accounts/${encodeURIComponent(account.email)}/application-secret?accountId=${encodeURIComponent(account.linkedAccess![0].id)}`);
     expect(container.textContent).not.toContain("mailbox-password");
+
+    const hideButton = container.querySelector<HTMLButtonElement>('button[aria-label="ORISO-App-Passwort maskieren"]');
+    await act(async () => hideButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.textContent).not.toContain("application-password");
+    expect(api).toHaveBeenCalledTimes(1);
   });
 
   it("offers enrollment only while the linked app login has no TOTP", async () => {
@@ -79,11 +93,22 @@ describe("OtpAccess", () => {
     expect(container.textContent).not.toContain("OTP abrufen");
   });
 
+  it("copies the fixed application password without exposing it in the document", async () => {
+    vi.mocked(api).mockResolvedValue({ accountId: account.linkedAccess![0].id, secret: "application-password" });
+    await act(async () => root.render(<OtpAccess account={account} locale="de" compact />));
+
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="ORISO-App-Passwort kopieren"]');
+    await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("application-password"));
+    expect(container.textContent).not.toContain("application-password");
+  });
+
   it("never renders a late password response after switching accounts", async () => {
     let resolveRequest!: (value: { accountId: string; secret: string }) => void;
     vi.mocked(api).mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
     await act(async () => root.render(<OtpAccess account={account} locale="de" compact />));
-    const button = Array.from(container.querySelectorAll("button")).find((candidate) => candidate.textContent?.includes("App-Passwort abrufen"));
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="ORISO-App-Passwort anzeigen"]');
     await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     const other = {
