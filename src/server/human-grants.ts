@@ -92,7 +92,10 @@ export function migrateLegacyProjectGrants(sqlite: DatabaseType.Database, now = 
     ON CONFLICT(user_id, project, source) DO NOTHING
   `);
   const environments = JSON.stringify(ALL_TEST_ENVIRONMENTS);
-  const markComplete = sqlite.prepare("INSERT INTO human_grant_migrations(key, completed_at) VALUES(?, ?)");
+  const markComplete = sqlite.prepare(`
+    INSERT INTO human_grant_migrations(key, completed_at) VALUES(?, ?)
+    ON CONFLICT(key) DO NOTHING
+  `);
   const run = sqlite.transaction(() => {
     for (const row of rows) {
       let raw: unknown;

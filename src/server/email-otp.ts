@@ -72,8 +72,17 @@ export function installEmailOtpAuth(router: Router, options: {
     const ip = req.ip ?? "unknown";
     const windowStart = requestedAt.getTime() - 10 * 60_000;
     const recent = (requestsByIp.get(ip) ?? []).filter((timestamp) => timestamp > windowStart);
-    if (recent.length >= 5) return accepted();
+    if (recent.length >= 5) {
+      requestsByIp.delete(ip);
+      requestsByIp.set(ip, recent);
+      return accepted();
+    }
     recent.push(requestedAt.getTime());
+    requestsByIp.delete(ip);
+    if (requestsByIp.size >= 10_000) {
+      const oldest = requestsByIp.keys().next().value;
+      if (oldest) requestsByIp.delete(oldest);
+    }
     requestsByIp.set(ip, recent);
     const parsed = requestSchema.safeParse(req.body);
     if (!parsed.success || !options.sender || !options.hmacKey) return accepted();
