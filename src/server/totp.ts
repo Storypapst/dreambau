@@ -12,14 +12,14 @@ function decodeBase32(value: string) {
   return Buffer.from(bytes);
 }
 
-export function generateTotp(secret: string, now = new Date(), digits = 6, periodSeconds = 30) {
+function generateTotpWithKey(key: Buffer, now = new Date(), digits = 6, periodSeconds = 30) {
   if (!Number.isInteger(digits) || digits < 6 || digits > 8) throw new Error("TOTP digits must be between 6 and 8");
   const timestamp = now.getTime();
   if (!Number.isFinite(timestamp)) throw new Error("Invalid TOTP timestamp");
   const counter = Math.floor(timestamp / 1000 / periodSeconds);
   const message = Buffer.alloc(8);
   message.writeBigUInt64BE(BigInt(counter));
-  const digest = createHmac("sha1", decodeBase32(secret)).update(message).digest();
+  const digest = createHmac("sha1", key).update(message).digest();
   const offset = digest[digest.length - 1] & 0x0f;
   const binary = ((digest[offset] & 0x7f) << 24)
     | (digest[offset + 1] << 16)
@@ -28,4 +28,18 @@ export function generateTotp(secret: string, now = new Date(), digits = 6, perio
   const code = String(binary % (10 ** digits)).padStart(digits, "0");
   const expiresAt = new Date((counter + 1) * periodSeconds * 1000);
   return { code, generatedAt: now.toISOString(), expiresAt: expiresAt.toISOString() };
+}
+
+export function generateTotp(secret: string, now = new Date(), digits = 6, periodSeconds = 30) {
+  return generateTotpWithKey(decodeBase32(secret), now, digits, periodSeconds);
+}
+
+/**
+ * ORISO's custom Keycloak SPI stores the 32-character setup seed as raw UTF-8
+ * key material. It is deliberately not the RFC-style Base32 representation
+ * used by the rest of Test Access.
+ */
+export function generateOrisoTotp(secret: string, now = new Date(), digits = 6, periodSeconds = 30) {
+  if (!/^[A-Za-z0-9]{32}$/.test(secret)) throw new Error("Invalid ORISO TOTP secret");
+  return generateTotpWithKey(Buffer.from(secret, "utf8"), now, digits, periodSeconds);
 }
