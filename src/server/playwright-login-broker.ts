@@ -172,6 +172,7 @@ export function otpCandidates(page: Page): Locator[] {
   return [
     page.locator("input[autocomplete='one-time-code']"),
     page.getByRole("textbox", { name: /one[- ]?time|otp|verification code|einmal|bestätigungscode/i }),
+    page.getByPlaceholder(/one[- ]?time|otp|verification code|einmal|bestätigungscode/i),
     page.locator("#otp"),
     page.locator("input[name='otp']")
   ];
