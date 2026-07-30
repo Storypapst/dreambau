@@ -15,6 +15,7 @@ const FIELD_TIMEOUT_MS = 20_000;
  */
 const OTP_CHALLENGE_GRACE_MS = 6_000;
 const AUTH_STATE_TIMEOUT_MS = 10_000;
+const TOTP_SAFETY_MARGIN_MS = 8_000;
 
 interface AccountMetadata {
   id: string;
@@ -99,6 +100,34 @@ async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) 
   const response = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` } });
   if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
   return response.json() as Promise<any>;
+}
+
+export async function requestSafeOtpCode(
+  request: () => Promise<{ code?: unknown; source?: unknown; expiresAt?: unknown }>,
+  options: {
+    now?: () => number;
+    sleep?: (milliseconds: number) => Promise<void>;
+  } = {}
+) {
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((milliseconds: number) => delay(milliseconds));
+  let response = await request();
+  const expiresAt = typeof response.expiresAt === "string"
+    ? new Date(response.expiresAt).getTime()
+    : Number.NaN;
+  const remaining = expiresAt - now();
+  if (
+    response.source === "totp"
+    && Number.isFinite(expiresAt)
+    && remaining > 0
+    && remaining < TOTP_SAFETY_MARGIN_MS
+  ) {
+    await sleep(Math.max(0, remaining) + 150);
+    response = await request();
+  }
+  const code = String(response.code ?? "");
+  if (!code) throw new Error("OTP is empty");
+  return code;
 }
 
 async function waitForRestorableAuthState(
@@ -345,9 +374,10 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     await chmod(stateDirectory, 0o700);
     const statePath = join(stateDirectory, "storage-state.json");
     const getOtp = async () => {
-      const otpResponse = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts/${encoded}/otp`, token);
-      const code = String(otpResponse.code ?? "");
-      if (!code) throw new Error("OTP is empty");
+      const code = await requestSafeOtpCode(
+        () => jsonRequest(dependencies.fetch, `${baseUrl}/accounts/${encoded}/otp`, token),
+        { now: () => (dependencies.now?.() ?? new Date()).getTime() }
+      );
       secrets.push(code);
       return code;
     };

@@ -33,6 +33,8 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { CopyButton } from "./copy-button";
+import { OtpValidity } from "./otp-validity";
+import { requestSafeOtp } from "@/safe-otp";
 
 const stateLabels: Record<OrisoOnboardingState, { de: string; en: string }> = {
   invited: { de: "Eingeladen", en: "Invited" },
@@ -109,7 +111,8 @@ export function OrisoProvisioningDialog({
   const [totpSecret, setTotpSecret] = useState("");
   const [enrollBusy, setEnrollBusy] = useState(false);
   const [enrollError, setEnrollError] = useState(false);
-  const [otp, setOtp] = useState<{ code: string } | null>(null);
+  const [otp, setOtp] = useState<{ code: string; expiresAt?: number } | null>(null);
+  const [otpWaitingUntil, setOtpWaitingUntil] = useState<number | null>(null);
   const [otpError, setOtpError] = useState(false);
   const environment = view?.environment
     ?? (account.domain === "oriso.org" || account.domain === "openresilience.cc" ? "dev" : "pre-dev");
@@ -130,6 +133,7 @@ export function OrisoProvisioningDialog({
     setTotpSecret("");
     setEnrollError(false);
     setOtp(null);
+    setOtpWaitingUntil(null);
     setOtpError(false);
     if (value) {
       setView(null);
@@ -140,10 +144,16 @@ export function OrisoProvisioningDialog({
   async function requestOtp(accountId: string) {
     setOtpError(false);
     try {
-      const value = await api<OtpResponse>(
-        `/accounts/${encodeURIComponent(account.email)}/otp?accountId=${encodeURIComponent(accountId)}`
+      const endpoint = `/accounts/${encodeURIComponent(account.email)}/otp?accountId=${encodeURIComponent(accountId)}`;
+      const value = await requestSafeOtp(
+        () => api<OtpResponse>(endpoint),
+        { onWait: setOtpWaitingUntil }
       );
-      setOtp({ code: value.code });
+      setOtpWaitingUntil(null);
+      setOtp({
+        code: value.code,
+        expiresAt: value.source === "totp" ? new Date(value.expiresAt).getTime() : undefined
+      });
     } catch {
       setOtpError(true);
     }
@@ -266,6 +276,8 @@ export function OrisoProvisioningDialog({
           {locale === "de" ? "Neu" : "Refresh"}
         </Button>
       </div>}
+      {otpWaitingUntil && <OtpValidity expiresAt={otpWaitingUntil} locale={locale} waiting />}
+      {otp?.expiresAt && <OtpValidity expiresAt={otp.expiresAt} locale={locale} />}
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
       {view?.configured && !view.state && <div className="flex flex-col gap-3">
         <p className="text-sm">{locale === "de" ? "Noch kein ORISO-Konto. Rolle wählen und Konto vollständig anlegen:" : "No ORISO account yet. Choose a role and provision the complete account:"}</p>
