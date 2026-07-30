@@ -1,9 +1,9 @@
-import { randomBytes, randomInt } from "node:crypto";
+import { randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
 import https from "node:https";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
-import { generateTotp } from "./totp.js";
+import { generateOrisoTotp } from "./totp.js";
 
 export const orisoProvisioningRoles = [
   "platform-admin",
@@ -105,6 +105,12 @@ const templateSchema = z.object({
   updateDate: z.string().nullable().optional()
 }).passthrough();
 
+const userDataSchema = z.object({
+  twoFactorAuth: z.object({
+    secret: z.string().regex(/^[A-Za-z0-9]{32}$/)
+  }).passthrough()
+}).passthrough();
+
 const activeInviteStatuses = new Set(["DRAFT", "EMAIL_SENT", "ACCEPTED"]);
 
 export function provisioningStateForInvite(invite: Pick<OrisoInvite, "accessGateStatus" | "inviteStatus">): OrisoOnboardingState {
@@ -181,24 +187,6 @@ export function generateApplicationPassword(length = 24) {
     [characters[index], characters[swap]] = [characters[swap], characters[index]];
   }
   return characters.join("");
-}
-
-const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-
-/**
- * Generates the 32-character Base32 seed accepted by ORISO's app-TOTP API.
- * The seed is never returned to the browser; the caller persists it directly
- * in the linked Test Access record before activation.
- */
-export function generateTotpSecret() {
-  const bytes = randomBytes(20);
-  let bits = "";
-  for (const byte of bytes) bits += byte.toString(2).padStart(8, "0");
-  let encoded = "";
-  for (let offset = 0; offset < bits.length; offset += 5) {
-    encoded += base32Alphabet[Number.parseInt(bits.slice(offset, offset + 5).padEnd(5, "0"), 2)];
-  }
-  return encoded;
 }
 
 export function recordRolesForProvisioningRole(role: OrisoProvisioningRole) {
@@ -362,7 +350,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       username: record.username,
       password: record.secret
     });
-    if (record.totpSecret) form.set("otp", generateTotp(record.totpSecret, now()).code);
+    if (record.totpSecret) form.set("otp", generateOrisoTotp(record.totpSecret, now()).code);
     const response = await fetch(options.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -405,7 +393,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       username: record.username,
       password: record.secret
     });
-    if (totpSecret) form.set("otp", generateTotp(totpSecret, now()).code);
+    if (totpSecret) form.set("otp", generateOrisoTotp(totpSecret, now()).code);
     const response = await fetch(options.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -428,11 +416,12 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     }
   }
 
-  async function userJson(accessTokenValue: string, path: string, init: { method: string; body?: string }) {
+  async function userJson(accessTokenValue: string, path: string, init: { method?: string; body?: string } = {}) {
     return fetch(`${apiBaseUrl}${path}`, {
-      method: init.method,
+      method: init.method ?? "GET",
       headers: {
         Authorization: `Bearer ${accessTokenValue}`,
+        "X-U25-CSRF-TOKEN": "dreambau-test-access",
         ...(init.body ? { "Content-Type": "application/json" } : {})
       },
       body: init.body,
@@ -457,7 +446,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         method: "PUT",
         body: JSON.stringify({
           secret: totpSecret,
-          otp: generateTotp(totpSecret, now()).code
+          otp: generateOrisoTotp(totpSecret, now()).code
         })
       });
       if (activation.ok) return;
@@ -675,14 +664,22 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         }
       }
 
-      const totpSecret = input.record.totpSecret ?? generateTotpSecret();
+      let totpSecret = input.record.totpSecret;
       if (!input.record.totpSecret) {
+        const userDataResponse = await userJson(userToken, "/users/data");
+        if (!userDataResponse.ok) throw new OrisoProvisioningError("totp_setup_failed");
+        try {
+          totpSecret = userDataSchema.parse(await userDataResponse.json()).twoFactorAuth.secret;
+        } catch {
+          throw new OrisoProvisioningError("totp_setup_failed");
+        }
         try {
           await input.storeTotp(totpSecret);
         } catch {
           throw new OrisoProvisioningError("totp_store_failed");
         }
       }
+      if (!totpSecret) throw new OrisoProvisioningError("totp_setup_failed");
       await activateTotpWithRetry(input.record, userToken, totpSecret);
 
       const verifiedToken = await retryAuthenticatedToken(input.record, totpSecret);

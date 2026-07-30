@@ -12,7 +12,7 @@ import {
 import type { TestMailReader } from "./test-mail.js";
 import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js";
 import type { RegistryWriter } from "./infisical-writer.js";
-import { generateTotp } from "./totp.js";
+import { generateOrisoTotp, generateTotp } from "./totp.js";
 import { parseSeedProfile } from "./seed-profile.js";
 import { createTestRunRouter } from "./test-run-router.js";
 import { derivedCatalogPatch, isKnownSyntheticEmail, publicLinkedAccount } from "./account-link.js";
@@ -320,7 +320,11 @@ export function createTestAccessRouter(options: {
       if (match.totpSecret) {
         res.set("Cache-Control", "no-store");
         recordAccess(match, identity, "otp_requested");
-        return res.json(generateTotp(match.totpSecret, options.now?.() ?? new Date()));
+        return res.json(
+          match.project === "oriso"
+            ? generateOrisoTotp(match.totpSecret, options.now?.() ?? new Date())
+            : generateTotp(match.totpSecret, options.now?.() ?? new Date())
+        );
       }
       const account = mailboxAccount(match);
       if (!account) return res.status(404).json({ error: "mailbox_not_found" });

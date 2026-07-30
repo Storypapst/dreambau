@@ -25,7 +25,7 @@ import {
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
 import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
-import { generateTotp } from "./totp.js";
+import { generateOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
@@ -382,7 +382,13 @@ export function createApp(options: AppOptions = {}) {
       if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
       const generatedAt = options.now?.() ?? new Date();
       const result = selected.totpSecret
-        ? { accountId: selected.id, source: "totp" as const, ...generateTotp(selected.totpSecret, generatedAt) }
+        ? {
+            accountId: selected.id,
+            source: "totp" as const,
+            ...(selected.project === "oriso"
+              ? generateOrisoTotp(selected.totpSecret, generatedAt)
+              : generateTotp(selected.totpSecret, generatedAt))
+          }
         : await (async () => {
             const otp = await mailReader.otp(current, parsed.query ?? "");
             return otp ? { accountId: selected.id, source: "mail" as const, ...otp } : null;

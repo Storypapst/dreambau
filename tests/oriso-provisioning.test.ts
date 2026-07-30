@@ -31,7 +31,8 @@ describe("ORISO environment routing", () => {
 });
 
 const adminSecret = "platform-admin-password-never-log";
-const adminTotpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+const adminTotpSecret = "aBcDeFgHiJkLmNoPqRsTuVwXyZ123456";
+const generatedOrisoTotpSecret = "zYxWvUtSrQpOnMlKjIhGfEdCbA987654";
 
 function adminRecord(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
   return {
@@ -182,7 +183,7 @@ describe("ORISO PreDev provisioning service", () => {
     expect(form.get("client_id")).toBe("app");
     expect(form.get("username")).toBe("abe.simpson@dreambau.de");
     expect(form.get("password")).toBe(adminSecret);
-    expect(form.get("otp")).toBe("287082");
+    expect(form.get("otp")).toBe("269634");
 
     const create = oriso.calls.find((call) => call.method === "POST" && call.url.includes("/useradmin/account-invites"));
     expect(create).toBeDefined();
@@ -458,7 +459,11 @@ describe("reusable ORISO PreDev account factory", () => {
         accountCreated = true;
         return ok({ _embedded: { id: "dev-created-user-id" } });
       }
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+      }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
+        expect(init.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
         totpActive = true;
         return ok();
       }
@@ -526,6 +531,9 @@ describe("reusable ORISO PreDev account factory", () => {
         return ok({ _embedded: { id: "created-user-id" } });
       }
       if (url.includes("/created-user-id/agencies") && init?.method === "PUT") return ok();
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+      }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         totpActive = true;
         return ok();
@@ -578,6 +586,9 @@ describe("reusable ORISO PreDev account factory", () => {
         }
         userTokenNumber += 1;
         return ok({ access_token: `user-token-${userTokenNumber}`, expires_in: 300 });
+      }
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
       }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         activationAttempts += 1;
@@ -672,6 +683,11 @@ describe("reusable ORISO PreDev account factory", () => {
       if (url.includes("/protocol/openid-connect/token")) {
         return { ok: true, status: 200, async json() { return { access_token: "user", expires_in: 300 }; } };
       }
+      if (url.endsWith("/users/data")) {
+        return { ok: true, status: 200, async json() {
+          return { twoFactorAuth: { secret: generatedOrisoTotpSecret } };
+        } };
+      }
       if (url.endsWith("/users/2fa/app")) {
         return { ok: false, status: 409, async json() { return {}; } };
       }
@@ -734,12 +750,16 @@ describe("reusable ORISO PreDev account factory", () => {
         }
         if (url.includes("/created-user-id/agencies") && method === "PUT") return ok();
         if (url.endsWith("/users/email") && method === "PUT") return ok();
-        if (url.endsWith("/users/2fa/app") && method === "PUT") {
-          const body = JSON.parse(String(init?.body));
-          expect(body.secret).toBe(storedTotp[0]);
-          expect(body.otp).toMatch(/^\d{6}$/);
-          totpActive = true;
-          return ok();
+      if (url.endsWith("/users/data") && method === "GET") {
+        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+      }
+      if (url.endsWith("/users/2fa/app") && method === "PUT") {
+        const body = JSON.parse(String(init?.body));
+        expect(body.secret).toBe(storedTotp[0]);
+        expect(body.otp).toMatch(/^\d{6}$/);
+        expect(init?.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
+        totpActive = true;
+        return ok();
         }
         return { ok: false, status: 404, async json() { return {}; } };
       };
@@ -775,7 +795,7 @@ describe("reusable ORISO PreDev account factory", () => {
       });
       expect(record).toMatchObject({ kind: expectedKind, roles: expectedRoles });
       expect(storedTotp).toHaveLength(1);
-      expect(storedTotp[0]).toMatch(/^[A-Z2-7]{32}$/);
+      expect(storedTotp[0]).toBe(generatedOrisoTotpSecret);
       const create = calls.find((call) => call.method === "POST" && call.url.endsWith(expectedPath));
       expect(create).toBeDefined();
       expect(JSON.parse(String(create?.body))).toMatchObject(expectedPayload);
@@ -837,6 +857,44 @@ describe("reusable ORISO PreDev account factory", () => {
     expect(result.state.state).toBe("ready");
     expect(totpStores).toBe(0);
     expect(totpActive).toBe(true);
+  });
+
+  it("fails closed when ORISO does not return its generated TOTP seed", async () => {
+    const storeTotp = vi.fn(async () => {});
+    const fetch: ProvisioningFetch = async (input) => {
+      const url = String(input);
+      if (url.includes("/protocol/openid-connect/token")) {
+        return { ok: true, status: 200, async json() {
+          return { access_token: "user-token", expires_in: 300 };
+        } };
+      }
+      if (url.endsWith("/users/data")) {
+        return { ok: true, status: 200, async json() {
+          return { twoFactorAuth: { secret: "malformed-seed" } };
+        } };
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@oriso.org",
+      displayName: "Lisa Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+
+    await expect(subject.provision({
+      record,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp
+    })).rejects.toMatchObject({ code: "totp_setup_failed" });
+    expect(storeTotp).not.toHaveBeenCalled();
   });
 
   it("does not create an account when the credential probe fails transiently", async () => {
@@ -916,6 +974,11 @@ describe("reusable ORISO PreDev account factory", () => {
           return { ok: false, status: 401, async json() { return {}; } };
         }
         return { ok: true, status: 200, async json() { return { access_token: "user", expires_in: 300 }; } };
+      }
+      if (url.endsWith("/users/data")) {
+        return { ok: true, status: 200, async json() {
+          return { twoFactorAuth: { secret: generatedOrisoTotpSecret } };
+        } };
       }
       if (url.endsWith("/users/2fa/app")) {
         return failure === "setup"
