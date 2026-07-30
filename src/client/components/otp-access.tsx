@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
-import type { Locale } from "@/i18n";
+import { labelLinkedEnvironment, type Locale } from "@/i18n";
 import type { AccountView, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -119,7 +119,7 @@ export function OtpAccess({ account, locale, compact = false, isAdmin = false, o
 
   return <div className="flex min-w-0 flex-col gap-2">
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Badge variant="secondary">{linked.environment}</Badge>
+      <Badge variant="secondary">{labelLinkedEnvironment(locale, [linked]) ?? linked.environment}</Badge>
       {linked.roles.map((role) => <Badge key={role} variant="outline">{role}</Badge>)}
       {!compact && <code className="min-w-0 truncate text-xs">{linked.username}</code>}
       {!compact && <Button asChild variant="ghost" size="sm"><a href={linked.loginUrl} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />{locale === "de" ? "App öffnen" : "Open app"}</a></Button>}

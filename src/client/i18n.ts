@@ -1,5 +1,5 @@
 import { topicCatalog } from "../server/catalog";
-import type { FixtureQuality, LifecycleStatus, Project } from "./types";
+import type { FixtureQuality, LifecycleStatus, LinkedTestAccount, Project } from "./types";
 
 export type Locale = "de" | "en";
 
@@ -109,3 +109,24 @@ export const labelFixture = (locale: Locale, value: FixtureQuality) => fixtureLa
 export const labelRole = (locale: Locale, value: string) => roleLabels[value]?.[locale] ?? value;
 export const labelConversation = (locale: Locale, value: string) => conversationLabels[value]?.[locale] ?? value;
 export const labelProject = (locale: Locale, value: Project) => value === "NONE" ? (locale === "de" ? "Keines" : "None") : value === "OTHER" ? (locale === "de" ? "Sonstiges" : "Other") : value;
+
+const orisoEnvironmentLabels = {
+  "pre-dev": { de: "PreDev", en: "PreDev" },
+  dev: { de: "Dev", en: "Dev" }
+} as const;
+
+export function labelLinkedEnvironment(locale: Locale, linkedAccess: LinkedTestAccount[] = []) {
+  const environments = Array.from(new Set(linkedAccess
+    .filter((linked) => linked.project === "oriso"
+      && (linked.kind === "app-user" || linked.kind === "admin"))
+    .map((linked) => linked.environment === "pre-dev" || linked.environment === "dev" ? linked.environment : null)
+    .filter((environment): environment is keyof typeof orisoEnvironmentLabels => environment !== null)))
+    .sort((left, right) => left === right ? 0 : left === "pre-dev" ? -1 : 1)
+    .map((environment) => orisoEnvironmentLabels[environment][locale]);
+  return environments.length ? `ORISO ${environments.join(" + ")}` : null;
+}
+
+export function labelRoleWithEnvironment(locale: Locale, role: string, linkedAccess: LinkedTestAccount[] = []) {
+  const environment = labelLinkedEnvironment(locale, linkedAccess);
+  return environment ? `${labelRole(locale, role)} · ${environment}` : labelRole(locale, role);
+}
