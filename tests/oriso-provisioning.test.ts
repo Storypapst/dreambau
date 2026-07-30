@@ -100,15 +100,19 @@ function service(
   retry: {
     sleep?: (milliseconds: number) => Promise<void>;
     provisioningRetryDelaysMs?: readonly number[];
-  } = {}
+  } = {},
+  environment: "pre-dev" | "dev" = "pre-dev"
 ) {
   return createOrisoProvisioningService({
-    apiBaseUrl: "https://api.oriso-dev.site/service",
-    tokenUrl: "https://auth.oriso-dev.site/realms/online-beratung/protocol/openid-connect/token",
+    environment,
+    apiBaseUrl: environment === "pre-dev" ? "https://api.oriso-dev.site/service" : "https://dev.oriso.org/service",
+    tokenUrl: environment === "pre-dev"
+      ? "https://auth.oriso-dev.site/realms/online-beratung/protocol/openid-connect/token"
+      : "https://dev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
     clientId: "app",
-    adminRecordId: "oriso/pre-dev/e2e-platform-admin-predev",
-    adminBaseUrl: "https://admin.oriso-dev.site",
-    appBaseUrl: "https://app.oriso-dev.site",
+    adminRecordId: environment === "pre-dev" ? "oriso/pre-dev/e2e-platform-admin-predev" : "oriso/dev/e2e-platform-admin-dev",
+    adminBaseUrl: environment === "pre-dev" ? "https://admin.oriso-dev.site" : "https://dev.oriso.org/admin",
+    appBaseUrl: environment === "pre-dev" ? "https://app.oriso-dev.site" : "https://dev.oriso.org",
     defaultTenantId: 7,
     defaultAgencyId: 12,
     defaultConsultingType: "1",
@@ -349,7 +353,7 @@ describe("provisioned record and password", () => {
 
   it("builds a stable pre-dev record for the chosen identity", () => {
     const record = buildProvisionedRecord({
-      email: "Lisa.Simpson@oriso.org",
+      email: "Lisa.Simpson@dreambau.de",
       displayName: "Lisa Simpson",
       role: "tenant-admin",
       adminBaseUrl: "https://admin.oriso-dev.site",
@@ -359,19 +363,19 @@ describe("provisioned record and password", () => {
       secret: "Gener4ted-Application*Pass"
     });
     expect(record).toMatchObject({
-      id: "oriso/pre-dev/lisa.simpson",
+      id: "oriso/pre-dev/lisa.simpson-dreambau.de",
       project: "oriso",
       environment: "pre-dev",
       kind: "admin",
-      username: "lisa.simpson@oriso.org",
-      email: "lisa.simpson@oriso.org",
+      username: "lisa.simpson@dreambau.de",
+      email: "lisa.simpson@dreambau.de",
       roles: ["tenant-admin"],
       loginUrl: "https://admin.oriso-dev.site",
       shared: true,
       rotationStatus: "current"
     });
     const counsellor = buildProvisionedRecord({
-      email: "bart.simpson@oriso.org",
+      email: "bart.simpson@dreambau.de",
       displayName: "Bart Simpson",
       role: "counsellor",
       adminBaseUrl: "https://admin.oriso-dev.site",
@@ -426,6 +430,74 @@ describe("service construction", () => {
 });
 
 describe("reusable ORISO PreDev account factory", () => {
+  it("runs the real account factory against the configured Dev target", async () => {
+    let accountCreated = false;
+    let totpActive = false;
+    const devAdmin = adminRecord({
+      id: "oriso/dev/e2e-platform-admin-dev",
+      environment: "dev",
+      username: "abe.simpson@oriso.org",
+      email: "abe.simpson@oriso.org",
+      loginUrl: "https://dev.oriso.org/admin"
+    });
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === devAdmin.username) {
+          return ok({ access_token: "dev-admin-token", expires_in: 300 });
+        }
+        if (!accountCreated || (totpActive && !form.get("otp"))) {
+          return { ok: false, status: 401, async json() { return {}; } };
+        }
+        return ok({ access_token: "dev-user-token", expires_in: 300 });
+      }
+      if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
+        accountCreated = true;
+        return ok({ _embedded: { id: "dev-created-user-id" } });
+      }
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
+        totpActive = true;
+        return ok();
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(
+      fetch,
+      provider(devAdmin),
+      () => new Date("2026-07-30T05:00:00.000Z"),
+      { provisioningRetryDelaysMs: [] },
+      "dev"
+    );
+    const record = buildProvisionedRecord({
+      email: "bart.simpson@oriso.org",
+      displayName: "Bart Simpson",
+      role: "platform-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass",
+      environment: "dev"
+    });
+
+    const result = await subject.provision({
+      record,
+      firstName: "Bart",
+      lastName: "Simpson",
+      role: "platform-admin",
+      storeTotp: vi.fn()
+    });
+
+    expect(result).toMatchObject({ created: true, state: { state: "ready" } });
+    expect(subject.target).toMatchObject({
+      environment: "dev",
+      apiBaseUrl: "https://dev.oriso.org/service",
+      adminRecordId: "oriso/dev/e2e-platform-admin-dev"
+    });
+  });
+
   it("retries a delayed post-create credential until ORISO exposes the account", async () => {
     let accountCreated = false;
     let userTokenAttempts = 0;

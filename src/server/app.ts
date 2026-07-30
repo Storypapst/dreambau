@@ -218,6 +218,7 @@ export function createApp(options: AppOptions = {}) {
         environment,
         createOrisoProvisioningService({
           ...target,
+          environment,
           registryProvider,
           now: options.now,
           fetch: target.resolveIp || target.caFile

@@ -286,6 +286,7 @@ export type ProvisioningFetch = (input: string | URL, init?: {
 }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 export interface OrisoProvisioningTarget {
+  environment: OrisoProvisioningEnvironment;
   apiBaseUrl: string;
   tokenUrl: string;
   clientId: string;
@@ -348,7 +349,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
 
   async function authenticate() {
     const record = await options.registryProvider.get(options.adminRecordId);
-    if (!record || record.project !== "oriso" || record.environment !== "pre-dev") {
+    if (!record || record.project !== "oriso" || record.environment !== options.environment) {
       throw new OrisoProvisioningError("admin_record_unavailable");
     }
     const form = new URLSearchParams({
@@ -560,6 +561,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   return {
     target: {
       apiBaseUrl,
+      environment: options.environment,
       tokenUrl: options.tokenUrl,
       clientId: options.clientId,
       adminRecordId: options.adminRecordId,
@@ -603,7 +605,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       const expectedRoles = roleContract[input.role].recordRoles;
       if (
         input.record.project !== "oriso"
-        || input.record.environment !== "pre-dev"
+        || input.record.environment !== options.environment
         || input.record.roles.join(",") !== expectedRoles.join(",")
       ) {
         throw new OrisoProvisioningError("account_create_failed");

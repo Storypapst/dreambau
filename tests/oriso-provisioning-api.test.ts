@@ -84,6 +84,7 @@ function inviteFixture(patch: Record<string, unknown> = {}) {
 function fakeService(overrides: Partial<OrisoProvisioningService> = {}): OrisoProvisioningService {
   return {
     target: {
+      environment: "pre-dev",
       apiBaseUrl: "https://api.oriso-dev.site/service",
       tokenUrl: "https://auth.oriso-dev.site/realms/online-beratung/protocol/openid-connect/token",
       clientId: "app",
@@ -119,6 +120,7 @@ function fakeService(overrides: Partial<OrisoProvisioningService> = {}): OrisoPr
 function fakeDevService(overrides: Partial<OrisoProvisioningService> = {}): OrisoProvisioningService {
   return fakeService({
     target: {
+      environment: "dev",
       apiBaseUrl: "https://dev.oriso.org/service",
       tokenUrl: "https://dev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
       clientId: "app",
