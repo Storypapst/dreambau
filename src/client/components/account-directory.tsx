@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { DownloadIcon, ExternalLinkIcon, LanguagesIcon, LogOutIcon, RouteIcon, SearchIcon, ShieldCheckIcon } from "lucide-react";
 import { api } from "@/api";
-import { labelConversation, labelFixture, labelLifecycle, labelProject, labelRole, labelTopic, t, type Locale } from "@/i18n";
+import { labelConversation, labelFixture, labelLifecycle, labelLinkedEnvironment, labelProject, labelRole, labelTopic, t, type Locale } from "@/i18n";
 import { domainClass, sortAccountsForWork } from "@/presentation";
 import { AccountCard } from "./account-card";
 import { AccountDetailSheet } from "./account-detail-sheet";
@@ -36,10 +36,10 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   const [versionAfter, setVersionAfter] = useState(""); const [roleFilters, setRoleFilters] = useState<string[]>([]); const [topicFilters, setTopicFilters] = useState<string[]>([]); const [conversationFilters, setConversationFilters] = useState<string[]>([]);
   const [selected, setSelected] = useState<AccountView | null>(null); const [detailOpen, setDetailOpen] = useState(false); const [editOpen, setEditOpen] = useState(false);
   const filtered = useMemo(() => sortAccountsForWork(accounts.filter((account) => {
-    const haystack = [account.displayName, account.email, account.domain, account.metadata.shippedVersion, account.metadata.lifecycleStatus, account.metadata.project, account.metadata.fixtureQuality, account.metadata.notes, ...account.metadata.roles, ...account.metadata.topics, ...account.metadata.conversationTypes].join(" ").toLowerCase();
+    const haystack = [account.displayName, account.email, account.domain, account.metadata.shippedVersion, account.metadata.lifecycleStatus, account.metadata.project, account.metadata.fixtureQuality, account.metadata.notes, labelLinkedEnvironment(locale, account.linkedAccess) ?? "", ...account.metadata.roles, ...account.metadata.topics, ...account.metadata.conversationTypes].join(" ").toLowerCase();
     const aboveVersion = !versionAfter || (account.metadata.shippedVersion && compareVersions(account.metadata.shippedVersion, versionAfter) > 0);
     return (domain === "all" || account.domain === domain) && (status === "all" || account.metadata.lifecycleStatus === status) && (project === "all" || account.metadata.project === project) && (quality === "all" || account.metadata.fixtureQuality === quality) && aboveVersion && roleFilters.every((item) => account.metadata.roles.includes(item)) && topicFilters.every((item) => account.metadata.topics.includes(item)) && conversationFilters.every((item) => account.metadata.conversationTypes.includes(item)) && haystack.includes(query.toLowerCase());
-  })), [accounts, domain, status, project, quality, query, versionAfter, roleFilters, topicFilters, conversationFilters]);
+  })), [accounts, domain, status, project, quality, query, versionAfter, roleFilters, topicFilters, conversationFilters, locale]);
   function replaceMetadata(metadata: AccountMetadata) { setAccounts((current) => current.map((account) => account.email === metadata.email ? { ...account, metadata } : account)); setSelected((current) => current?.email === metadata.email ? { ...current, metadata } : current); }
   function attachLinkedAccess(email: string, linked: LinkedTestAccount) { setAccounts((current) => current.map((account) => account.email === email ? { ...account, linkedAccess: [linked] } : account)); }
   function edit(account: AccountView) { setSelected(account); setDetailOpen(false); setEditOpen(true); }
