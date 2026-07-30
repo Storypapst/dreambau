@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import https from "node:https";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
-import { generateOrisoTotp, generateTotp } from "./totp.js";
+import { generateCompatibleOrisoTotp } from "./totp.js";
 
 export const orisoProvisioningRoles = [
   "platform-admin",
@@ -335,7 +335,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   const provisioningRetryDelaysMs = options.provisioningRetryDelaysMs
     ?? [1_000, 2_000, 4_000, 8_000, 8_000, 8_000, 8_000];
   const apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, "");
-  const generateEnvironmentTotp = options.environment === "dev" ? generateOrisoTotp : generateTotp;
+  const generateEnvironmentTotp = generateCompatibleOrisoTotp;
   const requestSignal = () => AbortSignal.timeout(15_000);
   let cachedToken: { value: string; expiresAt: number } | null = null;
   let pendingToken: Promise<string> | null = null;

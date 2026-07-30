@@ -43,3 +43,21 @@ export function generateOrisoTotp(secret: string, now = new Date(), digits = 6, 
   if (!/^[A-Za-z0-9]{32}$/.test(secret)) throw new Error("Invalid ORISO TOTP secret");
   return generateTotpWithKey(Buffer.from(secret, "utf8"), now, digits, periodSeconds);
 }
+
+/**
+ * ORISO installations contain both standard Base32 seeds and legacy/custom
+ * 32-character raw UTF-8 seeds. Prefer the interoperable Base32 format and
+ * fall back to the ORISO representation only when Base32 validation fails.
+ */
+export function generateCompatibleOrisoTotp(
+  secret: string,
+  now = new Date(),
+  digits = 6,
+  periodSeconds = 30
+) {
+  try {
+    return generateTotp(secret, now, digits, periodSeconds);
+  } catch {
+    return generateOrisoTotp(secret, now, digits, periodSeconds);
+  }
+}
