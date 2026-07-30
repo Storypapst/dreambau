@@ -31,8 +31,9 @@ describe("ORISO environment routing", () => {
 });
 
 const adminSecret = "platform-admin-password-never-log";
-const adminTotpSecret = "aBcDeFgHiJkLmNoPqRsTuVwXyZ123456";
-const generatedOrisoTotpSecret = "zYxWvUtSrQpOnMlKjIhGfEdCbA987654";
+const adminTotpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+const generatedOrisoTotpSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+const generatedDevTotpSecret = "zYxWvUtSrQpOnMlKjIhGfEdCbA987654";
 
 function adminRecord(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
   return {
@@ -183,7 +184,7 @@ describe("ORISO PreDev provisioning service", () => {
     expect(form.get("client_id")).toBe("app");
     expect(form.get("username")).toBe("abe.simpson@dreambau.de");
     expect(form.get("password")).toBe(adminSecret);
-    expect(form.get("otp")).toBe("269634");
+    expect(form.get("otp")).toBe("287082");
 
     const create = oriso.calls.find((call) => call.method === "POST" && call.url.includes("/useradmin/account-invites"));
     expect(create).toBeDefined();
@@ -440,6 +441,7 @@ describe("reusable ORISO PreDev account factory", () => {
       environment: "dev",
       username: "abe.simpson@oriso.org",
       email: "abe.simpson@oriso.org",
+      totpSecret: "aBcDeFgHiJkLmNoPqRsTuVwXyZ123456",
       loginUrl: "https://dev.oriso.org/admin"
     });
     const fetch: ProvisioningFetch = async (input, init) => {
@@ -460,7 +462,7 @@ describe("reusable ORISO PreDev account factory", () => {
         return ok({ _embedded: { id: "dev-created-user-id" } });
       }
       if (url.endsWith("/users/data") && init?.method === "GET") {
-        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+        return ok({ twoFactorAuth: { secret: generatedDevTotpSecret } });
       }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         expect(init.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");

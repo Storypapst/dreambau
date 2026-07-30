@@ -385,7 +385,7 @@ export function createApp(options: AppOptions = {}) {
         ? {
             accountId: selected.id,
             source: "totp" as const,
-            ...(selected.project === "oriso"
+            ...(selected.project === "oriso" && selected.environment === "dev"
               ? generateOrisoTotp(selected.totpSecret, generatedAt)
               : generateTotp(selected.totpSecret, generatedAt))
           }

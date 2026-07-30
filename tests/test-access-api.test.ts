@@ -271,7 +271,7 @@ describe("test access API v1", () => {
       .get(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/otp`)
       .set("Authorization", `Bearer ${orisoToken}`);
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ code: "372946", generatedAt: "1970-01-01T00:00:59.000Z", expiresAt: "1970-01-01T00:01:00.000Z" });
+    expect(response.body).toEqual({ code: "287082", generatedAt: "1970-01-01T00:00:59.000Z", expiresAt: "1970-01-01T00:01:00.000Z" });
     expect(mailCalled).toBe(false);
     expect(JSON.stringify(response.body)).not.toContain(record.totpSecret);
   });
