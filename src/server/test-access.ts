@@ -321,7 +321,7 @@ export function createTestAccessRouter(options: {
         res.set("Cache-Control", "no-store");
         recordAccess(match, identity, "otp_requested");
         return res.json(
-          match.project === "oriso"
+          match.project === "oriso" && match.environment === "dev"
             ? generateOrisoTotp(match.totpSecret, options.now?.() ?? new Date())
             : generateTotp(match.totpSecret, options.now?.() ?? new Date())
         );

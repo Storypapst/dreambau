@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import https from "node:https";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
-import { generateOrisoTotp } from "./totp.js";
+import { generateOrisoTotp, generateTotp } from "./totp.js";
 
 export const orisoProvisioningRoles = [
   "platform-admin",
@@ -335,6 +335,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   const provisioningRetryDelaysMs = options.provisioningRetryDelaysMs
     ?? [1_000, 2_000, 4_000, 8_000, 8_000, 8_000, 8_000];
   const apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, "");
+  const generateEnvironmentTotp = options.environment === "dev" ? generateOrisoTotp : generateTotp;
   const requestSignal = () => AbortSignal.timeout(15_000);
   let cachedToken: { value: string; expiresAt: number } | null = null;
   let pendingToken: Promise<string> | null = null;
@@ -350,7 +351,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       username: record.username,
       password: record.secret
     });
-    if (record.totpSecret) form.set("otp", generateOrisoTotp(record.totpSecret, now()).code);
+    if (record.totpSecret) form.set("otp", generateEnvironmentTotp(record.totpSecret, now()).code);
     const response = await fetch(options.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -393,7 +394,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       username: record.username,
       password: record.secret
     });
-    if (totpSecret) form.set("otp", generateOrisoTotp(totpSecret, now()).code);
+    if (totpSecret) form.set("otp", generateEnvironmentTotp(totpSecret, now()).code);
     const response = await fetch(options.tokenUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -446,7 +447,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         method: "PUT",
         body: JSON.stringify({
           secret: totpSecret,
-          otp: generateOrisoTotp(totpSecret, now()).code
+          otp: generateEnvironmentTotp(totpSecret, now()).code
         })
       });
       if (activation.ok) return;

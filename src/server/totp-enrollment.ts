@@ -29,7 +29,7 @@ export async function enrollTotpForRecord(options: {
   assertTotpNotEnrolled(options.record);
   const normalizedSecret = options.rawSecret.replace(/\s+/g, "");
   try {
-    if (options.record.project === "oriso") {
+    if (options.record.project === "oriso" && options.record.environment === "dev") {
       generateOrisoTotp(normalizedSecret, options.now);
     } else {
       generateTotp(normalizedSecret.toUpperCase(), options.now);
@@ -37,7 +37,7 @@ export async function enrollTotpForRecord(options: {
   } catch {
     throw new TotpEnrollmentValidationError();
   }
-  const storedSecret = options.record.project === "oriso"
+  const storedSecret = options.record.project === "oriso" && options.record.environment === "dev"
     ? normalizedSecret
     : normalizedSecret.toUpperCase();
   return options.writer.enrollTotp(

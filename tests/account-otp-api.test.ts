@@ -127,7 +127,7 @@ describe("human Springfield OTP access", () => {
     expect(otp.body).toEqual({
       accountId: record.id,
       source: "totp",
-      code: "372946",
+      code: "287082",
       generatedAt: "1970-01-01T00:00:59.000Z",
       expiresAt: "1970-01-01T00:01:00.000Z"
     });
@@ -198,7 +198,7 @@ describe("human Springfield OTP access", () => {
     const registryWriter: RegistryWriter = {
       async enrollTotp(expected, secret, updatedAt) {
         expect(expected.id).toBe(pending.id);
-        expect(secret).toBe("aBcDeFgHiJkLmNoPqRsTuVwXyZ123456");
+        expect(secret).toBe("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
         Object.assign(pending, { totpSecret: secret, updatedAt });
         return { recordId: expected.id, updatedAt };
       }
@@ -213,7 +213,7 @@ describe("human Springfield OTP access", () => {
       .post(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/totp`)
       .send({
         accountId: pending.id,
-        totpSecret: "aBcDeFgHiJkLmNoPqRsTuVwXyZ123456"
+        totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
       });
 
     expect(response.status).toBe(200);
@@ -223,15 +223,15 @@ describe("human Springfield OTP access", () => {
       enrolled: true,
       updatedAt: "1970-01-01T00:00:59.000Z"
     });
-    expect(JSON.stringify(response.body)).not.toContain("aBcDeFgH");
-    expect(JSON.stringify(database.getAccountAccess(abe.email))).not.toContain("aBcDeFgH");
+    expect(JSON.stringify(response.body)).not.toContain("GEZDGNBV");
+    expect(JSON.stringify(database.getAccountAccess(abe.email))).not.toContain("GEZDGNBV");
     expect(database.getAccountAccess(abe.email).latest).toMatchObject({
       accountId: pending.id,
       action: "totp_enrolled"
     });
 
     const otp = await agent.get(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/otp?accountId=${encodeURIComponent(pending.id)}`);
-    expect(otp.body).toMatchObject({ accountId: pending.id, source: "totp", code: "269634" });
+    expect(otp.body).toMatchObject({ accountId: pending.id, source: "totp", code: "287082" });
   });
 
   it("refuses to replace an existing app TOTP", async () => {
