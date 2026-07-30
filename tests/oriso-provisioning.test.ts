@@ -23,6 +23,7 @@ describe("ORISO environment routing", () => {
   it.each([
     "abe.simpson@getme.global",
     "abe.simpson@trail.ist",
+    "abe@simpson@oriso.org",
     "not-an-email"
   ])("fails closed for unsupported identity %s", (email) => {
     expect(environmentForOrisoEmail(email)).toBeNull();

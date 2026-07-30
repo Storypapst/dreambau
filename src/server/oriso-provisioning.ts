@@ -25,7 +25,11 @@ const orisoEnvironmentByDomain: Record<string, OrisoProvisioningEnvironment> = {
 export function environmentForOrisoEmail(email: string): OrisoProvisioningEnvironment | null {
   const normalized = email.trim().toLowerCase();
   const separator = normalized.lastIndexOf("@");
-  if (separator < 1 || separator === normalized.length - 1) return null;
+  if (
+    separator < 1
+    || separator !== normalized.indexOf("@")
+    || separator === normalized.length - 1
+  ) return null;
   return orisoEnvironmentByDomain[normalized.slice(separator + 1)] ?? null;
 }
 
