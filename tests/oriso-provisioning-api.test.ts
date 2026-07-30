@@ -34,13 +34,13 @@ function mailbox(email: string, displayName: string): AccountRecord {
 
 function managedRecord(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
   return {
-    id: "oriso/pre-dev/lisa.simpson",
+    id: "oriso/pre-dev/lisa.simpson-dreambau.de",
     project: "oriso",
     environment: "pre-dev",
     kind: "admin",
     displayName: "Lisa Simpson — ORISO PreDev tenant-admin",
-    username: "lisa.simpson@oriso.org",
-    email: "lisa.simpson@oriso.org",
+    username: "lisa.simpson@dreambau.de",
+    email: "lisa.simpson@dreambau.de",
     roles: ["tenant-admin"],
     permissionsDescription: "Managed PreDev tenant administrator",
     loginUrl: "https://admin.oriso-dev.site",
@@ -69,7 +69,7 @@ function inviteFixture(patch: Record<string, unknown> = {}) {
   return publicInviteState({
     id: 41,
     targetRole: "TENANT_ADMIN",
-    recipientEmail: "lisa.simpson@oriso.org",
+    recipientEmail: "lisa.simpson@dreambau.de",
     inviteStatus: "EMAIL_SENT",
     emailVerificationStatus: "PENDING",
     twoFactorStatus: "PENDING_SETUP",
@@ -116,14 +116,35 @@ function fakeService(overrides: Partial<OrisoProvisioningService> = {}): OrisoPr
   };
 }
 
+function fakeDevService(overrides: Partial<OrisoProvisioningService> = {}): OrisoProvisioningService {
+  return fakeService({
+    target: {
+      apiBaseUrl: "https://dev.oriso.org/service",
+      tokenUrl: "https://dev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
+      clientId: "app",
+      adminRecordId: "oriso/dev/e2e-platform-admin-dev",
+      adminBaseUrl: "https://dev.oriso.org/admin",
+      appBaseUrl: "https://dev.oriso.org",
+      defaultTenantId: 7,
+      defaultAgencyId: 12,
+      defaultConsultingType: "1",
+      defaultPostcode: "10115",
+      defaultMainTopicId: 31
+    },
+    ...overrides
+  });
+}
+
 async function setup(options: {
   service?: OrisoProvisioningService;
+  services?: Partial<Record<"pre-dev" | "dev", OrisoProvisioningService>>;
   writer?: RegistryWriter | null;
   records?: TestAccessRecord[];
   role?: "admin" | "member";
 } = {}) {
-  const lisa = mailbox("lisa.simpson@oriso.org", "Lisa Simpson");
-  const moe = mailbox("moe.szyslak@dreambau.de", "Moe Szyslak");
+  const lisa = mailbox("lisa.simpson@dreambau.de", "Lisa Simpson");
+  const bart = mailbox("bart.simpson@oriso.org", "Bart Simpson");
+  const moe = mailbox("moe.szyslak@getme.global", "Moe Szyslak");
   const records = options.records ?? [];
   const registryProvider: RegistryProvider = {
     async list() { return [...records]; },
@@ -149,6 +170,7 @@ async function setup(options: {
   const root = mkdtempSync(path.join(tmpdir(), "oriso-provisioning-"));
   const database = createDatabase(path.join(root, "catalog.sqlite"));
   database.upsertMetadata(lisa.email, { project: "ORISO", roles: [], lifecycleStatus: "unused" });
+  database.upsertMetadata(bart.email, { project: "ORISO", roles: [], lifecycleStatus: "unused" });
   const passkeyStore = createPasskeyStore(path.join(root, "auth.sqlite"));
   const user = passkeyStore.createUser({
     email: "frank@dreambau.com",
@@ -161,12 +183,13 @@ async function setup(options: {
   const app = createApp({
     passwordHash: "unused",
     secureCookies: false,
-    loadAccounts: () => [lisa, moe],
+    loadAccounts: () => [lisa, bart, moe],
     database,
     passkeyStore,
     registryProvider,
     registryWriter: writer,
     orisoProvisioning: service,
+    orisoProvisioningServices: options.services,
     webauthn,
     now: () => new Date("2026-07-29T16:00:00.000Z"),
     rpId: "dreambau.com",
@@ -176,7 +199,7 @@ async function setup(options: {
   const agent = request.agent(app);
   const authOptions = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
   await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: authOptions.body.flowId, response: { id: "credential-id" } });
-  return { agent, database, lisa, moe, service, writer, createdRecords, user };
+  return { agent, database, lisa, bart, moe, service, writer, createdRecords, user };
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
@@ -201,7 +224,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
       recordCreated: true,
       state: { state: "ready", nextStep: "none" },
       linked: {
-        id: "oriso/pre-dev/lisa.simpson",
+        id: "oriso/pre-dev/lisa.simpson-dreambau.de",
         project: "oriso",
         environment: "pre-dev",
         kind: "admin",
@@ -217,7 +240,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(JSON.stringify(response.body)).not.toContain(secret);
 
     const links = database.getTestAccessLinks(lisa.email);
-    expect(links.map((link) => link.recordId)).toContain("oriso/pre-dev/lisa.simpson");
+    expect(links.map((link) => link.recordId)).toContain("oriso/pre-dev/lisa.simpson-dreambau.de");
     const access = database.getAccountAccess(lisa.email);
     expect(access.events.map((event) => event.action).sort()).toEqual(["oriso_account_provisioned", "record_linked"]);
     expect(JSON.stringify(access)).not.toContain(secret);
@@ -253,7 +276,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(conflict.status).toBe(409);
     expect(conflict.body).toMatchObject({
       error: "record_role_conflict",
-      linked: { id: "oriso/pre-dev/lisa.simpson", roles: ["tenant-admin"] }
+      linked: { id: "oriso/pre-dev/lisa.simpson-dreambau.de", roles: ["tenant-admin"] }
     });
     expect(service.provision).toHaveBeenCalledTimes(1);
     expect(vi.mocked(writer!.createRecord!)).toHaveBeenCalledTimes(1);
@@ -274,14 +297,14 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(response.body).toEqual({ error: "record_creation_failed" });
   });
 
-  it("rejects production and every non-pre-dev environment before any ORISO call", async () => {
+  it("rejects every environment that conflicts with the mailbox domain before any ORISO call", async () => {
     const { agent, lisa, service } = await setup();
     for (const environment of ["production-test", "dev", "local"]) {
       const response = await agent
         .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
         .send({ environment, role: "tenant-admin" });
       expect(response.status).toBe(422);
-      expect(response.body).toEqual({ error: "environment_not_supported" });
+      expect(response.body).toEqual({ error: "environment_mismatch", environment: "pre-dev" });
     }
     const invalid = await agent
       .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
@@ -301,7 +324,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
       .post(`/testmails/api/accounts/${encodeURIComponent(moe.email)}/oriso-provisioning`)
       .send({ environment: "pre-dev", role: "tenant-admin" });
     expect(wrongProject.status).toBe(422);
-    expect(wrongProject.body).toEqual({ error: "mailbox_project_mismatch" });
+    expect(wrongProject.body).toEqual({ error: "environment_not_supported" });
     expect(service.provision).not.toHaveBeenCalled();
   });
 
@@ -365,7 +388,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(response.status).toBe(502);
     expect(response.body).toEqual({ error: "account_create_failed" });
     expect(writer?.updateRecord).toHaveBeenLastCalledWith(expect.objectContaining({
-      id: "oriso/pre-dev/lisa.simpson",
+      id: "oriso/pre-dev/lisa.simpson-dreambau.de",
       provisioningStatus: "failed"
     }));
   });
@@ -392,7 +415,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
   it("marks a new record failed when persisting the ready state fails", async () => {
     const updateRecord = vi.fn()
       .mockRejectedValueOnce(new Error("ready persistence failed"))
-      .mockResolvedValueOnce({ recordId: "oriso/pre-dev/lisa.simpson", updatedAt: "2026-07-29T16:00:00.000Z" });
+      .mockResolvedValueOnce({ recordId: "oriso/pre-dev/lisa.simpson-dreambau.de", updatedAt: "2026-07-29T16:00:00.000Z" });
     const writer: RegistryWriter = {
       createRecord: vi.fn(async (record) => ({ recordId: record.id })),
       enrollTotp: vi.fn(async (record, _totpSecret, updatedAt) => ({ recordId: record.id, updatedAt })),
@@ -407,7 +430,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(response.status).toBe(500);
     expect(updateRecord).toHaveBeenCalledTimes(2);
     expect(updateRecord).toHaveBeenLastCalledWith(expect.objectContaining({
-      id: "oriso/pre-dev/lisa.simpson",
+      id: "oriso/pre-dev/lisa.simpson-dreambau.de",
       provisioningStatus: "failed"
     }));
   });
@@ -440,6 +463,48 @@ describe("human self-service ORISO PreDev provisioning", () => {
       supportedRoles: ["platform-admin", "tenant-admin", "agency-admin", "counsellor", "advice-seeker"],
       state: { state: "ready", nextStep: "none" },
       linked: null
+    });
+  });
+
+  it("routes an oriso.org identity exclusively through the Dev service and record namespace", async () => {
+    const preDev = fakeService();
+    const dev = fakeDevService();
+    const { agent, bart, createdRecords } = await setup({
+      services: { "pre-dev": preDev, dev }
+    });
+
+    const mismatch = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(bart.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "platform-admin" });
+    expect(mismatch.status).toBe(422);
+    expect(mismatch.body).toEqual({ error: "environment_mismatch", environment: "dev" });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(bart.email)}/oriso-provisioning`)
+      .send({ environment: "dev", role: "platform-admin" });
+
+    expect(response.status).toBe(201);
+    expect(dev.provision).toHaveBeenCalledWith(expect.objectContaining({
+      record: expect.objectContaining({
+        id: "oriso/dev/bart.simpson",
+        environment: "dev",
+        email: bart.email,
+        loginUrl: "https://dev.oriso.org/admin"
+      }),
+      role: "platform-admin"
+    }));
+    expect(preDev.provision).not.toHaveBeenCalled();
+    expect(createdRecords[0]).toMatchObject({
+      id: "oriso/dev/bart.simpson",
+      environment: "dev",
+      permissionsDescription: "Self-service provisioned ORISO Dev platform-admin"
+    });
+
+    const status = await agent.get(`/testmails/api/accounts/${encodeURIComponent(bart.email)}/oriso-provisioning`);
+    expect(status.body).toMatchObject({
+      configured: true,
+      environment: "dev",
+      linked: { id: "oriso/dev/bart.simpson", environment: "dev" }
     });
   });
 });

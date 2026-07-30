@@ -85,4 +85,29 @@ describe("runtime config", () => {
     vi.stubEnv("TESTMAILS_EMAIL_OTP_HMAC_KEY", "12345678901234567890123456789012");
     expect(loadConfig().smtp).toMatchObject({ host: "mail.dreambau.com", port: 465, secure: true });
   });
+
+  it("loads isolated PreDev and Dev ORISO provisioning targets", () => {
+    vi.stubEnv("ORISO_PREDEV_ADMIN_RECORD_ID", "oriso/pre-dev/e2e-platform-admin-predev");
+    vi.stubEnv("ORISO_PREDEV_RESOLVE_IP", "46.224.170.69");
+    vi.stubEnv("ORISO_PREDEV_CA_FILE", "/run/config/oriso-predev/ca.pem");
+    vi.stubEnv("ORISO_DEV_ADMIN_RECORD_ID", "oriso/dev/e2e-platform-admin-dev");
+
+    const targets = loadConfig().orisoProvisioningTargets;
+
+    expect(targets["pre-dev"]).toMatchObject({
+      apiBaseUrl: "https://api.oriso-dev.site/service",
+      adminRecordId: "oriso/pre-dev/e2e-platform-admin-predev",
+      resolveIp: "46.224.170.69",
+      caFile: "/run/config/oriso-predev/ca.pem"
+    });
+    expect(targets.dev).toMatchObject({
+      apiBaseUrl: "https://dev.oriso.org/service",
+      tokenUrl: "https://dev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
+      adminRecordId: "oriso/dev/e2e-platform-admin-dev",
+      adminBaseUrl: "https://dev.oriso.org/admin",
+      appBaseUrl: "https://dev.oriso.org",
+      resolveIp: null,
+      caFile: null
+    });
+  });
 });

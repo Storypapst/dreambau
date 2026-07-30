@@ -2,12 +2,32 @@ import { describe, expect, it, vi } from "vitest";
 import type { RegistryProvider, TestAccessRecord } from "../src/server/infisical-provider.js";
 import {
   createOrisoProvisioningService,
+  environmentForOrisoEmail,
   generateApplicationPassword,
   buildProvisionedRecord,
   publicInviteState,
   OrisoProvisioningError,
   type ProvisioningFetch
 } from "../src/server/oriso-provisioning.js";
+
+describe("ORISO environment routing", () => {
+  it.each([
+    ["abe.simpson@dreambau.com", "pre-dev"],
+    ["abe.simpson@dreambau.de", "pre-dev"],
+    ["abe.simpson@oriso.org", "dev"],
+    ["abe.simpson@openresilience.cc", "dev"]
+  ] as const)("routes %s to %s", (email, environment) => {
+    expect(environmentForOrisoEmail(email)).toBe(environment);
+  });
+
+  it.each([
+    "abe.simpson@getme.global",
+    "abe.simpson@trail.ist",
+    "not-an-email"
+  ])("fails closed for unsupported identity %s", (email) => {
+    expect(environmentForOrisoEmail(email)).toBeNull();
+  });
+});
 
 const adminSecret = "platform-admin-password-never-log";
 const adminTotpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
@@ -293,6 +313,28 @@ describe("ORISO PreDev provisioning service", () => {
 });
 
 describe("provisioned record and password", () => {
+  it("builds a Dev record in the isolated Dev namespace with Dev URLs", () => {
+    const record = buildProvisionedRecord({
+      email: "bart.simpson@oriso.org",
+      displayName: "Bart Simpson",
+      role: "platform-admin",
+      adminBaseUrl: "https://dev.oriso.org/admin",
+      appBaseUrl: "https://dev.oriso.org",
+      responsiblePerson: "qa@dreambau.com",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "Fixed-Test-Password",
+      environment: "dev"
+    });
+
+    expect(record).toMatchObject({
+      id: "oriso/dev/bart.simpson",
+      environment: "dev",
+      displayName: "Bart Simpson — ORISO Dev platform-admin",
+      loginUrl: "https://dev.oriso.org/admin",
+      permissionsDescription: "Self-service provisioned ORISO Dev platform-admin"
+    });
+  });
+
   it("generates a strong password containing all character classes", () => {
     for (let round = 0; round < 20; round += 1) {
       const password = generateApplicationPassword();

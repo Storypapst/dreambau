@@ -31,7 +31,7 @@ export interface OrisoProvisioningStateView {
   nextStep: "open-invitation-mail" | "complete-onboarding" | "store-totp" | "none";
 }
 export interface OrisoProvisioningView {
-  configured: boolean; supportedRoles: OrisoProvisioningRole[]; environment: "pre-dev";
+  configured: boolean; supportedRoles: OrisoProvisioningRole[]; environment: "pre-dev" | "dev";
   state: OrisoProvisioningStateView | null; linked: LinkedTestAccount | null;
 }
 export interface OrisoProvisioningResult {
