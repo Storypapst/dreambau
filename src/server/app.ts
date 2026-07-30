@@ -429,9 +429,8 @@ export function createApp(options: AppOptions = {}) {
     const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
     if (!current) return res.status(404).json({ error: "account_not_found" });
     const environment = environmentForOrisoEmail(email);
-    if (!environment || viewProject(current) !== "oriso") {
-      return res.status(422).json({ error: "mailbox_project_mismatch" });
-    }
+    if (!environment) return res.status(422).json({ error: "environment_not_supported" });
+    if (viewProject(current) !== "oriso") return res.status(422).json({ error: "mailbox_project_mismatch" });
     const orisoProvisioning = orisoProvisioningServices[environment];
     res.set("Cache-Control", "no-store");
     if (!orisoProvisioning) {

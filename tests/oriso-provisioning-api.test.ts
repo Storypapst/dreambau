@@ -330,6 +330,16 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(service.provision).not.toHaveBeenCalled();
   });
 
+  it("reports an unsupported mailbox domain consistently on GET", async () => {
+    const { agent, moe, service } = await setup();
+    const response = await agent.get(
+      `/testmails/api/accounts/${encodeURIComponent(moe.email)}/oriso-provisioning`
+    );
+    expect(response.status).toBe(422);
+    expect(response.body).toEqual({ error: "environment_not_supported" });
+    expect(service.status).not.toHaveBeenCalled();
+  });
+
   it("requires an administrator passkey session", async () => {
     const member = await setup({ role: "member" });
     const forbidden = await member.agent
