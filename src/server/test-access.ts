@@ -1,6 +1,6 @@
 import express from "express";
 import { z } from "zod";
-import type { AccountRecord } from "./accounts.js";
+import { encryptionFor, type AccountRecord } from "./accounts.js";
 import type { RegistryDatabase } from "./db.js";
 import {
   authenticateMachineToken,
@@ -355,9 +355,7 @@ function mailboxAccount(record: TestAccessRecord): AccountRecord | null {
     caldav: `https://box.dreambau.com/dav/cal/${encodeURIComponent(record.email)}/`,
     carddav: `https://box.dreambau.com/dav/card/${encodeURIComponent(record.email)}/`
   };
-  return domain === "oriso.org"
-    ? { ...common, encryption: { state: "disabled" } }
-    : { ...common, encryption: { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false } };
+  return { ...common, encryption: encryptionFor(record.email) };
 }
 
 export function createAccountRegistryProvider(loadAccounts: () => AccountRecord[], database: RegistryDatabase): RegistryProvider {

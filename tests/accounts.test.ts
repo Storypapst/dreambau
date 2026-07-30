@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadAccounts, parseAccounts, type AccountRecord } from "../src/server/accounts.js";
+import { encryptionFor, loadAccounts, parseAccounts, unencryptedAccounts, type AccountRecord } from "../src/server/accounts.js";
 
 const domains = ["dreambau.com", "dreambau.de", "getme.global", "openresilience.cc", "oriso.org", "trail.ist"];
 function fixture(): AccountRecord[] {
@@ -16,8 +16,14 @@ function fixture(): AccountRecord[] {
     jmap: "https://box.dreambau.com/.well-known/jmap",
     caldav: `https://box.dreambau.com/dav/cal/person${i + 1}%40${domain}/`,
     carddav: `https://box.dreambau.com/dav/card/person${i + 1}%40${domain}/`,
-    encryption: domain === "oriso.org" ? { state: "disabled" as const } : { state: "encrypted" as const, format: "S/MIME" as const, symmetricMode: "AES-256" as const, encryptOnAppend: true, allowSpamTraining: false }
+    encryption: encryptionFor(`person${i + 1}@${domain}`)
   })));
+}
+function withOtpMailbox(): AccountRecord[] {
+  const accounts = fixture();
+  const index = accounts.findIndex((account) => account.email === "person1@dreambau.de");
+  accounts[index] = { ...accounts[index], email: "abe.simpson@dreambau.de", encryption: { state: "disabled" } };
+  return accounts;
 }
 function write(accounts: unknown) {
   const file = path.join(mkdtempSync(path.join(tmpdir(), "testmails-")), "accounts.json");
@@ -41,5 +47,22 @@ describe("account secret loader", () => {
     const accounts = loadAccounts(write(fixture()));
     expect(accounts.filter((a) => a.domain === "oriso.org").every((a) => a.encryption.state === "disabled")).toBe(true);
     expect(accounts.filter((a) => a.domain !== "oriso.org").every((a) => a.encryption.state === "encrypted" && a.encryption.symmetricMode === "AES-256")).toBe(true);
+  });
+  it("keeps the 2FA email-OTP mailboxes unencrypted so the code stays readable", () => {
+    const accounts = loadAccounts(write(withOtpMailbox()));
+    const otpMailbox = accounts.find((a) => a.email === "abe.simpson@dreambau.de");
+    expect(otpMailbox?.encryption.state).toBe("disabled");
+    expect([...unencryptedAccounts].every((email) => encryptionFor(email).state === "disabled")).toBe(true);
+  });
+  it("rejects an encrypted OTP mailbox and an unencrypted ordinary mailbox", () => {
+    const encryptedOtp = withOtpMailbox();
+    const otpIndex = encryptedOtp.findIndex((a) => a.email === "abe.simpson@dreambau.de");
+    encryptedOtp[otpIndex] = { ...encryptedOtp[otpIndex], encryption: encryptionFor("person2@dreambau.de") };
+    expect(() => loadAccounts(write(encryptedOtp))).toThrow(/disabled: abe\.simpson@dreambau\.de/);
+
+    const plaintextOrdinary = fixture();
+    const ordinaryIndex = plaintextOrdinary.findIndex((a) => a.email === "person2@dreambau.de");
+    plaintextOrdinary[ordinaryIndex] = { ...plaintextOrdinary[ordinaryIndex], encryption: { state: "disabled" } };
+    expect(() => loadAccounts(write(plaintextOrdinary))).toThrow(/encrypted: person2@dreambau\.de/);
   });
 });
