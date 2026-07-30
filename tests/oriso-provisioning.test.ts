@@ -467,6 +467,10 @@ describe("reusable ORISO PreDev account factory", () => {
       }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         expect(init.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
+        expect(init.headers?.["X-CSRF-Token"]).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        );
+        expect(init.headers?.Cookie).toBe(`CSRF-TOKEN=${init.headers?.["X-CSRF-Token"]}`);
         totpActive = true;
         return ok();
       }
@@ -818,6 +822,7 @@ describe("reusable ORISO PreDev account factory", () => {
         expect(body.secret).toBe(storedTotp[0]);
         expect(body.otp).toMatch(/^\d{6}$/);
         expect(init?.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
+        expect(init?.headers?.Cookie).toBe(`CSRF-TOKEN=${init?.headers?.["X-CSRF-Token"]}`);
         totpActive = true;
         return ok();
         }

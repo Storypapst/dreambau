@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import https from "node:https";
 import { z } from "zod";
@@ -418,11 +418,21 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   }
 
   async function userJson(accessTokenValue: string, path: string, init: { method?: string; body?: string } = {}) {
+    const method = init.method ?? "GET";
+    const csrfToken = ["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)
+      ? null
+      : randomUUID();
     return fetch(`${apiBaseUrl}${path}`, {
-      method: init.method ?? "GET",
+      method,
       headers: {
         Authorization: `Bearer ${accessTokenValue}`,
         "X-U25-CSRF-TOKEN": "dreambau-test-access",
+        ...(csrfToken
+          ? {
+              "X-CSRF-Token": csrfToken,
+              Cookie: `CSRF-TOKEN=${csrfToken}`
+            }
+          : {}),
         ...(init.body ? { "Content-Type": "application/json" } : {})
       },
       body: init.body,
