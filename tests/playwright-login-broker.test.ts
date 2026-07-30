@@ -346,7 +346,7 @@ describe("Playwright login broker", () => {
         <form id="login">
           <input type="text" id="_r_3_" autocomplete="username" placeholder="Username/Email">
           <input type="password" id="_r_4_" autocomplete="current-password" placeholder="Password">
-          <input type="text" id="_r_5_" autocomplete="one-time-code" aria-label="One-time password" style="display:none">
+          <input type="text" id="_r_5_" placeholder="One-time password" style="display:none">
           <button type="submit">Sign in</button>
         </form>
         <script>
