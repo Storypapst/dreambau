@@ -25,7 +25,7 @@ import {
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
 import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
-import { generateOrisoTotp, generateTotp } from "./totp.js";
+import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
@@ -385,8 +385,8 @@ export function createApp(options: AppOptions = {}) {
         ? {
             accountId: selected.id,
             source: "totp" as const,
-            ...(selected.project === "oriso" && selected.environment === "dev"
-              ? generateOrisoTotp(selected.totpSecret, generatedAt)
+            ...(selected.project === "oriso"
+              ? generateCompatibleOrisoTotp(selected.totpSecret, generatedAt)
               : generateTotp(selected.totpSecret, generatedAt))
           }
         : await (async () => {

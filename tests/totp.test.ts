@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { generateOrisoTotp, generateTotp } from "../src/server/totp.js";
+import {
+  generateCompatibleOrisoTotp,
+  generateOrisoTotp,
+  generateTotp
+} from "../src/server/totp.js";
 
 describe("TOTP", () => {
   it("matches the RFC 6238 SHA-1 test vector", () => {
@@ -20,6 +24,15 @@ describe("TOTP", () => {
       generatedAt: "1970-01-01T00:00:59.000Z",
       expiresAt: "1970-01-01T00:01:00.000Z"
     });
+  });
+
+  it("supports both Base32 and raw ORISO seeds without environment assumptions", () => {
+    const now = new Date(59_000);
+    const base32 = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+    const raw = "aBcDeFgHiJkLmNoPqRsTuVwXyZ123456";
+
+    expect(generateCompatibleOrisoTotp(base32, now, 8)).toEqual(generateTotp(base32, now, 8));
+    expect(generateCompatibleOrisoTotp(raw, now, 8)).toEqual(generateOrisoTotp(raw, now, 8));
   });
 
   it("rejects secrets outside ORISO's 32-character alphanumeric contract", () => {

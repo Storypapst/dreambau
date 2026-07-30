@@ -1,6 +1,6 @@
 import type { TestAccessRecord } from "./infisical-provider.js";
 import type { RegistryWriter } from "./infisical-writer.js";
-import { generateOrisoTotp, generateTotp } from "./totp.js";
+import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 
 export class TotpAlreadyEnrolledError extends Error {
   constructor() {
@@ -29,15 +29,15 @@ export async function enrollTotpForRecord(options: {
   assertTotpNotEnrolled(options.record);
   const normalizedSecret = options.rawSecret.replace(/\s+/g, "");
   try {
-    if (options.record.project === "oriso" && options.record.environment === "dev") {
-      generateOrisoTotp(normalizedSecret, options.now);
+    if (options.record.project === "oriso") {
+      generateCompatibleOrisoTotp(normalizedSecret, options.now);
     } else {
       generateTotp(normalizedSecret.toUpperCase(), options.now);
     }
   } catch {
     throw new TotpEnrollmentValidationError();
   }
-  const storedSecret = options.record.project === "oriso" && options.record.environment === "dev"
+  const storedSecret = options.record.project === "oriso"
     ? normalizedSecret
     : normalizedSecret.toUpperCase();
   return options.writer.enrollTotp(

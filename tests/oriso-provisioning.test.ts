@@ -33,6 +33,7 @@ describe("ORISO environment routing", () => {
 const adminSecret = "platform-admin-password-never-log";
 const adminTotpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 const generatedOrisoTotpSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
+const generatedPreDevRawTotpSecret = "TiytwMC3QVofH3fD6v9B0I7eefb7eEJ0";
 const generatedDevTotpSecret = "zYxWvUtSrQpOnMlKjIhGfEdCbA987654";
 
 function adminRecord(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
@@ -568,6 +569,63 @@ describe("reusable ORISO PreDev account factory", () => {
     expect(result.state.state).toBe("ready");
     expect(sleep).toHaveBeenNthCalledWith(1, 10);
     expect(sleep).toHaveBeenNthCalledWith(2, 20);
+  });
+
+  it("activates a newly returned raw PreDev seed while retaining Base32 admin authentication", async () => {
+    let accountCreated = false;
+    let totpActive = false;
+    let activationOtp = "";
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        if (!accountCreated || (totpActive && !form.get("otp"))) {
+          return { ok: false, status: 401, async json() { return {}; } };
+        }
+        return ok({ access_token: "user-token", expires_in: 300 });
+      }
+      if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
+        accountCreated = true;
+        return ok({ _embedded: { id: "created-user-id" } });
+      }
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        return ok({ twoFactorAuth: { secret: generatedPreDevRawTotpSecret } });
+      }
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
+        activationOtp = String(JSON.parse(String(init.body)).otp);
+        totpActive = true;
+        return ok();
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-30T05:00:00.000Z"), {
+      provisioningRetryDelaysMs: []
+    });
+    const record = buildProvisionedRecord({
+      email: "pinchy.lobster@dreambau.de",
+      displayName: "Pinchy Lobster",
+      role: "platform-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+
+    const result = await subject.provision({
+      record,
+      firstName: "Pinchy",
+      lastName: "Lobster",
+      role: "platform-admin",
+      storeTotp: vi.fn()
+    });
+
+    expect(result.state.state).toBe("ready");
+    expect(activationOtp).toMatch(/^\d{6}$/);
   });
 
   it("refreshes the user token and retries a transient TOTP activation failure", async () => {

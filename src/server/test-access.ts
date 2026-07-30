@@ -12,7 +12,7 @@ import {
 import type { TestMailReader } from "./test-mail.js";
 import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js";
 import type { RegistryWriter } from "./infisical-writer.js";
-import { generateOrisoTotp, generateTotp } from "./totp.js";
+import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { parseSeedProfile } from "./seed-profile.js";
 import { createTestRunRouter } from "./test-run-router.js";
 import { derivedCatalogPatch, isKnownSyntheticEmail, publicLinkedAccount } from "./account-link.js";
@@ -321,8 +321,8 @@ export function createTestAccessRouter(options: {
         res.set("Cache-Control", "no-store");
         recordAccess(match, identity, "otp_requested");
         return res.json(
-          match.project === "oriso" && match.environment === "dev"
-            ? generateOrisoTotp(match.totpSecret, options.now?.() ?? new Date())
+          match.project === "oriso"
+            ? generateCompatibleOrisoTotp(match.totpSecret, options.now?.() ?? new Date())
             : generateTotp(match.totpSecret, options.now?.() ?? new Date())
         );
       }
