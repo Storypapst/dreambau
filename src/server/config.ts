@@ -24,7 +24,7 @@ export interface RuntimeConfig {
     fromAddress: string;
     fromName: string;
   } | null;
-  orisoProvisioning: {
+  orisoProvisioningTargets: Partial<Record<"pre-dev" | "dev", {
     apiBaseUrl: string;
     tokenUrl: string;
     clientId: string;
@@ -38,7 +38,7 @@ export interface RuntimeConfig {
     defaultMainTopicId: number;
     resolveIp: string | null;
     caFile: string | null;
-  } | null;
+  }>>;
   registryProvider: "file" | "infisical";
   infisical: {
     baseUrl: string;
@@ -59,6 +59,35 @@ function positiveInteger(value: string | undefined, fallback: number, name: stri
   const parsed = Number(value?.trim() || fallback);
   if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${name} must be a positive integer`);
   return parsed;
+}
+
+function orisoProvisioningTarget(
+  environment: "pre-dev" | "dev",
+  defaults: {
+    apiBaseUrl: string;
+    tokenUrl: string;
+    adminBaseUrl: string;
+    appBaseUrl: string;
+  }
+): RuntimeConfig["orisoProvisioningTargets"]["pre-dev"] | undefined {
+  const prefix = environment === "pre-dev" ? "ORISO_PREDEV" : "ORISO_DEV";
+  const adminRecordId = process.env[`${prefix}_ADMIN_RECORD_ID`]?.trim() ?? "";
+  if (!adminRecordId) return undefined;
+  return {
+    apiBaseUrl: process.env[`${prefix}_API_BASE_URL`]?.trim() || defaults.apiBaseUrl,
+    tokenUrl: process.env[`${prefix}_TOKEN_URL`]?.trim() || defaults.tokenUrl,
+    clientId: process.env[`${prefix}_CLIENT_ID`]?.trim() || "app",
+    adminRecordId,
+    adminBaseUrl: process.env[`${prefix}_ADMIN_URL`]?.trim() || defaults.adminBaseUrl,
+    appBaseUrl: process.env[`${prefix}_APP_URL`]?.trim() || defaults.appBaseUrl,
+    defaultTenantId: positiveInteger(process.env[`${prefix}_DEFAULT_TENANT_ID`], 1, `${prefix}_DEFAULT_TENANT_ID`),
+    defaultAgencyId: positiveInteger(process.env[`${prefix}_DEFAULT_AGENCY_ID`], 1, `${prefix}_DEFAULT_AGENCY_ID`),
+    defaultConsultingType: process.env[`${prefix}_DEFAULT_CONSULTING_TYPE`]?.trim() || "1",
+    defaultPostcode: process.env[`${prefix}_DEFAULT_POSTCODE`]?.trim() || "10115",
+    defaultMainTopicId: positiveInteger(process.env[`${prefix}_DEFAULT_MAIN_TOPIC_ID`], 1, `${prefix}_DEFAULT_MAIN_TOPIC_ID`),
+    resolveIp: process.env[`${prefix}_RESOLVE_IP`]?.trim() || null,
+    caFile: process.env[`${prefix}_CA_FILE`]?.trim() || null
+  };
 }
 
 export function loadConfig(): RuntimeConfig {
@@ -116,23 +145,20 @@ export function loadConfig(): RuntimeConfig {
     fromAddress: smtpValues.fromAddress,
     fromName: process.env.TESTMAILS_SMTP_FROM_NAME?.trim() || "Dreambau Test Access"
   } : null;
-  const orisoAdminRecordId = process.env.ORISO_PREDEV_ADMIN_RECORD_ID?.trim() ?? "";
-  const orisoProvisioning = orisoAdminRecordId ? {
-    apiBaseUrl: process.env.ORISO_PREDEV_API_BASE_URL?.trim() || "https://api.oriso-dev.site/service",
-    tokenUrl: process.env.ORISO_PREDEV_TOKEN_URL?.trim()
-      || "https://auth.oriso-dev.site/realms/online-beratung/protocol/openid-connect/token",
-    clientId: process.env.ORISO_PREDEV_CLIENT_ID?.trim() || "app",
-    adminRecordId: orisoAdminRecordId,
-    adminBaseUrl: process.env.ORISO_PREDEV_ADMIN_URL?.trim() || "https://admin.oriso-dev.site",
-    appBaseUrl: process.env.ORISO_PREDEV_APP_URL?.trim() || "https://app.oriso-dev.site",
-    defaultTenantId: positiveInteger(process.env.ORISO_PREDEV_DEFAULT_TENANT_ID, 1, "ORISO_PREDEV_DEFAULT_TENANT_ID"),
-    defaultAgencyId: positiveInteger(process.env.ORISO_PREDEV_DEFAULT_AGENCY_ID, 1, "ORISO_PREDEV_DEFAULT_AGENCY_ID"),
-    defaultConsultingType: process.env.ORISO_PREDEV_DEFAULT_CONSULTING_TYPE?.trim() || "1",
-    defaultPostcode: process.env.ORISO_PREDEV_DEFAULT_POSTCODE?.trim() || "10115",
-    defaultMainTopicId: positiveInteger(process.env.ORISO_PREDEV_DEFAULT_MAIN_TOPIC_ID, 1, "ORISO_PREDEV_DEFAULT_MAIN_TOPIC_ID"),
-    resolveIp: process.env.ORISO_PREDEV_RESOLVE_IP?.trim() || null,
-    caFile: process.env.ORISO_PREDEV_CA_FILE?.trim() || null
-  } : null;
+  const orisoProvisioningTargets: RuntimeConfig["orisoProvisioningTargets"] = {
+    "pre-dev": orisoProvisioningTarget("pre-dev", {
+      apiBaseUrl: "https://api.oriso-dev.site/service",
+      tokenUrl: "https://auth.oriso-dev.site/realms/online-beratung/protocol/openid-connect/token",
+      adminBaseUrl: "https://admin.oriso-dev.site",
+      appBaseUrl: "https://app.oriso-dev.site"
+    }),
+    dev: orisoProvisioningTarget("dev", {
+      apiBaseUrl: "https://dev.oriso.org/service",
+      tokenUrl: "https://dev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
+      adminBaseUrl: "https://dev.oriso.org/admin",
+      appBaseUrl: "https://dev.oriso.org"
+    })
+  };
   const emailOtpHmacKey = fromFileOrEnv("hmac-key", "TESTMAILS_EMAIL_OTP_HMAC_KEY");
   if (smtp && !emailOtpHmacKey) throw new Error("TESTMAILS_EMAIL_OTP_HMAC_KEY is required when email OTP SMTP is enabled");
   if (smtp && emailOtpHmacKey.length < 32) throw new Error("TESTMAILS_EMAIL_OTP_HMAC_KEY must be at least 32 characters");
@@ -146,7 +172,7 @@ export function loadConfig(): RuntimeConfig {
     secureCookies: process.env.NODE_ENV !== "test",
     emailOtpHmacKey,
     smtp,
-    orisoProvisioning,
+    orisoProvisioningTargets,
     registryProvider,
     infisical
   };

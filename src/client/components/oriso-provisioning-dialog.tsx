@@ -68,12 +68,20 @@ const roleLabels: Record<OrisoProvisioningRole, { de: string; en: string }> = {
   "advice-seeker": { de: "Ratsuchende:r", en: "Advice seeker" }
 };
 
-function StateSummary({ state, locale }: { state: OrisoProvisioningStateView; locale: Locale }) {
+function StateSummary({
+  state,
+  locale,
+  environment
+}: {
+  state: OrisoProvisioningStateView;
+  locale: Locale;
+  environment: "pre-dev" | "dev";
+}) {
   return <div className="flex flex-col gap-2" data-testid="oriso-provisioning-state">
     <div className="flex flex-wrap items-center gap-2">
       <Badge>{stateLabels[state.state][locale]}</Badge>
       {state.role && <Badge variant="outline">{roleLabels[state.role][locale]}</Badge>}
-      <Badge variant="secondary">pre-dev</Badge>
+      <Badge variant="secondary">{environment}</Badge>
     </div>
     <p className="text-sm">{nextStepLabels[state.nextStep][locale]}</p>
     {state.expiresAt && state.state === "invited" && <p className="text-xs text-muted-foreground">
@@ -103,6 +111,9 @@ export function OrisoProvisioningDialog({
   const [enrollError, setEnrollError] = useState(false);
   const [otp, setOtp] = useState<{ code: string } | null>(null);
   const [otpError, setOtpError] = useState(false);
+  const environment = view?.environment
+    ?? (account.domain === "oriso.org" || account.domain === "openresilience.cc" ? "dev" : "pre-dev");
+  const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
 
   async function load() {
     setError(null);
@@ -166,7 +177,7 @@ export function OrisoProvisioningDialog({
     try {
       const result = await api<OrisoProvisioningResult>(
         `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
-        { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: selectedRole }) }
+        { method: "POST", body: JSON.stringify({ environment, role: selectedRole }) }
       );
       setView((current) => current ? { ...current, state: result.state, linked: result.linked } : current);
       onProvisioned(account.email, result.linked);
@@ -189,7 +200,7 @@ export function OrisoProvisioningDialog({
     </DialogTrigger>
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>{locale === "de" ? "ORISO PreDev Konto" : "ORISO PreDev account"}</DialogTitle>
+        <DialogTitle>{locale === "de" ? `ORISO ${environmentLabel} Konto` : `ORISO ${environmentLabel} account`}</DialogTitle>
         <DialogDescription>
           {locale === "de"
             ? "Legt über den verwalteten Plattform-Admin ein wiederverwendbares ORISO-Konto für dieses Springfield-Postfach an, aktiviert 2FA und prüft den Login. Das App-Passwort wird genau einmal vergeben, bleibt unverändert und ist anschließend geschützt in der Testkonto-Zeile abrufbar."
@@ -199,10 +210,10 @@ export function OrisoProvisioningDialog({
       {!view && !error && <p className="text-sm text-muted-foreground">{locale === "de" ? "Status wird geladen…" : "Loading status…"}</p>}
       {view && !view.configured && <p className="text-sm text-muted-foreground">
         {locale === "de"
-          ? "ORISO-Provisioning ist auf diesem Server nicht konfiguriert (ORISO_PREDEV_ADMIN_RECORD_ID fehlt)."
-          : "ORISO provisioning is not configured on this server (ORISO_PREDEV_ADMIN_RECORD_ID missing)."}
+          ? `ORISO-Provisioning ist für ${environmentLabel} auf diesem Server nicht konfiguriert.`
+          : `ORISO provisioning is not configured for ${environmentLabel} on this server.`}
       </p>}
-      {view?.configured && view.state && <StateSummary state={view.state} locale={locale} />}
+      {view?.configured && view.state && <StateSummary state={view.state} locale={locale} environment={view.environment} />}
       {view?.configured && view.state && !view.linked && view.state.role && <p className="text-sm text-muted-foreground">
         {locale === "de"
           ? "Für dieses ORISO-Konto existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen das fest zugewiesene ORISO-App-Passwort und „2FA hinterlegen“ in der Zeile."

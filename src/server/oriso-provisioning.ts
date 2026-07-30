@@ -13,6 +13,25 @@ export const orisoProvisioningRoles = [
   "advice-seeker"
 ] as const;
 export type OrisoProvisioningRole = typeof orisoProvisioningRoles[number];
+export type OrisoProvisioningEnvironment = "pre-dev" | "dev";
+
+const orisoEnvironmentByDomain: Record<string, OrisoProvisioningEnvironment> = {
+  "dreambau.com": "pre-dev",
+  "dreambau.de": "pre-dev",
+  "oriso.org": "dev",
+  "openresilience.cc": "dev"
+};
+
+export function environmentForOrisoEmail(email: string): OrisoProvisioningEnvironment | null {
+  const normalized = email.trim().toLowerCase();
+  const separator = normalized.lastIndexOf("@");
+  if (
+    separator < 1
+    || separator !== normalized.indexOf("@")
+    || separator === normalized.length - 1
+  ) return null;
+  return orisoEnvironmentByDomain[normalized.slice(separator + 1)] ?? null;
+}
 
 export const orisoOnboardingStates = ["invited", "onboarding-pending", "two-factor-pending", "ready"] as const;
 export type OrisoOnboardingState = typeof orisoOnboardingStates[number];
@@ -230,23 +249,26 @@ export function buildProvisionedRecord(input: {
   responsiblePerson: string;
   now: Date;
   secret: string;
+  environment?: OrisoProvisioningEnvironment;
 }): TestAccessRecord {
   const contract = roleContract[input.role];
   const [localPart, domain] = input.email.trim().toLowerCase().split("@");
+  const environment = input.environment ?? "pre-dev";
+  const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
   const timestamp = input.now.toISOString();
   // Local parts repeat across the pool's mail domains; only the canonical
   // oriso.org identities get the short id, every other domain stays disjoint.
   const recordId = domain === "oriso.org" ? localPart : `${localPart}-${domain}`;
   return testAccessRecordSchema.parse({
-    id: `oriso/pre-dev/${recordId}`,
+    id: `oriso/${environment}/${recordId}`,
     project: "oriso",
-    environment: "pre-dev",
+    environment,
     kind: contract.recordKind,
-    displayName: `${input.displayName} — ORISO PreDev ${input.role}`,
+    displayName: `${input.displayName} — ORISO ${environmentLabel} ${input.role}`,
     username: input.email.trim().toLowerCase(),
     email: input.email.trim().toLowerCase(),
     roles: [...contract.recordRoles],
-    permissionsDescription: `Self-service provisioned ORISO PreDev ${input.role}`,
+    permissionsDescription: `Self-service provisioned ORISO ${environmentLabel} ${input.role}`,
     loginUrl: contract.loginArea === "admin" ? input.adminBaseUrl : input.appBaseUrl,
     secret: input.secret,
     responsiblePerson: input.responsiblePerson,
@@ -268,6 +290,7 @@ export type ProvisioningFetch = (input: string | URL, init?: {
 }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 export interface OrisoProvisioningTarget {
+  environment: OrisoProvisioningEnvironment;
   apiBaseUrl: string;
   tokenUrl: string;
   clientId: string;
@@ -330,7 +353,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
 
   async function authenticate() {
     const record = await options.registryProvider.get(options.adminRecordId);
-    if (!record || record.project !== "oriso" || record.environment !== "pre-dev") {
+    if (!record || record.project !== "oriso" || record.environment !== options.environment) {
       throw new OrisoProvisioningError("admin_record_unavailable");
     }
     const form = new URLSearchParams({
@@ -542,6 +565,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   return {
     target: {
       apiBaseUrl,
+      environment: options.environment,
       tokenUrl: options.tokenUrl,
       clientId: options.clientId,
       adminRecordId: options.adminRecordId,
@@ -585,7 +609,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       const expectedRoles = roleContract[input.role].recordRoles;
       if (
         input.record.project !== "oriso"
-        || input.record.environment !== "pre-dev"
+        || input.record.environment !== options.environment
         || input.record.roles.join(",") !== expectedRoles.join(",")
       ) {
         throw new OrisoProvisioningError("account_create_failed");

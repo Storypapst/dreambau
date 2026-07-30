@@ -14,17 +14,17 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 function account(patch: Partial<AccountView> = {}): AccountView {
   return {
     displayName: "Lisa Simpson",
-    email: "lisa.simpson@oriso.org",
+    email: "lisa.simpson@dreambau.de",
     password: "mailbox-password",
-    domain: "oriso.org",
+    domain: "dreambau.de",
     imap: "mail.dreambau.com:993",
     smtp: "mail.dreambau.com:465",
     jmap: "https://box.dreambau.com/.well-known/jmap",
     caldav: "https://box.dreambau.com/dav/cal/",
     carddav: "https://box.dreambau.com/dav/card/",
-    encryption: { state: "disabled" },
+    encryption: { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false },
     metadata: {
-      email: "lisa.simpson@oriso.org", shippedVersion: "", lifecycleStatus: "unused", project: "ORISO",
+      email: "lisa.simpson@dreambau.de", shippedVersion: "", lifecycleStatus: "unused", project: "ORISO",
       roles: [], topics: [], conversationTypes: [], fixtureQuality: "empty", sampleFileCount: 0, notes: "", updatedAt: ""
     },
     ...patch
@@ -58,9 +58,9 @@ function readyStateFixture(): OrisoProvisioningStateView {
 }
 
 const linkedFixture: LinkedTestAccount = {
-  id: "oriso/pre-dev/lisa.simpson", project: "oriso", environment: "pre-dev", kind: "admin",
-  displayName: "Lisa Simpson — ORISO PreDev tenant-admin", username: "lisa.simpson@oriso.org",
-  email: "lisa.simpson@oriso.org", roles: ["tenant-admin"], loginUrl: "https://admin.oriso-dev.site", hasTotp: false
+  id: "oriso/pre-dev/lisa.simpson-dreambau.de", project: "oriso", environment: "pre-dev", kind: "admin",
+  displayName: "Lisa Simpson — ORISO PreDev tenant-admin", username: "lisa.simpson@dreambau.de",
+  email: "lisa.simpson@dreambau.de", roles: ["tenant-admin"], loginUrl: "https://admin.oriso-dev.site", hasTotp: false
 };
 
 describe("OrisoProvisioningDialog", () => {
@@ -114,11 +114,11 @@ describe("OrisoProvisioningDialog", () => {
     await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith(
-      "lisa.simpson@oriso.org",
+      "lisa.simpson@dreambau.de",
       { ...linkedFixture, hasTotp: true }
     ));
     expect(api).toHaveBeenCalledWith(
-      `/accounts/${encodeURIComponent("lisa.simpson@oriso.org")}/oriso-provisioning`,
+      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
       { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "tenant-admin" }) }
     );
     expect(document.body.textContent).toContain("Bereit");
@@ -129,7 +129,7 @@ describe("OrisoProvisioningDialog", () => {
     await act(async () => otpButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await vi.waitFor(() => expect(document.querySelector("[data-testid=oriso-dialog-otp]")?.textContent).toBe("287082"));
     expect(api).toHaveBeenLastCalledWith(
-      `/accounts/${encodeURIComponent("lisa.simpson@oriso.org")}/otp?accountId=${encodeURIComponent(linkedFixture.id)}`
+      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/otp?accountId=${encodeURIComponent(linkedFixture.id)}`
     );
   });
 
@@ -165,9 +165,9 @@ describe("OrisoProvisioningDialog", () => {
       .find((button) => button.textContent?.includes("Test-Access-Record verknüpfen"));
     await act(async () => link?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-    await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@oriso.org", linkedFixture));
+    await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@dreambau.de", linkedFixture));
     expect(api).toHaveBeenCalledWith(
-      `/accounts/${encodeURIComponent("lisa.simpson@oriso.org")}/oriso-provisioning`,
+      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
       { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "tenant-admin" }) }
     );
     await vi.waitFor(() => expect(document.body.textContent).not.toContain("noch kein Test-Access-Record"));
@@ -203,10 +203,10 @@ describe("OrisoProvisioningDialog", () => {
 
     await vi.waitFor(() => expect(document.querySelector("[data-testid=oriso-dialog-otp]")?.textContent).toBe("287082"));
     expect(api).toHaveBeenCalledWith(
-      `/accounts/${encodeURIComponent("lisa.simpson@oriso.org")}/totp`,
+      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/totp`,
       { method: "POST", body: JSON.stringify({ accountId: linkedFixture.id, totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" }) }
     );
-    expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@oriso.org", { ...linkedFixture, hasTotp: true });
+    expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@dreambau.de", { ...linkedFixture, hasTotp: true });
     expect(document.body.textContent).not.toContain("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
   });
 
@@ -217,6 +217,52 @@ describe("OrisoProvisioningDialog", () => {
     });
     await openDialog();
     await vi.waitFor(() => expect(document.body.textContent).toContain("nicht konfiguriert"));
+  });
+
+  it("shows Dev explicitly and submits Dev for an oriso.org identity", async () => {
+    const devAccount = account({
+      email: "bart.simpson@oriso.org",
+      domain: "oriso.org",
+      metadata: { ...account().metadata, email: "bart.simpson@oriso.org", project: "ORISO" }
+    });
+    vi.mocked(api).mockResolvedValueOnce({
+      configured: true,
+      supportedRoles: ["platform-admin", "tenant-admin"],
+      environment: "dev",
+      state: null,
+      linked: null
+    });
+    vi.mocked(api).mockResolvedValueOnce({
+      created: true,
+      recordCreated: true,
+      state: readyStateFixture(),
+      linked: {
+        ...linkedFixture,
+        id: "oriso/dev/bart.simpson",
+        environment: "dev",
+        email: devAccount.email,
+        username: devAccount.email,
+        loginUrl: "https://dev.oriso.org/admin",
+        hasTotp: true
+      }
+    });
+
+    await act(async () => root.render(
+      <OrisoProvisioningDialog account={devAccount} locale="de" hasLinkedAccess={false} onProvisioned={vi.fn()} />
+    ));
+    const trigger = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("ORISO-Konto anlegen"));
+    await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("ORISO Dev Konto"));
+
+    const submit = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Konto anlegen & prüfen"));
+    await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(api).toHaveBeenCalledWith(
+      `/accounts/${encodeURIComponent(devAccount.email)}/oriso-provisioning`,
+      { method: "POST", body: JSON.stringify({ environment: "dev", role: "tenant-admin" }) }
+    ));
   });
 });
 
