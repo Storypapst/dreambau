@@ -7,8 +7,10 @@ import type { AccountView, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "./copy-button";
+import { OtpValidity } from "./otp-validity";
 import { OrisoProvisioningDialog } from "./oriso-provisioning-dialog";
 import { TotpEnrollmentDialog } from "./totp-enrollment-dialog";
+import { requestSafeOtp } from "@/safe-otp";
 
 function isOrisoScoped(account: AccountView) {
   if (account.metadata.project === "ORISO") return true;
@@ -31,6 +33,7 @@ export function OtpAccess({ account, locale, compact = false, isAdmin = false, o
   const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);
   const [applicationSecret, setApplicationSecret] = useState<{ email: string; accountId: string; value: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [waitingUntil, setWaitingUntil] = useState<number | null>(null);
   const [secretBusy, setSecretBusy] = useState(false);
   const [secretRevealed, setSecretRevealed] = useState(false);
   const [secretCopied, setSecretCopied] = useState(false);
@@ -101,9 +104,15 @@ export function OtpAccess({ account, locale, compact = false, isAdmin = false, o
     setBusy(true);
     setError(false);
     setResult(null);
+    setWaitingUntil(null);
     try {
-      const value = await api<OtpResponse>(`/accounts/${encodeURIComponent(requestedEmail)}/otp?accountId=${encodeURIComponent(requestedAccountId)}`);
+      const endpoint = `/accounts/${encodeURIComponent(requestedEmail)}/otp?accountId=${encodeURIComponent(requestedAccountId)}`;
+      const value = await requestSafeOtp(
+        () => api<OtpResponse>(endpoint),
+        { onWait: setWaitingUntil }
+      );
       if (value.accountId !== requestedAccountId) throw new Error("Unexpected account");
+      setWaitingUntil(null);
       setResult({
         email: requestedEmail,
         accountId: requestedAccountId,
@@ -174,6 +183,8 @@ export function OtpAccess({ account, locale, compact = false, isAdmin = false, o
           </>}
       {displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
     </div>
+    {waitingUntil && <OtpValidity expiresAt={waitingUntil} locale={locale} waiting />}
+    {displayedResult?.source === "totp" && displayedExpiresAt !== undefined && <OtpValidity expiresAt={displayedExpiresAt} locale={locale} />}
     {error && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "OTP konnte nicht abgerufen werden." : "Could not retrieve OTP."}</p>}
     {!compact && account.access?.latest && <p className="text-xs text-muted-foreground">{locale === "de" ? "Zuletzt verwendet" : "Last used"}: {new Date(account.access.latest.createdAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB")} · {account.access.latest.actorId}</p>}
   </div>;
