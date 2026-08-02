@@ -1,0 +1,69 @@
+# Retention, integrity and the public-link probe. Runs outside the gateway so a
+# long sweep never competes with an upload for the request path.
+#
+# A non-zero exit is the alert signal: the job fails when an integrity finding
+# or an unreachable public link is found.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dreambau-evidence-maintenance
+  namespace: wcr
+  labels: { app.kubernetes.io/name: dreambau-evidence }
+spec:
+  # 03:10 UTC, after the nightly E2E runs have finished publishing.
+  schedule: "10 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 7
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: maintenance
+              image: dreambau-evidence:1.0.0-main-17c0a2c
+              imagePullPolicy: Never
+              command: ["node", "dist/evidence/server/maintenance.js", "all"]
+              env:
+                - { name: NODE_ENV, value: production }
+                - { name: EVIDENCE_DATABASE_PATH, value: /data/evidence.sqlite }
+                - { name: EVIDENCE_PUBLIC_BASE_URL, value: "https://evidence.dreambau.com" }
+                - { name: EVIDENCE_STORAGE, value: minio }
+                - { name: EVIDENCE_S3_ENDPOINT, value: "http://wcr-minio.wcr-storage.svc.cluster.local:9000" }
+                - { name: EVIDENCE_S3_REGION, value: us-east-1 }
+                - { name: EVIDENCE_S3_BUCKET, value: dreambau-pr-evidence }
+                - { name: EVIDENCE_DRAFT_RETENTION_DAYS, value: "60" }
+                - { name: EVIDENCE_ORIGINAL_VIDEO_RETENTION_DAYS, value: "7" }
+                - name: EVIDENCE_S3_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef: { name: evidence-minio, key: access-key-id }
+                - name: EVIDENCE_S3_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef: { name: evidence-minio, key: secret-access-key }
+              resources:
+                requests: { cpu: 25m, memory: 128Mi }
+                limits: { cpu: "1", memory: 512Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+              volumeMounts:
+                - { mountPath: /data, name: data }
+                - { mountPath: /tmp, name: tmp }
+          volumes:
+            # The same ReadWriteOnce volume the gateway uses, which is why
+            # concurrencyPolicy is Forbid and the gateway is a single replica.
+            - name: data
+              persistentVolumeClaim: { claimName: evidence-data }
+            - name: tmp
+              emptyDir: { sizeLimit: 64Mi }

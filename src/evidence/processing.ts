@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { inflateSync } from "node:zlib";
 import type { EvidenceFile } from "./model.js";
 import { stripImageMetadata, type OcrScanner, type StrippableImageFormat, type VideoProcessor } from "./media.js";
+import { metrics } from "./metrics.js";
 import { isScannableContentType, scanTextForSecrets, type SecretFinding } from "./secret-scan.js";
 import { detectFormat, type EvidenceFormat } from "./security.js";
 import { objectKey, reportEntryKey, type ObjectStore } from "./storage.js";
@@ -221,6 +222,7 @@ export function createProcessor(options: ProcessorOptions): Processor {
   }
 
   async function processFile(fileId: string): Promise<ProcessingResult> {
+    const startedAt = Date.now();
     const file = store.getFile(fileId);
     if (!file) throw new Error(`evidence file not found: ${fileId}`);
     const originalKey = objectKey(file.runId, file.id, "original");
@@ -276,6 +278,9 @@ export function createProcessor(options: ProcessorOptions): Processor {
       posterPath
     });
     store.appendEvent(file.runId, "file_ready", "gateway", now().toISOString(), { fileId: file.id });
+    metrics.increment("evidence_upload_total", { outcome: "ready" });
+    metrics.increment("evidence_upload_bytes_total", {}, file.byteSize);
+    metrics.observeProcessing(file.kind, (Date.now() - startedAt) / 1000);
     return { fileId: file.id, state: "ready", findings: [] };
   }
 
@@ -291,6 +296,11 @@ export function createProcessor(options: ProcessorOptions): Processor {
       fileId: file.id,
       rules: findings.map((entry) => entry.rule)
     });
+    metrics.increment("evidence_upload_total", { outcome: "quarantined" });
+    // The rule family only — never the rule's location or the file it came from.
+    for (const rule of new Set(findings.map((entry) => entry.rule.split(":")[0]))) {
+      metrics.increment("evidence_quarantine_total", { family: rule });
+    }
     return { fileId: file.id, state: "rejected", findings };
   }
 

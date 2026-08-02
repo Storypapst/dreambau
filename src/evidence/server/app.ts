@@ -6,6 +6,7 @@ import { MemoryObjectStore, type ObjectStore } from "../storage.js";
 import { createEvidenceStore, type EvidenceStore } from "../store.js";
 import { createEvidenceRouter } from "./router.js";
 import { createEvidenceViewer } from "./viewer.js";
+import { metrics } from "../metrics.js";
 import { createFfmpegVideoProcessor, type VideoProcessor } from "../media.js";
 import { spawnMediaTool } from "./media-runner.js";
 
@@ -63,6 +64,13 @@ export function createEvidenceApp(options: EvidenceAppOptions = {}): EvidenceApp
   // JSON body parser, and it deliberately has no session or cookie middleware
   // anywhere in front of it.
   app.use(createEvidenceViewer({ store, objectStore }));
+
+  // Scraped by SigNoz. Counts and durations only: no run, repository or file
+  // ever appears as a label, so this stays safe to expose inside the cluster.
+  app.get("/metrics", (_req, res) => {
+    metrics.setGauge("evidence_storage_bytes", store.totalBytes());
+    res.type("text/plain; version=0.0.4; charset=utf-8").send(metrics.render());
+  });
 
   app.use("/api/v1", express.json({ limit: "256kb" }), createEvidenceRouter({
     store,
