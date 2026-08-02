@@ -16,6 +16,7 @@ import {
   type EvidenceRun
 } from "../model.js";
 import type { Processor } from "../processing.js";
+import { metrics } from "../metrics.js";
 import { multipartChunkSize, preflightUpload } from "../security.js";
 import { objectKey, type ObjectStore } from "../storage.js";
 import type { EvidenceStore } from "../store.js";
@@ -247,16 +248,22 @@ export function createEvidenceRouter(options: EvidenceRouterOptions) {
     if (!run) return;
     try {
       const { stage, githubCommentUrl, ...input } = publishRequestSchema.parse(req.body);
-      if (input.repository !== run.repository) return res.status(409).json({ error: "repository_mismatch" });
+      if (input.repository !== run.repository) {
+        metrics.increment("evidence_publish_failures_total", { reason: "repository_mismatch" });
+        return res.status(409).json({ error: "repository_mismatch" });
+      }
       if (input.commitSha.toLowerCase() !== run.commitSha.toLowerCase()) {
+        metrics.increment("evidence_publish_failures_total", { reason: "commit_mismatch" });
         return res.status(409).json({ error: "commit_mismatch" });
       }
       const files = options.store.listFiles(run.id);
       if (files.length === 0) return res.status(409).json({ error: "no_evidence_files" });
       if (files.some((file) => file.processingState === "rejected") || run.state === "quarantined") {
+        metrics.increment("evidence_publish_failures_total", { reason: "quarantined" });
         return res.status(409).json({ error: "run_quarantined", findings: options.store.listFindings(run.id) });
       }
       if (files.some((file) => file.processingState !== "ready")) {
+        metrics.increment("evidence_publish_failures_total", { reason: "incomplete" });
         return res.status(409).json({ error: "processing_incomplete" });
       }
 

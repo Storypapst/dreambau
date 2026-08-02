@@ -188,6 +188,13 @@ export interface EvidenceStore {
   appendEvent(runId: string, eventType: string, actorId: string, createdAt: string, payload?: Record<string, unknown>): void;
   events(runId: string): Array<{ eventType: string; actorId: string; createdAt: string; payload: Record<string, unknown> }>;
   expiredDrafts(before: string): EvidenceRun[];
+  /** Removes a run and everything attached to it. Only retention calls this. */
+  deleteRun(id: string): void;
+  /** Ready videos completed before `before`, whose original copy can go. */
+  normalisedVideosCompletedBefore(before: string): Array<{ id: string; runId: string }>;
+  /** Every file that a published run currently serves, for the integrity sweep. */
+  publishedFiles(): Array<{ id: string; runId: string; filename: string; sha256: string; servedKey: string }>;
+  totalBytes(): number;
   uploadIdFor(fileId: string): string | null;
   /** Cheapest possible proof that the database is reachable, for readiness. */
   schemaVersion(): number;
@@ -443,6 +450,39 @@ export function createEvidenceStore(path: string, options: StoreOptions): Eviden
     uploadIdFor(fileId) {
       const row = sqlite.prepare("SELECT upload_id FROM evidence_files WHERE id=?").get(fileId) as { upload_id: string | null } | undefined;
       return row?.upload_id ?? null;
+    },
+    deleteRun(id) {
+      const remove = sqlite.transaction(() => {
+        sqlite.prepare(`DELETE FROM evidence_file_parts WHERE file_id IN
+          (SELECT id FROM evidence_files WHERE run_id=?)`).run(id);
+        sqlite.prepare("DELETE FROM evidence_findings WHERE run_id=?").run(id);
+        sqlite.prepare("DELETE FROM evidence_events WHERE run_id=?").run(id);
+        sqlite.prepare("DELETE FROM evidence_files WHERE run_id=?").run(id);
+        sqlite.prepare("DELETE FROM evidence_runs WHERE id=?").run(id);
+      });
+      remove();
+    },
+    normalisedVideosCompletedBefore(before) {
+      return (sqlite.prepare(`SELECT id, run_id FROM evidence_files
+        WHERE content_type LIKE 'video/%' AND processing_state='ready'
+          AND completed_at IS NOT NULL AND completed_at < ?`)
+        .all(before) as Array<{ id: string; run_id: string }>)
+        .map((row) => ({ id: row.id, runId: row.run_id }));
+    },
+    publishedFiles() {
+      return (sqlite.prepare(`SELECT f.id, f.run_id, f.filename, f.sha256, f.served_key
+        FROM evidence_files f JOIN evidence_runs r ON r.id = f.run_id
+        WHERE r.state='published' AND f.processing_state='ready' AND f.served_key IS NOT NULL
+        ORDER BY f.created_at, f.id`)
+        .all() as Array<{ id: string; run_id: string; filename: string; sha256: string; served_key: string }>)
+        .map((row) => ({
+          id: row.id, runId: row.run_id, filename: row.filename,
+          sha256: row.sha256, servedKey: row.served_key
+        }));
+    },
+    totalBytes() {
+      const row = sqlite.prepare("SELECT COALESCE(SUM(byte_size),0) AS total FROM evidence_files").get() as { total: number };
+      return row.total;
     },
     schemaVersion() {
       const row = sqlite.prepare("SELECT MAX(version) AS version FROM evidence_schema_migrations").get() as { version: number | null };
