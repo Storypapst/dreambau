@@ -31,7 +31,9 @@ spec:
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: maintenance
-              image: dreambau-evidence:1.0.0-main-17c0a2c
+              # Kept in step with the Deployment: `kubectl set image` on a new
+              # release has to patch this too, or maintenance runs old code.
+              image: dreambau-evidence:1.1.0-ops
               imagePullPolicy: Never
               command: ["node", "dist/evidence/server/maintenance.js", "all"]
               env:

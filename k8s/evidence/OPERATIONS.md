@@ -24,6 +24,8 @@ label**, so the endpoint stays safe to expose inside the cluster.
 | `increase(evidence_publish_failures_total[1h]) > 3` | evidence is being produced but not landing on pull requests |
 | `evidence_public_link_probe_failures_total > 0` | a link already sitting in a PR comment has stopped working — the failure a reader notices first and an operator notices last |
 | CronJob `dreambau-evidence-maintenance` failed | an integrity finding or an unreachable link; the job exits non-zero on purpose |
+
+**The probe fails while `evidence.dreambau.com` has no DNS record.** That is a true finding, not noise: published links really are unreachable. It goes green the moment the record lands. Until then, read a maintenance failure as "check whether it is only the probe" — the job prints the retention and integrity lines before it exits.
 | free space `< 40 GiB` | warning |
 | free space `< 25 GiB` | hard stop: halt uploads before the disk decides for you |
 | gateway or MinIO not ready | `/health/ready` covers both, since readiness authenticates against the bucket |
@@ -46,6 +48,9 @@ evidence is a scheduled job that will eventually delete the evidence someone
 needed.
 
 The sweep runs as a CronJob at 03:10 UTC:
+
+The CronJob pins its own image tag, so a release has to patch it alongside the
+Deployment — otherwise maintenance quietly keeps running the previous code.
 
 ```bash
 kubectl apply -f k8s/evidence/cronjob.yaml
