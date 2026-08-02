@@ -3,6 +3,7 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installAuth } from "./auth.js";
+import { createDocsMirrorRouter } from "./docs-mirror.js";
 import { loadAccounts as loadAccountsFile, type AccountRecord } from "./accounts.js";
 import { loadConfig } from "./config.js";
 import { createDatabase, type RegistryDatabase } from "./db.js";
@@ -68,6 +69,7 @@ interface AppOptions {
   emailOtpHmacKey?: string;
   orisoProvisioning?: OrisoProvisioningService;
   orisoProvisioningServices?: Partial<Record<OrisoProvisioningEnvironment, OrisoProvisioningService>>;
+  docsMirrorDir?: string | null;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -674,6 +676,8 @@ export function createApp(options: AppOptions = {}) {
   api.get("/export/markdown", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
   app.use("/testmails/api", api);
   app.get("/testmails/testmails.md", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
+  const docsMirrorDir = options.docsMirrorDir === undefined ? process.env.DOCS_MIRROR_DIR ?? null : options.docsMirrorDir;
+  if (docsMirrorDir) app.use("/testmails/docs", requireActiveHumanSession, createDocsMirrorRouter(docsMirrorDir));
 
   const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../client");
   app.use("/testmails", express.static(clientDir, { index: false }));

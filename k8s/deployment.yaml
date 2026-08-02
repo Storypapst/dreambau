@@ -68,8 +68,12 @@ spec:
             - { name: ORISO_DEV_DEFAULT_CONSULTING_TYPE, value: "1" }
             - { name: ORISO_DEV_DEFAULT_POSTCODE, value: "10965" }
             - { name: ORISO_DEV_DEFAULT_MAIN_TOPIC_ID, value: "7" }
+            # Read-only mirror of the Drive team vault (text files only),
+            # pushed by dreambau-docs-sync from Frank's Mac to the host.
+            - { name: DOCS_MIRROR_DIR, value: /srv/dreambau-docs }
           volumeMounts:
             - { name: data, mountPath: /data }
+            - { name: docs-mirror, mountPath: /srv/dreambau-docs, readOnly: true }
             - { name: accounts, mountPath: /run/secrets/testmails, readOnly: true }
             - { name: auth, mountPath: /run/secrets/auth, readOnly: true }
             - { name: test-access, mountPath: /run/secrets/test-access, readOnly: true }
@@ -112,3 +116,5 @@ spec:
           configMap: { name: oriso-predev-ca }
         - name: tmp
           emptyDir: { sizeLimit: 32Mi }
+        - name: docs-mirror
+          hostPath: { path: /srv/dreambau-docs, type: Directory }
