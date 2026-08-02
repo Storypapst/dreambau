@@ -1,10 +1,30 @@
-FROM node:20-bookworm-slim AS build
+# Shared base for every stage that needs the source tree and dev dependencies.
+FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY tsconfig.json tsconfig.server.json vite.config.ts components.json index.html ./
+COPY tsconfig.json tsconfig.server.json tsconfig.evidence.json vite.config.ts components.json index.html ./
 COPY src ./src
+
+# Runs the full quality gate inside the same runtime the image ships, so a
+# green result cannot depend on the workstation's Node version or on locally
+# installed Playwright browsers.
+#   docker build --target verify -t dreambau-testmails:verify .
+FROM deps AS verify
+COPY vitest.config.ts playwright.config.ts ./
+COPY tests ./tests
+COPY k8s ./k8s
+COPY ops ./ops
+COPY scripts ./scripts
+COPY migrations ./migrations
+# tests/playwright-login-broker.test.ts launches a real browser.
+RUN npx playwright install --with-deps chromium
+RUN npm run lint
+RUN npm test
+RUN npm run build
+
+FROM deps AS build
 RUN npm run build && npm prune --omit=dev
 
 FROM node:20-bookworm-slim AS runtime

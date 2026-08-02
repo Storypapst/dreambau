@@ -39,7 +39,7 @@ export class SessionStore {
 
 export interface SessionPrincipal {
   authenticated: true;
-  method: "password-bootstrap" | "passkey" | "recovery";
+  method: "password-bootstrap" | "passkey" | "recovery" | "email-otp";
   userId: string | null;
 }
 

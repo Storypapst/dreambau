@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { z } from "zod";
+import { ALL_TEST_ENVIRONMENTS, createHumanGrantStore, migrateLegacyProjectGrants } from "./human-grants.js";
 
 const projectSchema = z.enum(["oriso", "orimo", "dreambau"]);
+const synchronizedProjectsSchema = z.array(projectSchema).max(3);
 const userInputSchema = z.object({
   email: z.email(),
   name: z.string().min(1),
@@ -89,15 +91,60 @@ export function createPasskeyStore(path: string) {
       used_at TEXT,
       PRIMARY KEY(user_id, code_hash)
     );
+    CREATE TABLE IF NOT EXISTS email_otp_challenges (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES human_users(id) ON DELETE CASCADE,
+      code_hmac TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      attempts_remaining INTEGER NOT NULL,
+      requested_at TEXT NOT NULL,
+      consumed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS email_otp_challenges_user_requested
+      ON email_otp_challenges(user_id, requested_at DESC);
   `);
   const userColumns = new Set((sqlite.prepare("PRAGMA table_info(human_users)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!userColumns.has("role")) sqlite.exec("ALTER TABLE human_users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+
+  // Existing project assignments become explicit local grants before the column
+  // stops being authoritative. Idempotent, so opening the store never duplicates.
+  migrateLegacyProjectGrants(sqlite);
+  const rawGrants = createHumanGrantStore(sqlite);
+
+  /**
+   * The grant rows are authoritative. `human_users.projects` is kept in step as
+   * a mirror so that rolling back to the previous image still reads a correct
+   * scope, per the rollback contract: a rollback changes the image, never the
+   * data.
+   */
+  const mirrorLegacyProjects = (userId: string) => {
+    const projects = rawGrants.effective(userId).map((grant) => grant.project);
+    sqlite.prepare("UPDATE human_users SET projects=? WHERE id=?").run(JSON.stringify(projects), userId);
+  };
+  const grants: typeof rawGrants = {
+    ...rawGrants,
+    replaceLocal(userId, input) {
+      const result = rawGrants.replaceLocal(userId, input);
+      mirrorLegacyProjects(userId);
+      return result;
+    },
+    replaceInfisical(userId, input) {
+      const result = rawGrants.replaceInfisical(userId, input);
+      mirrorLegacyProjects(userId);
+      return result;
+    },
+    revoke(userId, source) {
+      rawGrants.revoke(userId, source);
+      mirrorLegacyProjects(userId);
+    }
+  };
 
   const rowToUser = (row: any): HumanUser => ({
     id: row.id,
     email: row.email,
     name: row.name,
-    projects: z.array(projectSchema).parse(JSON.parse(row.projects)),
+    // Derived from the grant rows, not from the legacy column.
+    projects: rawGrants.effective(row.id).map((grant) => grant.project),
     status: row.status,
     role: row.role,
     createdAt: row.created_at
@@ -132,8 +179,17 @@ export function createPasskeyStore(path: string) {
       } catch {
         throw new Error("A user with this email already exists");
       }
+      // An invitation grants access explicitly and locally, rather than hoping
+      // an Infisical membership shows up later.
+      grants.replaceLocal(user.id, user.projects.map((project) => ({
+        userId: user.id,
+        project,
+        environments: [...ALL_TEST_ENVIRONMENTS],
+        source: "local" as const
+      })));
       return user;
     },
+    grants,
     getUser(id: string) {
       const row = sqlite.prepare("SELECT * FROM human_users WHERE id=?").get(id);
       return row ? rowToUser(row) : null;
@@ -151,6 +207,11 @@ export function createPasskeyStore(path: string) {
       if (result.changes !== 1) throw new Error("Human user not found");
       return rowToUser(sqlite.prepare("SELECT * FROM human_users WHERE id=?").get(id));
     },
+    // `updateUserProjects` is deliberately gone. It overwrote every project
+    // assignment from a single source and accepted an empty array, which is how
+    // an Infisical sync silently erased administrator-granted access. Callers
+    // use `grants.replaceLocal` or `grants.replaceInfisical`, which can only
+    // affect their own source.
     addCredential(input: z.input<typeof credentialInputSchema>) {
       const credential = credentialInputSchema.parse(input);
       const createdAt = new Date().toISOString();
@@ -207,6 +268,59 @@ export function createPasskeyStore(path: string) {
     },
     debugRecoveryCodes(userId: string) {
       return sqlite.prepare("SELECT code_hash,used_at FROM recovery_codes WHERE user_id=? ORDER BY code_hash").all(userId);
+    },
+    latestEmailOtpRequestedAt(userId: string) {
+      const row = sqlite.prepare("SELECT requested_at FROM email_otp_challenges WHERE user_id=? ORDER BY requested_at DESC LIMIT 1")
+        .get(userId) as { requested_at: string } | undefined;
+      return row?.requested_at ?? null;
+    },
+    putEmailOtpChallenge(input: {
+      id: string;
+      userId: string;
+      codeHmac: string;
+      expiresAt: string;
+      attemptsRemaining: number;
+      requestedAt: string;
+    }) {
+      const parsed = z.object({
+        id: z.string().min(1),
+        userId: z.string().min(1),
+        codeHmac: z.string().regex(/^[a-f0-9]{64}$/),
+        expiresAt: z.iso.datetime(),
+        attemptsRemaining: z.number().int().min(1).max(10),
+        requestedAt: z.iso.datetime()
+      }).parse(input);
+      sqlite.transaction(() => {
+        sqlite.prepare("UPDATE email_otp_challenges SET consumed_at=? WHERE user_id=? AND consumed_at IS NULL")
+          .run(parsed.requestedAt, parsed.userId);
+        sqlite.prepare(`INSERT INTO email_otp_challenges
+          (id,user_id,code_hmac,expires_at,attempts_remaining,requested_at,consumed_at)
+          VALUES(?,?,?,?,?,?,NULL)`)
+          .run(parsed.id, parsed.userId, parsed.codeHmac, parsed.expiresAt, parsed.attemptsRemaining, parsed.requestedAt);
+      })();
+    },
+    verifyEmailOtpChallenge(userId: string, codeHmac: string, now = new Date()) {
+      const parsed = z.string().regex(/^[a-f0-9]{64}$/).parse(codeHmac);
+      return sqlite.transaction(() => {
+        const row = sqlite.prepare(`SELECT * FROM email_otp_challenges
+          WHERE user_id=? AND consumed_at IS NULL ORDER BY requested_at DESC LIMIT 1`).get(userId) as any;
+        if (!row || new Date(row.expires_at) <= now || row.attempts_remaining <= 0) {
+          if (row) sqlite.prepare("UPDATE email_otp_challenges SET consumed_at=? WHERE id=?").run(now.toISOString(), row.id);
+          return false;
+        }
+        if (row.code_hmac !== parsed) {
+          const attempts = row.attempts_remaining - 1;
+          sqlite.prepare("UPDATE email_otp_challenges SET attempts_remaining=?,consumed_at=? WHERE id=?")
+            .run(attempts, attempts === 0 ? now.toISOString() : null, row.id);
+          return false;
+        }
+        sqlite.prepare("UPDATE email_otp_challenges SET consumed_at=? WHERE id=?").run(now.toISOString(), row.id);
+        return true;
+      })();
+    },
+    debugEmailOtpChallenges(userId: string) {
+      return sqlite.prepare(`SELECT id,code_hmac,expires_at,attempts_remaining,requested_at,consumed_at
+        FROM email_otp_challenges WHERE user_id=? ORDER BY requested_at`).all(userId);
     },
     close() { sqlite.close(); }
   };

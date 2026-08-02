@@ -28,6 +28,25 @@ describe("passkey store", () => {
     target.close();
   });
 
+  it("derives effective project scopes from the grant sources", () => {
+    const target = store();
+    const member = target.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+
+    // The invitation itself is the local grant.
+    expect(target.getUser(member.id)?.projects).toEqual(["oriso"]);
+
+    target.grants.replaceInfisical(member.id, [{ userId: member.id, project: "dreambau", environments: ["pre-dev"], source: "infisical" }]);
+    expect(target.getUser(member.id)?.projects).toEqual(["dreambau", "oriso"]);
+
+    // An empty synchronized scope removes only what Infisical granted.
+    target.grants.replaceInfisical(member.id, []);
+    expect(target.getUser(member.id)?.projects).toEqual(["oriso"]);
+
+    target.grants.revoke(member.id, "local");
+    expect(target.getUser(member.id)?.projects).toEqual([]);
+    target.close();
+  });
+
   it("stores WebAuthn credentials and only permits monotonic counters", () => {
     const target = store();
     const user = target.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso"] });

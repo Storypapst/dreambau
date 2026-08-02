@@ -3,6 +3,7 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installAuth } from "./auth.js";
+import { createDocsMirrorRouter } from "./docs-mirror.js";
 import { loadAccounts as loadAccountsFile, type AccountRecord } from "./accounts.js";
 import { loadConfig } from "./config.js";
 import { createDatabase, type RegistryDatabase } from "./db.js";
@@ -13,7 +14,8 @@ import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
 import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
 import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
-import { createInfisicalRegistryProvider, type RegistryProvider, type TestEnvironment, type TestProject } from "./infisical-provider.js";
+import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
+import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
 import { createPasskeyStore, type HumanUser, type PasskeyStore } from "./passkey-store.js";
 import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
 import type { SessionPrincipal } from "./sessions.js";
@@ -23,8 +25,25 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
-import { linkedRecordsForEmail, publicLinkedAccount } from "./account-link.js";
-import { generateTotp } from "./totp.js";
+import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
+import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
+import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
+import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
+import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
+import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.js";
+import {
+  buildProvisionedRecord,
+  createOrisoProvisioningService,
+  createPinnedHttpsFetch,
+  environmentForOrisoEmail,
+  generateApplicationPassword,
+  orisoProvisioningRoles,
+  readyStateForProvisionedRecord,
+  recordRolesForProvisioningRole,
+  OrisoProvisioningError,
+  type OrisoProvisioningEnvironment,
+  type OrisoProvisioningService
+} from "./oriso-provisioning.js";
 
 interface AppOptions {
   passwordHash?: string;
@@ -37,6 +56,7 @@ interface AppOptions {
   machineIdentityLoader?: () => MachineIdentity[];
   mailReader?: TestMailReader;
   registryProvider?: RegistryProvider;
+  registryWriter?: RegistryWriter;
   now?: () => Date;
   passkeyStore?: PasskeyStore;
   webauthn?: WebAuthnAdapter;
@@ -44,6 +64,12 @@ interface AppOptions {
   expectedOrigin?: string;
   bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
   runtimeStatusLoader?: (projects: CoordinationProject[]) => Promise<RuntimeStatus[]>;
+  humanAccessProvider?: HumanAccessProvider;
+  emailOtpSender?: EmailOtpSender;
+  emailOtpHmacKey?: string;
+  orisoProvisioning?: OrisoProvisioningService;
+  orisoProvisioningServices?: Partial<Record<OrisoProvisioningEnvironment, OrisoProvisioningService>>;
+  docsMirrorDir?: string | null;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -56,6 +82,35 @@ export function createApp(options: AppOptions = {}) {
   app.get("/testmails/health/live", (_req, res) => res.json({ status: "ok" }));
   const api = express.Router();
   const passkeyStore = options.passkeyStore ?? createPasskeyStore(options.loadAccounts ? ":memory:" : config.databasePath);
+  const humanAccessProvider = options.humanAccessProvider ?? (config.registryProvider === "infisical" && config.infisical
+    ? createInfisicalHumanAccessProvider({
+      baseUrl: config.infisical.baseUrl,
+      organizationSlug: config.infisical.organizationSlug,
+      clientId: config.infisical.clientId,
+      clientSecret: config.infisical.clientSecret,
+      projectIds: config.infisical.projectIds
+    })
+    : undefined);
+  /**
+   * Synchronizes only the Infisical-derived grants and leaves local grants
+   * alone. The effective scope is the union of both sources, so an employee an
+   * administrator granted access to locally keeps it whatever Infisical
+   * reports — including reporting nothing at all.
+   *
+   * `user.projects` is now a derived projection of the grant rows rather than
+   * authoritative storage.
+   */
+  const syncHumanUser = async (user: HumanUser) => {
+    if (!humanAccessProvider || user.role === "admin") return user;
+    const projects = await humanAccessProvider.projectsFor(user.email);
+    passkeyStore.grants.replaceInfisical(user.id, projects.map((project) => ({
+      userId: user.id,
+      project,
+      environments: [...ALL_TEST_ENVIRONMENTS],
+      source: "infisical" as const
+    })));
+    return { ...user, projects: passkeyStore.grants.effective(user.id).map((grant) => grant.project) };
+  };
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,
@@ -75,18 +130,43 @@ export function createApp(options: AppOptions = {}) {
     expectedOrigin: options.expectedOrigin ?? "https://dreambau.com",
     webauthn: options.webauthn,
     now: options.now,
-    bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" }
+    bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" },
+    syncHumanUser
   });
-  const requireActivePasskeySession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
+  installEmailOtpAuth(api, {
+    store: passkeyStore,
+    sessions,
+    secureCookies: options.secureCookies ?? config.secureCookies,
+    sender: options.emailOtpSender ?? (config.smtp ? createSmtpEmailOtpSender(config.smtp) : undefined),
+    hmacKey: options.emailOtpHmacKey ?? config.emailOtpHmacKey,
+    now: options.now,
+    syncHumanUser
+  });
+  const requireActiveHumanSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
+    requireSession(req, res, () => {
+      void (async () => {
+        try {
+          const principal = res.locals.session as SessionPrincipal;
+          if (principal.method !== "passkey" && principal.method !== "email-otp") {
+            return res.status(403).json({ error: "strong_auth_required" });
+          }
+          let user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
+          if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
+          try { user = await syncHumanUser(user); }
+          catch { return res.status(503).json({ error: "human_access_unavailable" }); }
+          res.locals.humanUser = user;
+          next();
+        } catch (error) {
+          next(error);
+        }
+      })();
+    });
+  const requireAdminSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
     requireStrongSession(req, res, () => {
       const principal = res.locals.session as SessionPrincipal;
       const user = principal.userId ? passkeyStore.getUser(principal.userId) : null;
       if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
       res.locals.humanUser = user;
-      next();
-    });
-  const requireAdminSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
-    requireActivePasskeySession(req, res, () => {
       if ((res.locals.humanUser as HumanUser).role !== "admin") {
         return res.status(403).json({ error: "admin_required" });
       }
@@ -119,7 +199,53 @@ export function createApp(options: AppOptions = {}) {
     });
   };
   const registryProvider = options.registryProvider ?? runtimeRegistryProvider();
+  const registryWriter = options.registryWriter ?? (
+    config.registryProvider === "infisical" && config.infisical?.writer
+      ? createInfisicalRegistryWriter({
+          baseUrl: config.infisical.baseUrl,
+          organizationSlug: config.infisical.organizationSlug,
+          clientId: config.infisical.writer.clientId,
+          clientSecret: config.infisical.writer.clientSecret,
+          projectIds: config.infisical.projectIds
+        })
+      : undefined
+  );
   const mailReader = options.mailReader ?? createJmapTestMailReader();
+  const runtimeOrisoProvisioningServices = Object.fromEntries(
+    (Object.entries(config.orisoProvisioningTargets) as Array<
+      [OrisoProvisioningEnvironment, NonNullable<typeof config.orisoProvisioningTargets[OrisoProvisioningEnvironment]>]
+    >)
+      .filter(([, target]) => Boolean(target))
+      .map(([environment, target]) => [
+        environment,
+        createOrisoProvisioningService({
+          ...target,
+          environment,
+          registryProvider,
+          now: options.now,
+          fetch: target.resolveIp || target.caFile
+            ? createPinnedHttpsFetch({
+                resolveIp: target.resolveIp ?? undefined,
+                caFile: target.caFile ?? undefined
+              })
+            : undefined
+        })
+      ])
+  ) as Partial<Record<OrisoProvisioningEnvironment, OrisoProvisioningService>>;
+  const orisoProvisioningServices = options.orisoProvisioningServices
+    ?? (options.orisoProvisioning ? { "pre-dev": options.orisoProvisioning } : runtimeOrisoProvisioningServices);
+  const reconcileRecords = (records: TestAccessRecord[]) =>
+    database.reconcileTestAccessLinks(
+      accountLoader().map((account) => account.email),
+      records,
+      (options.now?.() ?? new Date()).toISOString()
+    );
+  const linkedFromStore = (email: string, records: TestAccessRecord[]) => {
+    const ids = new Set(database.getTestAccessLinks(email).map((link) => link.recordId));
+    return records
+      .filter((record) => ids.has(record.id))
+      .filter((record) => record.kind === "app-user" || record.kind === "admin");
+  };
   app.get("/testmails/health/ready", async (_req, res) => {
     try {
       if (registryProvider.health) await registryProvider.health();
@@ -133,23 +259,36 @@ export function createApp(options: AppOptions = {}) {
     identities: options.machineIdentityLoader
       ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath)),
     registryProvider,
+    registryWriter,
     database,
     accounts: accountLoader,
     mailReader,
     now: options.now
   }));
-  api.get("/accounts", requireActivePasskeySession, async (_req, res, next) => {
+  api.get("/accounts", requireActiveHumanSession, async (_req, res, next) => {
     try {
       const user = res.locals.humanUser as HumanUser;
       const records = await registryProvider.list();
-      res.json(scopedAccountViews(user).map((account) => ({
-        ...account,
-        linkedAccess: linkedRecordsForEmail(account.email, records)
-          .filter((record) => user.projects.includes(record.project))
-          .map(publicLinkedAccount)
-          .filter((record) => record !== null),
-        access: database.getAccountAccess(account.email)
-      })));
+      reconcileRecords(records);
+      res.json(scopedAccountViews(user).map((account) => {
+        const linked = linkedFromStore(account.email, records)
+          .filter((record) => user.projects.includes(record.project));
+        // The roles a mailbox can actually sign in with are shown alongside the
+        // roles recorded in the catalog. Recovered from the running image
+        // (Package A run-state §5.3).
+        const linkedRoles = dashboardRoles(linked.flatMap((record) => record.roles));
+        return {
+          ...account,
+          metadata: {
+            ...account.metadata,
+            roles: [...new Set([...account.metadata.roles, ...linkedRoles])]
+          },
+          linkedAccess: linked
+            .map(publicLinkedAccount)
+            .filter((record) => record !== null),
+          access: database.getAccountAccess(account.email)
+        };
+      }));
     } catch (error) {
       next(error);
     }
@@ -158,14 +297,86 @@ export function createApp(options: AppOptions = {}) {
     accountId: z.string().min(1).max(240).optional(),
     query: z.string().max(200).optional()
   });
-  api.get("/accounts/:email/otp", requireActivePasskeySession, async (req, res, next) => {
+  api.get("/accounts/:email/application-secret", requireActiveHumanSession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    try {
+      const parsed = z.object({ accountId: z.string().min(1).max(240) }).parse(req.query);
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const selected = linkedFromStore(email, records)
+        .filter((record) => user.projects.includes(record.project))
+        .find((record) => record.id === parsed.accountId);
+      if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
+      const accessedAt = options.now?.() ?? new Date();
+      database.recordAccountAccess({
+        accountId: selected.id,
+        email,
+        actorId: user.id,
+        action: "secret_requested",
+        createdAt: accessedAt.toISOString(),
+        context: { environment: selected.environment }
+      });
+      res.set("Cache-Control", "no-store");
+      res.json({ accountId: selected.id, secret: selected.secret });
+    } catch (error) {
+      if (error instanceof z.ZodError) return handleValidation(error, res);
+      next(error);
+    }
+  });
+  const humanTotpEnrollmentSchema = z.object({
+    accountId: z.string().min(1).max(240),
+    totpSecret: z.string().trim().min(16).max(256)
+  }).strict();
+  api.post("/accounts/:email/totp", requireActiveHumanSession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    if (!registryWriter) return res.status(503).json({ error: "totp_enrollment_unavailable" });
+    try {
+      const parsed = humanTotpEnrollmentSchema.parse(req.body);
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const selected = linkedFromStore(email, records)
+        .filter((record) => user.projects.includes(record.project))
+        .find((record) => record.id === parsed.accountId);
+      if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
+      const result = await enrollTotpForRecord({
+        record: selected,
+        rawSecret: parsed.totpSecret,
+        writer: registryWriter,
+        now: options.now?.() ?? new Date()
+      });
+      database.recordAccountAccess({
+        accountId: selected.id,
+        email,
+        actorId: user.id,
+        action: "totp_enrolled",
+        createdAt: result.updatedAt,
+        context: { environment: selected.environment }
+      });
+      res.set("Cache-Control", "no-store");
+      res.json({ accountId: result.recordId, enrolled: true, updatedAt: result.updatedAt });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: "validation_failed" });
+      const mapped = totpEnrollmentHttpError(error);
+      if (mapped) return res.status(mapped.status).json(mapped.body);
+      next(error);
+    }
+  });
+  api.get("/accounts/:email/otp", requireActiveHumanSession, async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
     const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
     if (!current) return res.status(404).json({ error: "account_not_found" });
     try {
       const parsed = humanOtpQuerySchema.parse(req.query);
-      const linked = linkedRecordsForEmail(email, await registryProvider.list())
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const linked = linkedFromStore(email, records)
         .filter((record) => user.projects.includes(record.project));
       const selected = parsed.accountId
         ? linked.find((record) => record.id === parsed.accountId)
@@ -173,7 +384,13 @@ export function createApp(options: AppOptions = {}) {
       if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
       const generatedAt = options.now?.() ?? new Date();
       const result = selected.totpSecret
-        ? { accountId: selected.id, source: "totp" as const, ...generateTotp(selected.totpSecret, generatedAt) }
+        ? {
+            accountId: selected.id,
+            source: "totp" as const,
+            ...(selected.project === "oriso"
+              ? generateCompatibleOrisoTotp(selected.totpSecret, generatedAt)
+              : generateTotp(selected.totpSecret, generatedAt))
+          }
         : await (async () => {
             const otp = await mailReader.otp(current, parsed.query ?? "");
             return otp ? { accountId: selected.id, source: "mail" as const, ...otp } : null;
@@ -194,7 +411,185 @@ export function createApp(options: AppOptions = {}) {
       next(error);
     }
   });
-  api.patch("/accounts/:email", requireActivePasskeySession, async (req, res) => {
+  const orisoProvisionBodySchema = z.object({
+    environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
+    role: z.enum(orisoProvisioningRoles)
+  }).strict();
+  const orisoLinkedRecord = (
+    email: string,
+    records: TestAccessRecord[],
+    environment: OrisoProvisioningEnvironment
+  ) =>
+    linkedFromStore(email, records)
+      .find((record) => record.project === "oriso" && record.environment === environment) ?? null;
+  const orisoProvisioningHttpError = (error: unknown, res: express.Response) => {
+    if (!(error instanceof OrisoProvisioningError)) return false;
+    const status = error.code === "invite_template_missing" ? 409
+      : error.code === "account_credentials_mismatch" ? 409
+      : error.code === "admin_record_unavailable" ? 503
+      : 502;
+    res.status(status).json({ error: error.code });
+    return true;
+  };
+  api.get("/accounts/:email/oriso-provisioning", requireAdminSession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    const environment = environmentForOrisoEmail(email);
+    if (!environment) return res.status(422).json({ error: "environment_not_supported" });
+    if (viewProject(current) !== "oriso") return res.status(422).json({ error: "mailbox_project_mismatch" });
+    const orisoProvisioning = orisoProvisioningServices[environment];
+    res.set("Cache-Control", "no-store");
+    if (!orisoProvisioning) {
+      return res.json({ configured: false, supportedRoles: [...orisoProvisioningRoles], environment, state: null, linked: null });
+    }
+    try {
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const linked = orisoLinkedRecord(email, records, environment);
+      const managedState = linked?.totpSecret ? readyStateForProvisionedRecord(linked) : null;
+      const state = managedState ?? await orisoProvisioning.status(email);
+      res.json({
+        configured: true,
+        supportedRoles: [...orisoProvisioningRoles],
+        environment,
+        state,
+        linked: linked ? publicLinkedAccount(linked) : null
+      });
+    } catch (error) {
+      if (orisoProvisioningHttpError(error, res)) return;
+      next(error);
+    }
+  });
+  api.post("/accounts/:email/oriso-provisioning", requireAdminSession, async (req, res, next) => {
+    const user = res.locals.humanUser as HumanUser;
+    const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
+    const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
+    if (!current) return res.status(404).json({ error: "account_not_found" });
+    let body: z.infer<typeof orisoProvisionBodySchema>;
+    try {
+      body = orisoProvisionBodySchema.parse(req.body);
+    } catch {
+      return res.status(400).json({ error: "validation_failed" });
+    }
+    const environment = environmentForOrisoEmail(email);
+    if (!environment) return res.status(422).json({ error: "environment_not_supported" });
+    if (body.environment !== environment) return res.status(422).json({ error: "environment_mismatch", environment });
+    if (viewProject(current) !== "oriso") return res.status(422).json({ error: "mailbox_project_mismatch" });
+    const orisoProvisioning = orisoProvisioningServices[environment];
+    if (!orisoProvisioning) return res.status(503).json({ error: "oriso_provisioning_unavailable" });
+    if (!registryWriter?.createRecord || !registryWriter.updateRecord) {
+      return res.status(503).json({ error: "record_creation_unavailable" });
+    }
+    try {
+      // A mailbox that already carries a record for its routed environment is only re-provisioned
+      // with the same role; a different role would leave record and ORISO
+      // identity in contradiction.
+      const existingRecords = await registryProvider.list();
+      const existingRecord = orisoLinkedRecord(email, existingRecords, environment)
+        ?? linkedApplicationRecordsForEmail(email, existingRecords)
+          .find((record) => record.project === "oriso" && record.environment === environment) ?? null;
+      const requestedRoles = recordRolesForProvisioningRole(body.role);
+      if (existingRecord && existingRecord.roles.join(",") !== requestedRoles.join(",")) {
+        return res.status(409).json({ error: "record_role_conflict", linked: publicLinkedAccount(existingRecord) });
+      }
+      const records = existingRecords;
+      let linkedRecord = existingRecord;
+      const nowDate = options.now?.() ?? new Date();
+      let recordCreated = false;
+      if (!linkedRecord) {
+        linkedRecord = buildProvisionedRecord({
+          email,
+          displayName: current.displayName,
+          role: body.role,
+          adminBaseUrl: orisoProvisioning.target.adminBaseUrl,
+          appBaseUrl: orisoProvisioning.target.appBaseUrl,
+          responsiblePerson: user.email,
+          now: nowDate,
+          secret: generateApplicationPassword(),
+          environment
+        });
+        try {
+          await registryWriter.createRecord(linkedRecord);
+        } catch {
+          return res.status(502).json({ error: "record_creation_failed" });
+        }
+        recordCreated = true;
+      }
+      const nameParts = current.displayName.trim().split(/\s+/);
+      let provisioned: Awaited<ReturnType<OrisoProvisioningService["provision"]>>;
+      try {
+        provisioned = await orisoProvisioning.provision({
+          record: linkedRecord,
+          firstName: nameParts[0] || email.split("@")[0],
+          lastName: nameParts.slice(1).join(" ") || "-",
+          role: body.role,
+          storeTotp: async (totpSecret) => {
+            await registryWriter.enrollTotp(linkedRecord!, totpSecret, nowDate.toISOString());
+            linkedRecord = {
+              ...linkedRecord!,
+              totpSecret,
+              provisioningStatus: "pending",
+              updatedAt: nowDate.toISOString()
+            };
+          }
+        });
+        const readyRecord = {
+          ...linkedRecord,
+          provisioningStatus: "ready" as const,
+          updatedAt: nowDate.toISOString()
+        };
+        await registryWriter.updateRecord(readyRecord);
+        linkedRecord = readyRecord;
+      } catch (error) {
+        if (linkedRecord.provisioningStatus !== "ready") {
+          linkedRecord = {
+            ...linkedRecord,
+            provisioningStatus: "failed",
+            updatedAt: nowDate.toISOString()
+          };
+          try {
+            await registryWriter.updateRecord(linkedRecord);
+          } catch {
+            // Preserve the original provisioning error. A failed status update
+            // must never turn a recoverable ORISO failure into a misleading one.
+          }
+        }
+        throw error;
+      }
+      reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
+      database.recordAccountAccess({
+        accountId: linkedRecord.id,
+        email,
+        actorId: user.id,
+        action: "oriso_account_provisioned",
+        createdAt: nowDate.toISOString(),
+        context: { environment }
+      });
+      if (recordCreated) {
+        database.recordAccountAccess({
+          accountId: linkedRecord.id,
+          email,
+          actorId: user.id,
+          action: "record_linked",
+          createdAt: nowDate.toISOString(),
+          context: { environment }
+        });
+      }
+      res.set("Cache-Control", "no-store");
+      res.status(provisioned.created ? 201 : 200).json({
+        created: provisioned.created,
+        recordCreated,
+        state: provisioned.state,
+        linked: publicLinkedAccount(linkedRecord)
+      });
+    } catch (error) {
+      if (orisoProvisioningHttpError(error, res)) return;
+      next(error);
+    }
+  });
+  api.patch("/accounts/:email", requireActiveHumanSession, async (req, res) => {
     const email = decodeURIComponent(String(req.params.email));
     const current = scopedAccountViews(res.locals.humanUser).find((account) => account.email === email);
     if (!current) return res.status(404).json({ error: "account_not_found" });
@@ -207,10 +602,10 @@ export function createApp(options: AppOptions = {}) {
       res.json(value);
     } catch (error) { handleValidation(error, res); }
   });
-  api.post("/accounts/bulk-status", requireActivePasskeySession, async (req, res) => {
+  api.post("/accounts/bulk-status", requireActiveHumanSession, async (req, res) => {
     try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const allowed = new Set(scopedAccountViews(res.locals.humanUser).map((account) => account.email)); if (body.emails.some((email) => !allowed.has(email))) return res.status(403).json({ error: "scope_denied" }); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
   });
-  api.get("/taxonomies", requireActivePasskeySession, (_req, res) => res.json(database.getTaxonomies()));
+  api.get("/taxonomies", requireActiveHumanSession, (_req, res) => res.json(database.getTaxonomies()));
   api.get("/machine-identities/usage", requireAdminSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
   const coordinationProjects = (user: HumanUser) =>
     user.projects.filter((project): project is CoordinationProject =>
@@ -244,10 +639,10 @@ export function createApp(options: AppOptions = {}) {
       return hostname === "github.com" || hostname.endsWith(".slack.com") || hostname === "matrix.dreambau.com";
     }, "discussion host is not allowed")
   });
-  api.get("/coordination", requireActivePasskeySession, (_req, res) => {
+  api.get("/coordination", requireActiveHumanSession, (_req, res) => {
     res.json(scopedCoordination(res.locals.humanUser));
   });
-  api.get("/coordination/runtime", requireActivePasskeySession, async (_req, res, next) => {
+  api.get("/coordination/runtime", requireActiveHumanSession, async (_req, res, next) => {
     try {
       const loader = options.runtimeStatusLoader ?? loadRuntimeStatuses;
       res.json(await loader(coordinationProjects(res.locals.humanUser)));
@@ -255,7 +650,7 @@ export function createApp(options: AppOptions = {}) {
       next(error);
     }
   });
-  api.post("/coordination/items/:itemId/tags", requireActivePasskeySession, (req, res) => {
+  api.post("/coordination/items/:itemId/tags", requireActiveHumanSession, (req, res) => {
     const scoped = scopedCoordinationItem(String(req.params.itemId), res.locals.humanUser);
     if (scoped.status !== 200) return res.status(scoped.status).json({ error: scoped.status === 403 ? "scope_denied" : "coordination_item_not_found" });
     try {
@@ -265,7 +660,7 @@ export function createApp(options: AppOptions = {}) {
       handleValidation(error, res);
     }
   });
-  api.post("/coordination/items/:itemId/discussions", requireActivePasskeySession, (req, res) => {
+  api.post("/coordination/items/:itemId/discussions", requireActiveHumanSession, (req, res) => {
     const scoped = scopedCoordinationItem(String(req.params.itemId), res.locals.humanUser);
     if (scoped.status !== 200) return res.status(scoped.status).json({ error: scoped.status === 403 ? "scope_denied" : "coordination_item_not_found" });
     try {
@@ -278,9 +673,11 @@ export function createApp(options: AppOptions = {}) {
   api.put("/taxonomies/:kind", requireAdminSession, async (req, res) => {
     try { const kind = taxonomyKindSchema.parse(String(req.params.kind)); const { values } = taxonomyValuesSchema.parse(req.body); const result = database.putTaxonomy(kind, values); await regenerate(); res.json(result); } catch (error) { handleValidation(error, res); }
   });
-  api.get("/export/markdown", requireActivePasskeySession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
+  api.get("/export/markdown", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
   app.use("/testmails/api", api);
-  app.get("/testmails/testmails.md", requireActivePasskeySession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
+  app.get("/testmails/testmails.md", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
+  const docsMirrorDir = options.docsMirrorDir === undefined ? process.env.DOCS_MIRROR_DIR ?? null : options.docsMirrorDir;
+  if (docsMirrorDir) app.use("/testmails/docs", requireActiveHumanSession, createDocsMirrorRouter(docsMirrorDir));
 
   const clientDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../client");
   app.use("/testmails", express.static(clientDir, { index: false }));

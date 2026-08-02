@@ -19,8 +19,23 @@ export interface LinkedTestAccount {
 }
 export interface AccountAccessEvent {
   id: number; accountId: string; email: string; actorId: string;
-  action: "catalog_sync" | "secret_requested" | "mail_requested" | "otp_requested" | "environment_requested" | "browser_session_opened";
+  action: "catalog_sync" | "secret_requested" | "mail_requested" | "otp_requested" | "environment_requested" | "browser_session_opened" | "totp_enrolled" | "record_linked" | "oriso_invite_requested" | "oriso_account_provisioned";
   createdAt: string; context: { runId?: string; applicationVersion?: string; environment?: "local" | "pre-dev" | "dev" | "production-test" };
+}
+export type OrisoProvisioningRole = "platform-admin" | "tenant-admin" | "agency-admin" | "counsellor" | "advice-seeker";
+export type OrisoOnboardingState = "invited" | "onboarding-pending" | "two-factor-pending" | "ready";
+export interface OrisoProvisioningStateView {
+  state: OrisoOnboardingState; role: OrisoProvisioningRole | null; targetRole: string;
+  inviteId: number; inviteStatus: string; emailVerificationStatus: string | null; twoFactorStatus: string | null;
+  accessGateStatus: string | null; createdAt: string | null; expiresAt: string | null; acceptedAt: string | null;
+  nextStep: "open-invitation-mail" | "complete-onboarding" | "store-totp" | "none";
+}
+export interface OrisoProvisioningView {
+  configured: boolean; supportedRoles: OrisoProvisioningRole[]; environment: "pre-dev" | "dev";
+  state: OrisoProvisioningStateView | null; linked: LinkedTestAccount | null;
+}
+export interface OrisoProvisioningResult {
+  created: boolean; recordCreated: boolean; state: OrisoProvisioningStateView; linked: LinkedTestAccount;
 }
 export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
 export type OtpResponse = ({ source: "totp"; generatedAt: string; expiresAt: string } | { source: "mail"; receivedAt: string; messageId: string; subject: string }) & { accountId: string; code: string };

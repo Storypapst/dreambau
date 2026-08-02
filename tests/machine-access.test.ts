@@ -49,4 +49,9 @@ describe("machine identity authentication", () => {
     expect(machineCan(identity({ actions: ["runs:read", "runs:create"] }), "runs:cleanup")).toBe(false);
     expect(machineCan(identity({ actions: ["accounts:read", "accounts:sync"] }), "accounts:sync")).toBe(true);
   });
+
+  it("accepts the dedicated TOTP enrollment action", () => {
+    const parsed = identity({ actions: ["accounts:read", "accounts:totp:write"] });
+    expect(machineCan(parsed, "accounts:totp:write")).toBe(true);
+  });
 });

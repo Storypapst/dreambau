@@ -9,8 +9,12 @@ import {
   accountAccessEventInputSchema,
   type AccountAccessEvent,
   type AccountAccessEventInput,
-  type AccountAccessSummary
+  type AccountAccessSummary,
+  type TestAccessLinkReconciliation,
+  type TestAccessRecordLink
 } from "./account-link.js";
+import type { TestAccessRecord } from "./infisical-provider.js";
+import { secretNameForRecord } from "./infisical-import.js";
 
 const seeds = {
   roles: ["Träger", "Berater", "Ratsuchender", "Admin"],
@@ -26,6 +30,8 @@ export interface RegistryDatabase {
   getMachineIdentityUsage(): Array<{ identityId: string; lastUsedAt: string }>;
   recordAccountAccess(event: AccountAccessEventInput): AccountAccessEvent;
   getAccountAccess(email: string, limit?: number): AccountAccessSummary;
+  reconcileTestAccessLinks(accounts: string[], records: TestAccessRecord[], seenAt?: string): TestAccessLinkReconciliation;
+  getTestAccessLinks(email: string): TestAccessRecordLink[];
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
   getCoordinationMetadata(itemId: string): CoordinationMetadata;
   addCoordinationTag(itemId: string, tag: string): CoordinationMetadata;
@@ -58,6 +64,15 @@ export function createDatabase(path: string): RegistryDatabase {
       action TEXT NOT NULL,
       created_at TEXT NOT NULL,
       context TEXT NOT NULL DEFAULT '{}'
+    );
+    CREATE TABLE IF NOT EXISTS test_access_record_links (
+      record_id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      secret_name TEXT NOT NULL,
+      project TEXT NOT NULL,
+      environment TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS coordination_item_metadata (
       item_id TEXT PRIMARY KEY,
@@ -115,6 +130,7 @@ export function createDatabase(path: string): RegistryDatabase {
     CREATE INDEX IF NOT EXISTS test_run_events_order ON test_run_events(run_id,id);
     CREATE INDEX IF NOT EXISTS account_access_events_email ON account_access_events(email,created_at DESC,id DESC);
     CREATE INDEX IF NOT EXISTS account_access_events_account ON account_access_events(account_id,created_at DESC,id DESC);
+    CREATE INDEX IF NOT EXISTS test_access_record_links_email ON test_access_record_links(email,project,environment);
   `);
   const metadataColumns = new Set((sqlite.prepare("PRAGMA table_info(account_metadata)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!metadataColumns.has("project")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN project TEXT NOT NULL DEFAULT 'NONE'");
@@ -182,6 +198,72 @@ export function createDatabase(path: string): RegistryDatabase {
         return { id: row.id, ...parsed };
       });
       return { latest: events[0] ?? null, events };
+    },
+    reconcileTestAccessLinks(accounts, records, seenAt = new Date().toISOString()) {
+      const knownAccounts = new Map(accounts.map((email) => [email.trim().toLowerCase(), email.trim().toLowerCase()]));
+      const applicationRecords = records
+        .filter((record): record is TestAccessRecord & { email: string; kind: "app-user" | "admin" } =>
+          Boolean(record.email) && (record.kind === "app-user" || record.kind === "admin"))
+        .sort((left, right) => left.id.localeCompare(right.id));
+      const mappedEmails = new Set<string>();
+      const unmappedRecords: string[] = [];
+      const transaction = sqlite.transaction(() => {
+        for (const record of applicationRecords) {
+          const email = record.email.trim().toLowerCase();
+          if (!knownAccounts.has(email)) {
+            unmappedRecords.push(record.id);
+            continue;
+          }
+          const existing = sqlite.prepare("SELECT email FROM test_access_record_links WHERE record_id=?")
+            .get(record.id) as { email: string } | undefined;
+          if (existing && existing.email !== email) throw new Error("Test Access record link conflict");
+          sqlite.prepare(`INSERT INTO test_access_record_links(
+            record_id,email,secret_name,project,environment,kind,last_seen_at
+          ) VALUES(?,?,?,?,?,?,?)
+          ON CONFLICT(record_id) DO UPDATE SET
+            secret_name=excluded.secret_name,
+            project=excluded.project,
+            environment=excluded.environment,
+            kind=excluded.kind,
+            last_seen_at=excluded.last_seen_at`).run(
+            record.id,
+            email,
+            secretNameForRecord(record.id),
+            record.project,
+            record.environment,
+            record.kind,
+            seenAt
+          );
+          mappedEmails.add(email);
+        }
+      });
+      transaction();
+      return {
+        linked: applicationRecords.length - unmappedRecords.length,
+        unmappedRecords,
+        unmappedAccounts: [...knownAccounts.keys()].filter((email) => !mappedEmails.has(email)).sort()
+      };
+    },
+    getTestAccessLinks(email) {
+      return (sqlite.prepare(`SELECT email,record_id,secret_name,project,environment,kind,last_seen_at
+        FROM test_access_record_links WHERE email=?
+        ORDER BY project,environment,record_id`).all(email.trim().toLowerCase()) as Array<{
+          email: string;
+          record_id: string;
+          secret_name: string;
+          project: TestAccessRecordLink["project"];
+          environment: TestAccessRecordLink["environment"];
+          kind: TestAccessRecordLink["kind"];
+          last_seen_at: string;
+        }>).map((row) => ({
+          email: row.email,
+          recordId: row.record_id,
+          secretName: row.secret_name,
+          project: row.project,
+          environment: row.environment,
+          kind: row.kind,
+          lastSeenAt: row.last_seen_at
+        }));
     },
     getTaxonomies() {
       const result: Taxonomies = { roles: [], topics: [], conversationTypes: [] };

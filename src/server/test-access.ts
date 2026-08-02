@@ -11,10 +11,12 @@ import {
 } from "./machine-access.js";
 import type { TestMailReader } from "./test-mail.js";
 import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js";
-import { generateTotp } from "./totp.js";
+import type { RegistryWriter } from "./infisical-writer.js";
+import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { parseSeedProfile } from "./seed-profile.js";
 import { createTestRunRouter } from "./test-run-router.js";
-import { derivedCatalogPatch, isKnownSyntheticEmail } from "./account-link.js";
+import { derivedCatalogPatch, isKnownSyntheticEmail, publicLinkedAccount } from "./account-link.js";
+import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.js";
 
 const querySchema = z.object({
   project: z.enum(["oriso", "orimo", "dreambau"]).optional(),
@@ -43,6 +45,7 @@ function bearerToken(header: string | undefined) {
 export function createTestAccessRouter(options: {
   identities: MachineIdentity[] | (() => MachineIdentity[]);
   registryProvider: RegistryProvider;
+  registryWriter?: RegistryWriter;
   database: RegistryDatabase;
   mailReader: TestMailReader;
   accounts: () => AccountRecord[];
@@ -73,7 +76,12 @@ export function createTestAccessRouter(options: {
     return match;
   };
   const accessedAt = () => (options.now?.() ?? new Date()).toISOString();
-  const recordAccess = (record: TestAccessRecord, identity: MachineIdentity, action: "catalog_sync" | "secret_requested" | "mail_requested" | "otp_requested" | "environment_requested") => {
+  const recordAccess = (
+    record: TestAccessRecord,
+    identity: MachineIdentity,
+    action: "catalog_sync" | "secret_requested" | "mail_requested" | "otp_requested"
+      | "environment_requested" | "lookup_requested" | "totp_enrolled" | "doctor_checked" | "record_linked"
+  ) => {
     if (!record.email) return;
     options.database.recordAccountAccess({
       accountId: record.id,
@@ -84,6 +92,45 @@ export function createTestAccessRouter(options: {
       context: { environment: record.environment }
     });
   };
+  const scopedRecords = async (identity: MachineIdentity) =>
+    (await options.registryProvider.list())
+      .filter((record) => identity.projects.includes(record.project) && identity.environments.includes(record.environment));
+  const reconcile = (records: TestAccessRecord[]) =>
+    options.database.reconcileTestAccessLinks(
+      options.accounts().map((account) => account.email),
+      records,
+      accessedAt()
+    );
+  const enrollmentSchema = z.object({
+    totpSecret: z.string().trim().min(16).max(256)
+  }).strict();
+
+  router.post("/accounts/:id/totp", async (req, res, next) => {
+    const identity = res.locals.machineIdentity as MachineIdentity;
+    if (!machineCan(identity, "accounts:totp:write")) return res.status(403).json({ error: "action_denied" });
+    if (!options.registryWriter) return res.status(503).json({ error: "totp_enrollment_unavailable" });
+    try {
+      const match = await scopedRecord(String(req.params.id), identity);
+      if (!match || (match.kind !== "app-user" && match.kind !== "admin")) {
+        return res.status(404).json({ error: "account_not_found" });
+      }
+      const parsed = enrollmentSchema.parse(req.body);
+      const result = await enrollTotpForRecord({
+        record: match,
+        rawSecret: parsed.totpSecret,
+        writer: options.registryWriter,
+        now: options.now?.() ?? new Date()
+      });
+      recordAccess(match, identity, "totp_enrolled");
+      res.set("Cache-Control", "no-store");
+      res.json({ accountId: result.recordId, enrolled: true, updatedAt: result.updatedAt });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: "validation_failed" });
+      const mapped = totpEnrollmentHttpError(error);
+      if (mapped) return res.status(mapped.status).json(mapped.body);
+      next(error);
+    }
+  });
 
   router.post("/accounts/:id/catalog", async (req, res, next) => {
     const identity = res.locals.machineIdentity as MachineIdentity;
@@ -139,6 +186,75 @@ export function createTestAccessRouter(options: {
       res.json(result.map(publicRecord));
     } catch (error) {
       next(error);
+    }
+  });
+
+  const lookupSchema = z.object({
+    email: z.string().email(),
+    project: z.enum(["oriso", "orimo", "dreambau"]).optional(),
+    environment: z.enum(["local", "pre-dev", "dev", "production-test"]).optional()
+  }).strict();
+  router.get("/lookup", async (req, res, next) => {
+    const identity = res.locals.machineIdentity as MachineIdentity;
+    const parsed = lookupSchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_query" });
+    if (parsed.data.project && !identity.projects.includes(parsed.data.project)) return res.status(403).json({ error: "scope_denied" });
+    if (parsed.data.environment && !identity.environments.includes(parsed.data.environment)) return res.status(403).json({ error: "scope_denied" });
+    try {
+      const records = await scopedRecords(identity);
+      reconcile(records);
+      const links = new Set(options.database.getTestAccessLinks(parsed.data.email).map((link) => link.recordId));
+      const matches = records
+        .filter((record) => links.has(record.id))
+        .filter((record) => !parsed.data.project || record.project === parsed.data.project)
+        .filter((record) => !parsed.data.environment || record.environment === parsed.data.environment)
+        .map((record) => {
+          recordAccess(record, identity, "lookup_requested");
+          const linked = publicLinkedAccount(record);
+          return linked ? { ...linked, linked: true } : null;
+        })
+        .filter((record) => record !== null);
+      if (!matches.length) return res.status(404).json({ error: "account_not_found" });
+      res.json({ matches });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  const doctorSchema = z.object({
+    repair: z.enum(["true", "false"]).default("false")
+  }).strict();
+  router.get("/doctor", async (req, res, next) => {
+    const identity = res.locals.machineIdentity as MachineIdentity;
+    const parsed = doctorSchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_query" });
+    const repair = parsed.data.repair === "true";
+    if (repair && !machineCan(identity, "accounts:sync")) return res.status(403).json({ error: "action_denied" });
+    try {
+      const records = await scopedRecords(identity);
+      if (options.registryProvider.health) await options.registryProvider.health();
+      const report = repair
+        ? reconcile(records)
+        : {
+            linked: records.filter((record) =>
+              record.email && options.database.getTestAccessLinks(record.email).some((link) => link.recordId === record.id)).length,
+            unmappedRecords: records
+              .filter((record) => (record.kind === "app-user" || record.kind === "admin")
+                && (!record.email || !options.database.getTestAccessLinks(record.email).some((link) => link.recordId === record.id)))
+              .map((record) => record.id),
+            unmappedAccounts: [] as string[]
+          };
+      for (const record of records) recordAccess(record, identity, "doctor_checked");
+      res.json({
+        status: "ok",
+        repaired: repair,
+        records: {
+          total: records.filter((record) => record.kind === "app-user" || record.kind === "admin").length,
+          ...report
+        }
+      });
+    } catch {
+      res.status(503).json({ status: "unavailable" });
     }
   });
 
@@ -204,7 +320,11 @@ export function createTestAccessRouter(options: {
       if (match.totpSecret) {
         res.set("Cache-Control", "no-store");
         recordAccess(match, identity, "otp_requested");
-        return res.json(generateTotp(match.totpSecret, options.now?.() ?? new Date()));
+        return res.json(
+          match.project === "oriso"
+            ? generateCompatibleOrisoTotp(match.totpSecret, options.now?.() ?? new Date())
+            : generateTotp(match.totpSecret, options.now?.() ?? new Date())
+        );
       }
       const account = mailboxAccount(match);
       if (!account) return res.status(404).json({ error: "mailbox_not_found" });

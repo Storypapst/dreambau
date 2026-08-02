@@ -21,8 +21,14 @@ export const accountAccessActions = [
   "secret_requested",
   "mail_requested",
   "otp_requested",
+  "lookup_requested",
+  "totp_enrolled",
+  "doctor_checked",
+  "record_linked",
   "environment_requested",
-  "browser_session_opened"
+  "browser_session_opened",
+  "oriso_invite_requested",
+  "oriso_account_provisioned"
 ] as const;
 export type AccountAccessAction = typeof accountAccessActions[number];
 
@@ -61,6 +67,22 @@ export interface LinkedTestAccount {
   hasTotp: boolean;
 }
 
+export interface TestAccessRecordLink {
+  email: string;
+  recordId: string;
+  secretName: string;
+  project: TestAccessRecord["project"];
+  environment: TestAccessRecord["environment"];
+  kind: "app-user" | "admin";
+  lastSeenAt: string;
+}
+
+export interface TestAccessLinkReconciliation {
+  linked: number;
+  unmappedRecords: string[];
+  unmappedAccounts: string[];
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -77,6 +99,11 @@ export function linkedRecordsForEmail(email: string, records: TestAccessRecord[]
   return records
     .filter((record) => record.email && normalizeEmail(record.email) === normalized)
     .sort((left, right) => recordPriority(left) - recordPriority(right) || left.id.localeCompare(right.id));
+}
+
+export function linkedApplicationRecordsForEmail(email: string, records: TestAccessRecord[]): TestAccessRecord[] {
+  return linkedRecordsForEmail(email, records)
+    .filter((record) => record.kind === "app-user" || record.kind === "admin");
 }
 
 export function publicLinkedAccount(record: TestAccessRecord): LinkedTestAccount | null {
@@ -100,7 +127,7 @@ export function isKnownSyntheticEmail(email: string, accounts: AccountRecord[]) 
   return accounts.some((account) => normalizeEmail(account.email) === normalized);
 }
 
-function dashboardRoles(roles: string[]) {
+export function dashboardRoles(roles: string[]) {
   const result = new Set<string>();
   if (roles.some((role) => role === "admin" || role === "platform-admin" || role.endsWith("-admin"))) result.add("Admin");
   if (roles.some((role) => role === "consultant" || role === "counselor")) result.add("Berater");

@@ -4,7 +4,7 @@ Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten ko
 
 ## Betrieb
 
-Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.6.0-springfield-20260719` und Infisical als Registry-Provider.
+Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.10.4-fixed-creds-6fc95bf` und Infisical als Registry-Provider.
 
 ```bash
 ssh m4dreambau 'kubectl get pod,svc,ingress,pvc -n wcr -l app.kubernetes.io/name=testmails'
@@ -12,6 +12,33 @@ ssh m4dreambau 'kubectl logs deployment/testmails -n wcr --tail=100'
 ```
 
 Secrets werden ausschließlich aus stdin erzeugt. Das Account-JSON kommt aus Keychain-Service `dreambau-test-mailbox`; der gemeinsame Login aus `dreambau-testmails-auth`. Private S/MIME-Identitäten bleiben im Service `dreambau-test-smime` und werden nie in die Anwendung kopiert.
+
+## Verifikation
+
+Die unterstützte Node-Version steht in `.nvmrc` und entspricht dem Basis-Image
+des Dockerfiles (`node:20-bookworm-slim`). Auf neueren Node-Versionen schlägt
+die Testsuite fehl: Node 26 belegt `localStorage` global, wodurch die
+jsdom-Umgebung von vitest ihre eigene Implementierung nicht mehr einsetzt.
+
+Lokal:
+
+```bash
+npm ci
+npm run lint
+npm test
+npm run build
+```
+
+Vollständig im Container — dieselbe Laufzeit, die auch ausgeliefert wird, damit
+ein grünes Ergebnis weder von der Node-Version der Workstation noch von lokal
+installierten Playwright-Browsern abhängt:
+
+```bash
+docker build --target verify -t dreambau-testmails:verify .
+```
+
+Die `verify`-Stage führt Lint, Tests und Build aus und schlägt fehl, sobald ein
+Gate rot ist. Das ausgelieferte `runtime`-Image enthält sie nicht.
 
 ## Test Access API v1
 
@@ -105,7 +132,7 @@ Eine Cap-Aufnahme zählt erst dann als dauerhafte PR-Evidence, wenn sie über da
 CLI gespiegelt wurde. Ein blosser Cap-Link ist kein Nachweis: er hängt an einem
 Dienst, der die Datei jederzeit anders ausliefern oder entfernen kann.
 
-## Menschlicher Passkey-Zugang
+## Menschlicher Passkey- und E-Mail-OTP-Zugang
 
 Der gemeinsame Argon2id-Passwortlogin ist nur noch als Bootstrap-Pfad für den
 konfigurierten ersten Administrator vorgesehen. Eine Bootstrap-Session kann
@@ -121,6 +148,14 @@ keine beliebige Mitarbeiteridentität übernehmen.
   SQLite; ein nicht-null Signaturzähler muss monoton steigen.
 - Nach erfolgreicher Registrierung oder Anmeldung ersetzt eine
   benutzergebundene Passkey-Session die Bootstrap-Session.
+- Mitarbeiter können alternativ einen sechsstelligen Code per E-Mail anfordern.
+  Diese E-Mail-OTP-Session ist ein vollständiger, projektbegrenzter Lesezugang
+  und funktioniert auch auf Compliance-Geräten, die keine Passkeys speichern.
+- E-Mail-Codes laufen nach zehn Minuten ab, sind einmalig, haben höchstens fünf
+  Versuche und können pro Benutzer frühestens nach 60 Sekunden neu angefordert
+  werden. SQLite enthält ausschließlich den HMAC, niemals den Klartext-Code.
+- Administrative Benutzer dürfen mit E-Mail-OTP lesen; Benutzerverwaltung und
+  andere Admin-Endpunkte verlangen weiterhin ausdrücklich eine Passkey-Session.
 - Passwort-Bootstrap- und Recovery-Sessions dürfen keine Account-, Taxonomie-,
   Usage- oder Exportdaten lesen. Sie dürfen ausschließlich einen Passkey für
   die fest zugeordnete Person registrieren.
@@ -131,6 +166,10 @@ keine beliebige Mitarbeiteridentität übernehmen.
 
 Die Server-Endpunkte liegen unter
 `/testmails/api/auth/passkeys/{registration,authentication}/{options,verify}`.
+Der alternative Login verwendet `POST /testmails/api/auth/email-otp/request`
+und `POST /testmails/api/auth/email-otp/verify`. Die Request-Antwort ist auch
+für unbekannte oder unberechtigte Adressen immer identisch, damit keine Konten
+ermittelt werden können.
 
 Passkey-Administratoren verwalten individuelle Mitarbeiter unter
 `/testmails/api/auth/users`. Beim Anlegen werden Name, E-Mail und mindestens
@@ -143,6 +182,22 @@ User zugeordneten Projekte begrenzt.
 Die Weboberfläche zeigt den Bereich **Mitarbeiter** nur Administratoren, zeigt
 den Enrollment-Code nur im unmittelbar folgenden Dialogzustand und hält ihn
 nicht in einer dauerhaften Browserablage.
+
+### Infisical-Mitgliedschaften für menschliche Projektzuordnungen
+
+Für nicht-administrative Testmails-Benutzer ist Infisical die führende Quelle
+der Projektzuordnung. Eine Mitgliedschaft im jeweiligen Infisical-Projekt mit
+der eingebauten Rolle `no-access` dient als reiner Zuordnungsmarker und gewährt
+keinen Zugriff auf Secrets. Eine bereits bestehende Infisical-`admin`-
+Mitgliedschaft gilt ebenfalls als Projektzuordnung; sie besitzt ohnehin die
+höheren Rechte im führenden System. Andere oder gemischte Rollen werden nicht
+automatisch übernommen.
+
+Die Anwendung liest Projektmitgliedschaften über die bereits gemountete
+Universal-Auth-Identität, cached das Ergebnis höchstens 60 Sekunden und
+aktualisiert `human_users.projects`. Schlägt die Synchronisierung fehl, werden
+Anfragen nicht-administrativer Benutzer mit `503 human_access_unavailable`
+abgewiesen. Der Bootstrap-Administrator behält seine lokalen Projektzuordnungen.
 
 - `GET /testmails/api/v1/accounts` liefert nur Metadaten im Token-Scope.
 - Filter: `project`, `environment`, `role`.
@@ -158,10 +213,15 @@ nicht in einer dauerhaften Browserablage.
   Machine-Aktion `accounts:sync`. Der Record muss dieselbe synthetische
   Simpson-Mailadresse wie eines der 180 Konten verwenden. Projekt, Rolle,
   Version, Status und Notiz werden dann ohne Secret in den Katalog übernommen.
-- `GET /testmails/api/accounts/:email/otp?accountId=…` steht ausschließlich
-  einer aktiven Passkey-Session im zugeordneten Projekt zur Verfügung. Der
-  Endpunkt bevorzugt App-TOTP, fällt andernfalls auf die neueste passende
-  Mail-OTP zurück und antwortet mit `Cache-Control: no-store`.
+- `GET /testmails/api/accounts/:email/application-secret?accountId=…` liefert
+  einer aktiven, projektspezifisch berechtigten Human-Session gezielt das
+  Anwendungspasswort eines verknüpften `app-user`- oder `admin`-Records und
+  antwortet mit `Cache-Control: no-store`.
+- `GET /testmails/api/accounts/:email/otp?accountId=…` steht einer aktiven
+  Passkey- oder E-Mail-OTP-Session im zugeordneten Projekt zur Verfügung.
+  Reine `mailbox`-Records sind kein App-Login und werden hier nicht akzeptiert.
+  Der Endpunkt bevorzugt App-TOTP und sucht andernfalls für den verknüpften
+  App-Record nach der neuesten passenden Mail-OTP.
 - Production ist kein gültiger Machine-Identity-Scope.
 - Unangemeldete, abgelaufene oder widerrufene Tokens erhalten keine Metadaten.
 - Die geschützte Human-Session sieht unter
@@ -181,6 +241,19 @@ drei konfigurierten Projekt-IDs und den vier Umgebungen `local`, `pre-dev`,
 `dev` und `production-test`. Ungültige, doppelte oder zum Infisical-Pfad
 widersprüchliche Records stoppen den Import. Upstream-Antworten und
 Credentials erscheinen nicht in Fehlern.
+
+### Mailbox und Anwendungslogin
+
+Ein Springfield-Konto ist immer zunächst eine Mailbox. Das in der Kontokarte
+angezeigte **Mail-Passwort** gehört ausschließlich zu Roundcube, IMAP, SMTP,
+JMAP, CalDAV und CardDAV. Es ist kein ORISO- oder ORIMO-Anwendungspasswort.
+
+Ein App-Login erscheint erst, wenn ein `app-user`- oder `admin`-Record mit
+derselben Simpsons-E-Mail in der Registry existiert. Reine `mailbox`-Records
+werden nicht als Anwendungskonto behandelt und bieten deshalb kein OTP an.
+Technische Rollen eines echten App-Records werden in der Kontokarte angezeigt
+und zusätzlich auf die verständlichen Dashboard-Rollen abgebildet. Das
+Anwendungspasswort wird erst nach einer gezielten Anfrage geladen.
 
 ### Verbindlicher Account-Workflow für KI-Tests
 
@@ -256,6 +329,67 @@ npm run test-access -- run finish '<run-id>' --result passed
 npm run test-access -- run release '<run-id>'
 ```
 
+### Dauerhafte App-TOTP-Zuordnung
+
+Testmails persistiert die nicht geheimen Verknüpfungen zwischen Springfield-
+Mailkonto und App-/Admin-Record in SQLite. Die Erstzuordnung ist idempotent und
+verwendet ausschließlich exakte E-Mail-Treffer aus dem bekannten
+Testmail-Katalog. `test-access doctor --repair` führt denselben Abgleich für
+Projekt und Umgebungen der aktuellen Machine Identity aus. Nicht zuordenbare
+Records werden nur als Diagnose gemeldet; es wird nie geraten.
+
+Infisical bleibt der einzige Speicherort für App-Passwort und TOTP-Seed.
+Lesen und Schreiben verwenden getrennte Universal-Auth-Identitäten:
+
+- `test-access-infisical` darf die Registry unter `/records` lesen;
+- `test-access-infisical-writer` darf Secrets unter `/records` lesen, anlegen
+  und aktualisieren, aber keine Secrets löschen;
+- beide Rollen werden in Infisical auf die drei Test-Access-Projekte und die
+  Testumgebungen `local`, `pre-dev`, `dev` und `production-test` begrenzt;
+- `production` ist weder ein gültiger API-Scope noch ein gültiger
+  Machine-Identity-Scope.
+
+Das Kubernetes Secret `wcr/test-access-infisical-writer` enthält nur
+`client-id` und `client-secret`. Es wird aus stdin oder dem zentralen
+Secret-System erzeugt, nie aus einer Klartextdatei im Repository. Fehlt die
+Writer-Konfiguration, bleiben Registry und OTP-Abruf lesbar, während TOTP-
+Hinterlegung fail-closed mit `totp_enrollment_unavailable` abgewiesen wird.
+
+Menschen benötigen eine starke Testmails-Session und Projektzugriff. In der
+Oberfläche erscheint bei einem verknüpften App-Login ohne TOTP der Dialog
+**2FA hinterlegen**. Der Base32-Seed wird einmalig übertragen, nicht im Browser
+gespeichert und nie von der API zurückgegeben. Anschließend liefert der
+bestehende Button **OTP abrufen** nur den aktuellen Code.
+
+Agenten verwenden dieselbe fachliche API mit getrennten Actions:
+
+- `accounts:read` für `lookup`, `otp` und `doctor`;
+- `accounts:sync` zusätzlich für `doctor --repair`;
+- `accounts:totp:write` für `enroll-totp`.
+
+Der portable Client liest weiterhin das Bearer-Token aus dem Keychain. Der
+TOTP-Seed ist kein Kommandozeilenargument: interaktiv wird er verdeckt gelesen,
+in Automationen kommt genau eine Zeile über stdin.
+
+```bash
+export TEST_ACCESS_IDENTITY=codex-m4-oriso
+test-access lookup --email abe.simpson@dreambau.de --project oriso --environment pre-dev
+test-access doctor --repair --json
+test-access enroll-totp oriso/pre-dev/e2e-platform-admin-predev
+test-access otp oriso/pre-dev/e2e-platform-admin-predev
+test-access otp oriso/pre-dev/e2e-platform-admin-predev --json
+```
+
+Audit-Ereignisse enthalten Actor-ID, Record-ID, E-Mail, Aktion, Projekt,
+Umgebung und Zeitpunkt. Passwort, Bearer-Token, TOTP-Seed und generierter OTP-
+Code werden nicht in SQLite-Auditdaten geschrieben.
+
+Der Live-Playwright-Happy-Path benötigt zusätzlich ein ausdrücklich dafür
+bestimmtes Non-Production-Konto. `TESTMAILS_E2E_PASSWORD`,
+`TESTMAILS_E2E_TOTP_EMAIL` und `TESTMAILS_E2E_TOTP_SECRET` werden ausschließlich
+zur Laufzeit aus der Operator-Umgebung gesetzt; der Test wird ohne diese
+Voraussetzungen übersprungen.
+
 ### Versionierte Test-Runs
 
 Ein Test-Run reserviert eine vollständige Rollenbelegung atomar aus den
@@ -289,6 +423,43 @@ nicht-interaktiv und wiederholt den Abruf. Als Reserve kann ausschließlich
 die Datei muss dem aktuellen Benutzer gehören und darf keine Gruppen- oder
 Weltrechte besitzen. Dieser lokale Wert ist nur das eingeschränkte
 Maschinen-Bootstrap-Credential. Testkonto-Passwörter verbleiben in Infisical.
+
+### ORISO PreDev self-service provisioning
+
+Administrators can provision a real ORISO PreDev account for a free
+Springfield mailbox directly from the Testmails UI (issues #49 and #57). The
+server authenticates with the managed platform-admin record and supports
+`platform-admin`, `tenant-admin`, `agency-admin`, `counsellor` and
+`advice-seeker`. It stores a stable Test Access record
+(`oriso/pre-dev/<mailbox-local-part>`) with a generated application password,
+creates or reconciles the ORISO identity by API, assigns agency admins and
+counsellors to the configured test agency, stores a generated TOTP seed only
+in Infisical, activates app-TOTP and proves a second login.
+
+Credentials and server-generated TOTP seeds never reach the browser or audit
+log. The legacy manual enrollment flow accepts a TOTP seed pasted by the user
+in the browser and sends it once to the protected `/totp` endpoint. One-time
+response codes reach the browser only after an explicit generation request and
+must never be persisted or logged. The linked record has an explicit
+`pending`, `ready` or `failed` provisioning state so a locally stored seed
+alone can never claim a successful ORISO setup. Repeating the same request
+reconciles the existing account; every environment except `pre-dev` is
+rejected.
+
+Configuration (feature is disabled until `ORISO_PREDEV_ADMIN_RECORD_ID` is
+set): `ORISO_PREDEV_ADMIN_RECORD_ID` (e.g.
+`oriso/pre-dev/e2e-platform-admin-predev`), optional overrides
+`ORISO_PREDEV_API_BASE_URL`, `ORISO_PREDEV_TOKEN_URL`,
+`ORISO_PREDEV_CLIENT_ID`, `ORISO_PREDEV_ADMIN_URL`, `ORISO_PREDEV_APP_URL`,
+`ORISO_PREDEV_DEFAULT_TENANT_ID`, `ORISO_PREDEV_DEFAULT_AGENCY_ID`,
+`ORISO_PREDEV_DEFAULT_CONSULTING_TYPE`, `ORISO_PREDEV_DEFAULT_POSTCODE` and
+`ORISO_PREDEV_DEFAULT_MAIN_TOPIC_ID`.
+Because the public DNS of `oriso-dev.site` still points at the retired host
+and PreDev serves a certificate from the internal "ORISO Dev Local CA", set
+`ORISO_PREDEV_RESOLVE_IP=46.224.170.69` and mount the CA via
+`ORISO_PREDEV_CA_FILE`. Record creation and provisioning-state transitions
+require the Infisical writer identity to have create and update permission on
+the `/records` path.
 
 ### ORISO PreDev seed import
 
