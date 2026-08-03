@@ -100,7 +100,7 @@ describe("machine Test Access management API", () => {
         username: "abe.simpson@dreambau.de",
         email: "abe.simpson@dreambau.de",
         roles: ["platform-admin"],
-        loginUrl: "https://admin.oriso-dev.site",
+        loginUrl: "https://predev.oriso.org/admin",
         hasTotp: false,
         linked: true
       }]

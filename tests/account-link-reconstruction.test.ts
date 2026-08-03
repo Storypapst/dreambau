@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dashboardRoles, linkedApplicationRecordsForEmail } from "../src/server/account-link.js";
+import { canonicalLoginUrl, dashboardRoles, linkedApplicationRecordsForEmail } from "../src/server/account-link.js";
 import type { TestAccessRecord } from "../src/server/infisical-provider.js";
 
 /**
@@ -53,6 +53,45 @@ describe("linked application records", () => {
 
   it("returns nothing for an address with no linked application", () => {
     expect(linkedApplicationRecordsForEmail("lisa.simpson@oriso.org", [record({ id: "a" })])).toEqual([]);
+  });
+});
+
+describe("canonical ORISO login routing", () => {
+  it("maps existing PreDev application and admin records onto the same-origin gateway", () => {
+    expect(canonicalLoginUrl(record({
+      id: "oriso/pre-dev/krusty.clown",
+      kind: "admin",
+      loginUrl: "https://admin.oriso-dev.site"
+    }))).toBe("https://predev.oriso.org/admin");
+    expect(canonicalLoginUrl(record({
+      id: "oriso/pre-dev/ape.simpson",
+      kind: "app-user",
+      loginUrl: "https://app.oriso-dev.site"
+    }))).toBe("https://predev.oriso.org");
+  });
+
+  it("maps existing Dev application and admin records onto the Dev same-origin gateway", () => {
+    expect(canonicalLoginUrl(record({
+      id: "oriso/dev/krusty.clown",
+      environment: "dev",
+      kind: "admin",
+      loginUrl: "https://admin.oriso.org"
+    }))).toBe("https://dev.oriso.org/admin");
+    expect(canonicalLoginUrl(record({
+      id: "oriso/dev/ape.simpson",
+      environment: "dev",
+      kind: "app-user",
+      loginUrl: "https://app.oriso.org"
+    }))).toBe("https://dev.oriso.org");
+  });
+
+  it("does not rewrite non-ORISO or non-application records", () => {
+    expect(canonicalLoginUrl(record({
+      id: "dreambau/pre-dev/mailbox",
+      project: "dreambau",
+      kind: "mailbox",
+      loginUrl: "https://mail.dreambau.com"
+    }))).toBe("https://mail.dreambau.com");
   });
 });
 

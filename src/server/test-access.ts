@@ -15,7 +15,7 @@ import type { RegistryWriter } from "./infisical-writer.js";
 import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { parseSeedProfile } from "./seed-profile.js";
 import { createTestRunRouter } from "./test-run-router.js";
-import { derivedCatalogPatch, isKnownSyntheticEmail, publicLinkedAccount } from "./account-link.js";
+import { canonicalLoginUrl, derivedCatalogPatch, isKnownSyntheticEmail, publicLinkedAccount } from "./account-link.js";
 import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.js";
 
 const querySchema = z.object({
@@ -62,7 +62,10 @@ export function createTestAccessRouter(options: {
     next();
   });
 
-  const publicRecord = ({ secret: _secret, totpSecret: _totpSecret, ...record }: TestAccessRecord) => record;
+  const publicRecord = ({ secret: _secret, totpSecret: _totpSecret, ...record }: TestAccessRecord) => ({
+    ...record,
+    loginUrl: canonicalLoginUrl(record)
+  });
 
   router.use("/runs", createTestRunRouter({
     registryProvider: options.registryProvider,

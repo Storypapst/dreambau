@@ -88,17 +88,18 @@ describe("runtime config", () => {
 
   it("loads isolated PreDev and Dev ORISO provisioning targets", () => {
     vi.stubEnv("ORISO_PREDEV_ADMIN_RECORD_ID", "oriso/pre-dev/e2e-platform-admin-predev");
-    vi.stubEnv("ORISO_PREDEV_RESOLVE_IP", "46.224.170.69");
-    vi.stubEnv("ORISO_PREDEV_CA_FILE", "/run/config/oriso-predev/ca.pem");
     vi.stubEnv("ORISO_DEV_ADMIN_RECORD_ID", "oriso/dev/e2e-platform-admin-dev");
 
     const targets = loadConfig().orisoProvisioningTargets;
 
     expect(targets["pre-dev"]).toMatchObject({
-      apiBaseUrl: "https://api.oriso-dev.site/service",
+      apiBaseUrl: "https://predev.oriso.org/service",
+      tokenUrl: "https://predev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
       adminRecordId: "oriso/pre-dev/e2e-platform-admin-predev",
-      resolveIp: "46.224.170.69",
-      caFile: "/run/config/oriso-predev/ca.pem"
+      adminBaseUrl: "https://predev.oriso.org/admin",
+      appBaseUrl: "https://predev.oriso.org",
+      resolveIp: null,
+      caFile: null
     });
     expect(targets.dev).toMatchObject({
       apiBaseUrl: "https://dev.oriso.org/service",

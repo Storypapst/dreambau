@@ -147,10 +147,10 @@ export function loadConfig(): RuntimeConfig {
   } : null;
   const orisoProvisioningTargets: RuntimeConfig["orisoProvisioningTargets"] = {
     "pre-dev": orisoProvisioningTarget("pre-dev", {
-      apiBaseUrl: "https://api.oriso-dev.site/service",
-      tokenUrl: "https://auth.oriso-dev.site/realms/online-beratung/protocol/openid-connect/token",
-      adminBaseUrl: "https://admin.oriso-dev.site",
-      appBaseUrl: "https://app.oriso-dev.site"
+      apiBaseUrl: "https://predev.oriso.org/service",
+      tokenUrl: "https://predev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
+      adminBaseUrl: "https://predev.oriso.org/admin",
+      appBaseUrl: "https://predev.oriso.org"
     }),
     dev: orisoProvisioningTarget("dev", {
       apiBaseUrl: "https://dev.oriso.org/service",

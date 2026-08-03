@@ -221,7 +221,10 @@ describe("test access API v1", () => {
       .get("/testmails/api/v1/accounts?project=oriso&environment=pre-dev")
       .set("Authorization", `Bearer ${orisoToken}`);
     expect(list.status).toBe(200);
-    expect(list.body).toEqual([{ ...record, secret: undefined }].map(({ secret: _secret, totpSecret: _totp, ...publicRecord }) => publicRecord));
+    expect(list.body).toEqual([{ ...record, secret: undefined }].map(({ secret: _secret, totpSecret: _totp, ...publicRecord }) => ({
+      ...publicRecord,
+      loginUrl: "https://predev.oriso.org"
+    })));
     expect(JSON.stringify(list.body)).not.toContain(record.secret);
 
     const secret = await request(target)
