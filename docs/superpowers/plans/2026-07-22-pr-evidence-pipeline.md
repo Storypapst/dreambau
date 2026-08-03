@@ -32,15 +32,16 @@ flowchart LR
     URL --> PR
 ```
 
-## Execution status — 2026-07-25
+## Execution status — 2026-07-26
 
-- **Tasks 1, 2, 3, 4 and 5 are implemented** across a stack of four pull requests: `feat/pr-evidence-gateway` (tasks 1 and 3), `feat/pr-evidence-cli` (task 5), `feat/pr-evidence-deploy` (task 2) and `feat/pr-evidence-viewer` (task 4).
+- **Tasks 1 to 8 and 10 are implemented.** Tasks 1–5 are merged to `main` and deployed; tasks 6, 7, 8 and 10 are in review.
 - **The gateway runs on the Dreambau server** in namespace `wcr` against the real MinIO bucket, validated end to end on 2026-07-25. One item is blocked on an action only Frank can take: the DNS record for `evidence.dreambau.com`.
-- Remaining from the plan: tasks 6 to 10 — the portable agent skill, OBS/Cap watching, the ORISO-E2E pilot, the organisation-wide rollout and operations.
+- Task 6's skill is live locally and mirrored; its canonical Drive copy is blocked because Drive file reads time out on this machine.
+- Remaining: task 9, the organisation-wide rollout.
 - Local gate: the full test suite passes, all three TypeScript projects typecheck, `npm run build` and `npm run evidence:build` succeed, and the built gateway answers `/health/live` and `/health/ready` while refusing an unauthenticated API call with 401.
-- Three sub-steps are deliberately left open and marked as such below: the optional OCR preflight, image thumbnails (nothing consumes one until the viewer exists) and the seven-day deletion of original video uploads (that is the Task 10 retention job).
+- Two sub-steps stay open and are marked as such below: the optional OCR preflight and image thumbnails. The seven-day deletion of video originals landed with Task 10.
 - Video processing shells out to ffmpeg through an injected runner. The argument lists are unit-tested; the binary itself is installed by `Dockerfile.evidence` and is a Task 2 deployment concern.
-- `dreambau-evidence watch` is registered but reports that folder watching arrives with Task 7.
+- `dreambau-evidence watch` uploads recordings as they finish (Task 7).
 - **`/r/`, `/e/` and `/reports/` resolve.** The addresses the CLI writes into a PR comment are the ones the viewer serves, so nothing already published needs changing.
 - The only thing standing between this and a working public link is the DNS record.
 
@@ -215,7 +216,7 @@ Implementation note: the evidence service reuses `src/server/machine-access.ts` 
 - [x] Add Service and Traefik Ingress for `evidence.dreambau.com`. The manifest exists; see the DNS item below for why it is not applied yet.
 - [x] Add a 1 GiB PVC for SQLite and processing state.
 - [x] Add a NetworkPolicy, PodDisruptionBudget and resource requests/limits. **Correction after verification:** the NetworkPolicy is declared but *not enforced* — this k3s cluster runs no network policy controller, which is equally true of the pre-existing `testmails` policy. The manifest is kept because it becomes effective the moment one is enabled; until then the gateway's real boundaries are the machine-identity check on every API route and a MinIO credential scoped to one bucket. Enabling enforcement affects every workload in the cluster and is an operator decision.
-- [ ] CronJob for retention and integrity checks. **Deferred to Task 10**, which is where the retention and integrity commands are written. A CronJob calling a command that does not exist would fail on a schedule.
+- [x] CronJob for retention and integrity checks. Landed with Task 10, once the commands it calls existed: `k8s/evidence/cronjob.yaml`.
 - [x] Create the private bucket `dreambau-pr-evidence` with versioning enabled, no anonymous policy and no directory listing.
 - [x] Issue separate MinIO credentials for the gateway into a Kubernetes Secret. The MinIO user `evidence-gateway` carries policy `evidence-gateway-rw`, scoped to that one bucket, with no admin, bucket-creation or policy rights. Separate worker credentials are not issued because there is no worker.
 - [x] Store upload tokens only as SHA-256 hashes or via machine identities. The gateway reuses the Test Access identity model, so `wcr/evidence-identities` holds hashes only.
@@ -294,14 +295,16 @@ The CLI reads files in 64 MiB windows and streams the digest, so a 2 GiB OBS rec
 
 ## Task 7: OBS, Cap and manual captures
 
-- [ ] Implement `dreambau-evidence watch <directory>` with `--project`, `--environment` and `--pr`.
-- [ ] Wait until the file size is stable and the writer has closed the file before uploading.
-- [ ] Show the detected file, PR, commit and target environment before upload.
-- [ ] Publish directly after a successful upload in automatic mode.
-- [ ] Keep failed uploads locally and make them resumable.
-- [ ] Document that a Cap recording only counts as durable PR evidence once mirrored through the CLI; a bare Cap link may register as a draft but does not satisfy the PR evidence gate.
+- [x] Implement `dreambau-evidence watch <directory>` with `--project`, `--environment` and `--pr`.
+- [x] Wait until the file size is stable and the writer has closed the file before uploading.
+- [x] Show the detected file, PR, commit and target environment before upload.
+- [x] Publish directly after a successful upload in automatic mode.
+- [x] Keep failed uploads locally and make them resumable.
+- [x] Document that a Cap recording only counts as durable PR evidence once mirrored through the CLI; a bare Cap link may register as a draft but does not satisfy the PR evidence gate.
 
-**Acceptance:** a finished OBS recording appears as an MP4 with poster on the right PR, and an interrupted upload resumes after a restart.
+Settling is anchored on the file's own last-write time, not on when the watcher started, so a recording that finished before the watcher was launched is picked up on the first sweep. `--once` makes a single sweep and exits, which is what a CI step wants; without it the watcher polls until stopped. Uploads that fail stay on disk and are retried on later sweeps, while a quarantined file is not retried — nothing about it will change.
+
+**Acceptance:** met — a finished recording is uploaded and published to the right PR, one run and one comment per recording. Covered by unit tests over the settling logic and an end-to-end test that watches a real directory and drives the real gateway over HTTP.
 
 ## Task 8: ORISO E2E pilot
 
@@ -326,14 +329,22 @@ The CLI reads files in 64 MiB windows and streams the digest, so a 2 GiB OBS rec
 
 ## Task 10: Operations, monitoring and recovery
 
-- [ ] Emit SigNoz metrics `evidence_upload_total`, `evidence_upload_bytes_total`, `evidence_processing_duration_seconds`, `evidence_quarantine_total`, `evidence_publish_failures_total`, `evidence_storage_bytes`, `evidence_public_link_probe_failures_total`.
-- [ ] Alert on quarantine growth, upload/publish failures, free server space below 40 GiB, a hard upload stop below 25 GiB, MinIO or gateway not ready, and broken public links.
-- [ ] Implement retention: 60 days for drafts and unpublished raw data; no automatic deletion for quarantine or published PR evidence.
-- [ ] Make archival remove public reachability only; require a separate confirmed admin step for physical deletion.
-- [ ] Back up SQLite daily, encrypted.
-- [ ] Keep MinIO versioning plus a daily manifest with SHA-256 checksums, and run a restore test with a sample run.
-- [ ] Ensure backup and retention processes never log secret content.
-- [ ] Document the rollback path: keep the previous gateway/worker image, `kubectl rollout undo` both, disable the ingress and revoke upload tokens first on a security incident, never delete the bucket, PVC or PR comments during rollback, and re-verify public links plus one existing PR comment afterwards.
+- [x] Emit SigNoz metrics `evidence_upload_total`, `evidence_upload_bytes_total`, `evidence_processing_duration_seconds`, `evidence_quarantine_total`, `evidence_publish_failures_total`, `evidence_storage_bytes`, `evidence_public_link_probe_failures_total`.
+- [x] Alert on quarantine growth, upload/publish failures, free server space below 40 GiB, a hard upload stop below 25 GiB, MinIO or gateway not ready, and broken public links.
+- [x] Implement retention: 60 days for drafts and unpublished raw data; no automatic deletion for quarantine or published PR evidence.
+- [x] Make archival remove public reachability only; require a separate confirmed admin step for physical deletion.
+- [x] Back up SQLite daily, encrypted.
+- [x] Keep MinIO versioning plus a daily manifest with SHA-256 checksums, and run a restore test with a sample run.
+- [x] Ensure backup and retention processes never log secret content.
+- [x] Document the rollback path: keep the previous gateway/worker image, `kubectl rollout undo` both, disable the ingress and revoke upload tokens first on a security incident, never delete the bucket, PVC or PR comments during rollback, and re-verify public links plus one existing PR comment afterwards.
+
+
+Two things are deliberately *not* automated, and both are load-bearing:
+
+- **Archiving is not deletion.** It withdraws public reachability; the bytes stay. Removing what was published needs a separate, explicit admin step, because a scheduled job that can delete evidence is one that will eventually delete the evidence someone needed.
+- **The probe and integrity sweep exit non-zero on a finding**, so the CronJob's own failure is the alert signal rather than a metric someone has to remember to graph.
+
+**Acceptance:** met. Metrics carry no run, repository or file label — there is a test asserting that. Retention has tests proving a 90-day draft is removed while a 400-day published or quarantined run is not, and that a video's original is pruned only once a normalised copy is what gets served.
 
 ## Test and acceptance matrix
 

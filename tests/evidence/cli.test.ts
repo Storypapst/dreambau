@@ -360,10 +360,41 @@ describe("status, archive and doctor", () => {
     expect(report).toContain("keychain token");
   });
 
-  it("says plainly that folder watching is not built yet", async () => {
-    const code = await runEvidenceCommand(["watch", workingDirectory], dependencies(baseUrl));
+  it("watches a folder, uploads a finished recording and publishes it", async () => {
+    writeScreenshot("recording-still.png");
+    const code = await runEvidenceCommand([
+      "watch", workingDirectory,
+      "--project", "oriso", "--environment", "pre-dev",
+      "--result", "PASS", "--source", "obs",
+      "--title", "Session recording",
+      "--stable-seconds", "0",
+      "--once"
+    ], dependencies(baseUrl));
+
+    expect(code).toBe(0);
+    // It announces what it is about to attach before uploading anything.
+    expect(stderr.join("")).toContain("pull request #42");
+    expect(stderr.join("")).toContain("OpenResilienceInitiative/ORISO-E2E");
+    const [run] = store.listRuns({ state: "published" });
+    expect(run.title).toContain("recording-still.png");
+    expect(comments).toHaveLength(1);
+  }, 30_000);
+
+  it("refuses to watch without a pull request unless it is a draft", async () => {
+    const noPullRequests = dependencies(baseUrl, {
+      runCommand: (command, args) => {
+        if (command === "gh" && args[0] === "pr") return { code: 0, stdout: "[]", stderr: "" };
+        return dependencies(baseUrl).runCommand(command, args);
+      }
+    });
+    writeScreenshot("recording-still.png");
+    const code = await runEvidenceCommand([
+      "watch", workingDirectory, "--project", "oriso", "--environment", "pre-dev",
+      "--result", "PASS", "--source", "obs", "--once"
+    ], noPullRequests);
     expect(code).toBe(1);
-    expect(stderr.join("")).toContain("Task 7");
+    expect(stderr.join("")).toContain("--draft");
+    expect(store.listRuns()).toHaveLength(0);
   });
 });
 
