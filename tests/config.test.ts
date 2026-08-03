@@ -93,6 +93,10 @@ describe("runtime config", () => {
     vi.stubEnv("ORISO_PREDEV_RESOLVE_IP", "192.0.2.10");
     vi.stubEnv("ORISO_PREDEV_CA_FILE", "/tmp/retired-ca.pem");
     vi.stubEnv("ORISO_DEV_ADMIN_RECORD_ID", "oriso/dev/e2e-platform-admin-dev");
+    vi.stubEnv("ORISO_DEV_ADMIN_URL", "https://retired-dev-admin.example.test");
+    vi.stubEnv("ORISO_DEV_APP_URL", "https://retired-dev-app.example.test");
+    vi.stubEnv("ORISO_DEV_RESOLVE_IP", "192.0.2.11");
+    vi.stubEnv("ORISO_DEV_CA_FILE", "/tmp/retired-dev-ca.pem");
 
     const targets = loadConfig().orisoProvisioningTargets;
 
@@ -112,5 +116,7 @@ describe("runtime config", () => {
     });
     expect(targets["pre-dev"]).not.toHaveProperty("resolveIp");
     expect(targets["pre-dev"]).not.toHaveProperty("caFile");
+    expect(targets.dev).not.toHaveProperty("resolveIp");
+    expect(targets.dev).not.toHaveProperty("caFile");
   });
 });
