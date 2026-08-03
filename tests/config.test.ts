@@ -88,26 +88,35 @@ describe("runtime config", () => {
 
   it("loads isolated PreDev and Dev ORISO provisioning targets", () => {
     vi.stubEnv("ORISO_PREDEV_ADMIN_RECORD_ID", "oriso/pre-dev/e2e-platform-admin-predev");
-    vi.stubEnv("ORISO_PREDEV_RESOLVE_IP", "46.224.170.69");
-    vi.stubEnv("ORISO_PREDEV_CA_FILE", "/run/config/oriso-predev/ca.pem");
+    vi.stubEnv("ORISO_PREDEV_ADMIN_URL", "https://retired-admin.example.test");
+    vi.stubEnv("ORISO_PREDEV_APP_URL", "https://retired-app.example.test");
+    vi.stubEnv("ORISO_PREDEV_RESOLVE_IP", "192.0.2.10");
+    vi.stubEnv("ORISO_PREDEV_CA_FILE", "/tmp/retired-ca.pem");
     vi.stubEnv("ORISO_DEV_ADMIN_RECORD_ID", "oriso/dev/e2e-platform-admin-dev");
+    vi.stubEnv("ORISO_DEV_ADMIN_URL", "https://retired-dev-admin.example.test");
+    vi.stubEnv("ORISO_DEV_APP_URL", "https://retired-dev-app.example.test");
+    vi.stubEnv("ORISO_DEV_RESOLVE_IP", "192.0.2.11");
+    vi.stubEnv("ORISO_DEV_CA_FILE", "/tmp/retired-dev-ca.pem");
 
     const targets = loadConfig().orisoProvisioningTargets;
 
     expect(targets["pre-dev"]).toMatchObject({
-      apiBaseUrl: "https://api.oriso-dev.site/service",
+      apiBaseUrl: "https://predev.oriso.org/service",
+      tokenUrl: "https://predev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
       adminRecordId: "oriso/pre-dev/e2e-platform-admin-predev",
-      resolveIp: "46.224.170.69",
-      caFile: "/run/config/oriso-predev/ca.pem"
+      adminBaseUrl: "https://predev.oriso.org/admin",
+      appBaseUrl: "https://predev.oriso.org"
     });
     expect(targets.dev).toMatchObject({
       apiBaseUrl: "https://dev.oriso.org/service",
       tokenUrl: "https://dev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
       adminRecordId: "oriso/dev/e2e-platform-admin-dev",
       adminBaseUrl: "https://dev.oriso.org/admin",
-      appBaseUrl: "https://dev.oriso.org",
-      resolveIp: null,
-      caFile: null
+      appBaseUrl: "https://dev.oriso.org"
     });
+    expect(targets["pre-dev"]).not.toHaveProperty("resolveIp");
+    expect(targets["pre-dev"]).not.toHaveProperty("caFile");
+    expect(targets.dev).not.toHaveProperty("resolveIp");
+    expect(targets.dev).not.toHaveProperty("caFile");
   });
 });

@@ -87,6 +87,26 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+/**
+ * ORISO exposes both non-production environments through one public gateway
+ * per environment. Keep persisted records usable across the retired
+ * multi-host ingress layouts without rewriting credentials in Infisical.
+ */
+type LoginRoutableRecord = Pick<TestAccessRecord, "project" | "environment" | "kind" | "loginUrl">;
+
+export function canonicalLoginUrl(record: LoginRoutableRecord) {
+  if (record.project !== "oriso" || (record.kind !== "app-user" && record.kind !== "admin")) {
+    return record.loginUrl;
+  }
+  const baseUrl = record.environment === "pre-dev"
+    ? "https://predev.oriso.org"
+    : record.environment === "dev"
+      ? "https://dev.oriso.org"
+      : null;
+  if (!baseUrl) return record.loginUrl;
+  return record.kind === "admin" ? `${baseUrl}/admin` : baseUrl;
+}
+
 function recordPriority(record: TestAccessRecord) {
   if ((record.kind === "app-user" || record.kind === "admin") && record.totpSecret) return 0;
   if (record.kind === "app-user" || record.kind === "admin") return 1;
@@ -117,7 +137,7 @@ export function publicLinkedAccount(record: TestAccessRecord): LinkedTestAccount
     username: record.username,
     email: record.email,
     roles: [...record.roles],
-    loginUrl: record.loginUrl,
+    loginUrl: canonicalLoginUrl(record),
     hasTotp: Boolean(record.totpSecret)
   };
 }

@@ -113,7 +113,7 @@ describe("human Springfield OTP access", () => {
       username: abe.email,
       email: abe.email,
       roles: ["platform-admin"],
-      loginUrl: "https://pre-dev.oriso.example.test",
+      loginUrl: "https://predev.oriso.org/admin",
       hasTotp: true
     }]);
     expect(before.body[0].metadata.roles).toEqual(["Admin"]);

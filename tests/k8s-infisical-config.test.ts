@@ -44,4 +44,17 @@ describe("Kubernetes Infisical bootstrap", () => {
     expect(environmentEntries("env:\n  - name: INFISICAL_CLIENT_SECRET\n    value: literal-secret"))
       .toContainEqual({ name: "INFISICAL_CLIENT_SECRET", value: "literal-secret" });
   });
+
+  it("uses the public same-origin ORISO gateways without retired host pinning", () => {
+    const deployment = readFileSync(new URL("../k8s/deployment.yaml", import.meta.url), "utf8");
+    expect(deployment).toContain(
+      "name: ORISO_PREDEV_ADMIN_RECORD_ID, value: oriso/pre-dev/e2e-platform-admin-predev"
+    );
+    expect(deployment).toContain(
+      "name: ORISO_DEV_ADMIN_RECORD_ID, value: oriso/dev/e2e-platform-admin-dev"
+    );
+    expect(deployment).not.toContain("ORISO_PREDEV_RESOLVE_IP");
+    expect(deployment).not.toContain("ORISO_PREDEV_CA_FILE");
+    expect(deployment).not.toContain("oriso-predev-ca");
+  });
 });

@@ -443,23 +443,27 @@ response codes reach the browser only after an explicit generation request and
 must never be persisted or logged. The linked record has an explicit
 `pending`, `ready` or `failed` provisioning state so a locally stored seed
 alone can never claim a successful ORISO setup. Repeating the same request
-reconciles the existing account; every environment except `pre-dev` is
-rejected.
+reconciles the existing account. The mailbox domain selects either `pre-dev`
+or `dev` server-side; all other environments are rejected.
 
-Configuration (feature is disabled until `ORISO_PREDEV_ADMIN_RECORD_ID` is
-set): `ORISO_PREDEV_ADMIN_RECORD_ID` (e.g.
-`oriso/pre-dev/e2e-platform-admin-predev`), optional overrides
-`ORISO_PREDEV_API_BASE_URL`, `ORISO_PREDEV_TOKEN_URL`,
-`ORISO_PREDEV_CLIENT_ID`, `ORISO_PREDEV_ADMIN_URL`, `ORISO_PREDEV_APP_URL`,
-`ORISO_PREDEV_DEFAULT_TENANT_ID`, `ORISO_PREDEV_DEFAULT_AGENCY_ID`,
-`ORISO_PREDEV_DEFAULT_CONSULTING_TYPE`, `ORISO_PREDEV_DEFAULT_POSTCODE` and
-`ORISO_PREDEV_DEFAULT_MAIN_TOPIC_ID`.
-Because the public DNS of `oriso-dev.site` still points at the retired host
-and PreDev serves a certificate from the internal "ORISO Dev Local CA", set
-`ORISO_PREDEV_RESOLVE_IP=46.224.170.69` and mount the CA via
-`ORISO_PREDEV_CA_FILE`. Record creation and provisioning-state transitions
-require the Infisical writer identity to have create and update permission on
-the `/records` path.
+The canonical non-production gateway matrix is:
+
+| Environment | App | Admin | OIDC | API |
+| --- | --- | --- | --- | --- |
+| PreDev | `https://predev.oriso.org` | `https://predev.oriso.org/admin` | `https://predev.oriso.org/auth` | `https://predev.oriso.org/service` |
+| Dev | `https://dev.oriso.org` | `https://dev.oriso.org/admin` | `https://dev.oriso.org/auth` | `https://dev.oriso.org/service` |
+
+The feature is enabled per environment with `ORISO_PREDEV_ADMIN_RECORD_ID` and
+`ORISO_DEV_ADMIN_RECORD_ID`. Endpoint overrides use the matching
+`ORISO_PREDEV_*` or `ORISO_DEV_*` prefix with `API_BASE_URL`, `TOKEN_URL` and
+`CLIENT_ID`; tenant, agency and consulting defaults follow the same prefix.
+Public App and Admin URLs are the canonical gateway URLs in the table above and
+are deliberately not deployment overrides. The public gateways use normal public TLS and need no
+pinned IP or private CA. Existing ORISO application records are served with the
+canonical login URL for their environment, so records from the retired
+multi-host layouts continue to work. Record creation and provisioning-state
+transitions require the Infisical writer identity to have create and update
+permission on the `/records` path.
 
 ### ORISO PreDev seed import
 
