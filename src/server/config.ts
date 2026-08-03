@@ -36,8 +36,6 @@ export interface RuntimeConfig {
     defaultConsultingType: string;
     defaultPostcode: string;
     defaultMainTopicId: number;
-    resolveIp: string | null;
-    caFile: string | null;
   }>>;
   registryProvider: "file" | "infisical";
   infisical: {
@@ -78,15 +76,13 @@ function orisoProvisioningTarget(
     tokenUrl: process.env[`${prefix}_TOKEN_URL`]?.trim() || defaults.tokenUrl,
     clientId: process.env[`${prefix}_CLIENT_ID`]?.trim() || "app",
     adminRecordId,
-    adminBaseUrl: process.env[`${prefix}_ADMIN_URL`]?.trim() || defaults.adminBaseUrl,
-    appBaseUrl: process.env[`${prefix}_APP_URL`]?.trim() || defaults.appBaseUrl,
+    adminBaseUrl: defaults.adminBaseUrl,
+    appBaseUrl: defaults.appBaseUrl,
     defaultTenantId: positiveInteger(process.env[`${prefix}_DEFAULT_TENANT_ID`], 1, `${prefix}_DEFAULT_TENANT_ID`),
     defaultAgencyId: positiveInteger(process.env[`${prefix}_DEFAULT_AGENCY_ID`], 1, `${prefix}_DEFAULT_AGENCY_ID`),
     defaultConsultingType: process.env[`${prefix}_DEFAULT_CONSULTING_TYPE`]?.trim() || "1",
     defaultPostcode: process.env[`${prefix}_DEFAULT_POSTCODE`]?.trim() || "10115",
-    defaultMainTopicId: positiveInteger(process.env[`${prefix}_DEFAULT_MAIN_TOPIC_ID`], 1, `${prefix}_DEFAULT_MAIN_TOPIC_ID`),
-    resolveIp: process.env[`${prefix}_RESOLVE_IP`]?.trim() || null,
-    caFile: process.env[`${prefix}_CA_FILE`]?.trim() || null
+    defaultMainTopicId: positiveInteger(process.env[`${prefix}_DEFAULT_MAIN_TOPIC_ID`], 1, `${prefix}_DEFAULT_MAIN_TOPIC_ID`)
   };
 }
 

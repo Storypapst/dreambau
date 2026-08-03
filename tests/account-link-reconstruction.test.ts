@@ -92,6 +92,12 @@ describe("canonical ORISO login routing", () => {
       kind: "mailbox",
       loginUrl: "https://mail.dreambau.com"
     }))).toBe("https://mail.dreambau.com");
+    expect(canonicalLoginUrl(record({
+      id: "oriso/local/local-admin",
+      environment: "local",
+      kind: "admin",
+      loginUrl: "https://local.oriso.example.test/admin"
+    }))).toBe("https://local.oriso.example.test/admin");
   });
 });
 

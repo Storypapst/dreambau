@@ -1,6 +1,4 @@
 import { randomInt, randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import https from "node:https";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
 import { generateCompatibleOrisoTotp } from "./totp.js";
@@ -703,44 +701,4 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       };
     }
   };
-}
-
-/**
- * The public DNS for oriso-dev.site still points at the retired PreDev host,
- * and the current host serves a certificate from the internal "ORISO Dev
- * Local CA". This fetch adapter pins the resolved IP and optionally trusts
- * that CA so the hub reaches the real PreDev without weakening TLS globally.
- */
-export function createPinnedHttpsFetch(options: { resolveIp?: string; caFile?: string }): ProvisioningFetch {
-  const ca = options.caFile ? readFileSync(options.caFile, "utf8") : undefined;
-  return (input, init) => new Promise((resolve, reject) => {
-    const url = new URL(String(input));
-    if (url.protocol !== "https:") return reject(new Error("Pinned fetch requires HTTPS"));
-    const request = https.request({
-      host: options.resolveIp ?? url.hostname,
-      servername: url.hostname,
-      port: url.port ? Number(url.port) : 443,
-      path: `${url.pathname}${url.search}`,
-      method: init?.method ?? "GET",
-      headers: { Host: url.hostname, ...init?.headers },
-      ca,
-      timeout: 15_000
-    }, (response) => {
-      const chunks: Buffer[] = [];
-      response.on("data", (chunk) => chunks.push(chunk));
-      response.on("end", () => {
-        const status = response.statusCode ?? 0;
-        const body = Buffer.concat(chunks).toString("utf8");
-        resolve({
-          ok: status >= 200 && status < 300,
-          status,
-          async json() { return JSON.parse(body); }
-        });
-      });
-    });
-    request.on("timeout", () => request.destroy(new Error("Pinned fetch timed out")));
-    request.on("error", reject);
-    if (init?.body) request.write(init.body);
-    request.end();
-  });
 }

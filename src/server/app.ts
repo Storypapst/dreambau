@@ -34,7 +34,6 @@ import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.
 import {
   buildProvisionedRecord,
   createOrisoProvisioningService,
-  createPinnedHttpsFetch,
   environmentForOrisoEmail,
   generateApplicationPassword,
   orisoProvisioningRoles,
@@ -222,13 +221,7 @@ export function createApp(options: AppOptions = {}) {
           ...target,
           environment,
           registryProvider,
-          now: options.now,
-          fetch: target.resolveIp || target.caFile
-            ? createPinnedHttpsFetch({
-                resolveIp: target.resolveIp ?? undefined,
-                caFile: target.caFile ?? undefined
-              })
-            : undefined
+          now: options.now
         })
       ])
   ) as Partial<Record<OrisoProvisioningEnvironment, OrisoProvisioningService>>;

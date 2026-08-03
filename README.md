@@ -455,9 +455,10 @@ The canonical non-production gateway matrix is:
 
 The feature is enabled per environment with `ORISO_PREDEV_ADMIN_RECORD_ID` and
 `ORISO_DEV_ADMIN_RECORD_ID`. Endpoint overrides use the matching
-`ORISO_PREDEV_*` or `ORISO_DEV_*` prefix with `API_BASE_URL`, `TOKEN_URL`,
-`CLIENT_ID`, `ADMIN_URL` and `APP_URL`; tenant, agency and consulting defaults
-follow the same prefix. The public gateways use normal public TLS and need no
+`ORISO_PREDEV_*` or `ORISO_DEV_*` prefix with `API_BASE_URL`, `TOKEN_URL` and
+`CLIENT_ID`; tenant, agency and consulting defaults follow the same prefix.
+Public App and Admin URLs are the canonical gateway URLs in the table above and
+are deliberately not deployment overrides. The public gateways use normal public TLS and need no
 pinned IP or private CA. Existing ORISO application records are served with the
 canonical login URL for their environment, so records from the retired
 multi-host layouts continue to work. Record creation and provisioning-state
