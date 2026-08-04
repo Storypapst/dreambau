@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  activateLoginSubmit,
   isOtpChallenge,
   playwrightLogin,
   resolveVisible,
@@ -42,6 +43,57 @@ function fakeLocator(visible: boolean, label: string) {
 }
 
 describe("Playwright login broker", () => {
+  it("re-resolves a semantic login button when React detaches the first match", async () => {
+    const detached = {
+      first: () => detached,
+      isVisible: vi.fn(async () => true),
+      click: vi.fn(async () => { throw new Error("element was detached from the DOM"); })
+    };
+    const replacement = {
+      first: () => replacement,
+      isVisible: vi.fn(async () => true),
+      click: vi.fn(async () => {})
+    };
+    const candidates = vi.fn()
+      .mockReturnValueOnce([detached])
+      .mockReturnValueOnce([replacement]);
+    const fallback = vi.fn(async () => {});
+
+    await activateLoginSubmit(
+      candidates as never,
+      fallback,
+      async () => false,
+      100,
+      async () => {}
+    );
+
+    expect(detached.click).toHaveBeenCalledOnce();
+    expect(replacement.click).toHaveBeenCalledOnce();
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it("does not submit twice when a failed click already started the login transition", async () => {
+    const detachedAfterDispatch = {
+      first: () => detachedAfterDispatch,
+      isVisible: vi.fn(async () => true),
+      click: vi.fn(async () => { throw new Error("element was detached from the DOM"); })
+    };
+    const candidates = vi.fn(() => [detachedAfterDispatch]);
+    const fallback = vi.fn(async () => {});
+
+    await activateLoginSubmit(
+      candidates as never,
+      fallback,
+      async () => true,
+      100,
+      async () => {}
+    );
+
+    expect(candidates).toHaveBeenCalledOnce();
+    expect(detachedAfterDispatch.click).toHaveBeenCalledOnce();
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
   it("resolves the first visible candidate and skips invisible ones", async () => {
     const hidden = fakeLocator(false, "legacy");
     const visible = fakeLocator(true, "semantic");

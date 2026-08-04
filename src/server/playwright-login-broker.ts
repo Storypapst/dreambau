@@ -233,6 +233,34 @@ export async function resolveVisible(
 }
 
 /**
+ * Activate a login submit control without holding on to a React-owned element
+ * across a render. A failed click may mean the button was replaced after the
+ * visibility probe, so resolve once more before falling back to Enter. Before
+ * either retry, let the caller confirm that the first click did not already
+ * start navigation or reveal the next authentication step.
+ */
+export async function activateLoginSubmit(
+  candidates: () => Locator[],
+  fallback: () => Promise<void>,
+  transitionStarted: () => Promise<boolean>,
+  timeoutMs = 2_000,
+  sleep: (ms: number) => Promise<void> = (ms) => delay(ms)
+): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const submit = await resolveVisible(candidates(), "submit", timeoutMs).catch(() => null);
+    if (!submit) break;
+    try {
+      await submit.click({ timeout: timeoutMs });
+      return;
+    } catch {
+      await sleep(100);
+      if (await transitionStarted()) return;
+    }
+  }
+  await fallback();
+}
+
+/**
  * Describe where a login stalled: the current URL plus any visible alert text.
  * Never includes field values, so it is safe to log.
  */
@@ -271,6 +299,9 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
 
     const preSubmitUrl = page.url();
     const applicationOrigin = new URL(request.loginUrl).origin;
+    const otpWasVisibleBeforeSubmit = (await Promise.all(
+      otpCandidates(page).map((candidate) => candidate.first().isVisible().catch(() => false))
+    )).some(Boolean);
     const postLoginNavigation = page.waitForURL(
       (url) => url.href !== preSubmitUrl && url.origin === applicationOrigin,
       { waitUntil: "domcontentloaded", timeout: 15_000 }
@@ -304,17 +335,28 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
           return;
         }
         await otp.fill(code);
-        const otpSubmit = await resolveVisible(submitCandidates(page), "submit", 2_000).catch(() => null);
-        if (otpSubmit) await otpSubmit.click();
-        else await otp.press("Enter");
+        await activateLoginSubmit(
+          () => submitCandidates(page),
+          () => otp.press("Enter"),
+          async () => page.url() !== preSubmitUrl
+        );
       }
       await postLoginNavigation;
     });
     otpChallenge.catch(() => {});
 
-    const submit = await resolveVisible(submitCandidates(page), "submit", 2_000).catch(() => null);
-    if (submit) await submit.click();
-    else await passwordField.press("Enter");
+    await activateLoginSubmit(
+      () => submitCandidates(page),
+      () => passwordField.press("Enter"),
+      async () => {
+        if (page.url() !== preSubmitUrl) return true;
+        if (otpWasVisibleBeforeSubmit) return false;
+        for (const candidate of otpCandidates(page)) {
+          if (await candidate.first().isVisible().catch(() => false)) return true;
+        }
+        return false;
+      }
+    );
 
     try {
       await Promise.race([
