@@ -13,6 +13,8 @@ ssh m4dreambau 'kubectl logs deployment/testmails -n wcr --tail=100'
 
 Secrets werden ausschließlich aus stdin erzeugt. Das Account-JSON kommt aus Keychain-Service `dreambau-test-mailbox`; der gemeinsame Login aus `dreambau-testmails-auth`. Private S/MIME-Identitäten bleiben im Service `dreambau-test-smime` und werden nie in die Anwendung kopiert.
 
+Welche Postfächer verschlüsselt gespeichert werden, entscheidet ausschließlich `unencryptedDomains`/`unencryptedAccounts` in `src/server/accounts.ts` (Spiegel für das Provisionierungs-Skript: `scripts/mail-encryption-policy.mjs`). Neben `oriso.org` sind dort die Postfächer eingetragen, die als 2FA-E-Mail-OTP-Empfänger in einem Produkt-Realm registriert sind: Verschlüsselung im Ruhezustand macht aus jeder OTP-Mail einen S/MIME-Blob, den keine Testtooling-Seite lesen kann. Diese Postfächer werden mit `encryptionAtRest {"@type":"Disabled"}` provisioniert und bekommen keine S/MIME-Identität.
+
 ## Verifikation
 
 Die unterstützte Node-Version steht in `.nvmrc` und entspricht dem Basis-Image
