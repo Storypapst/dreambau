@@ -331,6 +331,52 @@ describe("Playwright login broker", () => {
     }
   }, 30_000);
 
+  it("clicks a visible Anmelden button without submit semantics", async () => {
+    let received: URL | null = null;
+    const server = createServer((req, res) => {
+      if (req.url?.startsWith("/app")) {
+        received = new URL(req.url, "http://127.0.0.1");
+        res.setHeader("Set-Cookie", "logged_in=1; Path=/; HttpOnly");
+        res.end("signed in");
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.end(`<!doctype html>
+        <form id="login">
+          <label for="username">E-Mail</label>
+          <input id="username" autocomplete="username">
+          <label for="password">Passwort</label>
+          <input id="password" type="password" autocomplete="current-password">
+          <button id="login-button" type="button"><span aria-hidden="true">&#x2192;</span> Anmelden</button>
+        </form>
+        <script>
+          document.querySelector('#login').addEventListener('submit', (event) => event.preventDefault());
+          document.querySelector('#login-button').addEventListener('click', () => {
+            const user = document.querySelector('#username').value;
+            location.href = '/app?u=' + encodeURIComponent(user);
+          });
+        </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-material-login-"));
+    try {
+      await playwrightLogin({
+        username: "lisa.simpson@dreambau.de",
+        password: "material-test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/`,
+        statePath: join(root, "state.json"),
+        ignoreHTTPSErrors: false,
+        getOtp: async () => { throw new Error("OTP should not be requested"); }
+      });
+
+      expect(received?.searchParams.get("u")).toBe("lisa.simpson@dreambau.de");
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 30_000);
+
   it("completes an inline same-origin two-factor login by fetching the code from the broker", async () => {
     let received: URL | null = null;
     const server = createServer((req, res) => {
