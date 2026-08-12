@@ -143,6 +143,8 @@ async function setup(options: {
   writer?: RegistryWriter | null;
   records?: TestAccessRecord[];
   role?: "admin" | "member";
+  projects?: Array<"oriso" | "orimo" | "dreambau">;
+  grantEnvironments?: Array<"local" | "pre-dev" | "dev" | "production-test">;
 } = {}) {
   const lisa = mailbox("lisa.simpson@dreambau.de", "Lisa Simpson");
   const bart = mailbox("bart.simpson@oriso.org", "Bart Simpson");
@@ -174,14 +176,24 @@ async function setup(options: {
   database.upsertMetadata(lisa.email, { project: "ORISO", roles: [], lifecycleStatus: "unused" });
   database.upsertMetadata(bart.email, { project: "ORISO", roles: [], lifecycleStatus: "unused" });
   const passkeyStore = createPasskeyStore(path.join(root, "auth.sqlite"));
+  const projects = options.projects ?? ["oriso", "dreambau"];
   const user = passkeyStore.createUser({
     email: "frank@dreambau.com",
     name: "Frank",
-    projects: ["oriso", "dreambau"],
+    projects,
     role: options.role ?? "admin"
   });
+  if (options.grantEnvironments) {
+    passkeyStore.grants.replaceLocal(user.id, projects.map((project) => ({
+      userId: user.id,
+      project,
+      environments: options.grantEnvironments!,
+      source: "local" as const
+    })));
+  }
   passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
   const service = options.service ?? fakeService();
+  const emailOtpCodes: string[] = [];
   const app = createApp({
     passwordHash: "unused",
     secureCookies: false,
@@ -193,6 +205,8 @@ async function setup(options: {
     orisoProvisioning: service,
     orisoProvisioningServices: options.services,
     webauthn,
+    emailOtpSender: { async send(message) { emailOtpCodes.push(message.code); } },
+    emailOtpHmacKey: "issue-88-email-otp-test-key-with-enough-entropy",
     now: () => new Date("2026-07-29T16:00:00.000Z"),
     rpId: "dreambau.com",
     expectedOrigin: "https://dreambau.com",
@@ -201,7 +215,7 @@ async function setup(options: {
   const agent = request.agent(app);
   const authOptions = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
   await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: authOptions.body.flowId, response: { id: "credential-id" } });
-  return { agent, database, lisa, bart, moe, service, writer, createdRecords, user };
+  return { agent, app, database, lisa, bart, moe, service, writer, createdRecords, user, passkeyStore, emailOtpCodes };
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
@@ -340,19 +354,98 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(service.status).not.toHaveBeenCalled();
   });
 
-  it("requires an administrator passkey session", async () => {
+  it("grants an ORISO-scoped member the same provisioning entitlement exposed by /auth/me", async () => {
     const member = await setup({ role: "member" });
-    const forbidden = await member.agent
+    const currentUser = await member.agent.get("/testmails/api/auth/me");
+    expect(currentUser.status).toBe(200);
+    expect(currentUser.body.entitlements).toEqual({
+      orisoProvisioning: { environments: ["pre-dev", "dev"] }
+    });
+    const status = await member.agent.get(
+      `/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`
+    );
+    expect(status.status).toBe(200);
+
+    const provisioned = await member.agent
       .post(`/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`)
       .send({ environment: "pre-dev", role: "tenant-admin" });
-    expect(forbidden.status).toBe(403);
-    expect(forbidden.body).toEqual({ error: "admin_required" });
+    expect(provisioned.status).toBe(201);
 
     const { lisa } = await setup();
     const anonymous = await request(createApp({ passwordHash: "unused", secureCookies: false, loadAccounts: () => [lisa] }))
       .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
       .send({ environment: "pre-dev", role: "tenant-admin" });
     expect(anonymous.status).toBe(401);
+
+    const recoveryCodes = await member.agent.post("/testmails/api/auth/recovery-codes");
+    const recovery = request.agent(member.app);
+    expect((await recovery.post("/testmails/api/auth/recovery").send({
+      email: member.user.email,
+      code: recoveryCodes.body.codes[0]
+    })).status).toBe(200);
+    const bootstrapDenied = await recovery
+      .post(`/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(bootstrapDenied.status).toBe(403);
+    expect(bootstrapDenied.body).toEqual({ error: "strong_auth_required" });
+  });
+
+  it("denies foreign-project members and ORISO environments outside their server grant", async () => {
+    const foreign = await setup({ role: "member", projects: ["dreambau"] });
+    const foreignResponse = await foreign.agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(foreign.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(foreignResponse.status).toBe(403);
+    expect(foreignResponse.body).toEqual({ error: "oriso_provisioning_required" });
+    expect(foreign.service.provision).not.toHaveBeenCalled();
+
+    const devOnly = await setup({ role: "member", projects: ["oriso"], grantEnvironments: ["dev"] });
+    const currentUser = await devOnly.agent.get("/testmails/api/auth/me");
+    expect(currentUser.body.entitlements).toEqual({
+      orisoProvisioning: { environments: ["dev"] }
+    });
+    const preDevResponse = await devOnly.agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(devOnly.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(preDevResponse.status).toBe(403);
+    expect(preDevResponse.body).toEqual({ error: "oriso_provisioning_environment_denied" });
+    expect(devOnly.service.provision).not.toHaveBeenCalled();
+  });
+
+  it("keeps email-OTP sessions read-only and hides the provisioning entitlement", async () => {
+    const member = await setup({ role: "member", projects: ["oriso"] });
+    const emailOtp = request.agent(member.app);
+    expect((await emailOtp.post("/testmails/api/auth/email-otp/request").send({ email: member.user.email })).status).toBe(202);
+    await vi.waitFor(() => expect(member.emailOtpCodes).toHaveLength(1));
+    expect((await emailOtp.post("/testmails/api/auth/email-otp/verify").send({
+      email: member.user.email,
+      code: member.emailOtpCodes[0]
+    })).status).toBe(200);
+
+    const currentUser = await emailOtp.get("/testmails/api/auth/me");
+    expect(currentUser.body.entitlements).toEqual({ orisoProvisioning: { environments: [] } });
+    const status = await emailOtp.get(
+      `/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`
+    );
+    expect(status.status).toBe(403);
+    expect(status.body).toEqual({ error: "passkey_required" });
+    const mutation = await emailOtp
+      .post(`/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(mutation.status).toBe(403);
+    expect(mutation.body).toEqual({ error: "passkey_required" });
+    expect(member.service.provision).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when an entitled human is disabled after authentication", async () => {
+    const disabled = await setup({ role: "member", projects: ["oriso"] });
+    disabled.passkeyStore.setUserStatus(disabled.user.id, "disabled");
+    const response = await disabled.agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(disabled.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: "user_disabled" });
+    expect(disabled.service.provision).not.toHaveBeenCalled();
   });
 
   it("fails closed without a provisioning service or record writer", async () => {
