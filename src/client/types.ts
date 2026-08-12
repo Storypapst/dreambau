@@ -43,4 +43,8 @@ export interface Taxonomies { roles: string[]; topics: string[]; conversationTyp
 export interface HumanUser {
   id: string; email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">;
   role: "admin" | "member"; status: "active" | "disabled"; createdAt: string;
+  entitlements: HumanEntitlements;
+}
+export interface HumanEntitlements {
+  orisoProvisioning: { environments: Array<"pre-dev" | "dev"> };
 }

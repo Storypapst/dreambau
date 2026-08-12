@@ -9,7 +9,7 @@ import { App } from "../src/client/app.js";
 
 vi.mock("@/api", () => ({ api: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
 vi.mock("@/components/account-directory", () => ({
-  AccountDirectory: ({ initialAccounts, onLogout }: { initialAccounts: unknown[]; onLogout: () => void }) => <div data-testid="directory">accounts:{initialAccounts.length}<button onClick={onLogout}>logout</button></div>
+  AccountDirectory: ({ initialAccounts, onLogout, isAdmin, entitlements }: { initialAccounts: unknown[]; onLogout: () => void; isAdmin: boolean; entitlements: { orisoProvisioning: { environments: string[] } } }) => <div data-testid="directory">accounts:{initialAccounts.length};admin:{String(isAdmin)};oriso:{entitlements.orisoProvisioning.environments.join(",")}<button onClick={onLogout}>logout</button></div>
 }));
 vi.mock("@/components/login-form", () => ({ LoginForm: () => <div>login</div> }));
 vi.mock("@/components/passkey-enrollment", () => ({ PasskeyEnrollment: () => <div>enrollment</div> }));
@@ -42,7 +42,7 @@ describe("App authenticated loading", () => {
       if (path === "/auth/session") return { authenticated: true, method: "passkey", userId: "admin" };
       if (path === "/accounts") return [];
       if (path === "/taxonomies") return { roles: [], topics: [], conversationTypes: [] };
-      if (path === "/auth/me") return { id: "admin", email: "admin@dreambau.com", name: "Admin", projects: ["dreambau"], status: "active", role: "admin", createdAt: "2026-07-15T00:00:00.000Z" };
+      if (path === "/auth/me") return { id: "admin", email: "admin@dreambau.com", name: "Admin", projects: ["dreambau"], status: "active", role: "admin", createdAt: "2026-07-15T00:00:00.000Z", entitlements: { orisoProvisioning: { environments: [] } } };
       throw new Error(`unexpected ${path}`);
     });
 
@@ -59,7 +59,7 @@ describe("App authenticated loading", () => {
       if (path === "/auth/session") return { authenticated: true, method: "passkey", userId: "admin" };
       if (path === "/accounts") return [];
       if (path === "/taxonomies") return { roles: [], topics: [], conversationTypes: [] };
-      if (path === "/auth/me") return { id: "admin", email: "admin@dreambau.com", name: "Admin", projects: ["dreambau"], status: "active", role: "admin", createdAt: "2026-07-15T00:00:00.000Z" };
+      if (path === "/auth/me") return { id: "admin", email: "admin@dreambau.com", name: "Admin", projects: ["dreambau"], status: "active", role: "admin", createdAt: "2026-07-15T00:00:00.000Z", entitlements: { orisoProvisioning: { environments: [] } } };
       throw new Error(`unexpected ${path}`);
     });
 
@@ -91,13 +91,14 @@ describe("App authenticated loading", () => {
       if (path === "/auth/session") return { authenticated: true, method: "email-otp", userId: "member" };
       if (path === "/accounts") return [];
       if (path === "/taxonomies") return { roles: [], topics: [], conversationTypes: [] };
-      if (path === "/auth/me") return { id: "member", email: "bjoern.ludwig@caritas.de", name: "Björn", projects: ["oriso"], status: "active", role: "member", createdAt: "2026-07-20T00:00:00.000Z" };
+      if (path === "/auth/me") return { id: "member", email: "bjoern.ludwig@caritas.de", name: "Björn", projects: ["oriso"], status: "active", role: "member", createdAt: "2026-07-20T00:00:00.000Z", entitlements: { orisoProvisioning: { environments: ["pre-dev", "dev"] } } };
       throw new Error(`unexpected ${path}`);
     });
 
     await act(async () => root.render(<App />));
     await vi.waitFor(() => expect(container.querySelector('[data-testid="directory"]')?.textContent).toContain("accounts:0"));
     expect(container.textContent).not.toContain("enrollment");
+    expect(container.textContent).toContain("admin:false;oriso:pre-dev,dev");
   });
 
   it("clears the remembered login email when the user logs out", async () => {
@@ -106,7 +107,7 @@ describe("App authenticated loading", () => {
       if (path === "/auth/session") return { authenticated: true, method: "passkey", userId: "admin" };
       if (path === "/accounts") return [];
       if (path === "/taxonomies") return { roles: [], topics: [], conversationTypes: [] };
-      if (path === "/auth/me") return { id: "admin", email: "admin@dreambau.com", name: "Admin", projects: ["dreambau"], status: "active", role: "admin", createdAt: "2026-07-15T00:00:00.000Z" };
+      if (path === "/auth/me") return { id: "admin", email: "admin@dreambau.com", name: "Admin", projects: ["dreambau"], status: "active", role: "admin", createdAt: "2026-07-15T00:00:00.000Z", entitlements: { orisoProvisioning: { environments: [] } } };
       throw new Error(`unexpected ${path}`);
     });
 

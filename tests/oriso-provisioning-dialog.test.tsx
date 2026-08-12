@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/api";
@@ -280,14 +280,14 @@ describe("OtpAccess provisioning entry point", () => {
     container.remove();
   });
 
-  it("offers provisioning to administrators on free ORISO mailboxes only", async () => {
+  it("offers provisioning only when the server entitlement covers the mailbox environment", async () => {
     await act(async () => root.render(
-      <OtpAccess account={account()} locale="de" isAdmin onProvisioned={vi.fn()} />
+      <OtpAccess account={account()} locale="de" orisoProvisioningEnvironments={["pre-dev"]} onProvisioned={vi.fn()} />
     ));
     expect(container.textContent).toContain("ORISO-Konto anlegen");
 
     await act(async () => root.render(
-      <OtpAccess account={account()} locale="de" />
+      <OtpAccess account={account()} locale="de" orisoProvisioningEnvironments={[]} onProvisioned={vi.fn()} />
     ));
     expect(container.textContent).not.toContain("ORISO-Konto anlegen");
 
@@ -295,7 +295,7 @@ describe("OtpAccess provisioning entry point", () => {
       <OtpAccess
         account={account({ domain: "dreambau.de", email: "moe.szyslak@dreambau.de", metadata: { ...account().metadata, project: "DREAMBAU" } })}
         locale="de"
-        isAdmin
+        orisoProvisioningEnvironments={["pre-dev"]}
         onProvisioned={vi.fn()}
       />
     ));
@@ -304,9 +304,50 @@ describe("OtpAccess provisioning entry point", () => {
 
   it("keeps the existing 2FA enrollment next to the status control for linked pre-dev accounts", async () => {
     await act(async () => root.render(
-      <OtpAccess account={account({ linkedAccess: [linkedFixture] })} locale="de" isAdmin onProvisioned={vi.fn()} />
+      <OtpAccess account={account({ linkedAccess: [linkedFixture] })} locale="de" orisoProvisioningEnvironments={["pre-dev"]} onProvisioned={vi.fn()} />
     ));
     expect(container.textContent).toContain("2FA hinterlegen");
     expect(container.textContent).toContain("ORISO-Status");
+  });
+
+  it("shows app-password and TOTP controls in the row immediately after linking an existing invitation", async () => {
+    vi.mocked(api).mockResolvedValueOnce({
+      configured: true,
+      supportedRoles: ["tenant-admin"],
+      environment: "pre-dev",
+      state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+      linked: null
+    });
+    vi.mocked(api).mockResolvedValueOnce({
+      created: false,
+      recordCreated: true,
+      state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+      linked: linkedFixture
+    });
+
+    function Harness() {
+      const [current, setCurrent] = useState(account());
+      return <OtpAccess
+        account={current}
+        locale="de"
+        orisoProvisioningEnvironments={["pre-dev"]}
+        onProvisioned={(_email, linked) => setCurrent((value) => ({ ...value, linkedAccess: [linked] }))}
+      />;
+    }
+
+    await act(async () => root.render(<Harness />));
+    const trigger = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("ORISO-Konto anlegen"));
+    await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("noch kein Test-Access-Record"));
+
+    const link = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Test-Access-Record verknüpfen"));
+    await act(async () => link?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(container.textContent).toContain("ORISO-App-Passwort"));
+    expect(container.textContent).toContain("2FA hinterlegen");
+    expect(container.textContent).toContain("ORISO-Status");
+    expect(api).toHaveBeenCalledTimes(2);
   });
 });

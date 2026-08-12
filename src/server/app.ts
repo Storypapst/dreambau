@@ -29,6 +29,7 @@ import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount }
 import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
+import { canProvisionOriso, humanEntitlementsFor, type HumanEntitlements } from "./human-entitlements.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
 import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.js";
 import {
@@ -130,7 +131,8 @@ export function createApp(options: AppOptions = {}) {
     webauthn: options.webauthn,
     now: options.now,
     bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" },
-    syncHumanUser
+    syncHumanUser,
+    entitlementsFor: (user) => humanEntitlementsFor(user, passkeyStore.grants)
   });
   installEmailOtpAuth(api, {
     store: passkeyStore,
@@ -169,6 +171,16 @@ export function createApp(options: AppOptions = {}) {
       if ((res.locals.humanUser as HumanUser).role !== "admin") {
         return res.status(403).json({ error: "admin_required" });
       }
+      next();
+    });
+  const requireOrisoProvisioningSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
+    requireActiveHumanSession(req, res, () => {
+      const user = res.locals.humanUser as HumanUser;
+      const entitlements = humanEntitlementsFor(user, passkeyStore.grants);
+      if (entitlements.orisoProvisioning.environments.length === 0) {
+        return res.status(403).json({ error: "oriso_provisioning_required" });
+      }
+      res.locals.humanEntitlements = entitlements;
       next();
     });
   const accountViews = () => accountLoader().map((account) => ({ ...account, metadata: database.getMetadata(account.email) }));
@@ -424,13 +436,16 @@ export function createApp(options: AppOptions = {}) {
     res.status(status).json({ error: error.code });
     return true;
   };
-  api.get("/accounts/:email/oriso-provisioning", requireAdminSession, async (req, res, next) => {
+  api.get("/accounts/:email/oriso-provisioning", requireOrisoProvisioningSession, async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
     const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
     if (!current) return res.status(404).json({ error: "account_not_found" });
     const environment = environmentForOrisoEmail(email);
     if (!environment) return res.status(422).json({ error: "environment_not_supported" });
+    if (!canProvisionOriso(res.locals.humanEntitlements as HumanEntitlements, environment)) {
+      return res.status(403).json({ error: "oriso_provisioning_environment_denied" });
+    }
     if (viewProject(current) !== "oriso") return res.status(422).json({ error: "mailbox_project_mismatch" });
     const orisoProvisioning = orisoProvisioningServices[environment];
     res.set("Cache-Control", "no-store");
@@ -455,7 +470,7 @@ export function createApp(options: AppOptions = {}) {
       next(error);
     }
   });
-  api.post("/accounts/:email/oriso-provisioning", requireAdminSession, async (req, res, next) => {
+  api.post("/accounts/:email/oriso-provisioning", requireOrisoProvisioningSession, async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
     const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
@@ -468,6 +483,9 @@ export function createApp(options: AppOptions = {}) {
     }
     const environment = environmentForOrisoEmail(email);
     if (!environment) return res.status(422).json({ error: "environment_not_supported" });
+    if (!canProvisionOriso(res.locals.humanEntitlements as HumanEntitlements, environment)) {
+      return res.status(403).json({ error: "oriso_provisioning_environment_denied" });
+    }
     if (body.environment !== environment) return res.status(422).json({ error: "environment_mismatch", environment });
     if (viewProject(current) !== "oriso") return res.status(422).json({ error: "mailbox_project_mismatch" });
     const orisoProvisioning = orisoProvisioningServices[environment];

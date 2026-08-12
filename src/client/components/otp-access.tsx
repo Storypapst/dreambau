@@ -3,7 +3,7 @@ import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIco
 import { toast } from "sonner";
 import { api } from "@/api";
 import { labelLinkedEnvironment, type Locale } from "@/i18n";
-import type { AccountView, LinkedTestAccount, OtpResponse } from "@/types";
+import type { AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "./copy-button";
@@ -18,15 +18,23 @@ function isOrisoScoped(account: AccountView) {
   return account.domain === "oriso.org" || account.domain === "openresilience.cc";
 }
 
-export function OtpAccess({ account, locale, compact = false, isAdmin = false, onProvisioned }: {
+function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null {
+  if (!isOrisoScoped(account)) return null;
+  if (account.domain === "dreambau.com" || account.domain === "dreambau.de") return "pre-dev";
+  if (account.domain === "oriso.org" || account.domain === "openresilience.cc") return "dev";
+  return null;
+}
+
+export function OtpAccess({ account, locale, compact = false, orisoProvisioningEnvironments = [], onProvisioned }: {
   account: AccountView;
   locale: Locale;
   compact?: boolean;
-  isAdmin?: boolean;
+  orisoProvisioningEnvironments?: HumanEntitlements["orisoProvisioning"]["environments"];
   onProvisioned?: (email: string, linked: LinkedTestAccount) => void;
 }) {
   const linked = account.linkedAccess?.[0];
-  const provisioningDialog = isAdmin && onProvisioned && isOrisoScoped(account)
+  const environment = orisoEnvironment(account);
+  const provisioningDialog = environment && orisoProvisioningEnvironments.includes(environment) && onProvisioned
     && (!linked || (linked.project === "oriso" && linked.environment === "pre-dev" && !linked.hasTotp))
     ? <OrisoProvisioningDialog account={account} locale={locale} hasLinkedAccess={Boolean(linked)} onProvisioned={onProvisioned} />
     : null;
