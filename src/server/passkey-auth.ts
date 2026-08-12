@@ -41,7 +41,7 @@ export function installPasskeyAuth(router: Router, options: {
   now?: () => Date;
   bootstrapUser: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
   syncHumanUser?: (user: import("./passkey-store.js").HumanUser) => Promise<import("./passkey-store.js").HumanUser>;
-  entitlementsFor?: (user: import("./passkey-store.js").HumanUser) => HumanEntitlements;
+  entitlementsFor?: (user: import("./passkey-store.js").HumanUser, principal: SessionPrincipal) => HumanEntitlements;
 }) {
   const webauthn = options.webauthn ?? defaultWebAuthn;
   const now = options.now ?? (() => new Date());
@@ -263,6 +263,6 @@ export function installPasskeyAuth(router: Router, options: {
     if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
     try { if (options.syncHumanUser) user = await options.syncHumanUser(user); }
     catch { return res.status(503).json({ error: "human_access_unavailable" }); }
-    res.json({ ...user, entitlements: options.entitlementsFor?.(user) });
+    res.json({ ...user, entitlements: options.entitlementsFor?.(user, principal) });
   });
 }

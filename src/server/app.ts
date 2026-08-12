@@ -132,7 +132,7 @@ export function createApp(options: AppOptions = {}) {
     now: options.now,
     bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" },
     syncHumanUser,
-    entitlementsFor: (user) => humanEntitlementsFor(user, passkeyStore.grants)
+    entitlementsFor: (user, principal) => humanEntitlementsFor(user, passkeyStore.grants, principal.method)
   });
   installEmailOtpAuth(api, {
     store: passkeyStore,
@@ -176,7 +176,11 @@ export function createApp(options: AppOptions = {}) {
   const requireOrisoProvisioningSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
     requireActiveHumanSession(req, res, () => {
       const user = res.locals.humanUser as HumanUser;
-      const entitlements = humanEntitlementsFor(user, passkeyStore.grants);
+      const principal = res.locals.session as SessionPrincipal;
+      if (principal.method !== "passkey") {
+        return res.status(403).json({ error: "passkey_required" });
+      }
+      const entitlements = humanEntitlementsFor(user, passkeyStore.grants, principal.method);
       if (entitlements.orisoProvisioning.environments.length === 0) {
         return res.status(403).json({ error: "oriso_provisioning_required" });
       }

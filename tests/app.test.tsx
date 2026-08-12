@@ -91,14 +91,14 @@ describe("App authenticated loading", () => {
       if (path === "/auth/session") return { authenticated: true, method: "email-otp", userId: "member" };
       if (path === "/accounts") return [];
       if (path === "/taxonomies") return { roles: [], topics: [], conversationTypes: [] };
-      if (path === "/auth/me") return { id: "member", email: "bjoern.ludwig@caritas.de", name: "Björn", projects: ["oriso"], status: "active", role: "member", createdAt: "2026-07-20T00:00:00.000Z", entitlements: { orisoProvisioning: { environments: ["pre-dev", "dev"] } } };
+      if (path === "/auth/me") return { id: "member", email: "bjoern.ludwig@caritas.de", name: "Björn", projects: ["oriso"], status: "active", role: "member", createdAt: "2026-07-20T00:00:00.000Z", entitlements: { orisoProvisioning: { environments: [] } } };
       throw new Error(`unexpected ${path}`);
     });
 
     await act(async () => root.render(<App />));
     await vi.waitFor(() => expect(container.querySelector('[data-testid="directory"]')?.textContent).toContain("accounts:0"));
     expect(container.textContent).not.toContain("enrollment");
-    expect(container.textContent).toContain("admin:false;oriso:pre-dev,dev");
+    expect(container.textContent).toContain("admin:false;oriso:");
   });
 
   it("clears the remembered login email when the user logs out", async () => {

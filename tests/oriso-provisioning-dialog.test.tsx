@@ -310,6 +310,26 @@ describe("OtpAccess provisioning entry point", () => {
     expect(container.textContent).toContain("ORISO-Status");
   });
 
+  it("keeps the status control for an incomplete linked Dev account", async () => {
+    const devAccount = account({
+      email: "bart.simpson@oriso.org",
+      domain: "oriso.org",
+      metadata: { ...account().metadata, email: "bart.simpson@oriso.org", project: "ORISO" },
+      linkedAccess: [{
+        ...linkedFixture,
+        id: "oriso/dev/bart.simpson",
+        environment: "dev",
+        email: "bart.simpson@oriso.org",
+        username: "bart.simpson@oriso.org",
+        hasTotp: false
+      }]
+    });
+    await act(async () => root.render(
+      <OtpAccess account={devAccount} locale="de" orisoProvisioningEnvironments={["dev"]} onProvisioned={vi.fn()} />
+    ));
+    expect(container.textContent).toContain("ORISO-Status");
+  });
+
   it("shows app-password and TOTP controls in the row immediately after linking an existing invitation", async () => {
     vi.mocked(api).mockResolvedValueOnce({
       configured: true,

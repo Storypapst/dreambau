@@ -35,7 +35,7 @@ export function OtpAccess({ account, locale, compact = false, orisoProvisioningE
   const linked = account.linkedAccess?.[0];
   const environment = orisoEnvironment(account);
   const provisioningDialog = environment && orisoProvisioningEnvironments.includes(environment) && onProvisioned
-    && (!linked || (linked.project === "oriso" && linked.environment === "pre-dev" && !linked.hasTotp))
+    && (!linked || (linked.project === "oriso" && linked.environment === environment && !linked.hasTotp))
     ? <OrisoProvisioningDialog account={account} locale={locale} hasLinkedAccess={Boolean(linked)} onProvisioned={onProvisioned} />
     : null;
   const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);

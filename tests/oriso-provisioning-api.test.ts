@@ -193,6 +193,7 @@ async function setup(options: {
   }
   passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
   const service = options.service ?? fakeService();
+  const emailOtpCodes: string[] = [];
   const app = createApp({
     passwordHash: "unused",
     secureCookies: false,
@@ -204,6 +205,8 @@ async function setup(options: {
     orisoProvisioning: service,
     orisoProvisioningServices: options.services,
     webauthn,
+    emailOtpSender: { async send(message) { emailOtpCodes.push(message.code); } },
+    emailOtpHmacKey: "issue-88-email-otp-test-key-with-enough-entropy",
     now: () => new Date("2026-07-29T16:00:00.000Z"),
     rpId: "dreambau.com",
     expectedOrigin: "https://dreambau.com",
@@ -212,7 +215,7 @@ async function setup(options: {
   const agent = request.agent(app);
   const authOptions = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
   await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: authOptions.body.flowId, response: { id: "credential-id" } });
-  return { agent, app, database, lisa, bart, moe, service, writer, createdRecords, user, passkeyStore };
+  return { agent, app, database, lisa, bart, moe, service, writer, createdRecords, user, passkeyStore, emailOtpCodes };
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
@@ -407,6 +410,31 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(preDevResponse.status).toBe(403);
     expect(preDevResponse.body).toEqual({ error: "oriso_provisioning_environment_denied" });
     expect(devOnly.service.provision).not.toHaveBeenCalled();
+  });
+
+  it("keeps email-OTP sessions read-only and hides the provisioning entitlement", async () => {
+    const member = await setup({ role: "member", projects: ["oriso"] });
+    const emailOtp = request.agent(member.app);
+    expect((await emailOtp.post("/testmails/api/auth/email-otp/request").send({ email: member.user.email })).status).toBe(202);
+    await vi.waitFor(() => expect(member.emailOtpCodes).toHaveLength(1));
+    expect((await emailOtp.post("/testmails/api/auth/email-otp/verify").send({
+      email: member.user.email,
+      code: member.emailOtpCodes[0]
+    })).status).toBe(200);
+
+    const currentUser = await emailOtp.get("/testmails/api/auth/me");
+    expect(currentUser.body.entitlements).toEqual({ orisoProvisioning: { environments: [] } });
+    const status = await emailOtp.get(
+      `/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`
+    );
+    expect(status.status).toBe(403);
+    expect(status.body).toEqual({ error: "passkey_required" });
+    const mutation = await emailOtp
+      .post(`/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(mutation.status).toBe(403);
+    expect(mutation.body).toEqual({ error: "passkey_required" });
+    expect(member.service.provision).not.toHaveBeenCalled();
   });
 
   it("fails closed when an entitled human is disabled after authentication", async () => {

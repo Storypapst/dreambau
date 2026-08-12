@@ -1,5 +1,6 @@
 import type { HumanGrantStore, TestEnvironment } from "./human-grants.js";
 import type { HumanUser } from "./passkey-store.js";
+import type { SessionPrincipal } from "./sessions.js";
 
 export const ORISO_PROVISIONING_ENVIRONMENTS = ["pre-dev", "dev"] as const;
 export type OrisoProvisioningEntitlementEnvironment = typeof ORISO_PROVISIONING_ENVIRONMENTS[number];
@@ -10,8 +11,12 @@ export interface HumanEntitlements {
   };
 }
 
-export function humanEntitlementsFor(user: HumanUser, grants: HumanGrantStore): HumanEntitlements {
-  const grantedEnvironments = user.status === "active"
+export function humanEntitlementsFor(
+  user: HumanUser,
+  grants: HumanGrantStore,
+  sessionMethod: SessionPrincipal["method"]
+): HumanEntitlements {
+  const grantedEnvironments = user.status === "active" && sessionMethod === "passkey"
     ? grants.effective(user.id).find((grant) => grant.project === "oriso")?.environments ?? []
     : [];
   return {
