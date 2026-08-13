@@ -62,11 +62,12 @@ describe("MetadataEditor", () => {
       />
     ));
 
-    const saveButton = Array.from(document.querySelectorAll("button"))
-      .find((button) => button.textContent === "Speichern");
-    const firstField = document.querySelector("#version");
+    const form = document.querySelector("[data-slot=sheet-content] form");
+    const saveButton = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const firstField = form?.querySelector<HTMLInputElement>("#version");
 
-    expect(saveButton).toBeDefined();
+    expect(form).not.toBeNull();
+    expect(saveButton).not.toBeNull();
     expect(firstField).not.toBeNull();
     expect(saveButton?.compareDocumentPosition(firstField!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
