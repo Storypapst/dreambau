@@ -133,6 +133,52 @@ describe("OrisoProvisioningDialog", () => {
     );
   });
 
+  it("lets an operator verify or restore a ready linked account with its fixed role", async () => {
+    const platformState = {
+      ...readyStateFixture(),
+      role: "platform-admin" as const,
+      targetRole: "PLATFORM_ADMIN",
+      inviteStatus: "DIRECT_RECONCILED"
+    };
+    const platformLinked = {
+      ...linkedFixture,
+      displayName: "Lisa Simpson — ORISO PreDev platform-admin",
+      roles: ["platform-admin"],
+      hasTotp: true
+    };
+    vi.mocked(api).mockResolvedValueOnce({
+      configured: true,
+      supportedRoles: ["platform-admin", "tenant-admin"],
+      environment: "pre-dev",
+      state: platformState,
+      linked: platformLinked
+    });
+    vi.mocked(api).mockResolvedValueOnce({
+      created: true,
+      recordCreated: false,
+      state: { ...platformState, inviteStatus: "DIRECT_CREATED" },
+      linked: platformLinked
+    });
+
+    await act(async () => root.render(
+      <OrisoProvisioningDialog account={account()} locale="de" hasLinkedAccess onProvisioned={vi.fn()} />
+    ));
+    const trigger = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("ORISO-Status"));
+    await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Gespeicherter Status"));
+    const restore = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Konto live prüfen & ggf. wiederherstellen"));
+    await act(async () => restore?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(api).toHaveBeenCalledWith(
+      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
+      { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "platform-admin" }) }
+    ));
+    expect(document.body.textContent).toContain("Live geprüft");
+  });
+
   it("shows the two-factor-pending state with the enrollment next step", async () => {
     vi.mocked(api).mockResolvedValueOnce({
       configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
@@ -307,6 +353,18 @@ describe("OtpAccess provisioning entry point", () => {
       <OtpAccess account={account({ linkedAccess: [linkedFixture] })} locale="de" orisoProvisioningEnvironments={["pre-dev"]} onProvisioned={vi.fn()} />
     ));
     expect(container.textContent).toContain("2FA hinterlegen");
+    expect(container.textContent).toContain("ORISO-Status");
+  });
+
+  it("keeps the status control for a ready linked PreDev account", async () => {
+    await act(async () => root.render(
+      <OtpAccess
+        account={account({ linkedAccess: [{ ...linkedFixture, hasTotp: true }] })}
+        locale="de"
+        orisoProvisioningEnvironments={["pre-dev"]}
+        onProvisioned={vi.fn()}
+      />
+    ));
     expect(container.textContent).toContain("ORISO-Status");
   });
 
