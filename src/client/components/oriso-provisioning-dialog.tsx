@@ -186,6 +186,7 @@ export function OrisoProvisioningDialog({
   async function provision(selectedRole: OrisoProvisioningRole) {
     setBusy(true);
     setError(null);
+    setLiveVerified(false);
     try {
       const result = await api<OrisoProvisioningResult>(
         `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,

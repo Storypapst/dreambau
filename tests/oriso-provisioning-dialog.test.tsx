@@ -176,7 +176,7 @@ describe("OrisoProvisioningDialog", () => {
       `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
       { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "platform-admin" }) }
     ));
-    expect(document.body.textContent).toContain("Live geprüft");
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Live geprüft"));
   });
 
   it("shows the two-factor-pending state with the enrollment next step", async () => {
