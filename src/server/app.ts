@@ -255,6 +255,24 @@ export function createApp(options: AppOptions = {}) {
       .filter((record) => ids.has(record.id))
       .filter((record) => record.kind === "app-user" || record.kind === "admin");
   };
+  const linkedForAccountView = (
+    account: ReturnType<typeof accountViews>[number],
+    records: TestAccessRecord[],
+    user: HumanUser
+  ) => {
+    const project = viewProject(account);
+    const environment = project === "oriso"
+      ? account.domain === "dreambau.de" || account.domain === "dreambau.com"
+        ? "pre-dev"
+        : account.domain === "oriso.org" || account.domain === "openresilience.cc"
+          ? "dev"
+          : null
+      : null;
+    return linkedFromStore(account.email, records)
+      .filter((record) => record.project === project)
+      .filter((record) => environment === null || record.environment === environment)
+      .filter((record) => user.projects.includes(record.project));
+  };
   app.get("/testmails/health/ready", async (_req, res) => {
     try {
       if (registryProvider.health) await registryProvider.health();
@@ -280,8 +298,7 @@ export function createApp(options: AppOptions = {}) {
       const records = await registryProvider.list();
       reconcileRecords(records);
       res.json(scopedAccountViews(user).map((account) => {
-        const linked = linkedFromStore(account.email, records)
-          .filter((record) => user.projects.includes(record.project));
+        const linked = linkedForAccountView(account, records, user);
         // The roles a mailbox can actually sign in with are shown alongside the
         // roles recorded in the catalog. Recovered from the running image
         // (Package A run-state §5.3).
@@ -315,8 +332,7 @@ export function createApp(options: AppOptions = {}) {
       const parsed = z.object({ accountId: z.string().min(1).max(240) }).parse(req.query);
       const records = await registryProvider.list();
       reconcileRecords(records);
-      const selected = linkedFromStore(email, records)
-        .filter((record) => user.projects.includes(record.project))
+      const selected = linkedForAccountView(current, records, user)
         .find((record) => record.id === parsed.accountId);
       if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
       const accessedAt = options.now?.() ?? new Date();
@@ -349,8 +365,7 @@ export function createApp(options: AppOptions = {}) {
       const parsed = humanTotpEnrollmentSchema.parse(req.body);
       const records = await registryProvider.list();
       reconcileRecords(records);
-      const selected = linkedFromStore(email, records)
-        .filter((record) => user.projects.includes(record.project))
+      const selected = linkedForAccountView(current, records, user)
         .find((record) => record.id === parsed.accountId);
       if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
       const result = await enrollTotpForRecord({
@@ -385,8 +400,7 @@ export function createApp(options: AppOptions = {}) {
       const parsed = humanOtpQuerySchema.parse(req.query);
       const records = await registryProvider.list();
       reconcileRecords(records);
-      const linked = linkedFromStore(email, records)
-        .filter((record) => user.projects.includes(record.project));
+      const linked = linkedForAccountView(current, records, user);
       const selected = parsed.accountId
         ? linked.find((record) => record.id === parsed.accountId)
         : linked[0];
