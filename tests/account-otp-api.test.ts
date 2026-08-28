@@ -52,6 +52,24 @@ function appRecord(email: string): TestAccessRecord {
   };
 }
 
+function crossEnvironmentRecords(email: string) {
+  const preDevConsultant = {
+    ...appRecord(email),
+    id: "oriso/pre-dev/abe.simpson-dreambau.de",
+    environment: "pre-dev" as const,
+    kind: "app-user" as const,
+    roles: ["consultant"]
+  };
+  const devAdviceSeeker = {
+    ...appRecord(email),
+    id: "oriso/dev/dev_ai_202823_r2_02",
+    environment: "dev" as const,
+    kind: "app-user" as const,
+    roles: ["user"]
+  };
+  return { preDevConsultant, devAdviceSeeker };
+}
+
 const webauthn: WebAuthnAdapter = {
   generateRegistrationOptions: vi.fn(async () => ({ challenge: "registration" })),
   verifyRegistrationResponse: vi.fn(async () => ({ verified: false })),
@@ -99,6 +117,36 @@ async function authenticatedSetup(options: {
 }
 
 describe("human Springfield OTP access", () => {
+  it("keeps Dev roles out of a PreDev mailbox row with the same email", async () => {
+    const email = "abe.simpson@dreambau.de";
+    const { preDevConsultant, devAdviceSeeker } = crossEnvironmentRecords(email);
+    const { agent } = await authenticatedSetup({ records: [preDevConsultant, devAdviceSeeker] });
+
+    const response = await agent.get("/testmails/api/accounts");
+
+    expect(response.status).toBe(200);
+    expect(response.body[0].metadata.roles).toEqual(["Berater"]);
+    expect(response.body[0].linkedAccess).toHaveLength(1);
+    expect(response.body[0].linkedAccess[0]).toMatchObject({
+      id: preDevConsultant.id,
+      environment: "pre-dev",
+      roles: ["consultant"]
+    });
+  });
+
+  it("does not expose a Dev credential through the matching PreDev mailbox row", async () => {
+    const email = "abe.simpson@dreambau.de";
+    const { preDevConsultant, devAdviceSeeker } = crossEnvironmentRecords(email);
+    const { agent } = await authenticatedSetup({ records: [preDevConsultant, devAdviceSeeker] });
+
+    const response = await agent.get(
+      `/testmails/api/accounts/${encodeURIComponent(email)}/application-secret?accountId=${encodeURIComponent(devAdviceSeeker.id)}`
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "linked_account_not_found" });
+  });
+
   it("shows the linked app login and returns a short-lived TOTP without exposing its seed", async () => {
     const { agent, database, abe, record } = await authenticatedSetup();
 
