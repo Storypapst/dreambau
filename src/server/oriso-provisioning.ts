@@ -438,12 +438,35 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     });
   }
 
+  async function managedCredentialToken(record: TestAccessRecord, totpSecret: string) {
+    const credential = await credentialToken(record, totpSecret);
+    if (credential.kind === "rejected") return credential;
+    const profile = await userJson(credential.token, "/users/data");
+    if (profile.ok) return credential;
+    if (profile.status === 401 || profile.status === 403 || profile.status === 404) {
+      return { kind: "rejected" as const, status: profile.status };
+    }
+    // A transient or unknown product-API failure must not trigger account
+    // creation. Only a definitive missing/rejected profile is stale.
+    throw new OrisoProvisioningError("oriso_authentication_failed");
+  }
+
   async function retryAuthenticatedToken(record: TestAccessRecord, totpSecret?: string) {
     let probe = await credentialToken(record, totpSecret);
     for (const delay of provisioningRetryDelaysMs) {
       if (probe.kind === "authenticated") return probe.token;
       await sleep(delay);
       probe = await credentialToken(record, totpSecret);
+    }
+    return probe.kind === "authenticated" ? probe.token : null;
+  }
+
+  async function retryManagedCredentialToken(record: TestAccessRecord, totpSecret: string) {
+    let probe = await managedCredentialToken(record, totpSecret);
+    for (const delay of provisioningRetryDelaysMs) {
+      if (probe.kind === "authenticated") return probe.token;
+      await sleep(delay);
+      probe = await managedCredentialToken(record, totpSecret);
     }
     return probe.kind === "authenticated" ? probe.token : null;
   }
@@ -613,16 +636,27 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         throw new OrisoProvisioningError("account_create_failed");
       }
 
-      // A successful login with the stored TOTP proves that the account is
-      // already fully managed and makes repeated provisioning idempotent.
+      // Authentication can outlive the application user after deletion. A
+      // ready record is idempotent only when both the stored credentials and
+      // the ORISO user-profile endpoint are live.
+      let staleManagedAccount = false;
       if (input.record.totpSecret) {
-        const verified = await credentialToken(input.record, input.record.totpSecret);
+        const verified = await managedCredentialToken(input.record, input.record.totpSecret);
         if (verified.kind === "authenticated") {
           return { created: false, state: directStateView(input.record, input.role, "DIRECT_RECONCILED") };
         }
+        // A pending record may have stored its seed immediately before 2FA
+        // activation; in that recovery state the password-only probe must
+        // still be allowed to resume activation. Only a previously ready
+        // record can represent the deleted-product-user stale state.
+        staleManagedAccount = input.record.provisioningStatus === "ready";
       }
 
-      const initialProbe = await credentialToken(input.record);
+      // Do not let an orphaned authentication identity suppress creation after
+      // the product profile probe proved stale.
+      const initialProbe = staleManagedAccount
+        ? { kind: "rejected" as const, status: 404 }
+        : await credentialToken(input.record);
       let userToken = initialProbe.kind === "authenticated" ? initialProbe.token : null;
       let created = false;
       if (!userToken) {
@@ -656,7 +690,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           if (!relationResponse.ok) throw new OrisoProvisioningError("account_create_failed");
         }
         created = true;
-        const postCreateToken = await retryAuthenticatedToken(input.record);
+        const postCreateToken = await retryAuthenticatedToken(input.record, input.record.totpSecret);
         if (!postCreateToken) {
           throw new OrisoProvisioningError("account_credentials_mismatch");
         }
@@ -691,7 +725,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       if (!totpSecret) throw new OrisoProvisioningError("totp_setup_failed");
       await activateTotpWithRetry(input.record, userToken, totpSecret);
 
-      const verifiedToken = await retryAuthenticatedToken(input.record, totpSecret);
+      const verifiedToken = await retryManagedCredentialToken(input.record, totpSecret);
       if (!verifiedToken) {
         throw new OrisoProvisioningError("totp_verification_failed");
       }

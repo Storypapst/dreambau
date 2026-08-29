@@ -434,6 +434,161 @@ describe("service construction", () => {
 });
 
 describe("reusable ORISO PreDev account factory", () => {
+  it("reprovisions a same-role ready record when auth survives but the ORISO user profile is stale", async () => {
+    let accountCreated = false;
+    let createCalls = 0;
+    const storedTotp = generatedOrisoTotpSecret;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        if (!form.get("otp")) return { ok: false, status: 401, async json() { return {}; } };
+        return ok({ access_token: "user-token", expires_in: 300 });
+      }
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        return accountCreated
+          ? ok({ twoFactorAuth: { secret: storedTotp } })
+          : { ok: false, status: 404, async json() { return {}; } };
+      }
+      if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
+        createCalls += 1;
+        const body = JSON.parse(String(init.body));
+        expect(body).toMatchObject({
+          username: "maggie.simpson@dreambau.de",
+          password: "fixed-same-role-password",
+          tenantId: 7
+        });
+        accountCreated = true;
+        return ok({ _embedded: { id: "recreated-tenant-admin" } });
+      }
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") return ok();
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-30T05:00:00.000Z"), {
+      provisioningRetryDelaysMs: []
+    });
+    const record = buildProvisionedRecord({
+      email: "maggie.simpson@dreambau.de",
+      displayName: "Maggie Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "fixed-same-role-password"
+    });
+    Object.assign(record, { totpSecret: storedTotp, provisioningStatus: "ready" as const });
+
+    const result = await subject.provision({
+      record,
+      firstName: "Maggie",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    });
+
+    expect(result).toMatchObject({
+      created: true,
+      state: { state: "ready", inviteStatus: "DIRECT_CREATED", role: "tenant-admin" }
+    });
+    expect(createCalls).toBe(1);
+  });
+
+  it("keeps a same-role ready account idempotent only after token and user-profile probes succeed", async () => {
+    let createCalls = 0;
+    let profileCalls = 0;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        return ok({ access_token: "verified-user-token", expires_in: 300 });
+      }
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        profileCalls += 1;
+        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+      }
+      if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
+        createCalls += 1;
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "maggie.simpson@dreambau.de",
+      displayName: "Maggie Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "fixed-same-role-password"
+    });
+    Object.assign(record, { totpSecret: generatedOrisoTotpSecret, provisioningStatus: "ready" as const });
+
+    const result = await subject.provision({
+      record,
+      firstName: "Maggie",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    });
+
+    expect(result).toMatchObject({
+      created: false,
+      state: { state: "ready", inviteStatus: "DIRECT_RECONCILED" }
+    });
+    expect(profileCalls).toBe(1);
+    expect(createCalls).toBe(0);
+  });
+
+  it("fails closed when a same-role account appears while stale-state reprovisioning starts", async () => {
+    let createCalls = 0;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        return ok({ access_token: "orphaned-user-token", expires_in: 300 });
+      }
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        return { ok: false, status: 404, async json() { return {}; } };
+      }
+      if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
+        createCalls += 1;
+        return { ok: false, status: 409, async json() { return {}; } };
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "maggie.simpson@dreambau.de",
+      displayName: "Maggie Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "fixed-same-role-password"
+    });
+    Object.assign(record, { totpSecret: generatedOrisoTotpSecret, provisioningStatus: "ready" as const });
+
+    await expect(subject.provision({
+      record,
+      firstName: "Maggie",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+    expect(createCalls).toBe(1);
+  });
+
   it("runs the real account factory against the configured Dev target", async () => {
     let accountCreated = false;
     let totpActive = false;
@@ -894,6 +1049,9 @@ describe("reusable ORISO PreDev account factory", () => {
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         totpActive = true;
         return ok();
+      }
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        return ok({ twoFactorAuth: { secret: adminTotpSecret } });
       }
       return { ok: false, status: 409, async json() { return {}; } };
     };
