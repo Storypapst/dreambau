@@ -114,6 +114,7 @@ export function OrisoProvisioningDialog({
   const [otp, setOtp] = useState<{ code: string; expiresAt?: number } | null>(null);
   const [otpWaitingUntil, setOtpWaitingUntil] = useState<number | null>(null);
   const [otpError, setOtpError] = useState(false);
+  const [liveVerified, setLiveVerified] = useState(false);
   const environment = view?.environment
     ?? (account.domain === "oriso.org" || account.domain === "openresilience.cc" ? "dev" : "pre-dev");
   const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
@@ -135,6 +136,7 @@ export function OrisoProvisioningDialog({
     setOtp(null);
     setOtpWaitingUntil(null);
     setOtpError(false);
+    setLiveVerified(false);
     if (value) {
       setView(null);
       void load();
@@ -184,12 +186,14 @@ export function OrisoProvisioningDialog({
   async function provision(selectedRole: OrisoProvisioningRole) {
     setBusy(true);
     setError(null);
+    setLiveVerified(false);
     try {
       const result = await api<OrisoProvisioningResult>(
         `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
         { method: "POST", body: JSON.stringify({ environment, role: selectedRole }) }
       );
       setView((current) => current ? { ...current, state: result.state, linked: result.linked } : current);
+      setLiveVerified(true);
       onProvisioned(account.email, result.linked);
     } catch {
       setError(locale === "de"
@@ -224,6 +228,22 @@ export function OrisoProvisioningDialog({
           : `ORISO provisioning is not configured for ${environmentLabel} on this server.`}
       </p>}
       {view?.configured && view.state && <StateSummary state={view.state} locale={locale} environment={view.environment} />}
+      {view?.configured && view.state && view.linked?.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
+        <p className="text-sm font-medium">
+          {liveVerified
+            ? (locale === "de" ? "Live geprüft" : "Verified live")
+            : (locale === "de" ? "Gespeicherter Status" : "Stored status")}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {liveVerified
+            ? (locale === "de"
+                ? "Die gespeicherten Zugangsdaten wurden gerade gegen die aktuelle ORISO-Umgebung geprüft."
+                : "The stored credentials were just verified against the current ORISO environment.")
+            : (locale === "de"
+                ? "„Bereit“ stammt aus dem Test-Access-Record und überlebt einen Neuaufbau der ORISO-Umgebung. Die Live-Prüfung unten stellt ein fehlendes Konto mit derselben Rolle, demselben Passwort und demselben TOTP wieder her."
+                : "“Ready” comes from the Test Access record and survives an ORISO environment rebuild. The live check below restores a missing account with the same role, password, and TOTP.")}
+        </p>
+      </div>}
       {view?.configured && view.state && !view.linked && view.state.role && <p className="text-sm text-muted-foreground">
         {locale === "de"
           ? "Für dieses ORISO-Konto existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen das fest zugewiesene ORISO-App-Passwort und „2FA hinterlegen“ in der Zeile."
@@ -304,6 +324,12 @@ export function OrisoProvisioningDialog({
           {busy
             ? (locale === "de" ? "Wird verknüpft…" : "Linking…")
             : (locale === "de" ? "Test-Access-Record verknüpfen" : "Link Test Access record")}
+        </Button>}
+        {view?.configured && view.state?.role && view.linked?.hasTotp && <Button type="button" onClick={() => provision(view.state!.role!)} disabled={busy}>
+          <RefreshCwIcon data-icon="inline-start" />
+          {busy
+            ? (locale === "de" ? "Wird live geprüft…" : "Verifying live…")
+            : (locale === "de" ? "Konto live prüfen & ggf. wiederherstellen" : "Verify live & restore if needed")}
         </Button>}
       </DialogFooter>
     </DialogContent>

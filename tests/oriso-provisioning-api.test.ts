@@ -279,6 +279,41 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(vi.mocked(writer!.createRecord!)).toHaveBeenCalledTimes(1);
   });
 
+  it("reuses a stale ready platform-admin record when the live service restores its account", async () => {
+    const existing = managedRecord({
+      id: "oriso/pre-dev/lisa.simpson-dreambau.de",
+      displayName: "Lisa Simpson — ORISO PreDev platform-admin",
+      roles: ["platform-admin"]
+    });
+    const restoredState = inviteFixture({
+      targetRole: "PLATFORM_ADMIN",
+      inviteStatus: "DIRECT_CREATED",
+      emailVerificationStatus: "VERIFIED",
+      twoFactorStatus: "ACTIVE",
+      accessGateStatus: "READY"
+    });
+    const service = fakeService({
+      provision: vi.fn(async () => ({ created: true, state: restoredState }))
+    });
+    const { agent, lisa, writer } = await setup({ records: [existing], service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "platform-admin" });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      created: true,
+      recordCreated: false,
+      linked: { id: existing.id, roles: ["platform-admin"], hasTotp: true }
+    });
+    expect(service.provision).toHaveBeenCalledWith(expect.objectContaining({
+      record: expect.objectContaining({ id: existing.id, roles: ["platform-admin"] }),
+      role: "platform-admin"
+    }));
+    expect(vi.mocked(writer!.createRecord!)).not.toHaveBeenCalled();
+  });
+
   it("refuses to re-provision a mailbox with a different role than its linked record", async () => {
     const { agent, lisa, service, writer } = await setup();
     await agent

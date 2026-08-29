@@ -35,7 +35,7 @@ export function OtpAccess({ account, locale, compact = false, orisoProvisioningE
   const linked = account.linkedAccess?.[0];
   const environment = orisoEnvironment(account);
   const provisioningDialog = environment && orisoProvisioningEnvironments.includes(environment) && onProvisioned
-    && (!linked || (linked.project === "oriso" && linked.environment === environment && !linked.hasTotp))
+    && (!linked || (linked.project === "oriso" && linked.environment === environment))
     ? <OrisoProvisioningDialog account={account} locale={locale} hasLinkedAccess={Boolean(linked)} onProvisioned={onProvisioned} />
     : null;
   const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);
@@ -180,15 +180,13 @@ export function OtpAccess({ account, locale, compact = false, orisoProvisioningE
         ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={requestOtp}>
             <KeyRoundIcon data-icon="inline-start" />{busy ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…") : (locale === "de" ? "OTP abrufen" : "Get OTP")}
           </Button>
-        : <>
-            <TotpEnrollmentDialog
-              email={account.email}
-              linked={linked}
-              locale={locale}
-              onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
-            />
-            {provisioningDialog}
-          </>}
+        : <TotpEnrollmentDialog
+            email={account.email}
+            linked={linked}
+            locale={locale}
+            onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
+          />}
+      {provisioningDialog}
       {displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
     </div>
     {waitingUntil && <OtpValidity expiresAt={waitingUntil} locale={locale} waiting />}
