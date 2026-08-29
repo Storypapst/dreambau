@@ -179,59 +179,6 @@ describe("OrisoProvisioningDialog", () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain("Live geprüft"));
   });
 
-  it("requires a second explicit confirmation before resynchronizing a credential-diverged PreDev TOTP", async () => {
-    const platformState = {
-      ...readyStateFixture(),
-      role: "platform-admin" as const,
-      targetRole: "PLATFORM_ADMIN",
-      inviteStatus: "DIRECT_RECONCILED"
-    };
-    const platformLinked = {
-      ...linkedFixture,
-      roles: ["platform-admin"],
-      hasTotp: true
-    };
-    vi.mocked(api).mockResolvedValueOnce({
-      configured: true,
-      supportedRoles: ["platform-admin", "tenant-admin"],
-      environment: "pre-dev",
-      state: platformState,
-      linked: platformLinked
-    });
-    vi.mocked(api).mockRejectedValueOnce(new Error("account_credentials_mismatch"));
-    vi.mocked(api).mockResolvedValueOnce({
-      created: false,
-      recordCreated: false,
-      state: { ...platformState, inviteStatus: "DIRECT_CREATED" },
-      linked: platformLinked
-    });
-
-    await act(async () => root.render(
-      <OrisoProvisioningDialog account={account()} locale="de" hasLinkedAccess onProvisioned={vi.fn()} />
-    ));
-    const trigger = Array.from(container.querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("ORISO-Status"));
-    await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    await vi.waitFor(() => expect(document.body.textContent).toContain("Gespeicherter Status"));
-
-    const verify = Array.from(document.querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("Konto live prüfen"));
-    await act(async () => verify?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    await vi.waitFor(() => expect(document.body.textContent).toContain("setzt ausschließlich die ORISO-2FA zurück"));
-    expect(document.body.textContent).toContain("Konto und seine Daten bleiben erhalten");
-    expect(api).toHaveBeenCalledTimes(2);
-    const repair = Array.from(document.querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("2FA jetzt mit Dreambau synchronisieren"));
-    await act(async () => repair?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    await vi.waitFor(() => expect(api).toHaveBeenLastCalledWith(
-      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
-      { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "platform-admin", repairStoredTotp: true }) }
-    ));
-    await vi.waitFor(() => expect(document.body.textContent).toContain("Live geprüft"));
-  });
-
   it("shows the two-factor-pending state with the enrollment next step", async () => {
     vi.mocked(api).mockResolvedValueOnce({
       configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],

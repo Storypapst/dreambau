@@ -115,7 +115,6 @@ export function OrisoProvisioningDialog({
   const [otpWaitingUntil, setOtpWaitingUntil] = useState<number | null>(null);
   const [otpError, setOtpError] = useState(false);
   const [liveVerified, setLiveVerified] = useState(false);
-  const [totpRepairRequired, setTotpRepairRequired] = useState(false);
   const environment = view?.environment
     ?? (account.domain === "oriso.org" || account.domain === "openresilience.cc" ? "dev" : "pre-dev");
   const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
@@ -138,7 +137,6 @@ export function OrisoProvisioningDialog({
     setOtpWaitingUntil(null);
     setOtpError(false);
     setLiveVerified(false);
-    setTotpRepairRequired(false);
     if (value) {
       setView(null);
       void load();
@@ -185,35 +183,22 @@ export function OrisoProvisioningDialog({
     }
   }
 
-  async function provision(selectedRole: OrisoProvisioningRole, repairStoredTotp = false) {
+  async function provision(selectedRole: OrisoProvisioningRole) {
     setBusy(true);
     setError(null);
     setLiveVerified(false);
-    if (repairStoredTotp) setTotpRepairRequired(false);
     try {
       const result = await api<OrisoProvisioningResult>(
         `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
-        {
-          method: "POST",
-          body: JSON.stringify({ environment, role: selectedRole, ...(repairStoredTotp ? { repairStoredTotp: true } : {}) })
-        }
+        { method: "POST", body: JSON.stringify({ environment, role: selectedRole }) }
       );
       setView((current) => current ? { ...current, state: result.state, linked: result.linked } : current);
       setLiveVerified(true);
       onProvisioned(account.email, result.linked);
-    } catch (failure) {
-      if (
-        failure instanceof Error
-        && failure.message === "account_credentials_mismatch"
-        && environment === "pre-dev"
-        && view?.linked?.hasTotp
-      ) {
-        setTotpRepairRequired(true);
-      } else {
-        setError(locale === "de"
-          ? "Konto konnte nicht vollständig angelegt oder geprüft werden. Details stehen im Server-Log; Zugangsdaten erscheinen dort nicht."
-          : "Could not fully provision or verify the account. Details are in the server log; credentials never appear there.");
-      }
+    } catch {
+      setError(locale === "de"
+        ? "Konto konnte nicht vollständig angelegt oder geprüft werden. Details stehen im Server-Log; Zugangsdaten erscheinen dort nicht."
+        : "Could not fully provision or verify the account. Details are in the server log; credentials never appear there.");
     } finally {
       setBusy(false);
     }
@@ -324,16 +309,6 @@ export function OrisoProvisioningDialog({
         </Select>
       </div>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {totpRepairRequired && <div role="alert" className="flex flex-col gap-2 rounded-lg border border-destructive p-3">
-        <p className="text-sm font-medium">
-          {locale === "de" ? "Gespeicherte 2FA weicht von ORISO ab" : "Stored 2FA differs from ORISO"}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {locale === "de"
-            ? "Die kontrollierte Reparatur setzt ausschließlich die ORISO-2FA zurück und aktiviert danach den in Dreambau gespeicherten Schlüssel erneut. Konto und seine Daten bleiben erhalten. Falls auch das Passwort abweicht, bricht die Reparatur ohne Kontolöschung ab."
-            : "The controlled repair resets only ORISO 2FA and then reactivates the key stored in Dreambau. The account and its data remain intact. If the password also differs, repair stops without deleting the account."}
-        </p>
-      </div>}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={busy}>
           {locale === "de" ? "Schließen" : "Close"}
@@ -355,12 +330,6 @@ export function OrisoProvisioningDialog({
           {busy
             ? (locale === "de" ? "Wird live geprüft…" : "Verifying live…")
             : (locale === "de" ? "Konto live prüfen & ggf. wiederherstellen" : "Verify live & restore if needed")}
-        </Button>}
-        {view?.configured && view.state?.role && totpRepairRequired && <Button type="button" variant="destructive" onClick={() => provision(view.state!.role!, true)} disabled={busy}>
-          <ShieldCheckIcon data-icon="inline-start" />
-          {busy
-            ? (locale === "de" ? "2FA wird synchronisiert…" : "Synchronizing 2FA…")
-            : (locale === "de" ? "2FA jetzt mit Dreambau synchronisieren" : "Synchronize 2FA with Dreambau now")}
         </Button>}
       </DialogFooter>
     </DialogContent>
