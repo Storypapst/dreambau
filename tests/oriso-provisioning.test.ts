@@ -791,14 +791,14 @@ describe("reusable ORISO PreDev account factory", () => {
   ] as const)(
     "creates, protects and verifies a %s account without leaking credentials",
     async (role, expectedPath, expectedPayload, expectedKind, expectedRoles) => {
-      const calls: Array<{ url: string; method: string; body?: string }> = [];
+      const calls: Array<{ url: string; method: string; body?: string; headers?: Record<string, string> }> = [];
       let accountCreated = false;
       let totpActive = false;
       const storedTotp: string[] = [];
       const fetch: ProvisioningFetch = async (input, init) => {
         const url = String(input);
         const method = init?.method ?? "GET";
-        calls.push({ url, method, body: init?.body });
+        calls.push({ url, method, body: init?.body, headers: init?.headers });
         const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
         if (url.includes("/protocol/openid-connect/token")) {
           const form = new URLSearchParams(init?.body);
@@ -864,6 +864,13 @@ describe("reusable ORISO PreDev account factory", () => {
       const create = calls.find((call) => call.method === "POST" && call.url.endsWith(expectedPath));
       expect(create).toBeDefined();
       expect(JSON.parse(String(create?.body))).toMatchObject(expectedPayload);
+      if (role === "advice-seeker") {
+        expect(create?.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
+        expect(create?.headers?.["X-CSRF-Token"]).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+        );
+        expect(create?.headers?.Cookie).toBe(`CSRF-TOKEN=${create?.headers?.["X-CSRF-Token"]}`);
+      }
       if (role === "agency-admin" || role === "counsellor") {
         const relation = calls.find((call) => call.method === "PUT" && call.url.includes("/created-user-id/agencies"));
         expect(relation).toBeDefined();

@@ -627,10 +627,15 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       let created = false;
       if (!userToken) {
         const request = creationRequest(input);
-        const createResponse = await authorizedJson(request.path, {
-          method: "POST",
-          body: JSON.stringify(request.body)
-        });
+        const createResponse = input.role === "advice-seeker"
+          ? await userJson(await accessToken(), request.path, {
+              method: "POST",
+              body: JSON.stringify(request.body)
+            })
+          : await authorizedJson(request.path, {
+              method: "POST",
+              body: JSON.stringify(request.body)
+            });
         if (!createResponse.ok) {
           if (createResponse.status === 409) {
             throw new OrisoProvisioningError("account_credentials_mismatch");
