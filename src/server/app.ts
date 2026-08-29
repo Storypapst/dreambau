@@ -422,7 +422,8 @@ export function createApp(options: AppOptions = {}) {
   });
   const orisoProvisionBodySchema = z.object({
     environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
-    role: z.enum(orisoProvisioningRoles)
+    role: z.enum(orisoProvisioningRoles),
+    repairStoredTotp: z.boolean().optional()
   }).strict();
   const orisoLinkedRecord = (
     email: string,
@@ -540,6 +541,7 @@ export function createApp(options: AppOptions = {}) {
           firstName: nameParts[0] || email.split("@")[0],
           lastName: nameParts.slice(1).join(" ") || "-",
           role: body.role,
+          repairStoredTotp: body.repairStoredTotp,
           storeTotp: async (totpSecret) => {
             await registryWriter.enrollTotp(linkedRecord!, totpSecret, nowDate.toISOString());
             linkedRecord = {

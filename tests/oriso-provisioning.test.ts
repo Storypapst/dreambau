@@ -1025,6 +1025,187 @@ describe("reusable ORISO PreDev account factory", () => {
     })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
   });
 
+  it("resynchronizes stored TOTP on PreDev only after explicit authorization", async () => {
+    const calls: Array<{ url: string; method: string; body?: string }> = [];
+    let totpReset = false;
+    let totpActive = false;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ url, method, body: init?.body });
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        if (!totpReset || (totpActive && !form.get("otp"))) {
+          return { ok: false, status: 401, async json() { return {}; } };
+        }
+        return ok({ access_token: "repaired-user-token", expires_in: 300 });
+      }
+      if (url.endsWith("/otp-config/delete-otp/lisa.simpson%40dreambau.de") && method === "DELETE") {
+        expect(init?.headers?.Authorization).toBe("Bearer admin-token");
+        totpReset = true;
+        return ok();
+      }
+      if (url.endsWith("/users/2fa/app") && method === "PUT") {
+        totpActive = true;
+        return ok();
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"), {
+      provisioningRetryDelaysMs: []
+    });
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@dreambau.de",
+      displayName: "Lisa Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass"
+    });
+    const managed = { ...record, totpSecret: adminTotpSecret };
+
+    const result = await subject.provision({
+      record: managed,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn(),
+      repairStoredTotp: true
+    });
+
+    expect(result).toMatchObject({ created: false, state: { state: "ready", role: "tenant-admin" } });
+    expect(calls.filter((call) => call.method === "DELETE")).toEqual([
+      expect.objectContaining({ url: expect.stringMatching(/\/otp-config\/delete-otp\/lisa\.simpson%40dreambau\.de$/) })
+    ]);
+    expect(calls.filter((call) => call.method === "POST" && call.url.endsWith("/useradmin/tenantadmins"))).toHaveLength(0);
+    expect(JSON.stringify(result)).not.toContain(managed.secret);
+    expect(JSON.stringify(result)).not.toContain(managed.totpSecret);
+  });
+
+  it("refuses TOTP resynchronization outside PreDev before any network call", async () => {
+    const fetch = vi.fn<ProvisioningFetch>(async () => ({
+      ok: false,
+      status: 401,
+      async json() { return {}; }
+    }));
+    const devSubject = service(fetch, provider(adminRecord({
+      id: "oriso/dev/e2e-platform-admin-dev",
+      environment: "dev"
+    })), undefined, { provisioningRetryDelaysMs: [] }, "dev");
+    const devRecord = buildProvisionedRecord({
+      email: "lisa.simpson@oriso.org",
+      displayName: "Lisa Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: devSubject.target.adminBaseUrl,
+      appBaseUrl: devSubject.target.appBaseUrl,
+      responsiblePerson: "fg@dreambau.com",
+      now: new Date("2026-07-29T16:00:00.000Z"),
+      secret: "Gener4ted-Application*Pass",
+      environment: "dev"
+    });
+    await expect(devSubject.provision({
+      record: { ...devRecord, totpSecret: adminTotpSecret },
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn(),
+      repairStoredTotp: true
+    })).rejects.toMatchObject({ code: "totp_repair_not_supported" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("stops after TOTP reset when the stored password is also stale and never recreates the account", async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ url, method });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return { ok: true, status: 200, async json() { return { access_token: "admin-token", expires_in: 300 }; } };
+        }
+        return { ok: false, status: 401, async json() { return {}; } };
+      }
+      if (url.includes("/otp-config/delete-otp/") && method === "DELETE") {
+        return { ok: true, status: 204, async json() { return {}; } };
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"), {
+      provisioningRetryDelaysMs: []
+    });
+    const record = {
+      ...buildProvisionedRecord({
+        email: "lisa.simpson@dreambau.de",
+        displayName: "Lisa Simpson",
+        role: "tenant-admin",
+        adminBaseUrl: subject.target.adminBaseUrl,
+        appBaseUrl: subject.target.appBaseUrl,
+        responsiblePerson: "fg@dreambau.com",
+        now: new Date("2026-07-29T16:00:00.000Z"),
+        secret: "Stale-Application-Password"
+      }),
+      totpSecret: adminTotpSecret
+    };
+
+    await expect(subject.provision({
+      record,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn(),
+      repairStoredTotp: true
+    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1);
+    expect(calls.some((call) => call.method === "POST" && call.url.endsWith("/useradmin/tenantadmins"))).toBe(false);
+  });
+
+  it("fails closed when Keycloak refuses the explicit TOTP reset", async () => {
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return { ok: true, status: 200, async json() { return { access_token: "admin-token", expires_in: 300 }; } };
+        }
+        return { ok: false, status: 401, async json() { return {}; } };
+      }
+      if (url.includes("/otp-config/delete-otp/") && init?.method === "DELETE") {
+        return { ok: false, status: 403, async json() { return {}; } };
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-29T16:00:00.000Z"));
+    const record = {
+      ...buildProvisionedRecord({
+        email: "lisa.simpson@dreambau.de",
+        displayName: "Lisa Simpson",
+        role: "tenant-admin",
+        adminBaseUrl: subject.target.adminBaseUrl,
+        appBaseUrl: subject.target.appBaseUrl,
+        responsiblePerson: "fg@dreambau.com",
+        now: new Date("2026-07-29T16:00:00.000Z"),
+        secret: "Gener4ted-Application*Pass"
+      }),
+      totpSecret: adminTotpSecret
+    };
+    await expect(subject.provision({
+      record,
+      firstName: "Lisa",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn(),
+      repairStoredTotp: true
+    })).rejects.toMatchObject({ code: "totp_repair_failed" });
+  });
+
   it.each([
     ["totp_store_failed", "store"],
     ["totp_setup_failed", "setup"],

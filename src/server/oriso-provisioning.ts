@@ -61,6 +61,8 @@ export type OrisoProvisioningErrorCode =
   | "invite_create_failed"
   | "account_create_failed"
   | "account_credentials_mismatch"
+  | "totp_repair_not_supported"
+  | "totp_repair_failed"
   | "totp_store_failed"
   | "totp_setup_failed"
   | "totp_verification_failed";
@@ -313,6 +315,7 @@ export interface OrisoProvisioningService {
     lastName: string;
     role: OrisoProvisioningRole;
     storeTotp(secret: string): Promise<void>;
+    repairStoredTotp?: boolean;
   }): Promise<{ created: boolean; state: OrisoProvisioningStateView }>;
 }
 
@@ -612,6 +615,9 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       ) {
         throw new OrisoProvisioningError("account_create_failed");
       }
+      if (input.repairStoredTotp && (options.environment !== "pre-dev" || !input.record.totpSecret)) {
+        throw new OrisoProvisioningError("totp_repair_not_supported");
+      }
 
       // A successful login with the stored TOTP proves that the account is
       // already fully managed and makes repeated provisioning idempotent.
@@ -620,6 +626,37 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         if (verified.kind === "authenticated") {
           return { created: false, state: directStateView(input.record, input.role, "DIRECT_RECONCILED") };
         }
+      }
+
+      // This is an explicit, passkey-authorized PreDev repair. It preserves the
+      // product account and its data: only the current Keycloak OTP credentials
+      // are removed, then the TOTP already owned by Test Access is activated
+      // again. A password mismatch remains a hard failure and never falls
+      // through to account deletion or recreation.
+      if (input.repairStoredTotp && input.record.totpSecret) {
+        const tokenEndpoint = new URL(options.tokenUrl);
+        const tokenPathSuffix = "/protocol/openid-connect/token";
+        if (!tokenEndpoint.pathname.endsWith(tokenPathSuffix)) {
+          throw new OrisoProvisioningError("totp_repair_not_supported");
+        }
+        tokenEndpoint.pathname = `${tokenEndpoint.pathname.slice(0, -tokenPathSuffix.length)}/otp-config/delete-otp/${encodeURIComponent(input.record.username)}`;
+        tokenEndpoint.search = "";
+        tokenEndpoint.hash = "";
+        const reset = await fetch(tokenEndpoint.toString(), {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${await accessToken()}` },
+          signal: requestSignal()
+        });
+        if (!reset.ok) throw new OrisoProvisioningError("totp_repair_failed");
+
+        const passwordProbe = await credentialToken(input.record);
+        if (passwordProbe.kind !== "authenticated") {
+          throw new OrisoProvisioningError("account_credentials_mismatch");
+        }
+        await activateTotpWithRetry(input.record, passwordProbe.token, input.record.totpSecret);
+        const repairedToken = await retryAuthenticatedToken(input.record, input.record.totpSecret);
+        if (!repairedToken) throw new OrisoProvisioningError("totp_verification_failed");
+        return { created: false, state: directStateView(input.record, input.role, "DIRECT_RECONCILED") };
       }
 
       const initialProbe = await credentialToken(input.record);
