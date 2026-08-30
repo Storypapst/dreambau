@@ -438,6 +438,33 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     });
   }
 
+  async function publicRegistrationJson(
+    path: string,
+    agencyId: number,
+    init: { method?: string; body?: string } = {}
+  ) {
+    const method = init.method ?? "GET";
+    const csrfToken = ["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)
+      ? null
+      : randomUUID();
+    return fetch(`${apiBaseUrl}${path}`, {
+      method,
+      headers: {
+        agencyId: String(agencyId),
+        "X-U25-CSRF-TOKEN": "dreambau-test-access",
+        ...(csrfToken
+          ? {
+              "X-CSRF-Token": csrfToken,
+              Cookie: `CSRF-TOKEN=${csrfToken}`
+            }
+          : {}),
+        ...(init.body ? { "Content-Type": "application/json" } : {})
+      },
+      body: init.body,
+      signal: requestSignal()
+    });
+  }
+
   async function retryAuthenticatedToken(record: TestAccessRecord, totpSecret?: string) {
     let probe = await credentialToken(record, totpSecret);
     for (const delay of provisioningRetryDelaysMs) {
@@ -628,7 +655,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       if (!userToken) {
         const request = creationRequest(input);
         const createResponse = input.role === "advice-seeker"
-          ? await userJson(await accessToken(), request.path, {
+          ? await publicRegistrationJson(request.path, options.defaultAgencyId, {
               method: "POST",
               body: JSON.stringify(request.body)
             })

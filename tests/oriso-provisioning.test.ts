@@ -865,6 +865,8 @@ describe("reusable ORISO PreDev account factory", () => {
       expect(create).toBeDefined();
       expect(JSON.parse(String(create?.body))).toMatchObject(expectedPayload);
       if (role === "advice-seeker") {
+        expect(create?.headers?.Authorization).toBeUndefined();
+        expect(create?.headers?.agencyId).toBe("12");
         expect(create?.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
         expect(create?.headers?.["X-CSRF-Token"]).toMatch(
           /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
