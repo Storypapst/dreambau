@@ -43,7 +43,15 @@ export interface Taxonomies { roles: string[]; topics: string[]; conversationTyp
 export interface HumanUser {
   id: string; email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">;
   role: "admin" | "member"; status: "active" | "disabled"; createdAt: string;
+  accessSources?: Array<"infisical" | "local">;
   entitlements: HumanEntitlements;
+}
+export type HumanAccessSourceStatus =
+  | { infisical: "available" }
+  | { infisical: "degraded"; correlationId: string };
+export interface TeamMembersResponse {
+  users: HumanUser[];
+  sourceStatus: HumanAccessSourceStatus;
 }
 export interface HumanEntitlements {
   orisoProvisioning: { environments: Array<"pre-dev" | "dev"> };

@@ -1,10 +1,10 @@
 import { api as defaultApi } from "@/api";
-import type { HumanUser } from "@/types";
+import type { HumanUser, TeamMembersResponse } from "@/types";
 
 type Api = (path: string, init?: RequestInit) => Promise<any>;
 
 export function loadTeamMembers(api: Api = defaultApi) {
-  return api("/auth/users") as Promise<HumanUser[]>;
+  return api("/auth/users") as Promise<TeamMembersResponse>;
 }
 
 export function createTeamMember(
