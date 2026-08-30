@@ -169,6 +169,11 @@ async function setup(options: {
       const index = records.findIndex((candidate) => candidate.id === record.id);
       if (index >= 0) records[index] = record;
       return { recordId: record.id, updatedAt: record.updatedAt };
+    }),
+    replaceRecord: vi.fn(async (_expected: TestAccessRecord, record: TestAccessRecord) => {
+      const index = records.findIndex((candidate) => candidate.id === record.id);
+      if (index >= 0) records[index] = record;
+      return { recordId: record.id, updatedAt: record.updatedAt };
     })
   };
   const root = mkdtempSync(path.join(tmpdir(), "oriso-provisioning-"));
@@ -314,6 +319,73 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(vi.mocked(writer!.createRecord!)).not.toHaveBeenCalled();
   });
 
+  it("reprovisions a same-role stale ready record with its fixed credentials", async () => {
+    const existing = managedRecord({
+      roles: ["tenant-admin"],
+      secret: "fixed-same-role-password",
+      totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      provisioningStatus: "ready",
+      updatedAt: "2026-07-30T05:00:00.000Z"
+    });
+    const service = fakeService({
+      provision: vi.fn(async () => ({
+        created: true,
+        state: inviteFixture({
+          inviteStatus: "DIRECT_CREATED",
+          emailVerificationStatus: "VERIFIED",
+          twoFactorStatus: "ACTIVE",
+          accessGateStatus: "READY"
+        })
+      }))
+    });
+    const { agent, lisa, writer } = await setup({ records: [existing], service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      created: true,
+      recordCreated: false,
+      recordReplaced: false,
+      linked: { id: existing.id, roles: ["tenant-admin"], hasTotp: true }
+    });
+    expect(service.provision).toHaveBeenCalledWith(expect.objectContaining({
+      record: expect.objectContaining({
+        secret: existing.secret,
+        totpSecret: existing.totpSecret,
+        roles: ["tenant-admin"]
+      }),
+      role: "tenant-admin"
+    }));
+    expect(writer?.updateRecord).toHaveBeenCalledWith(expect.objectContaining({
+      id: existing.id,
+      secret: existing.secret,
+      totpSecret: existing.totpSecret,
+      provisioningStatus: "ready"
+    }));
+    expect(writer?.replaceRecord).not.toHaveBeenCalled();
+  });
+
+  it("preserves a same-role ready record when credential drift blocks reprovisioning", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
+    const service = fakeService({
+      provision: vi.fn(async () => { throw new OrisoProvisioningError("account_credentials_mismatch"); })
+    });
+    const { agent, lisa, writer } = await setup({ records: [existing], service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "account_credentials_mismatch" });
+    expect(existing.provisioningStatus).toBe("ready");
+    expect(writer?.updateRecord).not.toHaveBeenCalled();
+    expect(writer?.replaceRecord).not.toHaveBeenCalled();
+  });
+
   it("refuses to re-provision a mailbox with a different role than its linked record", async () => {
     const { agent, lisa, service, writer } = await setup();
     await agent
@@ -331,6 +403,237 @@ describe("human self-service ORISO PreDev provisioning", () => {
     });
     expect(service.provision).toHaveBeenCalledTimes(1);
     expect(vi.mocked(writer!.createRecord!)).toHaveBeenCalledTimes(1);
+  });
+
+  it("replaces a stale role only after an explicit opt-in and a fresh empty live status", async () => {
+    const existing = managedRecord({
+      id: "oriso/pre-dev/lisa.simpson-dreambau.de",
+      displayName: "Lisa Simpson — ORISO PreDev platform-admin",
+      roles: ["platform-admin", "tenant-admin", "user-admin", "topic-admin"],
+      secret: "fixed-application-password",
+      totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+      createdAt: "2026-07-01T08:00:00.000Z"
+    });
+    const service = fakeService({
+      status: vi.fn(async () => null),
+      provision: vi.fn(async () => ({
+        created: true,
+        state: inviteFixture({
+          targetRole: "AGENCY_ADMIN",
+          inviteStatus: "DIRECT_CREATED",
+          emailVerificationStatus: "VERIFIED",
+          twoFactorStatus: "ACTIVE",
+          accessGateStatus: "READY"
+        })
+      }))
+    });
+    const { agent, lisa, writer } = await setup({ records: [existing], service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      recordCreated: false,
+      recordReplaced: true,
+      linked: { id: existing.id, roles: ["agency-admin"], hasTotp: true }
+    });
+    expect(service.status).toHaveBeenCalledWith(lisa.email);
+    expect(service.provision).toHaveBeenCalledWith(expect.objectContaining({
+      record: expect.objectContaining({
+        id: existing.id,
+        roles: ["agency-admin"],
+        secret: existing.secret,
+        totpSecret: existing.totpSecret,
+        createdAt: existing.createdAt
+      }),
+      role: "agency-admin"
+    }));
+    expect(vi.mocked(writer!.replaceRecord!).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(service.provision).mock.invocationCallOrder[0]
+    );
+    expect(writer?.replaceRecord).toHaveBeenCalledWith(
+      existing,
+      expect.objectContaining({
+        id: existing.id,
+        roles: ["agency-admin"],
+        secret: existing.secret,
+        totpSecret: existing.totpSecret,
+        createdAt: existing.createdAt,
+        provisioningStatus: "pending"
+      })
+    );
+    expect(writer?.updateRecord).toHaveBeenCalledWith(expect.objectContaining({
+      id: existing.id,
+      roles: ["agency-admin"],
+      provisioningStatus: "ready"
+    }));
+    expect(JSON.stringify(response.body)).not.toContain(existing.secret);
+    expect(JSON.stringify(response.body)).not.toContain(existing.totpSecret);
+  });
+
+  it("keeps a failed final replacement write recoverable so the next request converges", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
+    const records = [existing];
+    let failReadyWrite = true;
+    const writer: RegistryWriter = {
+      enrollTotp: vi.fn(),
+      createRecord: vi.fn(),
+      replaceRecord: vi.fn(async (_expected: TestAccessRecord, record: TestAccessRecord) => {
+        if (record.provisioningStatus === "ready") {
+          throw new Error("Infisical final replacement failed");
+        }
+        const index = records.findIndex((candidate) => candidate.id === record.id);
+        if (index >= 0) records[index] = record;
+        return { recordId: record.id, updatedAt: record.updatedAt };
+      }),
+      updateRecord: vi.fn(async (record: TestAccessRecord) => {
+        if (record.provisioningStatus === "ready" && failReadyWrite) {
+          failReadyWrite = false;
+          throw new Error("Infisical ready write failed");
+        }
+        const index = records.findIndex((candidate) => candidate.id === record.id);
+        if (index >= 0) records[index] = record;
+        return { recordId: record.id, updatedAt: record.updatedAt };
+      })
+    };
+    const service = fakeService({
+      status: vi.fn(async () => null),
+      provision: vi.fn()
+        .mockResolvedValueOnce({
+          created: true,
+          state: inviteFixture({ targetRole: "AGENCY_ADMIN", inviteStatus: "DIRECT_CREATED" })
+        })
+        .mockResolvedValueOnce({
+          created: false,
+          state: inviteFixture({ targetRole: "AGENCY_ADMIN", inviteStatus: "DIRECT_RECONCILED" })
+        })
+    });
+    const { agent, lisa } = await setup({ records, service, writer });
+
+    const first = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(first.status).toBe(500);
+    expect(records[0]).toMatchObject({ roles: ["agency-admin"], provisioningStatus: "failed" });
+
+    const retry = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin" });
+
+    expect(retry.status).toBe(200);
+    expect(retry.body).toMatchObject({
+      created: false,
+      linked: { id: existing.id, roles: ["agency-admin"] },
+      state: { inviteStatus: "DIRECT_RECONCILED" }
+    });
+    expect(records[0]).toMatchObject({ roles: ["agency-admin"], provisioningStatus: "ready" });
+  });
+
+  it("refuses stale-role replacement when a fresh live account still exists", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"] });
+    const liveState = inviteFixture({
+      inviteStatus: "DIRECT_RECONCILED",
+      emailVerificationStatus: "VERIFIED",
+      twoFactorStatus: "ACTIVE",
+      accessGateStatus: "READY"
+    });
+    const service = fakeService({ status: vi.fn(async () => liveState) });
+    const { agent, lisa, writer } = await setup({ records: [existing], service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      error: "record_role_conflict_live_account",
+      linked: { id: existing.id, roles: ["tenant-admin"] }
+    });
+    expect(service.status).toHaveBeenCalledWith(lisa.email);
+    expect(service.provision).not.toHaveBeenCalled();
+    expect(writer?.replaceRecord).not.toHaveBeenCalled();
+  });
+
+  it("refuses replacement when the credential probe finds a direct live account after empty status", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"] });
+    const service = fakeService({
+      status: vi.fn(async () => null),
+      provision: vi.fn(async () => ({
+        created: false,
+        state: inviteFixture({
+          inviteStatus: "DIRECT_RECONCILED",
+          emailVerificationStatus: "VERIFIED",
+          twoFactorStatus: "ACTIVE",
+          accessGateStatus: "READY"
+        })
+      }))
+    });
+    const { agent, lisa, writer } = await setup({ records: [existing], service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toMatchObject({
+      error: "record_role_conflict_live_account",
+      linked: { id: existing.id, roles: ["tenant-admin"] }
+    });
+    expect(service.status).toHaveBeenCalledWith(lisa.email);
+    expect(service.provision).toHaveBeenCalledTimes(1);
+    expect(writer?.replaceRecord).toHaveBeenCalledTimes(2);
+    expect(writer?.replaceRecord).toHaveBeenLastCalledWith(
+      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "pending" }),
+      existing
+    );
+    expect(writer?.updateRecord).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the writer cannot replace a stale record", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"] });
+    const writer: RegistryWriter = {
+      enrollTotp: vi.fn(),
+      createRecord: vi.fn(),
+      updateRecord: vi.fn()
+    };
+    const { agent, lisa, service } = await setup({ records: [existing], writer });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ error: "record_replacement_unavailable" });
+    expect(service.status).toHaveBeenCalledWith(lisa.email);
+    expect(service.provision).not.toHaveBeenCalled();
+  });
+
+  it("persists a recoverable failed replacement when provisioning fails", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
+    const records = [existing];
+    const service = fakeService({
+      status: vi.fn(async () => null),
+      provision: vi.fn(async () => { throw new OrisoProvisioningError("account_create_failed"); })
+    });
+    const { agent, lisa, writer } = await setup({ records, service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "account_create_failed" });
+    expect(records[0]).toMatchObject({ roles: ["agency-admin"], provisioningStatus: "failed" });
+    expect(writer?.replaceRecord).toHaveBeenCalledWith(
+      existing,
+      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "pending" })
+    );
+    expect(writer?.updateRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "failed" })
+    );
   });
 
   it("maps record-write failures to a dedicated error after the invite succeeded", async () => {

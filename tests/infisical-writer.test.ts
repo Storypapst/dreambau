@@ -275,6 +275,103 @@ describe("Infisical TOTP writer", () => {
     });
   });
 
+  it("replaces stale role fields while preserving the current secret, TOTP and creation time", async () => {
+    const calls: Array<{ url: URL; init?: RequestInit }> = [];
+    const current = record({
+      roles: ["platform-admin", "tenant-admin"],
+      secret: "current-fixed-password",
+      totpSecret,
+      createdAt: "2026-07-01T08:00:00.000Z",
+      permissionsDescription: "Old role contract"
+    });
+    const fetch: WriterFetch = async (input, init) => {
+      const url = new URL(String(input));
+      calls.push({ url, init });
+      if (url.pathname.endsWith("/login")) {
+        return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") return Response.json({ secret: { id: "updated" } });
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+    const replacement = record({
+      kind: "admin",
+      displayName: "Abe Simpson — ORISO PreDev agency-admin",
+      roles: ["agency-admin"],
+      permissionsDescription: "New role contract",
+      loginUrl: "https://admin.oriso-dev.site",
+      secret: "must-not-replace-current-password",
+      totpSecret: "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP",
+      createdAt: "2026-07-29T08:00:00.000Z",
+      updatedAt: "2026-07-29T11:00:00.000Z",
+      provisioningStatus: "ready"
+    });
+
+    await expect(writer.replaceRecord!(current, replacement)).resolves.toEqual({
+      recordId: current.id,
+      updatedAt: replacement.updatedAt
+    });
+    const body = JSON.parse(String(calls[2].init?.body));
+    expect(body.secretComment).toBe("Stale ORISO role replaced by Dreambau Test Access Hub");
+    expect(JSON.parse(body.secretValue)).toEqual({
+      ...current,
+      kind: replacement.kind,
+      displayName: replacement.displayName,
+      username: replacement.username,
+      roles: replacement.roles,
+      permissionsDescription: replacement.permissionsDescription,
+      loginUrl: replacement.loginUrl,
+      provisioningStatus: "ready",
+      updatedAt: replacement.updatedAt
+    });
+  });
+
+  it("rejects stale-role replacement after scope or role CAS drift", async () => {
+    const current = record({ roles: ["tenant-admin"] });
+    const fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") throw new Error("must not patch");
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    });
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch: fetch as WriterFetch
+    });
+
+    await expect(writer.replaceRecord!(
+      record({ roles: ["platform-admin"] }),
+      record({ roles: ["agency-admin"] })
+    )).rejects.toThrow("Infisical record replacement validation failed");
+    await expect(writer.replaceRecord!(
+      record({ environment: "dev", roles: ["tenant-admin"] }),
+      record({ environment: "dev", roles: ["agency-admin"] })
+    )).rejects.toThrow("Infisical record replacement validation failed");
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
   it("rejects failed and unsupported provisioning-state updates", async () => {
     const fetch: WriterFetch = async (input, init) => {
       const url = new URL(String(input));

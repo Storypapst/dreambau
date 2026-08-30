@@ -35,7 +35,7 @@ export interface OrisoProvisioningView {
   state: OrisoProvisioningStateView | null; linked: LinkedTestAccount | null;
 }
 export interface OrisoProvisioningResult {
-  created: boolean; recordCreated: boolean; state: OrisoProvisioningStateView; linked: LinkedTestAccount;
+  created: boolean; recordCreated: boolean; recordReplaced?: boolean; state: OrisoProvisioningStateView; linked: LinkedTestAccount;
 }
 export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
 export type OtpResponse = ({ source: "totp"; generatedAt: string; expiresAt: string } | { source: "mail"; receivedAt: string; messageId: string; subject: string }) & { accountId: string; code: string };

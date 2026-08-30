@@ -436,7 +436,8 @@ export function createApp(options: AppOptions = {}) {
   });
   const orisoProvisionBodySchema = z.object({
     environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
-    role: z.enum(orisoProvisioningRoles)
+    role: z.enum(orisoProvisioningRoles),
+    replaceStaleRole: z.boolean().optional().default(false)
   }).strict();
   const orisoLinkedRecord = (
     email: string,
@@ -521,12 +522,30 @@ export function createApp(options: AppOptions = {}) {
           .find((record) => record.project === "oriso" && record.environment === environment) ?? null;
       const requestedRoles = recordRolesForProvisioningRole(body.role);
       if (existingRecord && existingRecord.roles.join(",") !== requestedRoles.join(",")) {
-        return res.status(409).json({ error: "record_role_conflict", linked: publicLinkedAccount(existingRecord) });
+        if (!body.replaceStaleRole) {
+          return res.status(409).json({ error: "record_role_conflict", linked: publicLinkedAccount(existingRecord) });
+        }
+        const liveState = await orisoProvisioning.status(email);
+        if (liveState) {
+          return res.status(409).json({
+            error: "record_role_conflict_live_account",
+            linked: publicLinkedAccount(existingRecord)
+          });
+        }
+        if (!registryWriter.replaceRecord) {
+          return res.status(503).json({ error: "record_replacement_unavailable" });
+        }
       }
       const records = existingRecords;
       let linkedRecord = existingRecord;
       const nowDate = options.now?.() ?? new Date();
       let recordCreated = false;
+      const recordReplacementExpected = existingRecord
+        && existingRecord.roles.join(",") !== requestedRoles.join(",")
+        && body.replaceStaleRole
+        ? existingRecord
+        : null;
+      let recordReplaced = false;
       if (!linkedRecord) {
         linkedRecord = buildProvisionedRecord({
           email,
@@ -545,6 +564,39 @@ export function createApp(options: AppOptions = {}) {
           return res.status(502).json({ error: "record_creation_failed" });
         }
         recordCreated = true;
+      } else if (recordReplacementExpected) {
+        const roleRecord = buildProvisionedRecord({
+          email,
+          displayName: current.displayName,
+          role: body.role,
+          adminBaseUrl: orisoProvisioning.target.adminBaseUrl,
+          appBaseUrl: orisoProvisioning.target.appBaseUrl,
+          responsiblePerson: user.email,
+          now: nowDate,
+          secret: linkedRecord.secret,
+          environment
+        });
+        linkedRecord = {
+          ...linkedRecord,
+          kind: roleRecord.kind,
+          displayName: roleRecord.displayName,
+          username: roleRecord.username,
+          roles: roleRecord.roles,
+          permissionsDescription: roleRecord.permissionsDescription,
+          loginUrl: roleRecord.loginUrl,
+          provisioningStatus: "pending",
+          updatedAt: nowDate.toISOString()
+        };
+        // Persist the replacement intent before touching ORISO. If the live
+        // account is created but the final READY write fails, the pending
+        // record makes the next same-role request converge instead of falling
+        // back into the old-role conflict.
+        try {
+          await registryWriter.replaceRecord!(recordReplacementExpected, linkedRecord);
+          recordReplaced = true;
+        } catch {
+          return res.status(502).json({ error: "record_replacement_failed" });
+        }
       }
       const nameParts = current.displayName.trim().split(/\s+/);
       let provisioned: Awaited<ReturnType<OrisoProvisioningService["provision"]>>;
@@ -564,6 +616,22 @@ export function createApp(options: AppOptions = {}) {
             };
           }
         });
+        // status(email) covers the invitation surface. Directly created users
+        // are additionally detected by provision()'s credential probe. Never
+        // rewrite the record if that probe authenticated an existing account,
+        // including one created concurrently after the status check.
+        if (recordReplacementExpected && !provisioned.created) {
+          try {
+            await registryWriter.replaceRecord!(linkedRecord, recordReplacementExpected);
+            recordReplaced = false;
+          } catch {
+            return res.status(502).json({ error: "record_replacement_failed" });
+          }
+          return res.status(409).json({
+            error: "record_role_conflict_live_account",
+            linked: publicLinkedAccount(recordReplacementExpected)
+          });
+        }
         const readyRecord = {
           ...linkedRecord,
           provisioningStatus: "ready" as const,
@@ -610,6 +678,7 @@ export function createApp(options: AppOptions = {}) {
       res.status(provisioned.created ? 201 : 200).json({
         created: provisioned.created,
         recordCreated,
+        recordReplaced,
         state: provisioned.state,
         linked: publicLinkedAccount(linkedRecord)
       });
