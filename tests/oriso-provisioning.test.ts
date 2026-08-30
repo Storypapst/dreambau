@@ -498,7 +498,10 @@ describe("reusable ORISO PreDev account factory", () => {
     expect(createCalls).toBe(1);
   });
 
-  it("reactivates a same-role advice seeker through the privileged deletion endpoint after a 403 profile probe", async () => {
+  it.each([
+    [401, 1],
+    [403, 2]
+  ] as const)("reactivates a same-role advice seeker through the privileged deletion endpoint after a %i managed probe", async (managedProbeStatus, expectedProfileCalls) => {
     let accountReactivated = false;
     let createCalls = 0;
     let reactivateCalls = 0;
@@ -511,6 +514,9 @@ describe("reusable ORISO PreDev account factory", () => {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
           return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        if (!accountReactivated && managedProbeStatus === 401) {
+          return { ok: false, status: 401, async json() { return {}; } };
         }
         if (!form.get("otp")) return { ok: false, status: 401, async json() { return {}; } };
         return ok({ access_token: "asker-token", expires_in: 300 });
@@ -568,8 +574,158 @@ describe("reusable ORISO PreDev account factory", () => {
       state: { state: "ready", inviteStatus: "DIRECT_RECONCILED", role: "advice-seeker" }
     });
     expect(reactivateCalls).toBe(1);
-    expect(profileCalls).toBe(2);
+    expect(profileCalls).toBe(expectedProfileCalls);
     expect(createCalls).toBe(0);
+  });
+
+  it("maps an active wrong-password 401 to the privileged reactivation conflict without public creation", async () => {
+    let reactivateCalls = 0;
+    let createCalls = 0;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        return { ok: false, status: 401, async json() { return {}; } };
+      }
+      if (url.endsWith("/useradmin/askers/deletion/reactivate") && init?.method === "POST") {
+        reactivateCalls += 1;
+        return { ok: false, status: 409, async json() { return {}; } };
+      }
+      if (url.endsWith("/users/askers/new") && init?.method === "POST") {
+        createCalls += 1;
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "marge.simpson@dreambau.de",
+      displayName: "Marge Simpson",
+      role: "advice-seeker",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "stale-wrong-password"
+    });
+    Object.assign(record, { totpSecret: generatedOrisoTotpSecret, provisioningStatus: "ready" as const });
+
+    await expect(subject.provision({
+      record,
+      firstName: "Marge",
+      lastName: "Simpson",
+      role: "advice-seeker",
+      storeTotp: vi.fn()
+    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+    expect(reactivateCalls).toBe(1);
+    expect(createCalls).toBe(0);
+  });
+
+  it("keeps a pending advice-seeker 401 on the normal creation flow", async () => {
+    let accountCreated = false;
+    let reactivateCalls = 0;
+    let createCalls = 0;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        if (!accountCreated) return { ok: false, status: 401, async json() { return {}; } };
+        return ok({ access_token: "asker-token", expires_in: 300 });
+      }
+      if (url.endsWith("/useradmin/askers/deletion/reactivate") && init?.method === "POST") {
+        reactivateCalls += 1;
+      }
+      if (url.endsWith("/users/askers/new") && init?.method === "POST") {
+        createCalls += 1;
+        accountCreated = true;
+        return ok({ _embedded: { id: "created-asker" } });
+      }
+      if (url.endsWith("/users/email") && init?.method === "PUT") return ok();
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") return ok();
+      if (url.endsWith("/users/data") && init?.method === "GET") {
+        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch, provider(), () => new Date("2026-07-30T05:00:00.000Z"), {
+      provisioningRetryDelaysMs: []
+    });
+    const record = buildProvisionedRecord({
+      email: "marge.simpson@dreambau.de",
+      displayName: "Marge Simpson",
+      role: "advice-seeker",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "pending-password"
+    });
+    Object.assign(record, { totpSecret: generatedOrisoTotpSecret, provisioningStatus: "pending" as const });
+
+    const result = await subject.provision({
+      record,
+      firstName: "Marge",
+      lastName: "Simpson",
+      role: "advice-seeker",
+      storeTotp: vi.fn()
+    });
+
+    expect(result.created).toBe(true);
+    expect(reactivateCalls).toBe(0);
+    expect(createCalls).toBe(1);
+  });
+
+  it("does not route another READY role with a 401 probe through asker reactivation", async () => {
+    let reactivateCalls = 0;
+    let tenantAdminCreateCalls = 0;
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de") {
+          return ok({ access_token: "admin-token", expires_in: 300 });
+        }
+        return { ok: false, status: 401, async json() { return {}; } };
+      }
+      if (url.endsWith("/useradmin/askers/deletion/reactivate") && init?.method === "POST") {
+        reactivateCalls += 1;
+      }
+      if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
+        tenantAdminCreateCalls += 1;
+        return { ok: false, status: 409, async json() { return {}; } };
+      }
+      return { ok: false, status: 404, async json() { return {}; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "maggie.simpson@dreambau.de",
+      displayName: "Maggie Simpson",
+      role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl,
+      appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa",
+      now: new Date("2026-07-30T05:00:00.000Z"),
+      secret: "tenant-admin-password"
+    });
+    Object.assign(record, { totpSecret: generatedOrisoTotpSecret, provisioningStatus: "ready" as const });
+
+    await expect(subject.provision({
+      record,
+      firstName: "Maggie",
+      lastName: "Simpson",
+      role: "tenant-admin",
+      storeTotp: vi.fn()
+    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+    expect(reactivateCalls).toBe(0);
+    expect(tenantAdminCreateCalls).toBe(1);
   });
 
   it.each([

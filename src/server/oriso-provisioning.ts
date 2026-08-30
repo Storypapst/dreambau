@@ -649,13 +649,14 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         if (verified.kind === "authenticated") {
           return { created: false, state: directStateView(input.record, input.role, "DIRECT_RECONCILED") };
         }
-        // A 403 profile probe for a previously ready asker is UserService's
-        // soft-deleted state: Keycloak still authenticates, but public account
-        // creation would collide with that retained identity. Recovery is
-        // therefore restricted to the privileged user-admin endpoint and is
-        // accepted only after the product profile becomes readable again.
+        // A previously ready asker can surface UserService's soft-deleted
+        // state either as 401 (Keycloak identity disabled) or as 403 (token
+        // still valid but the product profile deleted). Public creation would
+        // collide with the retained identity in both cases. Recovery is
+        // restricted to the privileged user-admin endpoint and is accepted
+        // only after the product profile becomes readable again.
         if (
-          verified.status === 403
+          (verified.status === 401 || verified.status === 403)
           && input.record.provisioningStatus === "ready"
           && input.role === "advice-seeker"
         ) {
