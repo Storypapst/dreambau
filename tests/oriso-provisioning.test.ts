@@ -865,6 +865,14 @@ describe("reusable ORISO PreDev account factory", () => {
       expect(create).toBeDefined();
       expect(JSON.parse(String(create?.body))).toMatchObject(expectedPayload);
       if (role === "advice-seeker") {
+        expect(JSON.parse(String(create?.body))).toMatchObject({
+          username: "lisa.simpson_at_oriso.org"
+        });
+        const postCreateToken = calls.find((call) => {
+          if (!call.url.includes("/protocol/openid-connect/token") || !call.body) return false;
+          return new URLSearchParams(call.body).get("username") === "lisa.simpson_at_oriso.org";
+        });
+        expect(postCreateToken).toBeDefined();
         expect(create?.headers?.Authorization).toBeUndefined();
         expect(create?.headers?.agencyId).toBe("12");
         expect(create?.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
