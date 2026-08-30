@@ -450,6 +450,9 @@ describe("human self-service ORISO PreDev provisioning", () => {
       }),
       role: "agency-admin"
     }));
+    expect(vi.mocked(writer!.replaceRecord!).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(service.provision).mock.invocationCallOrder[0]
+    );
     expect(writer?.replaceRecord).toHaveBeenCalledWith(
       existing,
       expect.objectContaining({
@@ -458,11 +461,75 @@ describe("human self-service ORISO PreDev provisioning", () => {
         secret: existing.secret,
         totpSecret: existing.totpSecret,
         createdAt: existing.createdAt,
-        provisioningStatus: "ready"
+        provisioningStatus: "pending"
       })
     );
+    expect(writer?.updateRecord).toHaveBeenCalledWith(expect.objectContaining({
+      id: existing.id,
+      roles: ["agency-admin"],
+      provisioningStatus: "ready"
+    }));
     expect(JSON.stringify(response.body)).not.toContain(existing.secret);
     expect(JSON.stringify(response.body)).not.toContain(existing.totpSecret);
+  });
+
+  it("keeps a failed final replacement write recoverable so the next request converges", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
+    const records = [existing];
+    let failReadyWrite = true;
+    const writer: RegistryWriter = {
+      enrollTotp: vi.fn(),
+      createRecord: vi.fn(),
+      replaceRecord: vi.fn(async (_expected: TestAccessRecord, record: TestAccessRecord) => {
+        if (record.provisioningStatus === "ready") {
+          throw new Error("Infisical final replacement failed");
+        }
+        const index = records.findIndex((candidate) => candidate.id === record.id);
+        if (index >= 0) records[index] = record;
+        return { recordId: record.id, updatedAt: record.updatedAt };
+      }),
+      updateRecord: vi.fn(async (record: TestAccessRecord) => {
+        if (record.provisioningStatus === "ready" && failReadyWrite) {
+          failReadyWrite = false;
+          throw new Error("Infisical ready write failed");
+        }
+        const index = records.findIndex((candidate) => candidate.id === record.id);
+        if (index >= 0) records[index] = record;
+        return { recordId: record.id, updatedAt: record.updatedAt };
+      })
+    };
+    const service = fakeService({
+      status: vi.fn(async () => null),
+      provision: vi.fn()
+        .mockResolvedValueOnce({
+          created: true,
+          state: inviteFixture({ targetRole: "AGENCY_ADMIN", inviteStatus: "DIRECT_CREATED" })
+        })
+        .mockResolvedValueOnce({
+          created: false,
+          state: inviteFixture({ targetRole: "AGENCY_ADMIN", inviteStatus: "DIRECT_RECONCILED" })
+        })
+    });
+    const { agent, lisa } = await setup({ records, service, writer });
+
+    const first = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(first.status).toBe(500);
+    expect(records[0]).toMatchObject({ roles: ["agency-admin"], provisioningStatus: "failed" });
+
+    const retry = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin" });
+
+    expect(retry.status).toBe(200);
+    expect(retry.body).toMatchObject({
+      created: false,
+      linked: { id: existing.id, roles: ["agency-admin"] },
+      state: { inviteStatus: "DIRECT_RECONCILED" }
+    });
+    expect(records[0]).toMatchObject({ roles: ["agency-admin"], provisioningStatus: "ready" });
   });
 
   it("refuses stale-role replacement when a fresh live account still exists", async () => {
@@ -517,7 +584,11 @@ describe("human self-service ORISO PreDev provisioning", () => {
     });
     expect(service.status).toHaveBeenCalledWith(lisa.email);
     expect(service.provision).toHaveBeenCalledTimes(1);
-    expect(writer?.replaceRecord).not.toHaveBeenCalled();
+    expect(writer?.replaceRecord).toHaveBeenCalledTimes(2);
+    expect(writer?.replaceRecord).toHaveBeenLastCalledWith(
+      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "pending" }),
+      existing
+    );
     expect(writer?.updateRecord).not.toHaveBeenCalled();
   });
 
@@ -540,13 +611,14 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(service.provision).not.toHaveBeenCalled();
   });
 
-  it("keeps the old record untouched when replacement provisioning fails", async () => {
+  it("persists a recoverable failed replacement when provisioning fails", async () => {
     const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
+    const records = [existing];
     const service = fakeService({
       status: vi.fn(async () => null),
       provision: vi.fn(async () => { throw new OrisoProvisioningError("account_create_failed"); })
     });
-    const { agent, lisa, writer } = await setup({ records: [existing], service });
+    const { agent, lisa, writer } = await setup({ records, service });
 
     const response = await agent
       .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
@@ -554,10 +626,14 @@ describe("human self-service ORISO PreDev provisioning", () => {
 
     expect(response.status).toBe(502);
     expect(response.body).toEqual({ error: "account_create_failed" });
-    expect(existing.roles).toEqual(["tenant-admin"]);
-    expect(existing.provisioningStatus).toBe("ready");
-    expect(writer?.replaceRecord).not.toHaveBeenCalled();
-    expect(writer?.updateRecord).not.toHaveBeenCalled();
+    expect(records[0]).toMatchObject({ roles: ["agency-admin"], provisioningStatus: "failed" });
+    expect(writer?.replaceRecord).toHaveBeenCalledWith(
+      existing,
+      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "pending" })
+    );
+    expect(writer?.updateRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "failed" })
+    );
   });
 
   it("maps record-write failures to a dedicated error after the invite succeeded", async () => {

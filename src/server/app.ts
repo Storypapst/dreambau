@@ -587,6 +587,16 @@ export function createApp(options: AppOptions = {}) {
           provisioningStatus: "pending",
           updatedAt: nowDate.toISOString()
         };
+        // Persist the replacement intent before touching ORISO. If the live
+        // account is created but the final READY write fails, the pending
+        // record makes the next same-role request converge instead of falling
+        // back into the old-role conflict.
+        try {
+          await registryWriter.replaceRecord!(recordReplacementExpected, linkedRecord);
+          recordReplaced = true;
+        } catch {
+          return res.status(502).json({ error: "record_replacement_failed" });
+        }
       }
       const nameParts = current.displayName.trim().split(/\s+/);
       let provisioned: Awaited<ReturnType<OrisoProvisioningService["provision"]>>;
@@ -611,6 +621,12 @@ export function createApp(options: AppOptions = {}) {
         // rewrite the record if that probe authenticated an existing account,
         // including one created concurrently after the status check.
         if (recordReplacementExpected && !provisioned.created) {
+          try {
+            await registryWriter.replaceRecord!(linkedRecord, recordReplacementExpected);
+            recordReplaced = false;
+          } catch {
+            return res.status(502).json({ error: "record_replacement_failed" });
+          }
           return res.status(409).json({
             error: "record_role_conflict_live_account",
             linked: publicLinkedAccount(recordReplacementExpected)
@@ -621,15 +637,10 @@ export function createApp(options: AppOptions = {}) {
           provisioningStatus: "ready" as const,
           updatedAt: nowDate.toISOString()
         };
-        if (recordReplacementExpected) {
-          await registryWriter.replaceRecord!(recordReplacementExpected, readyRecord);
-          recordReplaced = true;
-        } else {
-          await registryWriter.updateRecord(readyRecord);
-        }
+        await registryWriter.updateRecord(readyRecord);
         linkedRecord = readyRecord;
       } catch (error) {
-        if (!recordReplacementExpected && linkedRecord.provisioningStatus !== "ready") {
+        if (linkedRecord.provisioningStatus !== "ready") {
           linkedRecord = {
             ...linkedRecord,
             provisioningStatus: "failed",

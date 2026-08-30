@@ -649,6 +649,36 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         if (verified.kind === "authenticated") {
           return { created: false, state: directStateView(input.record, input.role, "DIRECT_RECONCILED") };
         }
+        // A 403 profile probe for a previously ready asker is UserService's
+        // soft-deleted state: Keycloak still authenticates, but public account
+        // creation would collide with that retained identity. Recovery is
+        // therefore restricted to the privileged user-admin endpoint and is
+        // accepted only after the product profile becomes readable again.
+        if (
+          verified.status === 403
+          && input.record.provisioningStatus === "ready"
+          && input.role === "advice-seeker"
+        ) {
+          if (!input.record.email) throw new OrisoProvisioningError("account_create_failed");
+          const reactivation = await authorizedJson("/useradmin/askers/deletion/reactivate", {
+            method: "POST",
+            body: JSON.stringify({
+              username: input.record.username,
+              email: input.record.email,
+              tenantId: options.defaultTenantId,
+              password: input.record.secret
+            })
+          });
+          if (!reactivation.ok) {
+            if (reactivation.status === 409) {
+              throw new OrisoProvisioningError("account_credentials_mismatch");
+            }
+            throw new OrisoProvisioningError("account_create_failed");
+          }
+          const verifiedToken = await retryManagedCredentialToken(input.record, input.record.totpSecret);
+          if (!verifiedToken) throw new OrisoProvisioningError("totp_verification_failed");
+          return { created: false, state: directStateView(input.record, input.role, "DIRECT_RECONCILED") };
+        }
         // A pending record may have stored its seed immediately before 2FA
         // activation; in that recovery state the password-only probe must
         // still be allowed to resume activation. Only a previously ready
