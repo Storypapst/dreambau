@@ -443,6 +443,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     if (credential.kind === "rejected") return credential;
     const profile = await userJson(credential.token, "/users/data");
     if (profile.ok) return credential;
+    // UserService represents a soft-deleted asker/consultant profile as 403:
+    // retrieveValidatedUser()/retrieveValidatedConsultant() finds the row via
+    // its deleteDate-aware lookup and raises ForbiddenException. That is a
+    // definitive missing product profile even when Keycloak still authenticates.
     if (profile.status === 401 || profile.status === 403 || profile.status === 404) {
       return { kind: "rejected" as const, status: profile.status };
     }
