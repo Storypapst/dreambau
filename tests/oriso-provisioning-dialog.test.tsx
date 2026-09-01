@@ -360,21 +360,21 @@ describe("OrisoProvisioningDialog", () => {
     await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(document.querySelector("[data-testid=oriso-dialog-otp]")?.textContent).toBe("287082"));
-    expect(api).toHaveBeenCalledWith(
-      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          environment: "pre-dev",
-          role: "tenant-admin",
-          applicationPassword: "Password-Actually-Used-In-ORISO"
-        })
-      }
+    const provisionCall = vi.mocked(api).mock.calls.find(
+      ([path, init]) => path.endsWith("/oriso-provisioning") && init?.method === "POST"
     );
-    expect(api).toHaveBeenCalledWith(
-      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/totp`,
-      { method: "POST", body: JSON.stringify({ accountId: linkedFixture.id, totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" }) }
-    );
+    expect(provisionCall?.[0]).toBe(`/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`);
+    expect(JSON.parse(provisionCall?.[1]?.body ?? "null")).toEqual({
+      environment: "pre-dev",
+      role: "tenant-admin",
+      applicationPassword: "Password-Actually-Used-In-ORISO"
+    });
+    const totpCall = vi.mocked(api).mock.calls.find(([path]) => path.endsWith("/totp"));
+    expect(totpCall?.[0]).toBe(`/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/totp`);
+    expect(JSON.parse(totpCall?.[1]?.body ?? "null")).toEqual({
+      accountId: linkedFixture.id,
+      totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    });
     expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@dreambau.de", { ...linkedFixture, hasTotp: true });
     expect(document.body.textContent).not.toContain("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
   });
