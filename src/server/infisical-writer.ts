@@ -17,6 +17,11 @@ export interface RegistryWriter {
   ): Promise<{ recordId: string; updatedAt: string }>;
   createRecord?(record: TestAccessRecord): Promise<{ recordId: string }>;
   updateRecord?(record: TestAccessRecord): Promise<{ recordId: string; updatedAt: string }>;
+  updateApplicationPassword?(
+    expectedRecord: TestAccessRecord,
+    applicationPassword: string,
+    updatedAt: string
+  ): Promise<{ recordId: string; updatedAt: string }>;
 }
 
 interface WriterOptions {
@@ -42,6 +47,9 @@ const secretResponseSchema = z.object({
     secretValue: z.string()
   }).passthrough()
 }).passthrough();
+
+const recordsMatch = (left: TestAccessRecord, right: TestAccessRecord) =>
+  JSON.stringify(left) === JSON.stringify(right);
 
 function normalizedBaseUrl(value: string) {
   const url = new URL(value);
@@ -96,6 +104,40 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
     }
   }
 
+  async function readScopedRecord(
+    expected: TestAccessRecord,
+    headers: Record<string, string>,
+    failureMessage: string
+  ) {
+    const secretName = secretNameForRecord(expected.id);
+    const query = new URLSearchParams({
+      projectId: options.projectIds[expected.project],
+      environment: expected.environment,
+      secretPath: "/records",
+      type: "shared",
+      viewSecretValue: "true",
+      expandSecretReferences: "false",
+      includeImports: "false"
+    });
+    const url = new URL(`/api/v4/secrets/${secretName}`, baseUrl);
+    url.search = query.toString();
+    const response = await fetch(url, { headers, signal: requestSignal() });
+    if (!response.ok) throw new Error(failureMessage);
+    try {
+      const parsed = secretResponseSchema.parse(await response.json());
+      if (parsed.secret.secretKey !== secretName) throw new Error("secret name mismatch");
+      const record = testAccessRecordSchema.parse(JSON.parse(parsed.secret.secretValue));
+      if (
+        record.id !== expected.id
+        || record.project !== expected.project
+        || record.environment !== expected.environment
+      ) throw new Error("record scope mismatch");
+      return record;
+    } catch {
+      throw new Error(failureMessage);
+    }
+  }
+
   async function postSecret(record: TestAccessRecord, headers: Record<string, string>) {
     return fetch(new URL(`/api/v4/secrets/${secretNameForRecord(record.id)}`, baseUrl), {
       method: "POST",
@@ -140,7 +182,60 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           response = await postSecret(record, headers);
         }
         if (!response.ok) throw new Error("Infisical record creation failed");
+        const persisted = await readScopedRecord(
+          record,
+          headers,
+          "Infisical record creation readback failed"
+        );
+        if (!recordsMatch(persisted, record)) {
+          throw new Error("Infisical record creation readback failed");
+        }
         return { recordId: record.id };
+      });
+    },
+    async updateApplicationPassword(input, applicationPassword, updatedAt) {
+      const expected = testAccessRecordSchema.parse(input);
+      if (expected.kind !== "app-user" && expected.kind !== "admin") {
+        throw new Error("Infisical application password update only supports application records");
+      }
+      if (!applicationPassword) throw new Error("Infisical application password update validation failed");
+      return serializeEnrollment(expected.id, async () => {
+        const headers = { Authorization: `Bearer ${await accessToken()}` };
+        const current = await readScopedRecord(
+          expected,
+          headers,
+          "Infisical application password record lookup failed"
+        );
+        const updated = testAccessRecordSchema.parse({
+          ...current,
+          secret: applicationPassword,
+          provisioningStatus: "pending",
+          updatedAt
+        });
+        const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(updated.id)}`, baseUrl), {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json" },
+          signal: requestSignal(),
+          body: JSON.stringify({
+            projectId: options.projectIds[updated.project],
+            environment: updated.environment,
+            secretPath: "/records",
+            secretValue: JSON.stringify(updated),
+            skipMultilineEncoding: true,
+            type: "shared",
+            secretComment: "Application password linked by Dreambau Test Access Hub"
+          })
+        });
+        if (!response.ok) throw new Error("Infisical application password update failed");
+        const persisted = await readScopedRecord(
+          updated,
+          headers,
+          "Infisical application password update readback failed"
+        );
+        if (!recordsMatch(persisted, updated)) {
+          throw new Error("Infisical application password update readback failed");
+        }
+        return { recordId: updated.id, updatedAt };
       });
     },
     async updateRecord(input) {
@@ -203,6 +298,14 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           })
         });
         if (!response.ok) throw new Error("Infisical record update failed");
+        const persisted = await readScopedRecord(
+          updated,
+          headers,
+          "Infisical record update readback failed"
+        );
+        if (!recordsMatch(persisted, updated)) {
+          throw new Error("Infisical record update readback failed");
+        }
         return { recordId: updated.id, updatedAt: updated.updatedAt };
       });
     },
@@ -258,6 +361,14 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           })
         });
         if (!patchResponse.ok) throw new Error("Infisical TOTP update failed");
+        const persisted = await readScopedRecord(
+          updated,
+          headers,
+          "Infisical TOTP update readback failed"
+        );
+        if (!recordsMatch(persisted, updated)) {
+          throw new Error("Infisical TOTP update readback failed");
+        }
         return { recordId: current.id, updatedAt };
       });
     }

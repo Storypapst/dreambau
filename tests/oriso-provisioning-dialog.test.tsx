@@ -209,12 +209,28 @@ describe("OrisoProvisioningDialog", () => {
 
     const link = Array.from(document.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("Test-Access-Record verknüpfen"));
+    expect(link?.disabled).toBe(true);
+    const password = document.querySelector<HTMLInputElement>("input[name=existingOrisoPassword]")!;
+    expect(password.type).toBe("password");
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(password, "Password-Actually-Used-In-ORISO");
+      password.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(link?.disabled).toBe(false);
     await act(async () => link?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@dreambau.de", linkedFixture));
     expect(api).toHaveBeenCalledWith(
       `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
-      { method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "tenant-admin" }) }
+      {
+        method: "POST",
+        body: JSON.stringify({
+          environment: "pre-dev",
+          role: "tenant-admin",
+          applicationPassword: "Password-Actually-Used-In-ORISO"
+        })
+      }
     );
     await vi.waitFor(() => expect(document.body.textContent).not.toContain("noch kein Test-Access-Record"));
   });
@@ -229,6 +245,14 @@ describe("OrisoProvisioningDialog", () => {
           linked: linkedFixture
         };
       }
+      if (path.endsWith("/oriso-provisioning") && init?.method === "POST") {
+        return {
+          created: false,
+          recordCreated: false,
+          state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+          linked: linkedFixture
+        };
+      }
       if (path.endsWith("/totp")) return { accountId: linkedFixture.id, enrolled: true, updatedAt: "2026-07-29T18:00:00.000Z" };
       if (path.includes("/otp?")) return { accountId: linkedFixture.id, source: "totp", code: "287082", generatedAt: "", expiresAt: "" };
       throw new Error(`unexpected ${path}`);
@@ -236,6 +260,12 @@ describe("OrisoProvisioningDialog", () => {
     const onProvisioned = await openDialog();
     await vi.waitFor(() => expect(document.body.textContent).toContain("2FA direkt hier abschließen"));
 
+    const password = document.querySelector<HTMLInputElement>("input[name=existingOrisoPassword]")!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(password, "Password-Actually-Used-In-ORISO");
+      password.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     const input = document.querySelector<HTMLInputElement>("input[name=dialogTotpSecret]")!;
     expect(input.type).toBe("password");
     await act(async () => {
@@ -248,6 +278,17 @@ describe("OrisoProvisioningDialog", () => {
     await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(document.querySelector("[data-testid=oriso-dialog-otp]")?.textContent).toBe("287082"));
+    expect(api).toHaveBeenCalledWith(
+      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          environment: "pre-dev",
+          role: "tenant-admin",
+          applicationPassword: "Password-Actually-Used-In-ORISO"
+        })
+      }
+    );
     expect(api).toHaveBeenCalledWith(
       `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/totp`,
       { method: "POST", body: JSON.stringify({ accountId: linkedFixture.id, totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" }) }
@@ -421,6 +462,12 @@ describe("OtpAccess provisioning entry point", () => {
 
     const link = Array.from(document.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("Test-Access-Record verknüpfen"));
+    const password = document.querySelector<HTMLInputElement>("input[name=existingOrisoPassword]")!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(password, "Password-Actually-Used-In-ORISO");
+      password.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     await act(async () => link?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(container.textContent).toContain("ORISO-App-Passwort"));

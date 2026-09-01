@@ -436,7 +436,8 @@ export function createApp(options: AppOptions = {}) {
   });
   const orisoProvisionBodySchema = z.object({
     environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
-    role: z.enum(orisoProvisioningRoles)
+    role: z.enum(orisoProvisioningRoles),
+    applicationPassword: z.string().min(1).max(512).optional()
   }).strict();
   const orisoLinkedRecord = (
     email: string,
@@ -527,6 +528,90 @@ export function createApp(options: AppOptions = {}) {
       let linkedRecord = existingRecord;
       const nowDate = options.now?.() ?? new Date();
       let recordCreated = false;
+      const onboardingState = (!existingRecord || body.applicationPassword)
+        ? await orisoProvisioning.status(email)
+        : null;
+
+      // An invitation that already exists belongs to the human onboarding
+      // flow. Its password was (or will be) chosen there, so generating a new
+      // unrelated password and attempting direct creation can only leave a
+      // misleading half-record behind. Link the actual credential first and
+      // let the existing inline TOTP step complete the handoff.
+      if (!existingRecord && onboardingState && !body.applicationPassword) {
+        return res.status(409).json({ error: "application_password_required" });
+      }
+      if (
+        existingRecord
+        && !existingRecord.totpSecret
+        && existingRecord.provisioningStatus === "failed"
+        && !body.applicationPassword
+      ) {
+        return res.status(409).json({ error: "application_password_required" });
+      }
+      if (body.applicationPassword) {
+        if (!onboardingState || !onboardingState.role || onboardingState.role !== body.role) {
+          return res.status(409).json({ error: "oriso_onboarding_state_mismatch" });
+        }
+        if (existingRecord?.totpSecret || existingRecord?.provisioningStatus === "ready") {
+          return res.status(409).json({ error: "managed_record_password_locked" });
+        }
+        if (!linkedRecord) {
+          linkedRecord = buildProvisionedRecord({
+            email,
+            displayName: current.displayName,
+            role: body.role,
+            adminBaseUrl: orisoProvisioning.target.adminBaseUrl,
+            appBaseUrl: orisoProvisioning.target.appBaseUrl,
+            responsiblePerson: user.email,
+            now: nowDate,
+            secret: body.applicationPassword,
+            environment
+          });
+          try {
+            await registryWriter.createRecord(linkedRecord);
+          } catch {
+            return res.status(502).json({ error: "record_creation_failed" });
+          }
+          recordCreated = true;
+        } else {
+          if (!registryWriter.updateApplicationPassword) {
+            return res.status(503).json({ error: "record_password_update_unavailable" });
+          }
+          try {
+            await registryWriter.updateApplicationPassword(
+              linkedRecord,
+              body.applicationPassword,
+              nowDate.toISOString()
+            );
+          } catch {
+            return res.status(502).json({ error: "record_password_update_failed" });
+          }
+          linkedRecord = {
+            ...linkedRecord,
+            secret: body.applicationPassword,
+            provisioningStatus: "pending",
+            updatedAt: nowDate.toISOString()
+          };
+        }
+        reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
+        if (recordCreated) {
+          database.recordAccountAccess({
+            accountId: linkedRecord.id,
+            email,
+            actorId: user.id,
+            action: "record_linked",
+            createdAt: nowDate.toISOString(),
+            context: { environment }
+          });
+        }
+        res.set("Cache-Control", "no-store");
+        return res.status(recordCreated ? 201 : 200).json({
+          created: false,
+          recordCreated,
+          state: onboardingState,
+          linked: publicLinkedAccount(linkedRecord)
+        });
+      }
       if (!linkedRecord) {
         linkedRecord = buildProvisionedRecord({
           email,

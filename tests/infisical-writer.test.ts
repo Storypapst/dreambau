@@ -33,14 +33,19 @@ function record(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
 describe("Infisical TOTP writer", () => {
   it("reads the current scoped record and patches only a validated TOTP update", async () => {
     const calls: Array<{ url: URL; init?: RequestInit }> = [];
-    const current = record();
+    let current = record();
     const fetch: WriterFetch = async (input, init) => {
       const url = new URL(String(input));
       calls.push({ url, init });
       if (url.pathname.endsWith("/login")) {
         return Response.json({ accessToken: "short-lived-writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
       }
-      if (init?.method === "PATCH") return Response.json({ secret: { id: "updated" } });
+      if (init?.method === "PATCH") {
+        current = JSON.parse(String(init.body)).secretValue
+          ? JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord
+          : current;
+        return Response.json({ secret: { id: "updated" } });
+      }
       return Response.json({
         secret: {
           secretKey: secretNameForRecord(current.id),
@@ -61,7 +66,7 @@ describe("Infisical TOTP writer", () => {
       recordId: current.id,
       updatedAt: "2026-07-29T10:00:00.000Z"
     });
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
     expect(JSON.parse(String(calls[0].init?.body))).toEqual({
       clientId: "test-access-writer",
       clientSecret: writerSecret,
@@ -121,6 +126,75 @@ describe("Infisical TOTP writer", () => {
     await expect(writer.enrollTotp(record(), totpSecret, "2026-07-29T10:00:00.000Z"))
       .rejects.toThrow("Infisical TOTP record validation failed");
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a successful TOTP patch when Infisical readback did not persist it", async () => {
+    const current = record();
+    const fetch: WriterFetch = async (input, init) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") return Response.json({ secret: { id: "updated" } });
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.enrollTotp(current, totpSecret, "2026-07-29T10:00:00.000Z"))
+      .rejects.toThrow("Infisical TOTP update readback failed");
+  });
+
+  it("updates an application password without dropping an existing TOTP and reads it back", async () => {
+    let current = record({ totpSecret, provisioningStatus: "failed" });
+    const fetch: WriterFetch = async (input, init) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") {
+        current = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        return Response.json({ secret: { id: "updated" } });
+      }
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.updateApplicationPassword!(
+      current,
+      "Password-Actually-Used-In-ORISO",
+      "2026-07-29T10:00:00.000Z"
+    )).resolves.toEqual({
+      recordId: current.id,
+      updatedAt: "2026-07-29T10:00:00.000Z"
+    });
+    expect(current).toMatchObject({
+      secret: "Password-Actually-Used-In-ORISO",
+      totpSecret,
+      provisioningStatus: "pending",
+      updatedAt: "2026-07-29T10:00:00.000Z"
+    });
   });
 
   it("serializes enrollment per record so concurrent requests cannot replace a TOTP", async () => {
@@ -190,13 +264,23 @@ describe("Infisical TOTP writer", () => {
 
   it("creates a new provisioned record secret in the right scope", async () => {
     const calls: Array<{ url: URL; init?: RequestInit }> = [];
+    let persisted: TestAccessRecord | null = null;
     const fetch: WriterFetch = async (input, init) => {
       const url = new URL(String(input));
       calls.push({ url, init });
       if (url.pathname.endsWith("/login")) {
         return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
       }
-      return Response.json({ secret: { id: "created" } });
+      if (init?.method === "POST") {
+        persisted = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        return Response.json({ secret: { id: "created" } });
+      }
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(persisted!.id),
+          secretValue: JSON.stringify(persisted)
+        }
+      });
     };
     const writer = createInfisicalRegistryWriter({
       baseUrl: "https://secrets.dreambau.com",
@@ -226,17 +310,21 @@ describe("Infisical TOTP writer", () => {
 
   it("updates only the scoped record when provisioning state changes", async () => {
     const calls: Array<{ url: URL; init?: RequestInit }> = [];
+    let current = record({ permissionsDescription: "Concurrent metadata survives" });
     const fetch: WriterFetch = async (input, init) => {
       const url = new URL(String(input));
       calls.push({ url, init });
       if (url.pathname.endsWith("/login")) {
         return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
       }
-      if (init?.method === "PATCH") return Response.json({ secret: { id: "updated" } });
+      if (init?.method === "PATCH") {
+        current = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        return Response.json({ secret: { id: "updated" } });
+      }
       return Response.json({
         secret: {
           secretKey: secretNameForRecord(record().id),
-          secretValue: JSON.stringify(record({ permissionsDescription: "Concurrent metadata survives" }))
+          secretValue: JSON.stringify(current)
         }
       });
     };
@@ -309,6 +397,7 @@ describe("Infisical TOTP writer", () => {
   it("creates the records folder once when the secret path does not exist yet", async () => {
     const calls: Array<{ url: URL; init?: RequestInit }> = [];
     let folderCreated = false;
+    let persisted: TestAccessRecord | null = null;
     const fetch: WriterFetch = async (input, init) => {
       const url = new URL(String(input));
       calls.push({ url, init });
@@ -320,7 +409,16 @@ describe("Infisical TOTP writer", () => {
         return Response.json({ folder: { id: "records" } });
       }
       if (!folderCreated) return Response.json({ error: "SecretPathNotFound" }, { status: 404 });
-      return Response.json({ secret: { id: "created" } });
+      if (init?.method === "POST") {
+        persisted = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        return Response.json({ secret: { id: "created" } });
+      }
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(persisted!.id),
+          secretValue: JSON.stringify(persisted)
+        }
+      });
     };
     const writer = createInfisicalRegistryWriter({
       baseUrl: "https://secrets.dreambau.com",

@@ -169,6 +169,11 @@ async function setup(options: {
       const index = records.findIndex((candidate) => candidate.id === record.id);
       if (index >= 0) records[index] = record;
       return { recordId: record.id, updatedAt: record.updatedAt };
+    }),
+    updateApplicationPassword: vi.fn(async (record: TestAccessRecord, secret: string, updatedAt: string) => {
+      const index = records.findIndex((candidate) => candidate.id === record.id);
+      if (index >= 0) records[index] = { ...records[index], secret, provisioningStatus: "pending", updatedAt };
+      return { recordId: record.id, updatedAt };
     })
   };
   const root = mkdtempSync(path.join(tmpdir(), "oriso-provisioning-"));
@@ -219,6 +224,150 @@ async function setup(options: {
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
+  it("links an existing onboarding account with its real password without direct provisioning", async () => {
+    const existingState = inviteFixture({
+      inviteStatus: "ACCEPTED",
+      emailVerificationStatus: "VERIFIED",
+      twoFactorStatus: "PENDING_SETUP",
+      accessGateStatus: "BLOCKED_TWO_FACTOR",
+      acceptedAt: "2026-07-29T15:30:00.000Z"
+    });
+    const service = fakeService({
+      status: vi.fn(async () => existingState),
+      provision: vi.fn()
+    });
+    const { agent, lisa, createdRecords, writer } = await setup({ service });
+    const applicationPassword = "Password-Actually-Used-In-ORISO";
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword });
+
+    expect(response.status).toBe(201);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body).toMatchObject({
+      created: false,
+      recordCreated: true,
+      state: { state: "two-factor-pending", nextStep: "store-totp" },
+      linked: {
+        id: "oriso/pre-dev/lisa.simpson-dreambau.de",
+        hasTotp: false,
+        roles: ["tenant-admin"]
+      }
+    });
+    expect(JSON.stringify(response.body)).not.toContain(applicationPassword);
+    expect(createdRecords).toHaveLength(1);
+    expect(createdRecords[0].secret).toBe(applicationPassword);
+    expect(createdRecords[0].provisioningStatus).toBe("pending");
+    expect(service.provision).not.toHaveBeenCalled();
+    expect(writer?.updateRecord).not.toHaveBeenCalled();
+  });
+
+  it("does not create a misleading random-password record for an existing onboarding account", async () => {
+    const existingState = inviteFixture({
+      inviteStatus: "ACCEPTED",
+      emailVerificationStatus: "VERIFIED",
+      twoFactorStatus: "PENDING_SETUP",
+      accessGateStatus: "BLOCKED_TWO_FACTOR"
+    });
+    const service = fakeService({
+      status: vi.fn(async () => existingState),
+      provision: vi.fn()
+    });
+    const { agent, lisa, writer } = await setup({ service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "application_password_required" });
+    expect(writer?.createRecord).not.toHaveBeenCalled();
+    expect(writer?.updateRecord).not.toHaveBeenCalled();
+    expect(service.provision).not.toHaveBeenCalled();
+  });
+
+  it("repairs the password of an incomplete linked record without direct provisioning", async () => {
+    const existingState = inviteFixture({
+      inviteStatus: "ACCEPTED",
+      emailVerificationStatus: "VERIFIED",
+      twoFactorStatus: "PENDING_SETUP",
+      accessGateStatus: "BLOCKED_TWO_FACTOR",
+      acceptedAt: "2026-07-29T15:30:00.000Z"
+    });
+    const incomplete = managedRecord({ totpSecret: undefined, provisioningStatus: "failed" });
+    const service = fakeService({
+      status: vi.fn(async () => existingState),
+      provision: vi.fn()
+    });
+    const { agent, lisa, writer } = await setup({ records: [incomplete], service });
+    const applicationPassword = "Password-Actually-Used-In-ORISO";
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      created: false,
+      recordCreated: false,
+      state: { state: "two-factor-pending", nextStep: "store-totp" },
+      linked: { id: incomplete.id, hasTotp: false }
+    });
+    expect(JSON.stringify(response.body)).not.toContain(applicationPassword);
+    expect(writer?.updateApplicationPassword).toHaveBeenCalledWith(
+      expect.objectContaining({ id: incomplete.id, provisioningStatus: "failed" }),
+      applicationPassword,
+      "2026-07-29T16:00:00.000Z"
+    );
+    expect(service.provision).not.toHaveBeenCalled();
+  });
+
+  it("persists password and TOTP across a fresh status load before reporting the account ready", async () => {
+    const pendingState = inviteFixture({
+      inviteStatus: "ACCEPTED",
+      emailVerificationStatus: "VERIFIED",
+      twoFactorStatus: "PENDING_SETUP",
+      accessGateStatus: "BLOCKED_TWO_FACTOR",
+      acceptedAt: "2026-07-29T15:30:00.000Z"
+    });
+    const incomplete = managedRecord({ totpSecret: undefined, provisioningStatus: "failed" });
+    const service = fakeService({ status: vi.fn(async () => pendingState) });
+    const { agent, lisa } = await setup({ records: [incomplete], service });
+    const applicationPassword = "Password-Actually-Used-In-ORISO";
+    const totpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+
+    expect((await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword })).status).toBe(200);
+
+    const enrolled = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/totp`)
+      .send({ accountId: incomplete.id, totpSecret });
+    expect(enrolled.status).toBe(200);
+    expect(JSON.stringify(enrolled.body)).not.toContain(totpSecret);
+
+    const verified = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(verified.status).toBe(200);
+    expect(verified.body).toMatchObject({
+      created: false,
+      recordCreated: false,
+      state: { state: "ready", nextStep: "none" },
+      linked: { id: incomplete.id, hasTotp: true }
+    });
+
+    const fresh = await agent.get(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`);
+    expect(fresh.status).toBe(200);
+    expect(fresh.body).toMatchObject({
+      state: { state: "ready", nextStep: "none" },
+      linked: { id: incomplete.id, hasTotp: true }
+    });
+    expect(JSON.stringify(fresh.body)).not.toContain(applicationPassword);
+    expect(JSON.stringify(fresh.body)).not.toContain(totpSecret);
+  });
+
   it("creates the account, links a stable record and never leaks generated secrets", async () => {
     const { agent, database, lisa, service, createdRecords } = await setup();
 
