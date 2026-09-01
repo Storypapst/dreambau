@@ -11,6 +11,7 @@ describe("deadline queue", () => {
 
     const first = queue(firstOperation);
     const queued = queue(queuedOperation);
+    expect(queue.metrics).toEqual({ enqueued: 2, expired: 0 });
     await vi.waitFor(() => expect(firstOperation).toHaveBeenCalledOnce());
     expect(queuedOperation).not.toHaveBeenCalled();
 
@@ -20,6 +21,7 @@ describe("deadline queue", () => {
     await expect(first).rejects.toThrow("offline");
     await expect(queued).rejects.toThrow("test_deadline_expired");
     expect(queuedOperation).not.toHaveBeenCalled();
+    expect(queue.metrics).toEqual({ enqueued: 2, expired: 1 });
   });
 
   it("runs queued work with the deadline captured when it was enqueued", async () => {

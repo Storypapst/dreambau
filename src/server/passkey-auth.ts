@@ -198,6 +198,12 @@ export function installPasskeyAuth(router: Router, options: {
     [...new Set(options.store.grants.list(userId).filter((grant) => grant.status === "active").map((grant) => grant.source))].sort();
   const listWithAccessSources = (users: import("./passkey-store.js").HumanUser[]) =>
     users.map((user) => ({ ...user, accessSources: accessSourcesFor(user.id) }));
+  type TeamMembersResponsePayload = {
+    users: ReturnType<typeof listWithAccessSources>;
+    sourceStatus:
+      | { infisical: "available" }
+      | { infisical: "degraded"; correlationId: string };
+  };
 
   const degradedEmployeeList = (
     users: ReturnType<typeof listWithAccessSources>,
@@ -228,7 +234,7 @@ export function installPasskeyAuth(router: Router, options: {
   router.get("/auth/users", requireAdmin, async (_req, res) => {
     const locallyStored = options.store.listUsers();
     const localSnapshot = listWithAccessSources(locallyStored);
-    let payload;
+    let payload: TeamMembersResponsePayload;
     try {
       payload = await options.serializeHumanAccess(async (deadlineAt) => {
         const infisicalSnapshots = new Map(locallyStored.map((user) => [

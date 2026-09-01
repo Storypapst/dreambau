@@ -1,4 +1,7 @@
-export type DeadlineQueue = <T>(operation: (deadlineAt: number) => Promise<T>) => Promise<T>;
+export type DeadlineQueue = {
+  <T>(operation: (deadlineAt: number) => Promise<T>): Promise<T>;
+  metrics: { enqueued: number; expired: number };
+};
 
 /**
  * Serializes operations while measuring the deadline from enqueue time. A
@@ -11,13 +14,21 @@ export function createDeadlineQueue(
   expiredError: () => Error = () => new Error("deadline_expired")
 ): DeadlineQueue {
   let tail: Promise<void> = Promise.resolve();
-  return <T>(operation: (deadlineAt: number) => Promise<T>) => {
+  const metrics = { enqueued: 0, expired: 0 };
+  const queue = <T>(operation: (deadlineAt: number) => Promise<T>) => {
+    metrics.enqueued += 1;
     const deadlineAt = now() + timeoutMs;
-    const guarded = () => now() >= deadlineAt
-      ? Promise.reject<T>(expiredError())
-      : operation(deadlineAt);
+    const guarded = () => {
+      if (now() >= deadlineAt) {
+        metrics.expired += 1;
+        return Promise.reject<T>(expiredError());
+      }
+      return operation(deadlineAt);
+    };
     const result = tail.then(guarded, guarded);
     tail = result.then(() => undefined, () => undefined);
     return result;
   };
+  queue.metrics = metrics;
+  return queue;
 }
