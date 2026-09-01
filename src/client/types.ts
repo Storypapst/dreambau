@@ -32,10 +32,12 @@ export interface OrisoProvisioningStateView {
 }
 export interface OrisoProvisioningView {
   configured: boolean; supportedRoles: OrisoProvisioningRole[]; environment: "pre-dev" | "dev";
-  state: OrisoProvisioningStateView | null; linked: LinkedTestAccount | null; requiresApplicationPassword: boolean;
+  state: OrisoProvisioningStateView | null; provisioningRole: OrisoProvisioningRole | null;
+  linked: LinkedTestAccount | null; requiresApplicationPassword: boolean;
 }
 export interface OrisoProvisioningResult {
-  created: boolean; recordCreated: boolean; state: OrisoProvisioningStateView; linked: LinkedTestAccount; requiresApplicationPassword: boolean;
+  created: boolean; recordCreated: boolean; state: OrisoProvisioningStateView | null;
+  provisioningRole: OrisoProvisioningRole; linked: LinkedTestAccount; requiresApplicationPassword: boolean;
 }
 export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
 export type OtpResponse = ({ source: "totp"; generatedAt: string; expiresAt: string } | { source: "mail"; receivedAt: string; messageId: string; subject: string }) & { accountId: string; code: string };

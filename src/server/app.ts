@@ -38,6 +38,7 @@ import {
   environmentForOrisoEmail,
   generateApplicationPassword,
   orisoProvisioningRoles,
+  provisioningRoleForRecord,
   readyStateForProvisionedRecord,
   recordRolesForProvisioningRole,
   OrisoProvisioningError,
@@ -476,6 +477,7 @@ export function createApp(options: AppOptions = {}) {
         supportedRoles: [...orisoProvisioningRoles],
         environment,
         state: null,
+        provisioningRole: null,
         linked: null,
         requiresApplicationPassword: false
       });
@@ -486,14 +488,16 @@ export function createApp(options: AppOptions = {}) {
       const linked = orisoLinkedRecord(email, records, environment);
       const managedState = linked?.totpSecret ? readyStateForProvisionedRecord(linked) : null;
       const state = managedState ?? await orisoProvisioning.status(email);
+      const provisioningRole = state?.role ?? (linked ? provisioningRoleForRecord(linked) : null);
       res.json({
         configured: true,
         supportedRoles: [...orisoProvisioningRoles],
         environment,
         state,
+        provisioningRole,
         linked: linked ? publicLinkedAccount(linked) : null,
         requiresApplicationPassword: Boolean(
-          state
+          provisioningRole
           && (
             !linked
             || (!linked.totpSecret && linked.provisioningStatus === "failed")
@@ -587,7 +591,17 @@ export function createApp(options: AppOptions = {}) {
         if (existingRecord?.totpSecret || existingRecord?.provisioningStatus === "ready") {
           return res.status(409).json({ error: "managed_record_password_locked" });
         }
-        if (!onboardingState || !onboardingState.role || onboardingState.role !== body.role) {
+        const canRepairFromRecord = Boolean(
+          !onboardingState
+          && existingRecord
+          && existingRecord.provisioningStatus === "failed"
+          && !existingRecord.totpSecret
+          && provisioningRoleForRecord(existingRecord) === body.role
+        );
+        if (
+          !canRepairFromRecord
+          && (!onboardingState || !onboardingState.role || onboardingState.role !== body.role)
+        ) {
           return res.status(409).json({ error: "oriso_onboarding_state_mismatch" });
         }
         if (!linkedRecord) {
@@ -638,6 +652,7 @@ export function createApp(options: AppOptions = {}) {
           created: false,
           recordCreated,
           state: onboardingState,
+          provisioningRole: body.role,
           linked: publicLinkedAccount(linkedRecord),
           requiresApplicationPassword: false
         });
@@ -712,6 +727,7 @@ export function createApp(options: AppOptions = {}) {
         created: provisioned.created,
         recordCreated,
         state: provisioned.state,
+        provisioningRole: body.role,
         linked: publicLinkedAccount(linkedRecord),
         requiresApplicationPassword: false
       });

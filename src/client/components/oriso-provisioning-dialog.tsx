@@ -150,6 +150,7 @@ export function OrisoProvisioningDialog({
   const environment = view?.environment
     ?? (account.domain === "oriso.org" || account.domain === "openresilience.cc" ? "dev" : "pre-dev");
   const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
+  const provisioningRole = view?.provisioningRole ?? view?.state?.role ?? null;
 
   async function load() {
     setError(null);
@@ -199,12 +200,13 @@ export function OrisoProvisioningDialog({
     const currentView = view;
     let linked = currentView?.linked;
     if (!currentView || !linked) return;
+    const currentRole = currentView.provisioningRole ?? currentView.state?.role;
     setEnrollBusy(true);
     setEnrollError(false);
     setError(null);
     if (
       currentView.requiresApplicationPassword
-      && currentView.state?.role
+      && currentRole
       && applicationPassword.trim().length > 0
     ) {
       try {
@@ -212,13 +214,14 @@ export function OrisoProvisioningDialog({
           `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
           {
             method: "POST",
-            body: JSON.stringify({ environment, role: currentView.state.role, applicationPassword })
+            body: JSON.stringify({ environment, role: currentRole, applicationPassword })
           }
         );
         linked = result.linked;
         setView((current) => current ? {
           ...current,
           state: result.state,
+          provisioningRole: result.provisioningRole,
           linked: result.linked,
           requiresApplicationPassword: result.requiresApplicationPassword
         } : current);
@@ -267,10 +270,11 @@ export function OrisoProvisioningDialog({
       setView((current) => current ? {
         ...current,
         state: result.state,
+        provisioningRole: result.provisioningRole,
         linked: result.linked,
         requiresApplicationPassword: result.requiresApplicationPassword
       } : current);
-      setLiveVerified(result.state.state === "ready" && result.linked.hasTotp);
+      setLiveVerified(result.state?.state === "ready" && result.linked.hasTotp);
       onProvisioned(account.email, result.linked);
       if (existingPassword) {
         setApplicationPassword("");
@@ -327,7 +331,7 @@ export function OrisoProvisioningDialog({
           ? "Für dieses ORISO-Konto existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen das fest zugewiesene ORISO-App-Passwort und „2FA hinterlegen“ in der Zeile."
           : "This ORISO account has no Test Access record yet. The permanently assigned ORISO app password and “Set up 2FA” appear in the row only after linking."}
       </p>}
-      {view?.configured && view.state?.role && (!view.linked || view.requiresApplicationPassword) && <div className="flex flex-col gap-2 rounded-lg border p-3">
+      {view?.configured && provisioningRole && (!view.linked || view.requiresApplicationPassword) && <div className="flex flex-col gap-2 rounded-lg border p-3">
         <p className="text-sm font-medium">{locale === "de" ? "ORISO-App-Passwort verknüpfen" : "Link ORISO app password"}</p>
         <p className="text-xs text-muted-foreground">
           {locale === "de"
@@ -417,13 +421,13 @@ export function OrisoProvisioningDialog({
             ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
             : (locale === "de" ? "Konto anlegen & prüfen" : "Provision & verify account")}
         </Button>}
-        {view?.configured && view.state && !view.linked && view.state.role && <Button type="button" onClick={() => provision(view.state!.role!, applicationPassword)} disabled={busy || !applicationPassword.trim()}>
+        {view?.configured && view.state && !view.linked && provisioningRole && <Button type="button" onClick={() => provision(provisioningRole, applicationPassword)} disabled={busy || !applicationPassword.trim()}>
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird verknüpft…" : "Linking…")
             : (locale === "de" ? "Test-Access-Record verknüpfen" : "Link Test Access record")}
         </Button>}
-        {view?.configured && view.state?.role && view.linked?.hasTotp && <Button type="button" onClick={() => provision(view.state!.role!)} disabled={busy}>
+        {view?.configured && provisioningRole && view.linked?.hasTotp && <Button type="button" onClick={() => provision(provisioningRole)} disabled={busy}>
           <RefreshCwIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird live geprüft…" : "Verifying live…")

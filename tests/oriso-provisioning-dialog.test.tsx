@@ -319,7 +319,8 @@ describe("OrisoProvisioningDialog", () => {
         return {
           configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
           environment: "pre-dev",
-          state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+          state: null,
+          provisioningRole: "tenant-admin",
           linked: linkedFixture,
           requiresApplicationPassword: true
         };
@@ -328,7 +329,8 @@ describe("OrisoProvisioningDialog", () => {
         return {
           created: false,
           recordCreated: false,
-          state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+          state: null,
+          provisioningRole: "tenant-admin",
           linked: linkedFixture,
           requiresApplicationPassword: false
         };

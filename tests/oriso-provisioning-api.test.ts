@@ -288,16 +288,9 @@ describe("human self-service ORISO PreDev provisioning", () => {
   });
 
   it("repairs the password of an incomplete linked record without direct provisioning", async () => {
-    const existingState = inviteFixture({
-      inviteStatus: "ACCEPTED",
-      emailVerificationStatus: "VERIFIED",
-      twoFactorStatus: "PENDING_SETUP",
-      accessGateStatus: "BLOCKED_TWO_FACTOR",
-      acceptedAt: "2026-07-29T15:30:00.000Z"
-    });
     const incomplete = managedRecord({ totpSecret: undefined, provisioningStatus: "failed" });
     const service = fakeService({
-      status: vi.fn(async () => existingState),
+      status: vi.fn(async () => null),
       provision: vi.fn()
     });
     const { agent, lisa, writer, database } = await setup({ records: [incomplete], service });
@@ -311,7 +304,8 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(response.body).toMatchObject({
       created: false,
       recordCreated: false,
-      state: { state: "two-factor-pending", nextStep: "store-totp" },
+      state: null,
+      provisioningRole: "tenant-admin",
       linked: { id: incomplete.id, hasTotp: false }
     });
     expect(JSON.stringify(response.body)).not.toContain(applicationPassword);
@@ -813,19 +807,17 @@ describe("human self-service ORISO PreDev provisioning", () => {
   });
 
   it("requires password repair only for failed linked records without TOTP", async () => {
-    const remoteState = inviteFixture({
-      inviteStatus: "ACCEPTED",
-      accessGateStatus: "BLOCKED_TWO_FACTOR"
-    });
     const failed = await setup({
       records: [managedRecord({ totpSecret: undefined, provisioningStatus: "failed" })],
-      service: fakeService({ status: vi.fn(async () => remoteState) })
+      service: fakeService({ status: vi.fn(async () => null) })
     });
     const failedStatus = await failed.agent.get(
       `/testmails/api/accounts/${encodeURIComponent(failed.lisa.email)}/oriso-provisioning`
     );
     expect(failedStatus.body.requiresApplicationPassword).toBe(true);
+    expect(failedStatus.body.provisioningRole).toBe("tenant-admin");
 
+    const remoteState = inviteFixture({ inviteStatus: "ACCEPTED", accessGateStatus: "BLOCKED_TWO_FACTOR" });
     const pending = await setup({
       records: [managedRecord({ totpSecret: undefined, provisioningStatus: "pending" })],
       service: fakeService({ status: vi.fn(async () => remoteState) })
