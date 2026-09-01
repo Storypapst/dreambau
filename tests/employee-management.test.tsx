@@ -60,4 +60,54 @@ describe("EmployeeManagement failures", () => {
     await act(async () => root.unmount());
     container.remove();
   });
+
+  it("keeps mutations disabled while a degraded employee list refresh is pending", async () => {
+    const degradedResponse = {
+      users: [{
+        id: "member-id",
+        email: "member@dreambau.com",
+        name: "Stored Member",
+        projects: ["oriso" as const],
+        role: "member" as const,
+        status: "active" as const,
+        createdAt: "2026-08-30T12:00:00.000Z",
+        accessSources: ["local" as const],
+        entitlements: { orisoProvisioning: { environments: [] } }
+      }],
+      sourceStatus: { infisical: "degraded" as const, correlationId: "d8412b72-c4ad-49f3-9bd5-9d441c3ca2db" }
+    };
+    let finishRefresh!: (value: typeof degradedResponse) => void;
+    vi.mocked(loadTeamMembers)
+      .mockResolvedValueOnce(degradedResponse)
+      .mockImplementationOnce(() => new Promise((resolve) => { finishRefresh = resolve; }));
+
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => root.render(<EmployeeManagement locale="de" />));
+    const trigger = Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.includes("Mitarbeiter"));
+    await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Stored Member"));
+
+    const closeButton = document.body.querySelector<HTMLButtonElement>('[data-slot="dialog-close"]');
+    await act(async () => closeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.body.querySelector('[data-slot="dialog-content"]')).toBeNull());
+    await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => {
+      const disableButton = Array.from(document.body.querySelectorAll("button")).find((button) => button.textContent?.includes("Sperren"));
+      expect(disableButton?.disabled).toBe(true);
+    });
+
+    finishRefresh({
+      ...degradedResponse,
+      sourceStatus: { infisical: "available" as const, correlationId: undefined }
+    });
+    await vi.waitFor(() => {
+      const disableButton = Array.from(document.body.querySelectorAll("button")).find((button) => button.textContent?.includes("Sperren"));
+      expect(disableButton?.disabled).toBe(false);
+    });
+    await act(async () => root.unmount());
+    container.remove();
+  });
 });

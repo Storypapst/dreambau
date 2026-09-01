@@ -200,11 +200,29 @@ export function installPasskeyAuth(router: Router, options: {
 
   router.get("/auth/users", requireAdmin, async (_req, res) => {
     const locallyStored = options.store.listUsers();
+    const infisicalSnapshots = new Map(locallyStored.map((user) => [
+      user.id,
+      options.store.grants.list(user.id)
+        .filter((grant) => grant.source === "infisical")
+        .map(({ userId, project, environments, source, status }) => ({ userId, project, environments, source, status }))
+    ]));
     try {
-      const synchronized = options.syncHumanUser ? await Promise.all(locallyStored.map(options.syncHumanUser)) : locallyStored;
+      let synchronized = locallyStored;
+      if (options.syncHumanUser) {
+        const outcomes = await Promise.allSettled(locallyStored.map(options.syncHumanUser));
+        const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+        if (rejected) throw rejected.reason;
+        synchronized = outcomes.map((outcome) => {
+          if (outcome.status === "rejected") throw outcome.reason;
+          return outcome.value;
+        });
+      }
       res.set("Cache-Control", "no-store");
       res.json({ users: listWithAccessSources(synchronized), sourceStatus: { infisical: "available" } });
     } catch {
+      for (const user of locallyStored) {
+        options.store.grants.replaceInfisical(user.id, infisicalSnapshots.get(user.id) ?? []);
+      }
       const correlationId = randomUUID();
       console.warn("human_access_employee_list_degraded", { correlationId });
       res.set("Cache-Control", "no-store");

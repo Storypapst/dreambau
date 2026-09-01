@@ -22,16 +22,19 @@ export function EmployeeManagement({ locale }: { locale: Locale }) {
   const [enrollmentCode, setEnrollmentCode] = useState("");
   const [error, setError] = useState<"load" | "create" | "status" | null>(null);
   const [sourceStatus, setSourceStatus] = useState<HumanAccessSourceStatus | null>(null);
+  const [loading, setLoading] = useState(false);
   const isDegraded = sourceStatus?.infisical === "degraded";
+  const mutationsDisabled = loading || isDegraded;
   async function load() {
     setError(null);
-    setSourceStatus(null);
+    setLoading(true);
     try {
       const result = await loadTeamMembers();
       setUsers(result.users);
       setSourceStatus(result.sourceStatus);
     }
     catch { setError("load"); }
+    finally { setLoading(false); }
   }
   async function create() {
     setError(null);
@@ -58,9 +61,9 @@ export function EmployeeManagement({ locale }: { locale: Locale }) {
         {enrollmentCode && <Alert className="min-w-0"><AlertTitle>{locale === "de" ? "Enrollment-Code jetzt sicher übergeben" : "Share this enrollment code securely now"}</AlertTitle><AlertDescription className="min-w-0"><p>{locale === "de" ? "Der Code wird nach dem Schließen nicht erneut angezeigt." : "The code will not be shown again after closing."}</p><div className="mt-3 flex w-full min-w-0 items-start gap-2"><code className="min-w-0 flex-1 break-all rounded bg-muted p-3 font-mono text-sm">{enrollmentCode}</code><CopyButton value={enrollmentCode} label={locale === "de" ? "Enrollment-Code kopieren" : "Copy enrollment code"} /></div></AlertDescription></Alert>}
         <div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="employee-name">Name</FieldLabel><Input id="employee-name" value={name} onChange={(event) => setName(event.target.value)} /></Field><Field><FieldLabel htmlFor="employee-email">E-Mail</FieldLabel><Input id="employee-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></Field></div>
         <div className="flex flex-wrap gap-4">{projects.map((project) => <label key={project} className="flex items-center gap-2 text-sm"><Checkbox checked={selected.includes(project)} onCheckedChange={(checked) => setSelected((current) => checked ? [...current, project] : current.filter((value) => value !== project))} />{project.toUpperCase()}</label>)}</div>
-        <Button onClick={create} disabled={isDegraded || !name || !email || selected.length === 0}><UserPlusIcon />{locale === "de" ? "Mitarbeiter anlegen" : "Create team member"}</Button>
+        <Button onClick={create} disabled={mutationsDisabled || !name || !email || selected.length === 0}><UserPlusIcon />{locale === "de" ? "Mitarbeiter anlegen" : "Create team member"}</Button>
       </FieldGroup>
-      <div className="mt-4 flex flex-col gap-2">{users.map((user) => <div key={user.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><div className="font-medium">{user.name} <Badge variant="outline">{user.role}</Badge></div><div className="text-sm text-muted-foreground">{user.email} · {user.projects.join(", ")}</div></div><Button size="sm" variant={user.status === "active" ? "destructive" : "outline"} disabled={isDegraded} onClick={() => setStatus(user)}>{user.status === "active" ? (locale === "de" ? "Sperren" : "Disable") : (locale === "de" ? "Reaktivieren" : "Reactivate")}</Button></div>)}</div>
+      <div className="mt-4 flex flex-col gap-2">{users.map((user) => <div key={user.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><div><div className="font-medium">{user.name} <Badge variant="outline">{user.role}</Badge></div><div className="text-sm text-muted-foreground">{user.email} · {user.projects.join(", ")}</div></div><Button size="sm" variant={user.status === "active" ? "destructive" : "outline"} disabled={mutationsDisabled} onClick={() => setStatus(user)}>{user.status === "active" ? (locale === "de" ? "Sperren" : "Disable") : (locale === "de" ? "Reaktivieren" : "Reactivate")}</Button></div>)}</div>
     </DialogContent>
   </Dialog>;
 }

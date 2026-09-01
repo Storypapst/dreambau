@@ -310,6 +310,37 @@ describe("passkey authentication", () => {
     });
   }
 
+  it("rolls back every Infisical grant when one employee synchronization fails", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(async (email) => {
+        if (email === "alpha@dreambau.com") return ["orimo"];
+        throw new Error("offline");
+      })
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider);
+    const alpha = passkeyStore.createUser({ email: "alpha@dreambau.com", name: "Alpha", projects: ["oriso"], role: "member" });
+    passkeyStore.createUser({ email: "zeta@dreambau.com", name: "Zeta", projects: ["dreambau"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const admin = request.agent(app);
+    const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+
+    const listed = await admin.get("/testmails/api/auth/users");
+
+    expect(listed.status).toBe(200);
+    expect(listed.body.sourceStatus.infisical).toBe("degraded");
+    expect(listed.body.users.find((entry: { email: string }) => entry.email === alpha.email)).toMatchObject({
+      projects: ["oriso"],
+      accessSources: ["local"]
+    });
+    expect(passkeyStore.grants.list(alpha.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
+      { project: "oriso", source: "local", status: "active" }
+    ]);
+    warning.mockRestore();
+    passkeyStore.close();
+  });
+
   it("keeps the local grant when no Infisical access group remains", async () => {
     const humanAccessProvider: HumanAccessProvider = { projectsFor: vi.fn(async () => []) };
     const { app, passkeyStore } = setup([account("oriso-user@oriso.org")], humanAccessProvider);
