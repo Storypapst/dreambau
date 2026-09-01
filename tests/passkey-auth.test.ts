@@ -298,6 +298,54 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
+  it("serves the local employee snapshot when the list expires while waiting in the queue", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let rejectHeldLookup!: (error: Error) => void;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(() => new Promise((_resolve, reject) => { rejectHeldLookup = reject; }))
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider, 1_000);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const admin = request.agent(app);
+    const adminOptions = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: adminOptions.body.flowId, response: { id: "admin-credential" } });
+    const employee = request.agent(app);
+    const employeeOptions = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: employeeOptions.body.flowId, response: { id: "member-credential" } });
+    const listUsers = vi.spyOn(passkeyStore, "listUsers");
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+
+    try {
+      const held = employee.get("/testmails/api/auth/me").then((response) => response);
+      await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledOnce());
+      const queuedList = admin.get("/testmails/api/auth/users").then((response) => response);
+      await vi.waitFor(() => expect(listUsers).toHaveBeenCalledOnce());
+
+      now += 1_000;
+      rejectHeldLookup(new Error("offline"));
+      const [heldResponse, listResponse] = await Promise.all([held, queuedList]);
+
+      expect(heldResponse.status).toBe(503);
+      expect(listResponse.status).toBe(200);
+      expect(listResponse.headers["cache-control"]).toBe("no-store");
+      expect(listResponse.body.sourceStatus.infisical).toBe("degraded");
+      expect(listResponse.body.sourceStatus.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(listResponse.body.users.find((entry: { email: string }) => entry.email === member.email)).toMatchObject({
+        projects: ["oriso"],
+        accessSources: ["local"]
+      });
+      expect(humanAccessProvider.projectsFor).toHaveBeenCalledOnce();
+    } finally {
+      clock.mockRestore();
+      listUsers.mockRestore();
+      warning.mockRestore();
+      passkeyStore.close();
+    }
+  });
+
   it("keeps the employee list fail-closed for anonymous and non-admin passkey sessions", async () => {
     const { app, passkeyStore } = setup();
     expect((await request(app).get("/testmails/api/auth/users")).status).toBe(401);

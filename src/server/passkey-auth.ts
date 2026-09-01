@@ -199,51 +199,64 @@ export function installPasskeyAuth(router: Router, options: {
   const listWithAccessSources = (users: import("./passkey-store.js").HumanUser[]) =>
     users.map((user) => ({ ...user, accessSources: accessSourcesFor(user.id) }));
 
+  const degradedEmployeeList = (
+    users: ReturnType<typeof listWithAccessSources>,
+    error: unknown
+  ) => {
+    const correlationId = randomUUID();
+    const errorType = error instanceof DOMException && error.name === "AbortError"
+      ? "abort"
+      : error instanceof Error && error.message === "human_access_timeout"
+        ? "timeout"
+        : "lookup";
+    console.warn("human_access_employee_list_degraded", {
+      correlationId,
+      errorType,
+      message: "human access synchronization failed"
+    });
+    return {
+      users,
+      sourceStatus: { infisical: "degraded" as const, correlationId }
+    };
+  };
+
   const synchronizeHumanUser = (user: import("./passkey-store.js").HumanUser) => {
     const sync = options.syncHumanUser;
     return sync ? options.serializeHumanAccess((deadlineAt) => sync(user, deadlineAt)) : Promise.resolve(user);
   };
 
   router.get("/auth/users", requireAdmin, async (_req, res) => {
-    const payload = await options.serializeHumanAccess(async (deadlineAt) => {
-      const locallyStored = options.store.listUsers();
-      const infisicalSnapshots = new Map(locallyStored.map((user) => [
-        user.id,
-        options.store.grants.list(user.id)
-          .filter((grant) => grant.source === "infisical")
-          .map(({ userId, project, environments, source, status }) => ({ userId, project, environments, source, status }))
-      ]));
-      try {
-        let synchronized = locallyStored;
-        if (options.syncHumanUser) {
-          const outcomes = await Promise.allSettled(locallyStored.map((user) => options.syncHumanUser!(user, deadlineAt)));
-          const rejected = outcomes.find((outcome) => outcome.status === "rejected");
-          if (rejected) throw rejected.reason;
-          synchronized = (outcomes as PromiseFulfilledResult<import("./passkey-store.js").HumanUser>[])
-            .map((outcome) => outcome.value);
+    const locallyStored = options.store.listUsers();
+    const localSnapshot = listWithAccessSources(locallyStored);
+    let payload;
+    try {
+      payload = await options.serializeHumanAccess(async (deadlineAt) => {
+        const infisicalSnapshots = new Map(locallyStored.map((user) => [
+          user.id,
+          options.store.grants.list(user.id)
+            .filter((grant) => grant.source === "infisical")
+            .map(({ userId, project, environments, source, status }) => ({ userId, project, environments, source, status }))
+        ]));
+        try {
+          let synchronized = locallyStored;
+          if (options.syncHumanUser) {
+            const outcomes = await Promise.allSettled(locallyStored.map((user) => options.syncHumanUser!(user, deadlineAt)));
+            const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+            if (rejected) throw rejected.reason;
+            synchronized = (outcomes as PromiseFulfilledResult<import("./passkey-store.js").HumanUser>[])
+              .map((outcome) => outcome.value);
+          }
+          return { users: listWithAccessSources(synchronized), sourceStatus: { infisical: "available" as const } };
+        } catch (error) {
+          for (const user of locallyStored) {
+            options.store.grants.replaceInfisical(user.id, infisicalSnapshots.get(user.id) ?? []);
+          }
+          return degradedEmployeeList(listWithAccessSources(locallyStored), error);
         }
-        return { users: listWithAccessSources(synchronized), sourceStatus: { infisical: "available" as const } };
-      } catch (error) {
-        for (const user of locallyStored) {
-          options.store.grants.replaceInfisical(user.id, infisicalSnapshots.get(user.id) ?? []);
-        }
-        const correlationId = randomUUID();
-        const errorType = error instanceof DOMException && error.name === "AbortError"
-          ? "abort"
-          : error instanceof Error && error.message === "human_access_timeout"
-            ? "timeout"
-            : "lookup";
-        console.warn("human_access_employee_list_degraded", {
-          correlationId,
-          errorType,
-          message: "human access synchronization failed"
-        });
-        return {
-          users: listWithAccessSources(locallyStored),
-          sourceStatus: { infisical: "degraded" as const, correlationId }
-        };
-      }
-    });
+      });
+    } catch (error) {
+      payload = degradedEmployeeList(localSnapshot, error);
+    }
     res.set("Cache-Control", "no-store");
     res.json(payload);
   });

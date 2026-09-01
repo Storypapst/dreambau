@@ -139,7 +139,7 @@ export function createApp(options: AppOptions = {}) {
   // enqueue-time deadline bounds every caller's total wait.
   const serializeHumanAccess = createDeadlineQueue(
     humanAccessTimeoutMs,
-    Date.now,
+    () => Date.now(),
     () => new Error("human_access_timeout")
   );
   const syncHumanUser = (user: HumanUser) => serializeHumanAccess((deadlineAt) => syncHumanUserUnsafe(user, deadlineAt));
