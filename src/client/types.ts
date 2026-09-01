@@ -46,11 +46,12 @@ export interface HumanUser {
   accessSources?: Array<"infisical" | "local">;
   entitlements: HumanEntitlements;
 }
+export type TeamMember = Omit<HumanUser, "entitlements"> & { entitlements?: HumanEntitlements };
 export type HumanAccessSourceStatus =
   | { infisical: "available" }
   | { infisical: "degraded"; correlationId: string };
 export interface TeamMembersResponse {
-  users: HumanUser[];
+  users: TeamMember[];
   sourceStatus: HumanAccessSourceStatus;
 }
 export interface HumanEntitlements {

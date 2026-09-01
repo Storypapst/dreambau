@@ -28,6 +28,7 @@ import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
 import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
 import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
+import { createDeadlineQueue } from "./deadline-queue.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import { canProvisionOriso, humanEntitlementsFor, type HumanEntitlements } from "./human-entitlements.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
@@ -101,15 +102,18 @@ export function createApp(options: AppOptions = {}) {
    * `user.projects` is now a derived projection of the grant rows rather than
    * authoritative storage.
    */
-  const syncHumanUserUnsafe = async (user: HumanUser) => {
+  const humanAccessTimeoutMs = options.humanAccessTimeoutMs ?? 10_000;
+  const syncHumanUserUnsafe = async (user: HumanUser, deadlineAt = Date.now() + humanAccessTimeoutMs) => {
     if (!humanAccessProvider || user.role === "admin") return user;
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) throw new Error("human_access_timeout");
     const controller = new AbortController();
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const deadline = new Promise<never>((_, reject) => {
       timeout = setTimeout(() => {
         controller.abort();
         reject(new Error("human_access_timeout"));
-      }, options.humanAccessTimeoutMs ?? 10_000);
+      }, remainingMs);
     });
     let projects: HumanProject[];
     try {
@@ -120,6 +124,7 @@ export function createApp(options: AppOptions = {}) {
     } finally {
       if (timeout) clearTimeout(timeout);
     }
+    if (Date.now() >= deadlineAt) throw new Error("human_access_timeout");
     passkeyStore.grants.replaceInfisical(user.id, projects.map((project) => ({
       userId: user.id,
       project,
@@ -128,13 +133,8 @@ export function createApp(options: AppOptions = {}) {
     })));
     return { ...user, projects: passkeyStore.grants.effective(user.id).map((grant) => grant.project) };
   };
-  let humanAccessSyncTail: Promise<void> = Promise.resolve();
-  const serializeHumanAccess = <T>(operation: () => Promise<T>) => {
-    const result = humanAccessSyncTail.then(operation, operation);
-    humanAccessSyncTail = result.then(() => undefined, () => undefined);
-    return result;
-  };
-  const syncHumanUser = (user: HumanUser) => serializeHumanAccess(() => syncHumanUserUnsafe(user));
+  const serializeHumanAccess = createDeadlineQueue(humanAccessTimeoutMs);
+  const syncHumanUser = (user: HumanUser) => serializeHumanAccess((deadlineAt) => syncHumanUserUnsafe(user, deadlineAt));
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,

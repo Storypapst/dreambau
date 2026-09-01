@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import type { Locale } from "@/i18n";
-import type { HumanAccessSourceStatus, HumanUser } from "@/types";
+import type { HumanAccessSourceStatus, TeamMember } from "@/types";
 import { createTeamMember, loadTeamMembers, setTeamMemberStatus } from "@/team-client";
 import { CopyButton } from "./copy-button";
 
@@ -16,7 +16,7 @@ const projects = ["oriso", "orimo", "dreambau"] as const;
 
 export function EmployeeManagement({ locale }: { locale: Locale }) {
   const [open, setOpen] = useState(false);
-  const [users, setUsers] = useState<HumanUser[]>([]);
+  const [users, setUsers] = useState<TeamMember[]>([]);
   const [email, setEmail] = useState(""); const [name, setName] = useState("");
   const [selected, setSelected] = useState<Array<(typeof projects)[number]>>([]);
   const [enrollmentCode, setEnrollmentCode] = useState("");
@@ -47,7 +47,7 @@ export function EmployeeManagement({ locale }: { locale: Locale }) {
       setEnrollmentCode(user.enrollmentCode); setEmail(""); setName(""); setSelected([]);
     } catch { setError("create"); }
   }
-  async function setStatus(user: HumanUser) {
+  async function setStatus(user: TeamMember) {
     setError(null);
     try {
       const updated = await setTeamMemberStatus(user.id, user.status === "active" ? "disabled" : "active");

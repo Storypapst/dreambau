@@ -40,8 +40,8 @@ export function installPasskeyAuth(router: Router, options: {
   webauthn?: WebAuthnAdapter;
   now?: () => Date;
   bootstrapUser: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
-  syncHumanUser?: (user: import("./passkey-store.js").HumanUser) => Promise<import("./passkey-store.js").HumanUser>;
-  serializeHumanAccess: <T>(operation: () => Promise<T>) => Promise<T>;
+  syncHumanUser?: (user: import("./passkey-store.js").HumanUser, deadlineAt?: number) => Promise<import("./passkey-store.js").HumanUser>;
+  serializeHumanAccess: <T>(operation: (deadlineAt: number) => Promise<T>) => Promise<T>;
   entitlementsFor?: (user: import("./passkey-store.js").HumanUser, principal: SessionPrincipal) => HumanEntitlements;
 }) {
   const webauthn = options.webauthn ?? defaultWebAuthn;
@@ -201,11 +201,11 @@ export function installPasskeyAuth(router: Router, options: {
 
   const synchronizeHumanUser = (user: import("./passkey-store.js").HumanUser) => {
     const sync = options.syncHumanUser;
-    return sync ? options.serializeHumanAccess(() => sync(user)) : Promise.resolve(user);
+    return sync ? options.serializeHumanAccess((deadlineAt) => sync(user, deadlineAt)) : Promise.resolve(user);
   };
 
   router.get("/auth/users", requireAdmin, async (_req, res) => {
-    const payload = await options.serializeHumanAccess(async () => {
+    const payload = await options.serializeHumanAccess(async (deadlineAt) => {
       const locallyStored = options.store.listUsers();
       const infisicalSnapshots = new Map(locallyStored.map((user) => [
         user.id,
@@ -216,7 +216,7 @@ export function installPasskeyAuth(router: Router, options: {
       try {
         let synchronized = locallyStored;
         if (options.syncHumanUser) {
-          const outcomes = await Promise.allSettled(locallyStored.map(options.syncHumanUser));
+          const outcomes = await Promise.allSettled(locallyStored.map((user) => options.syncHumanUser!(user, deadlineAt)));
           const rejected = outcomes.find((outcome) => outcome.status === "rejected");
           if (rejected) throw rejected.reason;
           synchronized = outcomes.map((outcome) => {

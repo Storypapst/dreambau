@@ -320,26 +320,29 @@ describe("passkey authentication", () => {
       const { app, passkeyStore, user } = setup([], infisicalProvider(mode));
       const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
       passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
-      const admin = request.agent(app);
-      const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
-      await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+      try {
+        const admin = request.agent(app);
+        const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+        await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
 
-      const listed = await admin.get("/testmails/api/auth/users");
+        const listed = await admin.get("/testmails/api/auth/users");
 
-      expect(listed.status).toBe(200);
-      expect(listed.body.sourceStatus.infisical).toBe("degraded");
-      expect(listed.body.sourceStatus.correlationId).toMatch(/^[0-9a-f-]{36}$/);
-      expect(listed.body.users.find((entry: { email: string }) => entry.email === member.email)).toMatchObject({
-        projects: ["oriso"],
-        accessSources: ["local"]
-      });
-      const logged = JSON.stringify(warning.mock.calls);
-      expect(logged).toContain(listed.body.sourceStatus.correlationId);
-      expect(logged).not.toContain("member@dreambau.com");
-      expect(logged).not.toContain("upstream-secret-marker");
-      expect(logged).not.toContain("client-secret-marker");
-      warning.mockRestore();
-      passkeyStore.close();
+        expect(listed.status).toBe(200);
+        expect(listed.body.sourceStatus.infisical).toBe("degraded");
+        expect(listed.body.sourceStatus.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+        expect(listed.body.users.find((entry: { email: string }) => entry.email === member.email)).toMatchObject({
+          projects: ["oriso"],
+          accessSources: ["local"]
+        });
+        const logged = JSON.stringify(warning.mock.calls);
+        expect(logged).toContain(listed.body.sourceStatus.correlationId);
+        expect(logged).not.toContain("member@dreambau.com");
+        expect(logged).not.toContain("upstream-secret-marker");
+        expect(logged).not.toContain("client-secret-marker");
+      } finally {
+        warning.mockRestore();
+        passkeyStore.close();
+      }
     });
   }
 
@@ -355,36 +358,36 @@ describe("passkey authentication", () => {
     const alpha = passkeyStore.createUser({ email: "alpha@dreambau.com", name: "Alpha", projects: ["oriso"], role: "member" });
     passkeyStore.createUser({ email: "zeta@dreambau.com", name: "Zeta", projects: ["dreambau"], role: "member" });
     passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
-    const admin = request.agent(app);
-    const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
-    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+    try {
+      const admin = request.agent(app);
+      const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+      await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
 
-    const listed = await admin.get("/testmails/api/auth/users");
+      const listed = await admin.get("/testmails/api/auth/users");
 
-    expect(listed.status).toBe(200);
-    expect(listed.body.sourceStatus.infisical).toBe("degraded");
-    expect(listed.body.users.find((entry: { email: string }) => entry.email === alpha.email)).toMatchObject({
-      projects: ["oriso"],
-      accessSources: ["local"]
-    });
-    expect(passkeyStore.grants.list(alpha.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
-      { project: "oriso", source: "local", status: "active" }
-    ]);
-    warning.mockRestore();
-    passkeyStore.close();
+      expect(listed.status).toBe(200);
+      expect(listed.body.sourceStatus.infisical).toBe("degraded");
+      expect(listed.body.users.find((entry: { email: string }) => entry.email === alpha.email)).toMatchObject({
+        projects: ["oriso"],
+        accessSources: ["local"]
+      });
+      expect(passkeyStore.grants.list(alpha.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
+        { project: "oriso", source: "local", status: "active" }
+      ]);
+    } finally {
+      warning.mockRestore();
+      passkeyStore.close();
+    }
   });
 
   it("does not let a failed employee-list sync roll back newer grants from auth/me", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     let rejectFirst!: (error: Error) => void;
-    let markSecondStarted!: () => void;
-    const secondStarted = new Promise<void>((resolve) => { markSecondStarted = resolve; });
     let calls = 0;
     const humanAccessProvider: HumanAccessProvider = {
       projectsFor: vi.fn(() => {
         calls += 1;
         if (calls === 1) return new Promise((_, reject) => { rejectFirst = reject; });
-        markSecondStarted();
         return Promise.resolve(["orimo"]);
       })
     };
@@ -392,33 +395,37 @@ describe("passkey authentication", () => {
     const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
     passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
     passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
-    const admin = request.agent(app);
-    const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
-    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
-    const employee = request.agent(app);
-    const employeeOptions = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
-    await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: employeeOptions.body.flowId, response: { id: "member-credential" } });
+    try {
+      const admin = request.agent(app);
+      const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+      await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+      const employee = request.agent(app);
+      const employeeOptions = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+      await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: employeeOptions.body.flowId, response: { id: "member-credential" } });
 
-    const employeeListRequest = admin.get("/testmails/api/auth/users").then((response) => response);
-    await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1));
-    const currentUserRequest = employee.get("/testmails/api/auth/me").then((response) => response);
-    const overlapped = await Promise.race([
-      secondStarted.then(() => true),
-      new Promise<false>((resolve) => setTimeout(() => resolve(false), 50))
-    ]);
-    if (overlapped) await currentUserRequest;
-    rejectFirst(new Error("offline"));
-    const [employeeList, currentUser] = await Promise.all([employeeListRequest, currentUserRequest]);
+      const employeeListRequest = admin.get("/testmails/api/auth/users").then((response) => response);
+      await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1));
+      let currentUserSettled = false;
+      const currentUserRequest = employee.get("/testmails/api/auth/me")
+        .then((response) => response)
+        .finally(() => { currentUserSettled = true; });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1);
+      expect(currentUserSettled).toBe(false);
+      rejectFirst(new Error("offline"));
+      const [employeeList, currentUser] = await Promise.all([employeeListRequest, currentUserRequest]);
 
-    expect(employeeList.body.sourceStatus.infisical).toBe("degraded");
-    expect(currentUser.status).toBe(200);
-    expect(currentUser.body.projects).toEqual(["orimo", "oriso"]);
-    expect(passkeyStore.grants.list(member.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
-      { project: "orimo", source: "infisical", status: "active" },
-      { project: "oriso", source: "local", status: "active" }
-    ]);
-    warning.mockRestore();
-    passkeyStore.close();
+      expect(employeeList.body.sourceStatus.infisical).toBe("degraded");
+      expect(currentUser.status).toBe(200);
+      expect(currentUser.body.projects).toEqual(["orimo", "oriso"]);
+      expect(passkeyStore.grants.list(member.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
+        { project: "orimo", source: "infisical", status: "active" },
+        { project: "oriso", source: "local", status: "active" }
+      ]);
+    } finally {
+      warning.mockRestore();
+      passkeyStore.close();
+    }
   });
 
   it("keeps the local grant when no Infisical access group remains", async () => {

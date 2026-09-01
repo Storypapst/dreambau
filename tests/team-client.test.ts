@@ -21,4 +21,11 @@ describe("team browser client", () => {
   it("rejects the legacy raw employee array instead of treating it as a valid response", async () => {
     await expect(loadTeamMembers(async () => [])).rejects.toThrow("invalid_team_members_response");
   });
+
+  it("rejects malformed employee entries before the UI renders them", async () => {
+    await expect(loadTeamMembers(async () => ({
+      users: [{ id: "member-id", email: "member@dreambau.com", name: "Member", role: "member", status: "active", createdAt: "2026-09-01T10:00:00.000Z" }],
+      sourceStatus: { infisical: "available" }
+    }))).rejects.toThrow("invalid_team_members_response");
+  });
 });
