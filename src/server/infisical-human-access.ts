@@ -102,8 +102,15 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
 
   async function projects(optionsForRead?: { force?: boolean; signal?: AbortSignal }) {
     if (!optionsForRead?.force && cachedProjects && cachedProjects.expiresAt > now()) return cachedProjects.value;
-    if (optionsForRead?.signal) return loadProjects(optionsForRead.signal);
-    if (!pendingProjects) pendingProjects = loadProjects().finally(() => { pendingProjects = null; });
+    if (!pendingProjects) {
+      const tracked = loadProjects(optionsForRead?.signal).finally(() => {
+        if (pendingProjects === tracked) pendingProjects = null;
+      });
+      pendingProjects = tracked;
+      optionsForRead?.signal?.addEventListener("abort", () => {
+        if (pendingProjects === tracked) pendingProjects = null;
+      }, { once: true });
+    }
     return pendingProjects;
   }
 

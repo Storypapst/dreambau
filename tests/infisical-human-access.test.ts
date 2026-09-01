@@ -88,4 +88,34 @@ describe("Infisical human access provider", () => {
 
     await expect(lookup).rejects.toMatchObject({ name: "AbortError" });
   });
+
+  it("shares an abortable pending lookup and clears it after cancellation", async () => {
+    let authenticationAttempts = 0;
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const fetch = vi.fn((input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/auth/universal-auth/login")) {
+        authenticationAttempts += 1;
+        if (authenticationAttempts === 1) {
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+          });
+        }
+        return Promise.resolve(json({ accessToken: "token", expiresIn: 3600, accessTokenMaxTTL: 3600, tokenType: "Bearer" }));
+      }
+      return Promise.resolve(json({ memberships: [] }));
+    }) satisfies HumanAccessFetch;
+    const target = provider(fetch);
+
+    const first = target.projectsFor("first@example.com", { signal: firstController.signal });
+    const second = target.projectsFor("second@example.com", { signal: secondController.signal });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    firstController.abort();
+
+    const cancelled = await Promise.allSettled([first, second]);
+    expect(cancelled.map((result) => result.status)).toEqual(["rejected", "rejected"]);
+    await expect(target.projectsFor("third@example.com", { signal: new AbortController().signal })).resolves.toEqual([]);
+    expect(authenticationAttempts).toBe(2);
+  });
 });
