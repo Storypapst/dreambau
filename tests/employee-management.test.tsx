@@ -107,6 +107,8 @@ describe("EmployeeManagement failures", () => {
       sourceStatus: { infisical: "available" }
     }));
     await vi.waitFor(() => {
+      expect(document.body.textContent).toContain("Infisical-Abgleich vorübergehend eingeschränkt");
+      expect(document.body.textContent).toContain("d8412b72-c4ad-49f3-9bd5-9d441c3ca2db");
       const disableButton = Array.from(document.body.querySelectorAll("button")).find((button) => button.textContent?.includes("Sperren"));
       expect(disableButton?.disabled).toBe(true);
     });

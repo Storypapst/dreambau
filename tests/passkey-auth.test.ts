@@ -280,7 +280,7 @@ describe("passkey authentication", () => {
         });
       })
     };
-    const { app, passkeyStore } = setup([], humanAccessProvider, 10);
+    const { app, passkeyStore } = setup([], humanAccessProvider, 100);
     const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
     passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
     const employee = request.agent(app);

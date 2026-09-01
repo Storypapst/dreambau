@@ -133,7 +133,15 @@ export function createApp(options: AppOptions = {}) {
     })));
     return { ...user, projects: passkeyStore.grants.effective(user.id).map((grant) => grant.project) };
   };
-  const serializeHumanAccess = createDeadlineQueue(humanAccessTimeoutMs);
+  // This queue is deliberately process-wide: the employee-list snapshot and
+  // rollback must be mutually exclusive with every grants.replaceInfisical
+  // writer, including auth/me. Provider reads are shared and cached, while the
+  // enqueue-time deadline bounds every caller's total wait.
+  const serializeHumanAccess = createDeadlineQueue(
+    humanAccessTimeoutMs,
+    Date.now,
+    () => new Error("human_access_timeout")
+  );
   const syncHumanUser = (user: HumanUser) => serializeHumanAccess((deadlineAt) => syncHumanUserUnsafe(user, deadlineAt));
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,

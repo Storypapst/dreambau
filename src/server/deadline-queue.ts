@@ -5,12 +5,16 @@ export type DeadlineQueue = <T>(operation: (deadlineAt: number) => Promise<T>) =
  * caller therefore never receives a fresh timeout merely because earlier work
  * occupied the queue.
  */
-export function createDeadlineQueue(timeoutMs: number, now: () => number = Date.now): DeadlineQueue {
+export function createDeadlineQueue(
+  timeoutMs: number,
+  now: () => number = Date.now,
+  expiredError: () => Error = () => new Error("deadline_expired")
+): DeadlineQueue {
   let tail: Promise<void> = Promise.resolve();
   return <T>(operation: (deadlineAt: number) => Promise<T>) => {
     const deadlineAt = now() + timeoutMs;
     const guarded = () => now() >= deadlineAt
-      ? Promise.reject<T>(new Error("human_access_timeout"))
+      ? Promise.reject<T>(expiredError())
       : operation(deadlineAt);
     const result = tail.then(guarded, guarded);
     tail = result.then(() => undefined, () => undefined);

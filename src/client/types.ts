@@ -40,10 +40,14 @@ export interface OrisoProvisioningResult {
 export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
 export type OtpResponse = ({ source: "totp"; generatedAt: string; expiresAt: string } | { source: "mail"; receivedAt: string; messageId: string; subject: string }) & { accountId: string; code: string };
 export interface Taxonomies { roles: string[]; topics: string[]; conversationTypes: string[] }
+export const teamProjects = ["oriso", "orimo", "dreambau"] as const;
+export type TeamProject = (typeof teamProjects)[number];
+export const humanAccessSources = ["infisical", "local"] as const;
+export type HumanAccessSource = (typeof humanAccessSources)[number];
 export interface HumanUser {
-  id: string; email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">;
+  id: string; email: string; name: string; projects: TeamProject[];
   role: "admin" | "member"; status: "active" | "disabled"; createdAt: string;
-  accessSources?: Array<"infisical" | "local">;
+  accessSources?: HumanAccessSource[];
   entitlements: HumanEntitlements;
 }
 export type TeamMember = Omit<HumanUser, "entitlements"> & { entitlements?: HumanEntitlements };
