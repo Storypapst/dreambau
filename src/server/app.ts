@@ -16,7 +16,7 @@ import { createAccountRegistryProvider, createTestAccessRouter } from "./test-ac
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
 import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
-import { createPasskeyStore, type HumanUser, type PasskeyStore } from "./passkey-store.js";
+import { createPasskeyStore, type HumanProject, type HumanUser, type PasskeyStore } from "./passkey-store.js";
 import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
 import type { SessionPrincipal } from "./sessions.js";
 import {
@@ -65,6 +65,7 @@ interface AppOptions {
   bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
   runtimeStatusLoader?: (projects: CoordinationProject[]) => Promise<RuntimeStatus[]>;
   humanAccessProvider?: HumanAccessProvider;
+  humanAccessTimeoutMs?: number;
   emailOtpSender?: EmailOtpSender;
   emailOtpHmacKey?: string;
   orisoProvisioning?: OrisoProvisioningService;
@@ -102,7 +103,23 @@ export function createApp(options: AppOptions = {}) {
    */
   const syncHumanUserUnsafe = async (user: HumanUser) => {
     if (!humanAccessProvider || user.role === "admin") return user;
-    const projects = await humanAccessProvider.projectsFor(user.email);
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        reject(new Error("human_access_timeout"));
+      }, options.humanAccessTimeoutMs ?? 10_000);
+    });
+    let projects: HumanProject[];
+    try {
+      projects = await Promise.race([
+        humanAccessProvider.projectsFor(user.email, { signal: controller.signal }),
+        deadline
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
     passkeyStore.grants.replaceInfisical(user.id, projects.map((project) => ({
       userId: user.id,
       project,

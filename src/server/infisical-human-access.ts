@@ -20,7 +20,7 @@ const membershipsResponseSchema = z.object({
 export type HumanAccessFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 export interface HumanAccessProvider {
-  projectsFor(email: string, options?: { force?: boolean }): Promise<HumanProject[]>;
+  projectsFor(email: string, options?: { force?: boolean; signal?: AbortSignal }): Promise<HumanProject[]>;
 }
 
 interface InfisicalHumanAccessOptions {
@@ -53,10 +53,11 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
   let cachedProjects: { value: Map<string, HumanProject[]>; expiresAt: number } | null = null;
   let pendingProjects: Promise<Map<string, HumanProject[]>> | null = null;
 
-  async function accessToken() {
+  async function accessToken(signal?: AbortSignal) {
     if (cachedToken && cachedToken.expiresAt > now() + 30_000) return cachedToken.value;
     const response = await fetch(`${baseUrl}/api/v1/auth/universal-auth/login`, {
       method: "POST",
+      signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: options.clientId,
@@ -72,11 +73,12 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
     return cachedToken.value;
   }
 
-  async function loadProjects() {
-    const token = await accessToken();
+  async function loadProjects(signal?: AbortSignal) {
+    const token = await accessToken(signal);
     const memberships = await Promise.all((Object.entries(options.projectIds) as Array<[HumanProject, string]>).map(async ([project, projectId]) => {
       const response = await fetch(`${baseUrl}/api/v1/projects/${encodeURIComponent(projectId)}/memberships`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal
       });
       if (!response.ok) throw new Error("Infisical human access lookup failed");
       try { return { project, memberships: membershipsResponseSchema.parse(await response.json()).memberships }; }
@@ -98,8 +100,9 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
     return result;
   }
 
-  async function projects(optionsForRead?: { force?: boolean }) {
+  async function projects(optionsForRead?: { force?: boolean; signal?: AbortSignal }) {
     if (!optionsForRead?.force && cachedProjects && cachedProjects.expiresAt > now()) return cachedProjects.value;
+    if (optionsForRead?.signal) return loadProjects(optionsForRead.signal);
     if (!pendingProjects) pendingProjects = loadProjects().finally(() => { pendingProjects = null; });
     return pendingProjects;
   }

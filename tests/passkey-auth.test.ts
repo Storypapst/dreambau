@@ -27,7 +27,7 @@ function account(email: string): AccountRecord {
   };
 }
 
-function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccessProvider) {
+function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccessProvider, humanAccessTimeoutMs?: number) {
   const passkeyStore = createPasskeyStore(path.join(mkdtempSync(path.join(tmpdir(), "passkey-auth-")), "auth.sqlite"));
   const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso", "dreambau"], role: "admin" });
   const webauthn: WebAuthnAdapter = {
@@ -55,7 +55,7 @@ function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccess
     passwordHash, secureCookies: false, loadAccounts: () => accounts, passkeyStore, webauthn,
     rpId: "dreambau.com", expectedOrigin: "https://dreambau.com",
     bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" },
-    humanAccessProvider
+    humanAccessProvider, humanAccessTimeoutMs
   });
   return { app, passkeyStore, user, webauthn };
 }
@@ -262,6 +262,39 @@ describe("passkey authentication", () => {
     const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
     await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
     expect((await agent.get("/testmails/api/accounts")).status).toBe(503);
+    passkeyStore.close();
+  });
+
+  it("aborts a timed-out human access lookup and releases the synchronization queue", async () => {
+    let calls = 0;
+    let aborted = false;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn((_email, options) => {
+        calls += 1;
+        if (calls > 1) return Promise.resolve([]);
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(new DOMException("Aborted", "AbortError"));
+          }, { once: true });
+        });
+      })
+    };
+    const { app, passkeyStore } = setup([], humanAccessProvider, 10);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const employee = request.agent(app);
+    const options = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+
+    const timedOut = await employee.get("/testmails/api/auth/me");
+    const retried = await employee.get("/testmails/api/auth/me");
+
+    expect(timedOut.status).toBe(503);
+    expect(timedOut.body).toEqual({ error: "human_access_unavailable" });
+    expect(aborted).toBe(true);
+    expect(retried.status).toBe(200);
+    expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(2);
     passkeyStore.close();
   });
 

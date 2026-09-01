@@ -75,4 +75,17 @@ describe("Infisical human access provider", () => {
 
     await expect(provider(fetch).projectsFor("member@example.com")).rejects.toThrow("Infisical human access lookup failed");
   });
+
+  it("forwards an abort signal to the underlying Infisical request", async () => {
+    const controller = new AbortController();
+    const fetch = vi.fn((_input: string | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      expect(init?.signal).toBe(controller.signal);
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    })) satisfies HumanAccessFetch;
+
+    const lookup = provider(fetch).projectsFor("member@example.com", { signal: controller.signal });
+    controller.abort();
+
+    await expect(lookup).rejects.toMatchObject({ name: "AbortError" });
+  });
 });
