@@ -462,7 +462,8 @@ describe("Infisical TOTP writer", () => {
         return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
       }
       if (init?.method === "POST") {
-        persisted = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        const created = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        persisted = { ...created, permissionsDescription: "Concurrent metadata after creation" };
         return Response.json({ secret: { id: "created" } });
       }
       return Response.json({
@@ -496,6 +497,7 @@ describe("Infisical TOTP writer", () => {
       secretComment: "Provisioned by Dreambau Test Access Hub"
     });
     expect(JSON.parse(body.secretValue)).toEqual(created);
+    expect(persisted?.permissionsDescription).toBe("Concurrent metadata after creation");
   });
 
   it("updates only the scoped record when provisioning state changes", async () => {

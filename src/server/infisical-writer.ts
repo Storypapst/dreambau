@@ -48,8 +48,15 @@ const secretResponseSchema = z.object({
   }).passthrough()
 }).passthrough();
 
-const recordsMatch = (left: TestAccessRecord, right: TestAccessRecord) =>
-  JSON.stringify(left) === JSON.stringify(right);
+const creationFieldsMatch = (persisted: TestAccessRecord, requested: TestAccessRecord) =>
+  persisted.kind === requested.kind
+  && persisted.username === requested.username
+  && persisted.email === requested.email
+  && persisted.secret === requested.secret
+  && persisted.provisioningStatus === requested.provisioningStatus
+  && persisted.createdAt === requested.createdAt
+  && persisted.updatedAt === requested.updatedAt
+  && persisted.roles.join(",") === requested.roles.join(",");
 
 function normalizedBaseUrl(value: string) {
   const url = new URL(value);
@@ -188,7 +195,7 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           headers,
           "Infisical record creation readback failed"
         );
-        if (!recordsMatch(persisted, record)) {
+        if (!creationFieldsMatch(persisted, record)) {
           throw new Error("Infisical record creation readback failed");
         }
         return { recordId: record.id };

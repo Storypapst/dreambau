@@ -370,6 +370,27 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(response.body).toEqual({ error: "record_password_update_unavailable" });
   });
 
+  it("returns 502 when an incomplete record cannot persist its application password", async () => {
+    const incomplete = managedRecord({ totpSecret: undefined, provisioningStatus: "failed" });
+    const state = inviteFixture({ inviteStatus: "ACCEPTED", accessGateStatus: "BLOCKED_TWO_FACTOR" });
+    const service = fakeService({ status: vi.fn(async () => state), provision: vi.fn() });
+    const writer: RegistryWriter = {
+      enrollTotp: vi.fn(),
+      createRecord: vi.fn(),
+      updateRecord: vi.fn(),
+      updateApplicationPassword: vi.fn(async () => { throw new Error("upstream write failed"); })
+    };
+    const { agent, lisa } = await setup({ records: [incomplete], service, writer });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword: "Onboarding-Password" });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "record_password_update_failed" });
+    expect(service.provision).not.toHaveBeenCalled();
+  });
+
   it("rejects whitespace-only application passwords without changing valid password bytes", async () => {
     const state = inviteFixture({ inviteStatus: "ACCEPTED", accessGateStatus: "BLOCKED_TWO_FACTOR" });
     const service = fakeService({ status: vi.fn(async () => state), provision: vi.fn() });

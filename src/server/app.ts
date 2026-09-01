@@ -647,13 +647,15 @@ export function createApp(options: AppOptions = {}) {
             context: { environment }
           });
         }
+        const linkedView = publicLinkedAccount(linkedRecord);
+        if (!linkedView) return res.status(500).json({ error: "record_projection_failed" });
         res.set("Cache-Control", "no-store");
         return res.status(recordCreated ? 201 : 200).json({
           created: false,
           recordCreated,
           state: onboardingState,
           provisioningRole: body.role,
-          linked: publicLinkedAccount(linkedRecord),
+          linked: linkedView,
           requiresApplicationPassword: false
         });
       }
@@ -722,13 +724,15 @@ export function createApp(options: AppOptions = {}) {
           context: { environment }
         });
       }
+      const linkedView = publicLinkedAccount(linkedRecord);
+      if (!linkedView) return res.status(500).json({ error: "record_projection_failed" });
       res.set("Cache-Control", "no-store");
       res.status(provisioned.created ? 201 : 200).json({
         created: provisioned.created,
         recordCreated,
         state: provisioned.state,
         provisioningRole: body.role,
-        linked: publicLinkedAccount(linkedRecord),
+        linked: linkedView,
         requiresApplicationPassword: false
       });
     } catch (error) {
