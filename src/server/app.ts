@@ -100,7 +100,7 @@ export function createApp(options: AppOptions = {}) {
    * `user.projects` is now a derived projection of the grant rows rather than
    * authoritative storage.
    */
-  const syncHumanUser = async (user: HumanUser) => {
+  const syncHumanUserUnsafe = async (user: HumanUser) => {
     if (!humanAccessProvider || user.role === "admin") return user;
     const projects = await humanAccessProvider.projectsFor(user.email);
     passkeyStore.grants.replaceInfisical(user.id, projects.map((project) => ({
@@ -111,6 +111,13 @@ export function createApp(options: AppOptions = {}) {
     })));
     return { ...user, projects: passkeyStore.grants.effective(user.id).map((grant) => grant.project) };
   };
+  let humanAccessSyncTail: Promise<void> = Promise.resolve();
+  const serializeHumanAccess = <T>(operation: () => Promise<T>) => {
+    const result = humanAccessSyncTail.then(operation, operation);
+    humanAccessSyncTail = result.then(() => undefined, () => undefined);
+    return result;
+  };
+  const syncHumanUser = (user: HumanUser) => serializeHumanAccess(() => syncHumanUserUnsafe(user));
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,
@@ -131,7 +138,8 @@ export function createApp(options: AppOptions = {}) {
     webauthn: options.webauthn,
     now: options.now,
     bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" },
-    syncHumanUser,
+    syncHumanUser: syncHumanUserUnsafe,
+    serializeHumanAccess,
     entitlementsFor: (user, principal) => humanEntitlementsFor(user, passkeyStore.grants, principal.method)
   });
   installEmailOtpAuth(api, {

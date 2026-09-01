@@ -41,6 +41,7 @@ export function installPasskeyAuth(router: Router, options: {
   now?: () => Date;
   bootstrapUser: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
   syncHumanUser?: (user: import("./passkey-store.js").HumanUser) => Promise<import("./passkey-store.js").HumanUser>;
+  serializeHumanAccess: <T>(operation: () => Promise<T>) => Promise<T>;
   entitlementsFor?: (user: import("./passkey-store.js").HumanUser, principal: SessionPrincipal) => HumanEntitlements;
 }) {
   const webauthn = options.webauthn ?? defaultWebAuthn;
@@ -198,15 +199,13 @@ export function installPasskeyAuth(router: Router, options: {
   const listWithAccessSources = (users: import("./passkey-store.js").HumanUser[]) =>
     users.map((user) => ({ ...user, accessSources: accessSourcesFor(user.id) }));
 
-  let employeeListSyncTail: Promise<void> = Promise.resolve();
-  const serializeEmployeeListSync = <T>(operation: () => Promise<T>) => {
-    const result = employeeListSyncTail.then(operation, operation);
-    employeeListSyncTail = result.then(() => undefined, () => undefined);
-    return result;
+  const synchronizeHumanUser = (user: import("./passkey-store.js").HumanUser) => {
+    const sync = options.syncHumanUser;
+    return sync ? options.serializeHumanAccess(() => sync(user)) : Promise.resolve(user);
   };
 
   router.get("/auth/users", requireAdmin, async (_req, res) => {
-    const payload = await serializeEmployeeListSync(async () => {
+    const payload = await options.serializeHumanAccess(async () => {
       const locallyStored = options.store.listUsers();
       const infisicalSnapshots = new Map(locallyStored.map((user) => [
         user.id,
@@ -297,7 +296,7 @@ export function installPasskeyAuth(router: Router, options: {
     }
     let user = principal.userId ? options.store.getUser(principal.userId) : null;
     if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
-    try { if (options.syncHumanUser) user = await options.syncHumanUser(user); }
+    try { user = await synchronizeHumanUser(user); }
     catch { return res.status(503).json({ error: "human_access_unavailable" }); }
     res.json({ ...user, entitlements: options.entitlementsFor?.(user, principal) });
   });

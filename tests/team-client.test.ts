@@ -3,7 +3,9 @@ import { createTeamMember, loadTeamMembers, setTeamMemberStatus } from "../src/c
 
 describe("team browser client", () => {
   it("uses only the protected human-user endpoints", async () => {
-    const api = vi.fn(async () => []);
+    const api = vi.fn(async (path: string) => path === "/auth/users"
+      ? { users: [], sourceStatus: { infisical: "available" } }
+      : {});
     await loadTeamMembers(api);
     await createTeamMember({ email: "employee@dreambau.com", name: "Employee", projects: ["oriso"] }, api);
     await setTeamMemberStatus("user-id", "disabled", api);
@@ -14,5 +16,9 @@ describe("team browser client", () => {
     expect(JSON.parse(String(api.mock.calls[1][1]?.body))).toEqual({ email: "employee@dreambau.com", name: "Employee", projects: ["oriso"] });
     expect(api.mock.calls[2][1]?.method).toBe("PATCH");
     expect(JSON.parse(String(api.mock.calls[2][1]?.body))).toEqual({ status: "disabled" });
+  });
+
+  it("rejects the legacy raw employee array instead of treating it as a valid response", async () => {
+    await expect(loadTeamMembers(async () => [])).rejects.toThrow("invalid_team_members_response");
   });
 });

@@ -341,7 +341,7 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
-  it("does not let a failed concurrent employee sync roll back newer grants", async () => {
+  it("does not let a failed employee-list sync roll back newer grants from auth/me", async () => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     let rejectFirst!: (error: Error) => void;
     let markSecondStarted!: () => void;
@@ -358,22 +358,28 @@ describe("passkey authentication", () => {
     const { app, passkeyStore, user } = setup([], humanAccessProvider);
     const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
     passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
     const admin = request.agent(app);
     const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
     await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+    const employee = request.agent(app);
+    const employeeOptions = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: employeeOptions.body.flowId, response: { id: "member-credential" } });
 
-    const firstRequest = admin.get("/testmails/api/auth/users").then((response) => response);
+    const employeeListRequest = admin.get("/testmails/api/auth/users").then((response) => response);
     await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1));
-    const secondRequest = admin.get("/testmails/api/auth/users").then((response) => response);
+    const currentUserRequest = employee.get("/testmails/api/auth/me").then((response) => response);
     const overlapped = await Promise.race([
       secondStarted.then(() => true),
       new Promise<false>((resolve) => setTimeout(() => resolve(false), 50))
     ]);
-    if (overlapped) await secondRequest;
+    if (overlapped) await currentUserRequest;
     rejectFirst(new Error("offline"));
-    const responses = await Promise.all([firstRequest, secondRequest]);
+    const [employeeList, currentUser] = await Promise.all([employeeListRequest, currentUserRequest]);
 
-    expect(responses.map((response) => response.body.sourceStatus.infisical).sort()).toEqual(["available", "degraded"]);
+    expect(employeeList.body.sourceStatus.infisical).toBe("degraded");
+    expect(currentUser.status).toBe(200);
+    expect(currentUser.body.projects).toEqual(["orimo", "oriso"]);
     expect(passkeyStore.grants.list(member.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
       { project: "orimo", source: "infisical", status: "active" },
       { project: "oriso", source: "local", status: "active" }

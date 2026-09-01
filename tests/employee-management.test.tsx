@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import { loadTeamMembers } from "@/team-client";
+import type { TeamMembersResponse } from "@/types";
 import { EmployeeManagement } from "../src/client/components/employee-management.js";
 
 vi.mock("@/team-client", () => ({
@@ -62,21 +63,21 @@ describe("EmployeeManagement failures", () => {
   });
 
   it("keeps mutations disabled until the latest overlapping refresh succeeds", async () => {
-    const degradedResponse = {
+    const degradedResponse: TeamMembersResponse = {
       users: [{
         id: "member-id",
         email: "member@dreambau.com",
         name: "Stored Member",
-        projects: ["oriso" as const],
-        role: "member" as const,
-        status: "active" as const,
+        projects: ["oriso"],
+        role: "member",
+        status: "active",
         createdAt: "2026-08-30T12:00:00.000Z",
-        accessSources: ["local" as const],
+        accessSources: ["local"],
         entitlements: { orisoProvisioning: { environments: [] } }
       }],
-      sourceStatus: { infisical: "degraded" as const, correlationId: "d8412b72-c4ad-49f3-9bd5-9d441c3ca2db" }
+      sourceStatus: { infisical: "degraded", correlationId: "d8412b72-c4ad-49f3-9bd5-9d441c3ca2db" }
     };
-    const refreshResolvers: Array<(value: typeof degradedResponse) => void> = [];
+    const refreshResolvers: Array<(value: TeamMembersResponse) => void> = [];
     vi.mocked(loadTeamMembers)
       .mockResolvedValueOnce(degradedResponse)
       .mockImplementation(() => new Promise((resolve) => { refreshResolvers.push(resolve); }));
@@ -103,7 +104,7 @@ describe("EmployeeManagement failures", () => {
 
     await act(async () => refreshResolvers[0]({
       ...degradedResponse,
-      sourceStatus: { infisical: "available" as const, correlationId: undefined }
+      sourceStatus: { infisical: "available" }
     }));
     await vi.waitFor(() => {
       const disableButton = Array.from(document.body.querySelectorAll("button")).find((button) => button.textContent?.includes("Sperren"));
@@ -112,7 +113,7 @@ describe("EmployeeManagement failures", () => {
 
     await act(async () => refreshResolvers[1]({
       ...degradedResponse,
-      sourceStatus: { infisical: "available" as const, correlationId: undefined }
+      sourceStatus: { infisical: "available" }
     }));
     await vi.waitFor(() => {
       const disableButton = Array.from(document.body.querySelectorAll("button")).find((button) => button.textContent?.includes("Sperren"));
