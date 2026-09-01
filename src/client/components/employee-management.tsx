@@ -42,7 +42,7 @@ export function EmployeeManagement({ locale }: { locale: Locale }) {
     try {
       const user = await createTeamMember({ email, name, projects: selected });
       setUsers((current) => [...current, user].sort((left, right) => left.email.localeCompare(right.email)));
-      setEnrollmentCode(user.enrollmentCode); setEmail(""); setName(""); setSelected([]);
+      setEnrollmentCode(user.enrollmentCode ?? ""); setEmail(""); setName(""); setSelected([]);
     } catch { setError("create"); }
   }
   async function setStatus(user: TeamMember) {

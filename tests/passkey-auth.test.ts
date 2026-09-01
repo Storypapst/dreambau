@@ -336,6 +336,7 @@ describe("passkey authentication", () => {
         });
         const logged = JSON.stringify(warning.mock.calls);
         expect(logged).toContain(listed.body.sourceStatus.correlationId);
+        expect(logged).toContain("human access synchronization failed");
         expect(logged).not.toContain("member@dreambau.com");
         expect(logged).not.toContain("upstream-secret-marker");
         expect(logged).not.toContain("client-secret-marker");

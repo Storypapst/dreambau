@@ -46,10 +46,11 @@ export async function createTeamMember(
   api: Api = defaultApi
 ) {
   const response: unknown = await api("/auth/users", { method: "POST", body: JSON.stringify(input) });
-  if (!isTeamMember(response) || typeof (response as { enrollmentCode?: unknown }).enrollmentCode !== "string") {
+  const enrollmentCode = (response as { enrollmentCode?: unknown } | null)?.enrollmentCode;
+  if (!isTeamMember(response) || (enrollmentCode !== undefined && typeof enrollmentCode !== "string")) {
     throw new Error("invalid_team_member_response");
   }
-  return response as TeamMember & { enrollmentCode: string };
+  return response as TeamMember & { enrollmentCode?: string };
 }
 
 export async function setTeamMemberStatus(id: string, status: "active" | "disabled", api: Api = defaultApi) {

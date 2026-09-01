@@ -223,12 +223,21 @@ export function installPasskeyAuth(router: Router, options: {
             .map((outcome) => outcome.value);
         }
         return { users: listWithAccessSources(synchronized), sourceStatus: { infisical: "available" as const } };
-      } catch {
+      } catch (error) {
         for (const user of locallyStored) {
           options.store.grants.replaceInfisical(user.id, infisicalSnapshots.get(user.id) ?? []);
         }
         const correlationId = randomUUID();
-        console.warn("human_access_employee_list_degraded", { correlationId });
+        const errorType = error instanceof DOMException && error.name === "AbortError"
+          ? "abort"
+          : error instanceof Error && error.message === "human_access_timeout"
+            ? "timeout"
+            : "lookup";
+        console.warn("human_access_employee_list_degraded", {
+          correlationId,
+          errorType,
+          message: "human access synchronization failed"
+        });
         return {
           users: listWithAccessSources(locallyStored),
           sourceStatus: { infisical: "degraded" as const, correlationId }
