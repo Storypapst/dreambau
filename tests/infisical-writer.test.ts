@@ -500,6 +500,44 @@ describe("Infisical TOTP writer", () => {
     expect(persisted?.permissionsDescription).toBe("Concurrent metadata after creation");
   });
 
+  it.each([
+    ["login URL", { loginUrl: "https://wrong.example.org" }],
+    ["expiry", { expiresAt: "2026-08-29T10:00:00.000Z" }],
+    ["sharing policy", { shared: false }],
+    ["rotation status", { rotationStatus: "due" as const }],
+    ["TOTP", { totpSecret }]
+  ])("rejects creation readback with a mutated %s", async (_field, mutation) => {
+    let persisted: TestAccessRecord | null = null;
+    const fetch: WriterFetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/login")) {
+        return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "POST") {
+        const created = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        persisted = { ...created, ...mutation };
+        return Response.json({ secret: { id: "created" } });
+      }
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(persisted!.id),
+          secretValue: JSON.stringify(persisted)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.createRecord!(record({ id: "oriso/pre-dev/lisa.simpson" })))
+      .rejects.toThrow("Infisical record creation readback failed");
+  });
+
   it("updates only the scoped record when provisioning state changes", async () => {
     const calls: Array<{ url: URL; init?: RequestInit }> = [];
     let current = record({ permissionsDescription: "Concurrent metadata survives" });

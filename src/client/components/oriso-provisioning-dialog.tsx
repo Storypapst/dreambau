@@ -401,7 +401,7 @@ export function OrisoProvisioningDialog({
       {otpWaitingUntil && <OtpValidity expiresAt={otpWaitingUntil} locale={locale} waiting />}
       {otp?.expiresAt && <OtpValidity expiresAt={otp.expiresAt} locale={locale} />}
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
-      {view?.configured && !view.state && <div className="flex flex-col gap-3">
+      {view?.configured && !view.state && !view.requiresApplicationPassword && <div className="flex flex-col gap-3">
         <p className="text-sm">{locale === "de" ? "Noch kein ORISO-Konto. Rolle wählen und Konto vollständig anlegen:" : "No ORISO account yet. Choose a role and provision the complete account:"}</p>
         <Select value={role} onValueChange={(value) => setRole(value as OrisoProvisioningRole)}>
           <SelectTrigger aria-label={locale === "de" ? "Rolle" : "Role"}><SelectValue /></SelectTrigger>
@@ -415,7 +415,7 @@ export function OrisoProvisioningDialog({
         <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={busy}>
           {locale === "de" ? "Schließen" : "Close"}
         </Button>
-        {view?.configured && !view.state && <Button type="button" onClick={() => provision(role)} disabled={busy}>
+        {view?.configured && !view.state && !view.requiresApplicationPassword && <Button type="button" onClick={() => provision(role)} disabled={busy}>
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")

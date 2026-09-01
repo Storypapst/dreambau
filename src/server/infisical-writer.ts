@@ -53,6 +53,11 @@ const creationFieldsMatch = (persisted: TestAccessRecord, requested: TestAccessR
   && persisted.username === requested.username
   && persisted.email === requested.email
   && persisted.secret === requested.secret
+  && persisted.loginUrl === requested.loginUrl
+  && persisted.expiresAt === requested.expiresAt
+  && persisted.shared === requested.shared
+  && persisted.rotationStatus === requested.rotationStatus
+  && persisted.totpSecret === requested.totpSecret
   && persisted.provisioningStatus === requested.provisioningStatus
   && persisted.createdAt === requested.createdAt
   && persisted.updatedAt === requested.updatedAt

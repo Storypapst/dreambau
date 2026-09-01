@@ -341,6 +341,10 @@ describe("OrisoProvisioningDialog", () => {
     });
     const onProvisioned = await openDialog();
     await vi.waitFor(() => expect(document.body.textContent).toContain("2FA direkt hier abschließen"));
+    expect(document.body.textContent).not.toContain("Noch kein ORISO-Konto");
+    expect(Array.from(document.querySelectorAll("button")).some(
+      (button) => button.textContent?.includes("Konto anlegen & prüfen")
+    )).toBe(false);
 
     const password = document.querySelector<HTMLInputElement>("input[name=existingOrisoPassword]")!;
     await act(async () => {
