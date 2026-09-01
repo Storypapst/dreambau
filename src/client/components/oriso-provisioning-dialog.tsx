@@ -92,6 +92,37 @@ function StateSummary({
   </div>;
 }
 
+function provisioningErrorMessage(code: string, locale: Locale) {
+  if (code === "application_password_required") {
+    return locale === "de"
+      ? "Das bestehende ORISO-Konto muss mit dem Passwort verknüpft werden, das im Onboarding verwendet wurde."
+      : "Link the existing ORISO account with the password used during onboarding.";
+  }
+  if (code === "account_credentials_mismatch") {
+    return locale === "de"
+      ? "Das gespeicherte ORISO-App-Passwort passt nicht zum bestehenden Konto. Bitte das tatsächlich verwendete Passwort erneut hinterlegen."
+      : "The stored ORISO app password does not match the existing account. Store the password actually used.";
+  }
+  if (code === "oriso_onboarding_state_mismatch") {
+    return locale === "de"
+      ? "Der aktuelle ORISO-Onboarding-Status passt nicht mehr zu dieser Rolle. Status neu laden und die angezeigte Rolle prüfen."
+      : "The current ORISO onboarding state no longer matches this role. Reload the status and check the displayed role.";
+  }
+  if (code === "managed_record_password_locked") {
+    return locale === "de"
+      ? "Das Passwort eines bereits verwalteten Kontos wird hier nicht überschrieben."
+      : "The password of an already managed account is not overwritten here.";
+  }
+  if (code === "record_password_update_unavailable" || code === "record_password_update_failed") {
+    return locale === "de"
+      ? "Das ORISO-App-Passwort wurde nicht dauerhaft im Test-Access-Record gespeichert."
+      : "The ORISO app password was not persisted in the Test Access record.";
+  }
+  return locale === "de"
+    ? "Konto konnte nicht vollständig angelegt oder geprüft werden. Der gespeicherte Zustand wurde nicht als bereit markiert."
+    : "Could not fully provision or verify the account. The stored state was not marked ready.";
+}
+
 export function OrisoProvisioningDialog({
   account,
   locale,
@@ -108,6 +139,7 @@ export function OrisoProvisioningDialog({
   const [role, setRole] = useState<OrisoProvisioningRole>("tenant-admin");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [applicationPassword, setApplicationPassword] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
   const [enrollBusy, setEnrollBusy] = useState(false);
   const [enrollError, setEnrollError] = useState(false);
@@ -118,9 +150,11 @@ export function OrisoProvisioningDialog({
   const environment = view?.environment
     ?? (account.domain === "oriso.org" || account.domain === "openresilience.cc" ? "dev" : "pre-dev");
   const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
+  const provisioningRole = view?.provisioningRole ?? view?.state?.role ?? null;
 
   async function load() {
     setError(null);
+    setApplicationPassword("");
     try {
       setView(await api<OrisoProvisioningView>(`/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`));
     } catch {
@@ -131,6 +165,7 @@ export function OrisoProvisioningDialog({
   function changeOpen(value: boolean) {
     setOpen(value);
     setError(null);
+    setApplicationPassword("");
     setTotpSecret("");
     setEnrollError(false);
     setOtp(null);
@@ -162,18 +197,51 @@ export function OrisoProvisioningDialog({
   }
 
   async function enrollAndGenerate() {
-    const linked = view?.linked;
-    if (!linked) return;
+    const currentView = view;
+    let linked = currentView?.linked;
+    if (!currentView || !linked) return;
+    const currentRole = currentView.provisioningRole ?? currentView.state?.role;
     setEnrollBusy(true);
     setEnrollError(false);
+    setError(null);
+    if (
+      currentView.requiresApplicationPassword
+      && currentRole
+      && applicationPassword.trim().length > 0
+    ) {
+      try {
+        const result = await api<OrisoProvisioningResult>(
+          `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
+          {
+            method: "POST",
+            body: JSON.stringify({ environment, role: currentRole, applicationPassword })
+          }
+        );
+        linked = result.linked;
+        setView((current) => current ? {
+          ...current,
+          state: result.state,
+          provisioningRole: result.provisioningRole,
+          linked: result.linked,
+          requiresApplicationPassword: result.requiresApplicationPassword
+        } : current);
+        onProvisioned(account.email, result.linked);
+        setApplicationPassword("");
+      } catch (cause) {
+        setError(provisioningErrorMessage(cause instanceof Error ? cause.message : "", locale));
+        setEnrollBusy(false);
+        return;
+      }
+    }
     try {
       await api(`/accounts/${encodeURIComponent(account.email)}/totp`, {
         method: "POST",
         body: JSON.stringify({ accountId: linked.id, totpSecret })
       });
+      setApplicationPassword("");
       setTotpSecret("");
       const updated = { ...linked, hasTotp: true };
-      setView((current) => current ? { ...current, linked: updated } : current);
+      setView((current) => current ? { ...current, linked: updated, requiresApplicationPassword: false } : current);
       onProvisioned(account.email, updated);
       await requestOtp(linked.id);
     } catch {
@@ -183,22 +251,36 @@ export function OrisoProvisioningDialog({
     }
   }
 
-  async function provision(selectedRole: OrisoProvisioningRole) {
+  async function provision(selectedRole: OrisoProvisioningRole, existingPassword?: string) {
     setBusy(true);
     setError(null);
     setLiveVerified(false);
     try {
       const result = await api<OrisoProvisioningResult>(
         `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
-        { method: "POST", body: JSON.stringify({ environment, role: selectedRole }) }
+        {
+          method: "POST",
+          body: JSON.stringify({
+            environment,
+            role: selectedRole,
+            ...(existingPassword ? { applicationPassword: existingPassword } : {})
+          })
+        }
       );
-      setView((current) => current ? { ...current, state: result.state, linked: result.linked } : current);
-      setLiveVerified(true);
+      setView((current) => current ? {
+        ...current,
+        state: result.state,
+        provisioningRole: result.provisioningRole,
+        linked: result.linked,
+        requiresApplicationPassword: result.requiresApplicationPassword
+      } : current);
+      setLiveVerified(result.state?.state === "ready" && result.linked.hasTotp);
       onProvisioned(account.email, result.linked);
-    } catch {
-      setError(locale === "de"
-        ? "Konto konnte nicht vollständig angelegt oder geprüft werden. Details stehen im Server-Log; Zugangsdaten erscheinen dort nicht."
-        : "Could not fully provision or verify the account. Details are in the server log; credentials never appear there.");
+      if (existingPassword) {
+        setApplicationPassword("");
+      }
+    } catch (cause) {
+      setError(provisioningErrorMessage(cause instanceof Error ? cause.message : "", locale));
     } finally {
       setBusy(false);
     }
@@ -249,6 +331,26 @@ export function OrisoProvisioningDialog({
           ? "Für dieses ORISO-Konto existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen das fest zugewiesene ORISO-App-Passwort und „2FA hinterlegen“ in der Zeile."
           : "This ORISO account has no Test Access record yet. The permanently assigned ORISO app password and “Set up 2FA” appear in the row only after linking."}
       </p>}
+      {view?.configured && provisioningRole && (!view.linked || view.requiresApplicationPassword) && <div className="flex flex-col gap-2 rounded-lg border p-3">
+        <p className="text-sm font-medium">{locale === "de" ? "ORISO-App-Passwort verknüpfen" : "Link ORISO app password"}</p>
+        <p className="text-xs text-muted-foreground">
+          {locale === "de"
+            ? "Exakt das Passwort eintragen, das im ORISO-Onboarding verwendet wurde oder dort verwendet werden soll. Es wird nur im geschützten Infisical-Record gespeichert und nie in der Antwort ausgegeben."
+            : "Enter exactly the password used during ORISO onboarding, or the one that will be used there. It is stored only in the protected Infisical record and is never returned in the response."}
+        </p>
+        <Input
+          aria-label={locale === "de" ? "Bestehendes ORISO-App-Passwort" : "Existing ORISO app password"}
+          name="existingOrisoPassword"
+          type="password"
+          autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-bwignore="true"
+          value={applicationPassword}
+          onChange={(event) => setApplicationPassword(event.target.value)}
+          disabled={busy || enrollBusy}
+        />
+      </div>}
       {view?.configured && view.linked && !view.linked.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
         <p className="text-sm font-medium">{locale === "de" ? "2FA direkt hier abschließen" : "Finish 2FA right here"}</p>
         <p className="text-xs text-muted-foreground">
@@ -272,7 +374,7 @@ export function OrisoProvisioningDialog({
           disabled={enrollBusy}
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" onClick={enrollAndGenerate} disabled={enrollBusy || !totpSecret.trim()}>
+          <Button type="button" size="sm" onClick={enrollAndGenerate} disabled={enrollBusy || (view.requiresApplicationPassword && !applicationPassword.trim()) || !totpSecret.trim()}>
             <ShieldCheckIcon data-icon="inline-start" />
             {enrollBusy
               ? (locale === "de" ? "Wird gespeichert…" : "Saving…")
@@ -299,7 +401,7 @@ export function OrisoProvisioningDialog({
       {otpWaitingUntil && <OtpValidity expiresAt={otpWaitingUntil} locale={locale} waiting />}
       {otp?.expiresAt && <OtpValidity expiresAt={otp.expiresAt} locale={locale} />}
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
-      {view?.configured && !view.state && <div className="flex flex-col gap-3">
+      {view?.configured && !view.state && !view.requiresApplicationPassword && <div className="flex flex-col gap-3">
         <p className="text-sm">{locale === "de" ? "Noch kein ORISO-Konto. Rolle wählen und Konto vollständig anlegen:" : "No ORISO account yet. Choose a role and provision the complete account:"}</p>
         <Select value={role} onValueChange={(value) => setRole(value as OrisoProvisioningRole)}>
           <SelectTrigger aria-label={locale === "de" ? "Rolle" : "Role"}><SelectValue /></SelectTrigger>
@@ -313,19 +415,19 @@ export function OrisoProvisioningDialog({
         <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={busy}>
           {locale === "de" ? "Schließen" : "Close"}
         </Button>
-        {view?.configured && !view.state && <Button type="button" onClick={() => provision(role)} disabled={busy}>
+        {view?.configured && !view.state && !view.requiresApplicationPassword && <Button type="button" onClick={() => provision(role)} disabled={busy}>
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
             : (locale === "de" ? "Konto anlegen & prüfen" : "Provision & verify account")}
         </Button>}
-        {view?.configured && view.state && !view.linked && view.state.role && <Button type="button" onClick={() => provision(view.state!.role!)} disabled={busy}>
+        {view?.configured && view.state && !view.linked && provisioningRole && <Button type="button" onClick={() => provision(provisioningRole, applicationPassword)} disabled={busy || !applicationPassword.trim()}>
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird verknüpft…" : "Linking…")
             : (locale === "de" ? "Test-Access-Record verknüpfen" : "Link Test Access record")}
         </Button>}
-        {view?.configured && view.state?.role && view.linked?.hasTotp && <Button type="button" onClick={() => provision(view.state!.role!)} disabled={busy}>
+        {view?.configured && provisioningRole && view.linked?.hasTotp && <Button type="button" onClick={() => provision(provisioningRole)} disabled={busy}>
           <RefreshCwIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird live geprüft…" : "Verifying live…")

@@ -38,6 +38,7 @@ import {
   environmentForOrisoEmail,
   generateApplicationPassword,
   orisoProvisioningRoles,
+  provisioningRoleForRecord,
   readyStateForProvisionedRecord,
   recordRolesForProvisioningRole,
   OrisoProvisioningError,
@@ -436,7 +437,10 @@ export function createApp(options: AppOptions = {}) {
   });
   const orisoProvisionBodySchema = z.object({
     environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
-    role: z.enum(orisoProvisioningRoles)
+    role: z.enum(orisoProvisioningRoles),
+    applicationPassword: z.string().min(1).max(512)
+      .refine((value) => value.trim().length > 0)
+      .optional()
   }).strict();
   const orisoLinkedRecord = (
     email: string,
@@ -468,7 +472,15 @@ export function createApp(options: AppOptions = {}) {
     const orisoProvisioning = orisoProvisioningServices[environment];
     res.set("Cache-Control", "no-store");
     if (!orisoProvisioning) {
-      return res.json({ configured: false, supportedRoles: [...orisoProvisioningRoles], environment, state: null, linked: null });
+      return res.json({
+        configured: false,
+        supportedRoles: [...orisoProvisioningRoles],
+        environment,
+        state: null,
+        provisioningRole: null,
+        linked: null,
+        requiresApplicationPassword: false
+      });
     }
     try {
       const records = await registryProvider.list();
@@ -476,12 +488,21 @@ export function createApp(options: AppOptions = {}) {
       const linked = orisoLinkedRecord(email, records, environment);
       const managedState = linked?.totpSecret ? readyStateForProvisionedRecord(linked) : null;
       const state = managedState ?? await orisoProvisioning.status(email);
+      const provisioningRole = state?.role ?? (linked ? provisioningRoleForRecord(linked) : null);
       res.json({
         configured: true,
         supportedRoles: [...orisoProvisioningRoles],
         environment,
         state,
-        linked: linked ? publicLinkedAccount(linked) : null
+        provisioningRole,
+        linked: linked ? publicLinkedAccount(linked) : null,
+        requiresApplicationPassword: Boolean(
+          provisioningRole
+          && (
+            !linked
+            || (!linked.totpSecret && linked.provisioningStatus === "failed")
+          )
+        )
       });
     } catch (error) {
       if (orisoProvisioningHttpError(error, res)) return;
@@ -527,8 +548,8 @@ export function createApp(options: AppOptions = {}) {
       let linkedRecord = existingRecord;
       const nowDate = options.now?.() ?? new Date();
       let recordCreated = false;
-      if (!linkedRecord) {
-        linkedRecord = buildProvisionedRecord({
+      const createLinkedRecord = async (secret: string) => {
+        const record = buildProvisionedRecord({
           email,
           displayName: current.displayName,
           role: body.role,
@@ -536,14 +557,111 @@ export function createApp(options: AppOptions = {}) {
           appBaseUrl: orisoProvisioning.target.appBaseUrl,
           responsiblePerson: user.email,
           now: nowDate,
-          secret: generateApplicationPassword(),
+          secret,
           environment
         });
         try {
-          await registryWriter.createRecord(linkedRecord);
+          await registryWriter.createRecord!(record);
+          return record;
         } catch {
-          return res.status(502).json({ error: "record_creation_failed" });
+          return null;
         }
+      };
+      const onboardingState = (!existingRecord || body.applicationPassword)
+        ? await orisoProvisioning.status(email)
+        : null;
+
+      // An invitation that already exists belongs to the human onboarding
+      // flow. Its password was (or will be) chosen there, so generating a new
+      // unrelated password and attempting direct creation can only leave a
+      // misleading half-record behind. Link the actual credential first and
+      // let the existing inline TOTP step complete the handoff.
+      if (!existingRecord && onboardingState && !body.applicationPassword) {
+        return res.status(409).json({ error: "application_password_required" });
+      }
+      if (
+        existingRecord
+        && !existingRecord.totpSecret
+        && existingRecord.provisioningStatus === "failed"
+        && !body.applicationPassword
+      ) {
+        return res.status(409).json({ error: "application_password_required" });
+      }
+      if (body.applicationPassword) {
+        if (existingRecord?.totpSecret || existingRecord?.provisioningStatus === "ready") {
+          return res.status(409).json({ error: "managed_record_password_locked" });
+        }
+        const canRepairFromRecord = Boolean(
+          !onboardingState
+          && existingRecord
+          && existingRecord.provisioningStatus === "failed"
+          && !existingRecord.totpSecret
+          && provisioningRoleForRecord(existingRecord) === body.role
+        );
+        if (
+          !canRepairFromRecord
+          && (!onboardingState || !onboardingState.role || onboardingState.role !== body.role)
+        ) {
+          return res.status(409).json({ error: "oriso_onboarding_state_mismatch" });
+        }
+        if (!linkedRecord) {
+          linkedRecord = await createLinkedRecord(body.applicationPassword);
+          if (!linkedRecord) return res.status(502).json({ error: "record_creation_failed" });
+          recordCreated = true;
+        } else {
+          if (!registryWriter.updateApplicationPassword) {
+            return res.status(503).json({ error: "record_password_update_unavailable" });
+          }
+          try {
+            await registryWriter.updateApplicationPassword(
+              linkedRecord,
+              body.applicationPassword,
+              nowDate.toISOString()
+            );
+          } catch {
+            return res.status(502).json({ error: "record_password_update_failed" });
+          }
+          linkedRecord = {
+            ...linkedRecord,
+            secret: body.applicationPassword,
+            provisioningStatus: "pending",
+            updatedAt: nowDate.toISOString()
+          };
+          database.recordAccountAccess({
+            accountId: linkedRecord.id,
+            email,
+            actorId: user.id,
+            action: "application_password_updated",
+            createdAt: nowDate.toISOString(),
+            context: { environment }
+          });
+        }
+        reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
+        if (recordCreated) {
+          database.recordAccountAccess({
+            accountId: linkedRecord.id,
+            email,
+            actorId: user.id,
+            action: "record_linked",
+            createdAt: nowDate.toISOString(),
+            context: { environment }
+          });
+        }
+        const linkedView = publicLinkedAccount(linkedRecord);
+        if (!linkedView) return res.status(500).json({ error: "record_projection_failed" });
+        res.set("Cache-Control", "no-store");
+        return res.status(recordCreated ? 201 : 200).json({
+          created: false,
+          recordCreated,
+          state: onboardingState,
+          provisioningRole: body.role,
+          linked: linkedView,
+          requiresApplicationPassword: false
+        });
+      }
+      if (!linkedRecord) {
+        linkedRecord = await createLinkedRecord(generateApplicationPassword());
+        if (!linkedRecord) return res.status(502).json({ error: "record_creation_failed" });
         recordCreated = true;
       }
       const nameParts = current.displayName.trim().split(/\s+/);
@@ -606,12 +724,16 @@ export function createApp(options: AppOptions = {}) {
           context: { environment }
         });
       }
+      const linkedView = publicLinkedAccount(linkedRecord);
+      if (!linkedView) return res.status(500).json({ error: "record_projection_failed" });
       res.set("Cache-Control", "no-store");
       res.status(provisioned.created ? 201 : 200).json({
         created: provisioned.created,
         recordCreated,
         state: provisioned.state,
-        linked: publicLinkedAccount(linkedRecord)
+        provisioningRole: body.role,
+        linked: linkedView,
+        requiresApplicationPassword: false
       });
     } catch (error) {
       if (orisoProvisioningHttpError(error, res)) return;
