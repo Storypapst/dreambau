@@ -232,7 +232,7 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           headers,
           "Infisical application password update readback failed"
         );
-        if (!recordsMatch(persisted, updated)) {
+        if (persisted.secret !== applicationPassword) {
           throw new Error("Infisical application password update readback failed");
         }
         return { recordId: updated.id, updatedAt };
@@ -366,7 +366,7 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           headers,
           "Infisical TOTP update readback failed"
         );
-        if (!recordsMatch(persisted, updated)) {
+        if (persisted.totpSecret !== totpSecret) {
           throw new Error("Infisical TOTP update readback failed");
         }
         return { recordId: current.id, updatedAt };

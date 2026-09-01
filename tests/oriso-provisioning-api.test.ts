@@ -300,7 +300,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
       status: vi.fn(async () => existingState),
       provision: vi.fn()
     });
-    const { agent, lisa, writer } = await setup({ records: [incomplete], service });
+    const { agent, lisa, writer, database } = await setup({ records: [incomplete], service });
     const applicationPassword = "Password-Actually-Used-In-ORISO";
 
     const response = await agent
@@ -321,6 +321,79 @@ describe("human self-service ORISO PreDev provisioning", () => {
       "2026-07-29T16:00:00.000Z"
     );
     expect(service.provision).not.toHaveBeenCalled();
+    expect(database.getAccountAccess(lisa.email).events).toEqual(expect.arrayContaining([
+        expect.objectContaining({ action: "application_password_updated", accountId: incomplete.id })
+      ]));
+  });
+
+  it.each([
+    ["stored TOTP", managedRecord({ provisioningStatus: "failed" })],
+    ["ready status", managedRecord({ totpSecret: undefined, provisioningStatus: "ready" })]
+  ])("locks password replacement for a managed record with %s", async (_case, existing) => {
+    const state = inviteFixture({ inviteStatus: "ACCEPTED", accessGateStatus: "READY" });
+    const service = fakeService({ status: vi.fn(async () => state), provision: vi.fn() });
+    const { agent, lisa, writer } = await setup({ records: [existing], service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword: "Replacement-Password" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "managed_record_password_locked" });
+    expect(writer?.updateApplicationPassword).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing", null],
+    ["wrong role", inviteFixture({ targetRole: "COUNSELLOR" })]
+  ])("rejects a %s onboarding state before storing a supplied password", async (_case, state) => {
+    const service = fakeService({ status: vi.fn(async () => state), provision: vi.fn() });
+    const { agent, lisa, writer } = await setup({ service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword: "Onboarding-Password" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "oriso_onboarding_state_mismatch" });
+    expect(writer?.createRecord).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when an incomplete record cannot update its application password", async () => {
+    const incomplete = managedRecord({ totpSecret: undefined, provisioningStatus: "failed" });
+    const state = inviteFixture({ inviteStatus: "ACCEPTED", accessGateStatus: "BLOCKED_TWO_FACTOR" });
+    const writer: RegistryWriter = {
+      enrollTotp: vi.fn(),
+      createRecord: vi.fn(),
+      updateRecord: vi.fn()
+    };
+    const { agent, lisa } = await setup({ records: [incomplete], service: fakeService({ status: vi.fn(async () => state) }), writer });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword: "Onboarding-Password" });
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ error: "record_password_update_unavailable" });
+  });
+
+  it("rejects whitespace-only application passwords without changing valid password bytes", async () => {
+    const state = inviteFixture({ inviteStatus: "ACCEPTED", accessGateStatus: "BLOCKED_TWO_FACTOR" });
+    const service = fakeService({ status: vi.fn(async () => state), provision: vi.fn() });
+    const { agent, lisa, createdRecords, writer } = await setup({ service });
+
+    const rejected = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword: "   " });
+    expect(rejected.status).toBe(400);
+    expect(writer?.createRecord).not.toHaveBeenCalled();
+
+    const exact = "  exact password bytes  ";
+    const accepted = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin", applicationPassword: exact });
+    expect(accepted.status).toBe(201);
+    expect(createdRecords[0].secret).toBe(exact);
   });
 
   it("persists password and TOTP across a fresh status load before reporting the account ready", async () => {
@@ -738,6 +811,30 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(response.status).toBe(200);
     expect(response.body.state.state).toBe("invited");
     expect(service.status).toHaveBeenCalledWith(lisa.email);
+  });
+
+  it("requires password repair only for failed linked records without TOTP", async () => {
+    const remoteState = inviteFixture({
+      inviteStatus: "ACCEPTED",
+      accessGateStatus: "BLOCKED_TWO_FACTOR"
+    });
+    const failed = await setup({
+      records: [managedRecord({ totpSecret: undefined, provisioningStatus: "failed" })],
+      service: fakeService({ status: vi.fn(async () => remoteState) })
+    });
+    const failedStatus = await failed.agent.get(
+      `/testmails/api/accounts/${encodeURIComponent(failed.lisa.email)}/oriso-provisioning`
+    );
+    expect(failedStatus.body.requiresApplicationPassword).toBe(true);
+
+    const pending = await setup({
+      records: [managedRecord({ totpSecret: undefined, provisioningStatus: "pending" })],
+      service: fakeService({ status: vi.fn(async () => remoteState) })
+    });
+    const pendingStatus = await pending.agent.get(
+      `/testmails/api/accounts/${encodeURIComponent(pending.lisa.email)}/oriso-provisioning`
+    );
+    expect(pendingStatus.body.requiresApplicationPassword).toBe(false);
   });
 
   it("returns the live onboarding state and linked record on GET", async () => {

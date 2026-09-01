@@ -437,7 +437,9 @@ export function createApp(options: AppOptions = {}) {
   const orisoProvisionBodySchema = z.object({
     environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
     role: z.enum(orisoProvisioningRoles),
-    applicationPassword: z.string().min(1).max(512).optional()
+    applicationPassword: z.string().min(1).max(512)
+      .refine((value) => value.trim().length > 0)
+      .optional()
   }).strict();
   const orisoLinkedRecord = (
     email: string,
@@ -469,7 +471,14 @@ export function createApp(options: AppOptions = {}) {
     const orisoProvisioning = orisoProvisioningServices[environment];
     res.set("Cache-Control", "no-store");
     if (!orisoProvisioning) {
-      return res.json({ configured: false, supportedRoles: [...orisoProvisioningRoles], environment, state: null, linked: null });
+      return res.json({
+        configured: false,
+        supportedRoles: [...orisoProvisioningRoles],
+        environment,
+        state: null,
+        linked: null,
+        requiresApplicationPassword: false
+      });
     }
     try {
       const records = await registryProvider.list();
@@ -482,7 +491,14 @@ export function createApp(options: AppOptions = {}) {
         supportedRoles: [...orisoProvisioningRoles],
         environment,
         state,
-        linked: linked ? publicLinkedAccount(linked) : null
+        linked: linked ? publicLinkedAccount(linked) : null,
+        requiresApplicationPassword: Boolean(
+          state
+          && (
+            !linked
+            || (!linked.totpSecret && linked.provisioningStatus === "failed")
+          )
+        )
       });
     } catch (error) {
       if (orisoProvisioningHttpError(error, res)) return;
@@ -592,6 +608,14 @@ export function createApp(options: AppOptions = {}) {
             provisioningStatus: "pending",
             updatedAt: nowDate.toISOString()
           };
+          database.recordAccountAccess({
+            accountId: linkedRecord.id,
+            email,
+            actorId: user.id,
+            action: "application_password_updated",
+            createdAt: nowDate.toISOString(),
+            context: { environment }
+          });
         }
         reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
         if (recordCreated) {
@@ -609,7 +633,8 @@ export function createApp(options: AppOptions = {}) {
           created: false,
           recordCreated,
           state: onboardingState,
-          linked: publicLinkedAccount(linkedRecord)
+          linked: publicLinkedAccount(linkedRecord),
+          requiresApplicationPassword: false
         });
       }
       if (!linkedRecord) {
@@ -696,7 +721,8 @@ export function createApp(options: AppOptions = {}) {
         created: provisioned.created,
         recordCreated,
         state: provisioned.state,
-        linked: publicLinkedAccount(linkedRecord)
+        linked: publicLinkedAccount(linkedRecord),
+        requiresApplicationPassword: false
       });
     } catch (error) {
       if (orisoProvisioningHttpError(error, res)) return;

@@ -184,12 +184,72 @@ describe("OrisoProvisioningDialog", () => {
       configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
       environment: "pre-dev",
       state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
-      linked: linkedFixture
+      linked: linkedFixture,
+      requiresApplicationPassword: false
     });
     await openDialog();
     await vi.waitFor(() => expect(document.body.textContent).toContain("2FA ausstehend"));
     expect(document.body.textContent).toContain("2FA direkt hier abschließen");
     expect(Array.from(document.querySelectorAll("button")).some((button) => button.textContent?.includes("Einladung senden"))).toBe(false);
+    expect(document.querySelector("input[name=existingOrisoPassword]")).toBeNull();
+    const totp = document.querySelector<HTMLInputElement>("input[name=dialogTotpSecret]")!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(totp, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+      totp.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const submit = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Hinterlegen & Code erzeugen"));
+    expect(submit?.disabled).toBe(false);
+  });
+
+  it("requires password repair only for an incomplete failed linked record", async () => {
+    vi.mocked(api).mockResolvedValueOnce({
+      configured: true, supportedRoles: ["tenant-admin"], environment: "pre-dev",
+      state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+      linked: linkedFixture,
+      requiresApplicationPassword: true
+    });
+    await openDialog();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("2FA direkt hier abschließen"));
+    expect(document.querySelector("input[name=existingOrisoPassword]")).not.toBeNull();
+    const submit = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Hinterlegen & Code erzeugen"));
+    expect(submit?.disabled).toBe(true);
+  });
+
+  it("shows a password persistence error separately from TOTP enrollment", async () => {
+    vi.mocked(api).mockImplementation(async (path: string, init?: { method?: string }) => {
+      if (path.endsWith("/oriso-provisioning") && !init?.method) {
+        return {
+          configured: true, supportedRoles: ["tenant-admin"], environment: "pre-dev",
+          state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
+          linked: linkedFixture,
+          requiresApplicationPassword: true
+        };
+      }
+      if (path.endsWith("/oriso-provisioning")) throw new Error("record_password_update_failed");
+      throw new Error(`unexpected ${path}`);
+    });
+    await openDialog();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("ORISO-App-Passwort verknüpfen"));
+
+    const password = document.querySelector<HTMLInputElement>("input[name=existingOrisoPassword]")!;
+    const totp = document.querySelector<HTMLInputElement>("input[name=dialogTotpSecret]")!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(password, "Password-Actually-Used-In-ORISO");
+      password.dispatchEvent(new Event("input", { bubbles: true }));
+      setter?.call(totp, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+      totp.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const submit = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Hinterlegen & Code erzeugen"));
+    await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(document.body.textContent).toContain("App-Passwort wurde nicht dauerhaft"));
+    expect(document.body.textContent).not.toContain("TOTP-Schlüssel wurde nicht gespeichert");
+    expect(api).toHaveBeenCalledTimes(2);
   });
 
   it("links a Test Access record for an invitation that predates provisioning", async () => {
@@ -242,7 +302,8 @@ describe("OrisoProvisioningDialog", () => {
           configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
           environment: "pre-dev",
           state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
-          linked: linkedFixture
+          linked: linkedFixture,
+          requiresApplicationPassword: true
         };
       }
       if (path.endsWith("/oriso-provisioning") && init?.method === "POST") {
@@ -250,7 +311,8 @@ describe("OrisoProvisioningDialog", () => {
           created: false,
           recordCreated: false,
           state: stateFixture({ state: "two-factor-pending", nextStep: "store-totp", accessGateStatus: "BLOCKED_TWO_FACTOR" }),
-          linked: linkedFixture
+          linked: linkedFixture,
+          requiresApplicationPassword: false
         };
       }
       if (path.endsWith("/totp")) return { accountId: linkedFixture.id, enrolled: true, updatedAt: "2026-07-29T18:00:00.000Z" };

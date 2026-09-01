@@ -41,9 +41,7 @@ describe("Infisical TOTP writer", () => {
         return Response.json({ accessToken: "short-lived-writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
       }
       if (init?.method === "PATCH") {
-        current = JSON.parse(String(init.body)).secretValue
-          ? JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord
-          : current;
+        current = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
         return Response.json({ secret: { id: "updated" } });
       }
       return Response.json({
@@ -195,6 +193,69 @@ describe("Infisical TOTP writer", () => {
       provisioningStatus: "pending",
       updatedAt: "2026-07-29T10:00:00.000Z"
     });
+  });
+
+  it("rejects a successful password patch when Infisical readback kept the old password", async () => {
+    const current = record({ provisioningStatus: "failed" });
+    const fetch: WriterFetch = async (input, init) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") return Response.json({ secret: { id: "updated" } });
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.updateApplicationPassword!(
+      current,
+      "Password-Actually-Used-In-ORISO",
+      "2026-07-29T10:00:00.000Z"
+    )).rejects.toThrow("Infisical application password update readback failed");
+  });
+
+  it("accepts a TOTP readback when the requested seed persisted with concurrent metadata", async () => {
+    let current = record();
+    const fetch: WriterFetch = async (input, init) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") {
+        const updated = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        current = { ...updated, permissionsDescription: "Concurrent metadata update" };
+        return Response.json({ secret: { id: "updated" } });
+      }
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.enrollTotp(current, totpSecret, "2026-07-29T10:00:00.000Z"))
+      .resolves.toEqual({ recordId: current.id, updatedAt: "2026-07-29T10:00:00.000Z" });
+    expect(current.totpSecret).toBe(totpSecret);
+    expect(current.permissionsDescription).toBe("Concurrent metadata update");
   });
 
   it("serializes enrollment per record so concurrent requests cannot replace a TOTP", async () => {
