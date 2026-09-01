@@ -207,6 +207,9 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           headers,
           "Infisical application password record lookup failed"
         );
+        if (current.kind !== "app-user" && current.kind !== "admin") {
+          throw new Error("Infisical application password update validation failed");
+        }
         const updated = testAccessRecordSchema.parse({
           ...current,
           secret: applicationPassword,
@@ -233,7 +236,12 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           headers,
           "Infisical application password update readback failed"
         );
-        if (persisted.secret !== applicationPassword) {
+        if (
+          persisted.secret !== applicationPassword
+          || persisted.provisioningStatus !== updated.provisioningStatus
+          || persisted.updatedAt !== updated.updatedAt
+          || persisted.totpSecret !== updated.totpSecret
+        ) {
           throw new Error("Infisical application password update readback failed");
         }
         return { recordId: updated.id, updatedAt };

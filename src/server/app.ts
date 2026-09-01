@@ -584,11 +584,11 @@ export function createApp(options: AppOptions = {}) {
         return res.status(409).json({ error: "application_password_required" });
       }
       if (body.applicationPassword) {
-        if (!onboardingState || !onboardingState.role || onboardingState.role !== body.role) {
-          return res.status(409).json({ error: "oriso_onboarding_state_mismatch" });
-        }
         if (existingRecord?.totpSecret || existingRecord?.provisioningStatus === "ready") {
           return res.status(409).json({ error: "managed_record_password_locked" });
+        }
+        if (!onboardingState || !onboardingState.role || onboardingState.role !== body.role) {
+          return res.status(409).json({ error: "oriso_onboarding_state_mismatch" });
         }
         if (!linkedRecord) {
           linkedRecord = await createLinkedRecord(body.applicationPassword);

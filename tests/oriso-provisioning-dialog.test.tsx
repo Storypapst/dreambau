@@ -284,6 +284,12 @@ describe("OrisoProvisioningDialog", () => {
     expect(password.type).toBe("password");
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(password, "   ");
+      password.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(link?.disabled).toBe(true);
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
       setter?.call(password, "Password-Actually-Used-In-ORISO");
       password.dispatchEvent(new Event("input", { bubbles: true }));
     });
@@ -293,15 +299,17 @@ describe("OrisoProvisioningDialog", () => {
     await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@dreambau.de", linkedFixture));
     expect(api).toHaveBeenCalledWith(
       `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
-      {
+      expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({
-          environment: "pre-dev",
-          role: "tenant-admin",
-          applicationPassword: "Password-Actually-Used-In-ORISO"
-        })
-      }
+        body: expect.any(String)
+      })
     );
+    const provisionCall = vi.mocked(api).mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(provisionCall?.[1]?.body ?? "null")).toEqual({
+      environment: "pre-dev",
+      role: "tenant-admin",
+      applicationPassword: "Password-Actually-Used-In-ORISO"
+    });
     await vi.waitFor(() => expect(document.body.textContent).not.toContain("noch kein Test-Access-Record"));
   });
 

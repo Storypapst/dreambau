@@ -330,8 +330,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     ["stored TOTP", managedRecord({ provisioningStatus: "failed" })],
     ["ready status", managedRecord({ totpSecret: undefined, provisioningStatus: "ready" })]
   ])("locks password replacement for a managed record with %s", async (_case, existing) => {
-    const state = inviteFixture({ inviteStatus: "ACCEPTED", accessGateStatus: "READY" });
-    const service = fakeService({ status: vi.fn(async () => state), provision: vi.fn() });
+    const service = fakeService({ status: vi.fn(async () => null), provision: vi.fn() });
     const { agent, lisa, writer } = await setup({ records: [existing], service });
 
     const response = await agent

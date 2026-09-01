@@ -195,6 +195,98 @@ describe("Infisical TOTP writer", () => {
     });
   });
 
+  it("rejects invalid application-password update inputs before accessing Infisical", async () => {
+    const fetch: WriterFetch = vi.fn(async () => { throw new Error("must not fetch"); });
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.updateApplicationPassword!(
+      record({ kind: "mailbox" }),
+      "Password-Actually-Used-In-ORISO",
+      "2026-07-29T10:00:00.000Z"
+    )).rejects.toThrow("only supports application records");
+    await expect(writer.updateApplicationPassword!(
+      record(),
+      "",
+      "2026-07-29T10:00:00.000Z"
+    )).rejects.toThrow("application password update validation failed");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-application record returned by the password lookup", async () => {
+    const current = record({ kind: "mailbox" });
+    const fetch: WriterFetch = vi.fn(async (input, init) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") throw new Error("must not patch");
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    });
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.updateApplicationPassword!(
+      record(),
+      "Password-Actually-Used-In-ORISO",
+      "2026-07-29T10:00:00.000Z"
+    )).rejects.toThrow("application password update validation failed");
+  });
+
+  it.each([
+    ["provisioning status", { provisioningStatus: "failed" as const }],
+    ["update timestamp", { updatedAt: "2026-07-29T09:59:59.000Z" }],
+    ["preserved TOTP", { totpSecret: undefined }]
+  ])("rejects password readback with stale %s", async (_field, stalePatch) => {
+    let current = record({ totpSecret, provisioningStatus: "failed" });
+    const fetch: WriterFetch = async (input, init) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") {
+        const updated = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        current = { ...updated, ...stalePatch };
+        return Response.json({ secret: { id: "updated" } });
+      }
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(current.id),
+          secretValue: JSON.stringify(current)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.updateApplicationPassword!(
+      current,
+      "Password-Actually-Used-In-ORISO",
+      "2026-07-29T10:00:00.000Z"
+    )).rejects.toThrow("Infisical application password update readback failed");
+  });
+
   it("rejects a successful password patch when Infisical readback kept the old password", async () => {
     const current = record({ provisioningStatus: "failed" });
     const fetch: WriterFetch = async (input, init) => {

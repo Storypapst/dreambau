@@ -417,7 +417,7 @@ export function OrisoProvisioningDialog({
             ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
             : (locale === "de" ? "Konto anlegen & prüfen" : "Provision & verify account")}
         </Button>}
-        {view?.configured && view.state && !view.linked && view.state.role && <Button type="button" onClick={() => provision(view.state!.role!, applicationPassword)} disabled={busy || !applicationPassword}>
+        {view?.configured && view.state && !view.linked && view.state.role && <Button type="button" onClick={() => provision(view.state!.role!, applicationPassword)} disabled={busy || !applicationPassword.trim()}>
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird verknüpft…" : "Linking…")
