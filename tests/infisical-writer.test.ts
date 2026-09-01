@@ -153,8 +153,8 @@ describe("Infisical TOTP writer", () => {
       .rejects.toThrow("Infisical TOTP update readback failed");
   });
 
-  it("updates an application password without dropping an existing TOTP and reads it back", async () => {
-    let current = record({ totpSecret, provisioningStatus: "failed" });
+  it("updates an incomplete application record and reads all owned fields back", async () => {
+    let current = record({ provisioningStatus: "failed" });
     const fetch: WriterFetch = async (input, init) => {
       if (String(input).includes("/login")) {
         return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
@@ -189,10 +189,47 @@ describe("Infisical TOTP writer", () => {
     });
     expect(current).toMatchObject({
       secret: "Password-Actually-Used-In-ORISO",
-      totpSecret,
       provisioningStatus: "pending",
       updatedAt: "2026-07-29T10:00:00.000Z"
     });
+    expect(current.totpSecret).toBeUndefined();
+  });
+
+  it.each([
+    ["stored TOTP", record({ totpSecret, provisioningStatus: "failed" })],
+    ["ready status", record({ provisioningStatus: "ready" })]
+  ])("rejects password replacement after authoritative readback reports %s", async (_case, authoritative) => {
+    const patch = vi.fn();
+    const fetch: WriterFetch = async (input, init) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") {
+        patch();
+        return Response.json({ secret: { id: "updated" } });
+      }
+      return Response.json({
+        secret: {
+          secretKey: secretNameForRecord(authoritative.id),
+          secretValue: JSON.stringify(authoritative)
+        }
+      });
+    };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch
+    });
+
+    await expect(writer.updateApplicationPassword!(
+      record({ provisioningStatus: "failed" }),
+      "Replacement-Password",
+      "2026-07-29T10:00:00.000Z"
+    )).rejects.toThrow("Infisical application password update validation failed");
+    expect(patch).not.toHaveBeenCalled();
   });
 
   it("rejects invalid application-password update inputs before accessing Infisical", async () => {
@@ -252,9 +289,9 @@ describe("Infisical TOTP writer", () => {
   it.each([
     ["provisioning status", { provisioningStatus: "failed" as const }],
     ["update timestamp", { updatedAt: "2026-07-29T09:59:59.000Z" }],
-    ["preserved TOTP", { totpSecret: undefined }]
+    ["preserved TOTP", { totpSecret }]
   ])("rejects password readback with stale %s", async (_field, stalePatch) => {
-    let current = record({ totpSecret, provisioningStatus: "failed" });
+    let current = record({ provisioningStatus: "failed" });
     const fetch: WriterFetch = async (input, init) => {
       if (String(input).includes("/login")) {
         return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });

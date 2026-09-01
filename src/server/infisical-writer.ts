@@ -210,6 +210,9 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
         if (current.kind !== "app-user" && current.kind !== "admin") {
           throw new Error("Infisical application password update validation failed");
         }
+        if (current.totpSecret || current.provisioningStatus === "ready") {
+          throw new Error("Infisical application password update validation failed");
+        }
         const updated = testAccessRecordSchema.parse({
           ...current,
           secret: applicationPassword,

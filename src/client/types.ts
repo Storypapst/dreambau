@@ -1,3 +1,5 @@
+import type { AccountAccessAction } from "../server/account-link.js";
+
 export type LifecycleStatus = "unused" | "active" | "needs_review" | "delete_candidate" | "archived";
 export type FixtureQuality = "empty" | "synthetic" | "realistic" | "gold";
 export type Project = "NONE" | "ORI" | "ORISO" | "ORIMO" | "TRAIL.IST" | "DREAMBAU" | "OTHER";
@@ -19,7 +21,7 @@ export interface LinkedTestAccount {
 }
 export interface AccountAccessEvent {
   id: number; accountId: string; email: string; actorId: string;
-  action: "catalog_sync" | "secret_requested" | "mail_requested" | "otp_requested" | "environment_requested" | "browser_session_opened" | "totp_enrolled" | "record_linked" | "application_password_updated" | "oriso_invite_requested" | "oriso_account_provisioned";
+  action: AccountAccessAction;
   createdAt: string; context: { runId?: string; applicationVersion?: string; environment?: "local" | "pre-dev" | "dev" | "production-test" };
 }
 export type OrisoProvisioningRole = "platform-admin" | "tenant-admin" | "agency-admin" | "counsellor" | "advice-seeker";
