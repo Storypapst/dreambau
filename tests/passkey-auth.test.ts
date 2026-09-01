@@ -341,6 +341,47 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
+  it("does not let a failed concurrent employee sync roll back newer grants", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let rejectFirst!: (error: Error) => void;
+    let markSecondStarted!: () => void;
+    const secondStarted = new Promise<void>((resolve) => { markSecondStarted = resolve; });
+    let calls = 0;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(() => {
+        calls += 1;
+        if (calls === 1) return new Promise((_, reject) => { rejectFirst = reject; });
+        markSecondStarted();
+        return Promise.resolve(["orimo"]);
+      })
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const admin = request.agent(app);
+    const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+
+    const firstRequest = admin.get("/testmails/api/auth/users").then((response) => response);
+    await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1));
+    const secondRequest = admin.get("/testmails/api/auth/users").then((response) => response);
+    const overlapped = await Promise.race([
+      secondStarted.then(() => true),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), 50))
+    ]);
+    if (overlapped) await secondRequest;
+    rejectFirst(new Error("offline"));
+    const responses = await Promise.all([firstRequest, secondRequest]);
+
+    expect(responses.map((response) => response.body.sourceStatus.infisical).sort()).toEqual(["available", "degraded"]);
+    expect(passkeyStore.grants.list(member.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
+      { project: "orimo", source: "infisical", status: "active" },
+      { project: "oriso", source: "local", status: "active" }
+    ]);
+    warning.mockRestore();
+    passkeyStore.close();
+  });
+
   it("keeps the local grant when no Infisical access group remains", async () => {
     const humanAccessProvider: HumanAccessProvider = { projectsFor: vi.fn(async () => []) };
     const { app, passkeyStore } = setup([account("oriso-user@oriso.org")], humanAccessProvider);

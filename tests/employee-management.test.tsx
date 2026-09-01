@@ -61,7 +61,7 @@ describe("EmployeeManagement failures", () => {
     container.remove();
   });
 
-  it("keeps mutations disabled while a degraded employee list refresh is pending", async () => {
+  it("keeps mutations disabled until the latest overlapping refresh succeeds", async () => {
     const degradedResponse = {
       users: [{
         id: "member-id",
@@ -76,10 +76,10 @@ describe("EmployeeManagement failures", () => {
       }],
       sourceStatus: { infisical: "degraded" as const, correlationId: "d8412b72-c4ad-49f3-9bd5-9d441c3ca2db" }
     };
-    let finishRefresh!: (value: typeof degradedResponse) => void;
+    const refreshResolvers: Array<(value: typeof degradedResponse) => void> = [];
     vi.mocked(loadTeamMembers)
       .mockResolvedValueOnce(degradedResponse)
-      .mockImplementationOnce(() => new Promise((resolve) => { finishRefresh = resolve; }));
+      .mockImplementation(() => new Promise((resolve) => { refreshResolvers.push(resolve); }));
 
     const container = document.createElement("div");
     document.body.append(container);
@@ -93,16 +93,27 @@ describe("EmployeeManagement failures", () => {
     await act(async () => closeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await vi.waitFor(() => expect(document.body.querySelector('[data-slot="dialog-content"]')).toBeNull());
     await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(refreshResolvers).toHaveLength(1));
 
+    const secondCloseButton = document.body.querySelector<HTMLButtonElement>('[data-slot="dialog-close"]');
+    await act(async () => secondCloseButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.body.querySelector('[data-slot="dialog-content"]')).toBeNull());
+    await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(refreshResolvers).toHaveLength(2));
+
+    await act(async () => refreshResolvers[0]({
+      ...degradedResponse,
+      sourceStatus: { infisical: "available" as const, correlationId: undefined }
+    }));
     await vi.waitFor(() => {
       const disableButton = Array.from(document.body.querySelectorAll("button")).find((button) => button.textContent?.includes("Sperren"));
       expect(disableButton?.disabled).toBe(true);
     });
 
-    finishRefresh({
+    await act(async () => refreshResolvers[1]({
       ...degradedResponse,
       sourceStatus: { infisical: "available" as const, correlationId: undefined }
-    });
+    }));
     await vi.waitFor(() => {
       const disableButton = Array.from(document.body.querySelectorAll("button")).find((button) => button.textContent?.includes("Sperren"));
       expect(disableButton?.disabled).toBe(false);

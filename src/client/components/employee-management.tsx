@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { UserPlusIcon, UsersIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -23,18 +23,21 @@ export function EmployeeManagement({ locale }: { locale: Locale }) {
   const [error, setError] = useState<"load" | "create" | "status" | null>(null);
   const [sourceStatus, setSourceStatus] = useState<HumanAccessSourceStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const loadSequence = useRef(0);
   const isDegraded = sourceStatus?.infisical === "degraded";
   const mutationsDisabled = loading || isDegraded;
   async function load() {
+    const sequence = ++loadSequence.current;
     setError(null);
     setLoading(true);
     try {
       const result = await loadTeamMembers();
+      if (sequence !== loadSequence.current) return;
       setUsers(result.users);
       setSourceStatus(result.sourceStatus);
     }
-    catch { setError("load"); }
-    finally { setLoading(false); }
+    catch { if (sequence === loadSequence.current) setError("load"); }
+    finally { if (sequence === loadSequence.current) setLoading(false); }
   }
   async function create() {
     setError(null);

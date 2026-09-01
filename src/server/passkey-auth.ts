@@ -198,39 +198,48 @@ export function installPasskeyAuth(router: Router, options: {
   const listWithAccessSources = (users: import("./passkey-store.js").HumanUser[]) =>
     users.map((user) => ({ ...user, accessSources: accessSourcesFor(user.id) }));
 
+  let employeeListSyncTail: Promise<void> = Promise.resolve();
+  const serializeEmployeeListSync = <T>(operation: () => Promise<T>) => {
+    const result = employeeListSyncTail.then(operation, operation);
+    employeeListSyncTail = result.then(() => undefined, () => undefined);
+    return result;
+  };
+
   router.get("/auth/users", requireAdmin, async (_req, res) => {
-    const locallyStored = options.store.listUsers();
-    const infisicalSnapshots = new Map(locallyStored.map((user) => [
-      user.id,
-      options.store.grants.list(user.id)
-        .filter((grant) => grant.source === "infisical")
-        .map(({ userId, project, environments, source, status }) => ({ userId, project, environments, source, status }))
-    ]));
-    try {
-      let synchronized = locallyStored;
-      if (options.syncHumanUser) {
-        const outcomes = await Promise.allSettled(locallyStored.map(options.syncHumanUser));
-        const rejected = outcomes.find((outcome) => outcome.status === "rejected");
-        if (rejected) throw rejected.reason;
-        synchronized = outcomes.map((outcome) => {
-          if (outcome.status === "rejected") throw outcome.reason;
-          return outcome.value;
-        });
+    const payload = await serializeEmployeeListSync(async () => {
+      const locallyStored = options.store.listUsers();
+      const infisicalSnapshots = new Map(locallyStored.map((user) => [
+        user.id,
+        options.store.grants.list(user.id)
+          .filter((grant) => grant.source === "infisical")
+          .map(({ userId, project, environments, source, status }) => ({ userId, project, environments, source, status }))
+      ]));
+      try {
+        let synchronized = locallyStored;
+        if (options.syncHumanUser) {
+          const outcomes = await Promise.allSettled(locallyStored.map(options.syncHumanUser));
+          const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+          if (rejected) throw rejected.reason;
+          synchronized = outcomes.map((outcome) => {
+            if (outcome.status === "rejected") throw outcome.reason;
+            return outcome.value;
+          });
+        }
+        return { users: listWithAccessSources(synchronized), sourceStatus: { infisical: "available" as const } };
+      } catch {
+        for (const user of locallyStored) {
+          options.store.grants.replaceInfisical(user.id, infisicalSnapshots.get(user.id) ?? []);
+        }
+        const correlationId = randomUUID();
+        console.warn("human_access_employee_list_degraded", { correlationId });
+        return {
+          users: listWithAccessSources(locallyStored),
+          sourceStatus: { infisical: "degraded" as const, correlationId }
+        };
       }
-      res.set("Cache-Control", "no-store");
-      res.json({ users: listWithAccessSources(synchronized), sourceStatus: { infisical: "available" } });
-    } catch {
-      for (const user of locallyStored) {
-        options.store.grants.replaceInfisical(user.id, infisicalSnapshots.get(user.id) ?? []);
-      }
-      const correlationId = randomUUID();
-      console.warn("human_access_employee_list_degraded", { correlationId });
-      res.set("Cache-Control", "no-store");
-      res.json({
-        users: listWithAccessSources(locallyStored),
-        sourceStatus: { infisical: "degraded", correlationId }
-      });
-    }
+    });
+    res.set("Cache-Control", "no-store");
+    res.json(payload);
   });
   router.post("/auth/users", requireAdmin, (req, res) => {
     const parsed = z.object({
