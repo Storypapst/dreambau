@@ -216,6 +216,16 @@ describe("OrisoProvisioningDialog", () => {
     const submit = Array.from(document.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("Hinterlegen & Code erzeugen"));
     expect(submit?.disabled).toBe(true);
+    const password = document.querySelector<HTMLInputElement>("input[name=existingOrisoPassword]")!;
+    const totp = document.querySelector<HTMLInputElement>("input[name=dialogTotpSecret]")!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+      setter?.call(password, "   ");
+      password.dispatchEvent(new Event("input", { bubbles: true }));
+      setter?.call(totp, "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+      totp.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(submit?.disabled).toBe(true);
   });
 
   it("shows a password persistence error separately from TOTP enrollment", async () => {

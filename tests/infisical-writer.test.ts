@@ -379,7 +379,8 @@ describe("Infisical TOTP writer", () => {
         return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
       }
       if (init?.method === "PATCH") {
-        current = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        const patched = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+        current = { ...patched, permissionsDescription: "Concurrent metadata after status update" };
         return Response.json({ secret: { id: "updated" } });
       }
       return Response.json({

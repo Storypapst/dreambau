@@ -202,7 +202,11 @@ export function OrisoProvisioningDialog({
     setEnrollBusy(true);
     setEnrollError(false);
     setError(null);
-    if (currentView.requiresApplicationPassword && currentView.state?.role && applicationPassword) {
+    if (
+      currentView.requiresApplicationPassword
+      && currentView.state?.role
+      && applicationPassword.trim().length > 0
+    ) {
       try {
         const result = await api<OrisoProvisioningResult>(
           `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
@@ -366,7 +370,7 @@ export function OrisoProvisioningDialog({
           disabled={enrollBusy}
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" onClick={enrollAndGenerate} disabled={enrollBusy || (view.requiresApplicationPassword && !applicationPassword) || !totpSecret.trim()}>
+          <Button type="button" size="sm" onClick={enrollAndGenerate} disabled={enrollBusy || (view.requiresApplicationPassword && !applicationPassword.trim()) || !totpSecret.trim()}>
             <ShieldCheckIcon data-icon="inline-start" />
             {enrollBusy
               ? (locale === "de" ? "Wird gespeichert…" : "Saving…")

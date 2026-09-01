@@ -544,6 +544,25 @@ export function createApp(options: AppOptions = {}) {
       let linkedRecord = existingRecord;
       const nowDate = options.now?.() ?? new Date();
       let recordCreated = false;
+      const createLinkedRecord = async (secret: string) => {
+        const record = buildProvisionedRecord({
+          email,
+          displayName: current.displayName,
+          role: body.role,
+          adminBaseUrl: orisoProvisioning.target.adminBaseUrl,
+          appBaseUrl: orisoProvisioning.target.appBaseUrl,
+          responsiblePerson: user.email,
+          now: nowDate,
+          secret,
+          environment
+        });
+        try {
+          await registryWriter.createRecord!(record);
+          return record;
+        } catch {
+          return null;
+        }
+      };
       const onboardingState = (!existingRecord || body.applicationPassword)
         ? await orisoProvisioning.status(email)
         : null;
@@ -572,22 +591,8 @@ export function createApp(options: AppOptions = {}) {
           return res.status(409).json({ error: "managed_record_password_locked" });
         }
         if (!linkedRecord) {
-          linkedRecord = buildProvisionedRecord({
-            email,
-            displayName: current.displayName,
-            role: body.role,
-            adminBaseUrl: orisoProvisioning.target.adminBaseUrl,
-            appBaseUrl: orisoProvisioning.target.appBaseUrl,
-            responsiblePerson: user.email,
-            now: nowDate,
-            secret: body.applicationPassword,
-            environment
-          });
-          try {
-            await registryWriter.createRecord(linkedRecord);
-          } catch {
-            return res.status(502).json({ error: "record_creation_failed" });
-          }
+          linkedRecord = await createLinkedRecord(body.applicationPassword);
+          if (!linkedRecord) return res.status(502).json({ error: "record_creation_failed" });
           recordCreated = true;
         } else {
           if (!registryWriter.updateApplicationPassword) {
@@ -638,22 +643,8 @@ export function createApp(options: AppOptions = {}) {
         });
       }
       if (!linkedRecord) {
-        linkedRecord = buildProvisionedRecord({
-          email,
-          displayName: current.displayName,
-          role: body.role,
-          adminBaseUrl: orisoProvisioning.target.adminBaseUrl,
-          appBaseUrl: orisoProvisioning.target.appBaseUrl,
-          responsiblePerson: user.email,
-          now: nowDate,
-          secret: generateApplicationPassword(),
-          environment
-        });
-        try {
-          await registryWriter.createRecord(linkedRecord);
-        } catch {
-          return res.status(502).json({ error: "record_creation_failed" });
-        }
+        linkedRecord = await createLinkedRecord(generateApplicationPassword());
+        if (!linkedRecord) return res.status(502).json({ error: "record_creation_failed" });
         recordCreated = true;
       }
       const nameParts = current.displayName.trim().split(/\s+/);

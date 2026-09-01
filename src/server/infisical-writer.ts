@@ -107,7 +107,8 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
   async function readScopedRecord(
     expected: TestAccessRecord,
     headers: Record<string, string>,
-    failureMessage: string
+    lookupFailureMessage: string,
+    validationFailureMessage = lookupFailureMessage
   ) {
     const secretName = secretNameForRecord(expected.id);
     const query = new URLSearchParams({
@@ -122,7 +123,7 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
     const url = new URL(`/api/v4/secrets/${secretName}`, baseUrl);
     url.search = query.toString();
     const response = await fetch(url, { headers, signal: requestSignal() });
-    if (!response.ok) throw new Error(failureMessage);
+    if (!response.ok) throw new Error(lookupFailureMessage);
     try {
       const parsed = secretResponseSchema.parse(await response.json());
       if (parsed.secret.secretKey !== secretName) throw new Error("secret name mismatch");
@@ -134,7 +135,7 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
       ) throw new Error("record scope mismatch");
       return record;
     } catch {
-      throw new Error(failureMessage);
+      throw new Error(validationFailureMessage);
     }
   }
 
@@ -245,33 +246,13 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
       }
       return serializeEnrollment(record.id, async () => {
         const secretName = secretNameForRecord(record.id);
-        const query = new URLSearchParams({
-          projectId: options.projectIds[record.project],
-          environment: record.environment,
-          secretPath: "/records",
-          type: "shared",
-          viewSecretValue: "true",
-          expandSecretReferences: "false",
-          includeImports: "false"
-        });
-        const lookupUrl = new URL(`/api/v4/secrets/${secretName}`, baseUrl);
-        lookupUrl.search = query.toString();
         const headers = { Authorization: `Bearer ${await accessToken()}` };
-        const currentResponse = await fetch(lookupUrl, { headers, signal: requestSignal() });
-        if (!currentResponse.ok) throw new Error("Infisical record update lookup failed");
-        let current: TestAccessRecord;
-        try {
-          const parsed = secretResponseSchema.parse(await currentResponse.json());
-          if (parsed.secret.secretKey !== secretName) throw new Error("secret name mismatch");
-          current = testAccessRecordSchema.parse(JSON.parse(parsed.secret.secretValue));
-          if (
-            current.id !== record.id
-            || current.project !== record.project
-            || current.environment !== record.environment
-          ) throw new Error("record scope mismatch");
-        } catch {
-          throw new Error("Infisical record update validation failed");
-        }
+        const current = await readScopedRecord(
+          record,
+          headers,
+          "Infisical record update lookup failed",
+          "Infisical record update validation failed"
+        );
         // updateRecord owns the provisioning state only. Re-reading under the
         // per-record lock preserves concurrent metadata and TOTP enrollment.
         const updated = testAccessRecordSchema.parse({
@@ -303,7 +284,11 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           headers,
           "Infisical record update readback failed"
         );
-        if (!recordsMatch(persisted, updated)) {
+        if (
+          persisted.provisioningStatus !== updated.provisioningStatus
+          || persisted.updatedAt !== updated.updatedAt
+          || persisted.totpSecret !== updated.totpSecret
+        ) {
           throw new Error("Infisical record update readback failed");
         }
         return { recordId: updated.id, updatedAt: updated.updatedAt };
@@ -316,32 +301,14 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
       }
       return serializeEnrollment(expected.id, async () => {
         const secretName = secretNameForRecord(expected.id);
-        const query = new URLSearchParams({
-          projectId: options.projectIds[expected.project],
-          environment: expected.environment,
-          secretPath: "/records",
-          type: "shared",
-          viewSecretValue: "true",
-          expandSecretReferences: "false",
-          includeImports: "false"
-        });
-        const url = new URL(`/api/v4/secrets/${secretName}`, baseUrl);
-        url.search = query.toString();
         const headers = { Authorization: `Bearer ${await accessToken()}` };
-        const response = await fetch(url, { headers, signal: requestSignal() });
-        if (!response.ok) throw new Error("Infisical TOTP record lookup failed");
-        let current: TestAccessRecord;
-        try {
-          const parsed = secretResponseSchema.parse(await response.json());
-          if (parsed.secret.secretKey !== secretName) throw new Error("secret name mismatch");
-          current = testAccessRecordSchema.parse(JSON.parse(parsed.secret.secretValue));
-          if (
-            current.id !== expected.id
-            || current.project !== expected.project
-            || current.environment !== expected.environment
-            || (current.kind !== "app-user" && current.kind !== "admin")
-          ) throw new Error("record scope mismatch");
-        } catch {
+        const current = await readScopedRecord(
+          expected,
+          headers,
+          "Infisical TOTP record lookup failed",
+          "Infisical TOTP record validation failed"
+        );
+        if (current.kind !== "app-user" && current.kind !== "admin") {
           throw new Error("Infisical TOTP record validation failed");
         }
         assertTotpNotEnrolled(current);
