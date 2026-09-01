@@ -51,7 +51,13 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
   const cacheTtlMs = options.cacheTtlMs ?? 60_000;
   let cachedToken: { value: string; expiresAt: number } | null = null;
   let cachedProjects: { value: Map<string, HumanProject[]>; expiresAt: number } | null = null;
-  let pendingProjects: Promise<Map<string, HumanProject[]>> | null = null;
+  type PendingProjects = {
+    promise: Promise<Map<string, HumanProject[]>>;
+    controller: AbortController;
+    activeCallers: number;
+    settled: boolean;
+  };
+  let pendingProjects: PendingProjects | null = null;
 
   async function accessToken(signal?: AbortSignal) {
     if (cachedToken && cachedToken.expiresAt > now() + 30_000) return cachedToken.value;
@@ -96,22 +102,65 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
         result.set(email, projects);
       }
     }
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     cachedProjects = { value: result, expiresAt: now() + cacheTtlMs };
     return result;
   }
 
+  function createPendingProjects() {
+    const controller = new AbortController();
+    const promise = loadProjects(controller.signal);
+    const pending: PendingProjects = {
+      controller,
+      activeCallers: 0,
+      settled: false,
+      promise
+    };
+    pending.promise.then(
+      () => {
+        pending.settled = true;
+        if (pendingProjects === pending) pendingProjects = null;
+      },
+      () => {
+        pending.settled = true;
+        if (pendingProjects === pending) pendingProjects = null;
+      }
+    );
+    return pending;
+  }
+
+  function joinPendingProjects(pending: PendingProjects, signal?: AbortSignal) {
+    if (signal?.aborted) return Promise.reject<Map<string, HumanProject[]>>(new DOMException("Aborted", "AbortError"));
+    pending.activeCallers += 1;
+    return new Promise<Map<string, HumanProject[]>>((resolve, reject) => {
+      let callerSettled = false;
+      const finishCaller = () => {
+        if (callerSettled) return false;
+        callerSettled = true;
+        signal?.removeEventListener("abort", abortCaller);
+        pending.activeCallers -= 1;
+        if (pending.activeCallers === 0 && !pending.settled) {
+          if (pendingProjects === pending) pendingProjects = null;
+          pending.controller.abort();
+        }
+        return true;
+      };
+      const abortCaller = () => {
+        if (!finishCaller()) return;
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      signal?.addEventListener("abort", abortCaller, { once: true });
+      pending.promise.then(
+        (value) => { if (finishCaller()) resolve(value); },
+        (error: unknown) => { if (finishCaller()) reject(error); }
+      );
+    });
+  }
+
   async function projects(optionsForRead?: { force?: boolean; signal?: AbortSignal }) {
     if (!optionsForRead?.force && cachedProjects && cachedProjects.expiresAt > now()) return cachedProjects.value;
-    if (!pendingProjects) {
-      const tracked = loadProjects(optionsForRead?.signal).finally(() => {
-        if (pendingProjects === tracked) pendingProjects = null;
-      });
-      pendingProjects = tracked;
-      optionsForRead?.signal?.addEventListener("abort", () => {
-        if (pendingProjects === tracked) pendingProjects = null;
-      }, { once: true });
-    }
-    return pendingProjects;
+    if (!pendingProjects) pendingProjects = createPendingProjects();
+    return joinPendingProjects(pendingProjects, optionsForRead?.signal);
   }
 
   return {

@@ -219,10 +219,8 @@ export function installPasskeyAuth(router: Router, options: {
           const outcomes = await Promise.allSettled(locallyStored.map((user) => options.syncHumanUser!(user, deadlineAt)));
           const rejected = outcomes.find((outcome) => outcome.status === "rejected");
           if (rejected) throw rejected.reason;
-          synchronized = outcomes.map((outcome) => {
-            if (outcome.status === "rejected") throw outcome.reason;
-            return outcome.value;
-          });
+          synchronized = (outcomes as PromiseFulfilledResult<import("./passkey-store.js").HumanUser>[])
+            .map((outcome) => outcome.value);
         }
         return { users: listWithAccessSources(synchronized), sourceStatus: { infisical: "available" as const } };
       } catch {
