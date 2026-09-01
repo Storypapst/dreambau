@@ -4,6 +4,23 @@ import { createApp } from "../src/server/app.js";
 import type { RegistryProvider } from "../src/server/infisical-provider.js";
 
 describe("health checks", () => {
+  it("exposes bounded human-access queue counters when ready", async () => {
+    const registryProvider: RegistryProvider = {
+      async list() { return []; },
+      async get() { return null; },
+      async health() { return undefined; }
+    };
+    const app = createApp({ passwordHash: "unused", secureCookies: false, loadAccounts: () => [], registryProvider });
+
+    const ready = await request(app).get("/testmails/health/ready");
+
+    expect(ready.status).toBe(200);
+    expect(ready.body).toEqual({
+      status: "ok",
+      humanAccessQueue: { enqueued: 0, expired: 0 }
+    });
+  });
+
   it("keeps liveness independent but fails readiness when the registry is unavailable", async () => {
     const registryProvider: RegistryProvider = {
       async list() { return []; },

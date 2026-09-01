@@ -310,7 +310,13 @@ export function createApp(options: AppOptions = {}) {
     try {
       if (registryProvider.health) await registryProvider.health();
       else await registryProvider.list();
-      res.json({ status: "ok" });
+      res.json({
+        status: "ok",
+        humanAccessQueue: {
+          enqueued: serializeHumanAccess.metrics.enqueued,
+          expired: serializeHumanAccess.metrics.expired
+        }
+      });
     } catch {
       res.status(503).json({ status: "unavailable" });
     }
