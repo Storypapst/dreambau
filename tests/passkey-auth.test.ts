@@ -8,7 +8,11 @@ import { createApp } from "../src/server/app.js";
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
 import type { AccountRecord } from "../src/server/accounts.js";
-import type { HumanAccessProvider } from "../src/server/infisical-human-access.js";
+import {
+  createInfisicalHumanAccessProvider,
+  type HumanAccessFetch,
+  type HumanAccessProvider
+} from "../src/server/infisical-human-access.js";
 
 let passwordHash = "";
 beforeAll(async () => { passwordHash = await argon2.hash("bootstrap-password", { type: argon2.argon2id }); });
@@ -23,7 +27,7 @@ function account(email: string): AccountRecord {
   };
 }
 
-function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccessProvider) {
+function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccessProvider, humanAccessTimeoutMs?: number) {
   const passkeyStore = createPasskeyStore(path.join(mkdtempSync(path.join(tmpdir(), "passkey-auth-")), "auth.sqlite"));
   const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso", "dreambau"], role: "admin" });
   const webauthn: WebAuthnAdapter = {
@@ -51,9 +55,32 @@ function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccess
     passwordHash, secureCookies: false, loadAccounts: () => accounts, passkeyStore, webauthn,
     rpId: "dreambau.com", expectedOrigin: "https://dreambau.com",
     bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" },
-    humanAccessProvider
+    humanAccessProvider, humanAccessTimeoutMs
   });
   return { app, passkeyStore, user, webauthn };
+}
+
+function infisicalProvider(mode: "project-failure" | "malformed-memberships") {
+  const fetch: HumanAccessFetch = vi.fn(async (input: string | URL) => {
+    const url = String(input);
+    if (url.endsWith("/auth/universal-auth/login")) {
+      return Response.json({ accessToken: "access-token", expiresIn: 3600, accessTokenMaxTTL: 3600, tokenType: "Bearer" });
+    }
+    if (url.endsWith("/projects/p-orimo/memberships")) {
+      return mode === "project-failure"
+        ? Response.json({ message: "upstream-secret-marker" }, { status: 503 })
+        : Response.json({ memberships: [{ user: { username: "member@dreambau.com" }, upstreamSecret: "upstream-secret-marker" }] });
+    }
+    return Response.json({ memberships: [] });
+  });
+  return createInfisicalHumanAccessProvider({
+    baseUrl: "https://secrets.dreambau.com",
+    organizationSlug: "dreambau-test-access",
+    clientId: "client-id",
+    clientSecret: "client-secret-marker",
+    projectIds: { oriso: "p-oriso", orimo: "p-orimo", dreambau: "p-dreambau" },
+    fetch
+  });
 }
 
 describe("passkey authentication", () => {
@@ -160,7 +187,9 @@ describe("passkey authentication", () => {
     const disabled = await admin.patch(`/testmails/api/auth/users/${created.body.id}/status`).send({ status: "disabled" });
     expect(disabled.status).toBe(200);
     expect(disabled.body.status).toBe("disabled");
-    expect((await admin.get("/testmails/api/auth/users")).body).toHaveLength(2);
+    const listed = await admin.get("/testmails/api/auth/users");
+    expect(listed.body.users).toHaveLength(2);
+    expect(listed.body.sourceStatus).toEqual({ infisical: "available" });
     expect((await employee.get("/testmails/api/accounts")).status).toBe(403);
     passkeyStore.close();
   });
@@ -204,7 +233,8 @@ describe("passkey authentication", () => {
     // removes Infisical-derived access and never touches a local grant. This
     // previously returned ["orimo"], silently discarding what an administrator
     // had granted — the defect behind the "0 of 0 accounts" report.
-    expect(listed.body.find((entry: { email: string }) => entry.email === member.email).projects).toEqual(["orimo", "oriso"]);
+    expect(listed.body.users.find((entry: { email: string }) => entry.email === member.email).projects).toEqual(["orimo", "oriso"]);
+    expect(listed.body.sourceStatus).toEqual({ infisical: "available" });
 
     const agent = request.agent(app);
     const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
@@ -233,6 +263,218 @@ describe("passkey authentication", () => {
     await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
     expect((await agent.get("/testmails/api/accounts")).status).toBe(503);
     passkeyStore.close();
+  });
+
+  it("aborts a timed-out human access lookup and releases the synchronization queue", async () => {
+    let calls = 0;
+    let aborted = false;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn((_email, options) => {
+        calls += 1;
+        if (calls > 1) return Promise.resolve([]);
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(new DOMException("Aborted", "AbortError"));
+          }, { once: true });
+        });
+      })
+    };
+    const { app, passkeyStore } = setup([], humanAccessProvider, 100);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const employee = request.agent(app);
+    const options = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+
+    const timedOut = await employee.get("/testmails/api/auth/me");
+    const retried = await employee.get("/testmails/api/auth/me");
+
+    expect(timedOut.status).toBe(503);
+    expect(timedOut.body).toEqual({ error: "human_access_unavailable" });
+    expect(aborted).toBe(true);
+    expect(retried.status).toBe(200);
+    expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(2);
+    passkeyStore.close();
+  });
+
+  it("serves the local employee snapshot when the list expires while waiting in the queue", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let rejectHeldLookup!: (error: Error) => void;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(() => new Promise((_resolve, reject) => { rejectHeldLookup = reject; }))
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider, 1_000);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const admin = request.agent(app);
+    const adminOptions = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: adminOptions.body.flowId, response: { id: "admin-credential" } });
+    const employee = request.agent(app);
+    const employeeOptions = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: employeeOptions.body.flowId, response: { id: "member-credential" } });
+    const listUsers = vi.spyOn(passkeyStore, "listUsers");
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+
+    try {
+      const held = employee.get("/testmails/api/auth/me").then((response) => response);
+      await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledOnce());
+      const queuedList = admin.get("/testmails/api/auth/users").then((response) => response);
+      await vi.waitFor(() => expect(listUsers).toHaveBeenCalledOnce());
+
+      now += 1_000;
+      rejectHeldLookup(new Error("offline"));
+      const [heldResponse, listResponse] = await Promise.all([held, queuedList]);
+
+      expect(heldResponse.status).toBe(503);
+      expect(listResponse.status).toBe(200);
+      expect(listResponse.headers["cache-control"]).toBe("no-store");
+      expect(listResponse.body.sourceStatus.infisical).toBe("degraded");
+      expect(listResponse.body.sourceStatus.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(listResponse.body.users.find((entry: { email: string }) => entry.email === member.email)).toMatchObject({
+        projects: ["oriso"],
+        accessSources: ["local"]
+      });
+      expect(humanAccessProvider.projectsFor).toHaveBeenCalledOnce();
+    } finally {
+      clock.mockRestore();
+      listUsers.mockRestore();
+      warning.mockRestore();
+      passkeyStore.close();
+    }
+  });
+
+  it("keeps the employee list fail-closed for anonymous and non-admin passkey sessions", async () => {
+    const { app, passkeyStore } = setup();
+    expect((await request(app).get("/testmails/api/auth/users")).status).toBe(401);
+
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+
+    const forbidden = await agent.get("/testmails/api/auth/users");
+    expect(forbidden.status).toBe(403);
+    expect(forbidden.body).toEqual({ error: "admin_required" });
+    passkeyStore.close();
+  });
+
+  for (const mode of ["project-failure", "malformed-memberships"] as const) {
+    it(`serves locally stored employees with degraded source status after ${mode}`, async () => {
+      const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const { app, passkeyStore, user } = setup([], infisicalProvider(mode));
+      const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+      passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+      try {
+        const admin = request.agent(app);
+        const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+        await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+
+        const listed = await admin.get("/testmails/api/auth/users");
+
+        expect(listed.status).toBe(200);
+        expect(listed.body.sourceStatus.infisical).toBe("degraded");
+        expect(listed.body.sourceStatus.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+        expect(listed.body.users.find((entry: { email: string }) => entry.email === member.email)).toMatchObject({
+          projects: ["oriso"],
+          accessSources: ["local"]
+        });
+        const logged = JSON.stringify(warning.mock.calls);
+        expect(logged).toContain(listed.body.sourceStatus.correlationId);
+        expect(logged).toContain("human access synchronization failed");
+        expect(logged).not.toContain("member@dreambau.com");
+        expect(logged).not.toContain("upstream-secret-marker");
+        expect(logged).not.toContain("client-secret-marker");
+      } finally {
+        warning.mockRestore();
+        passkeyStore.close();
+      }
+    });
+  }
+
+  it("rolls back every Infisical grant when one employee synchronization fails", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(async (email) => {
+        if (email === "alpha@dreambau.com") return ["orimo"];
+        throw new Error("offline");
+      })
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider);
+    const alpha = passkeyStore.createUser({ email: "alpha@dreambau.com", name: "Alpha", projects: ["oriso"], role: "member" });
+    passkeyStore.createUser({ email: "zeta@dreambau.com", name: "Zeta", projects: ["dreambau"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    try {
+      const admin = request.agent(app);
+      const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+      await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+
+      const listed = await admin.get("/testmails/api/auth/users");
+
+      expect(listed.status).toBe(200);
+      expect(listed.body.sourceStatus.infisical).toBe("degraded");
+      expect(listed.body.users.find((entry: { email: string }) => entry.email === alpha.email)).toMatchObject({
+        projects: ["oriso"],
+        accessSources: ["local"]
+      });
+      expect(passkeyStore.grants.list(alpha.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
+        { project: "oriso", source: "local", status: "active" }
+      ]);
+    } finally {
+      warning.mockRestore();
+      passkeyStore.close();
+    }
+  });
+
+  it("does not let a failed employee-list sync roll back newer grants from auth/me", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let rejectFirst!: (error: Error) => void;
+    let calls = 0;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(() => {
+        calls += 1;
+        if (calls === 1) return new Promise((_, reject) => { rejectFirst = reject; });
+        return Promise.resolve(["orimo"]);
+      })
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    try {
+      const admin = request.agent(app);
+      const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+      await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+      const employee = request.agent(app);
+      const employeeOptions = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+      await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: employeeOptions.body.flowId, response: { id: "member-credential" } });
+
+      const employeeListRequest = admin.get("/testmails/api/auth/users").then((response) => response);
+      await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1));
+      let currentUserSettled = false;
+      const currentUserRequest = employee.get("/testmails/api/auth/me")
+        .then((response) => response)
+        .finally(() => { currentUserSettled = true; });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1);
+      expect(currentUserSettled).toBe(false);
+      rejectFirst(new Error("offline"));
+      const [employeeList, currentUser] = await Promise.all([employeeListRequest, currentUserRequest]);
+
+      expect(employeeList.body.sourceStatus.infisical).toBe("degraded");
+      expect(currentUser.status).toBe(200);
+      expect(currentUser.body.projects).toEqual(["orimo", "oriso"]);
+      expect(passkeyStore.grants.list(member.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
+        { project: "orimo", source: "infisical", status: "active" },
+        { project: "oriso", source: "local", status: "active" }
+      ]);
+    } finally {
+      warning.mockRestore();
+      passkeyStore.close();
+    }
   });
 
   it("keeps the local grant when no Infisical access group remains", async () => {

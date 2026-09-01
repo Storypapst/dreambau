@@ -16,7 +16,7 @@ import { createAccountRegistryProvider, createTestAccessRouter } from "./test-ac
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
 import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
-import { createPasskeyStore, type HumanUser, type PasskeyStore } from "./passkey-store.js";
+import { createPasskeyStore, type HumanProject, type HumanUser, type PasskeyStore } from "./passkey-store.js";
 import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
 import type { SessionPrincipal } from "./sessions.js";
 import {
@@ -28,6 +28,7 @@ import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
 import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
 import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
+import { createDeadlineQueue } from "./deadline-queue.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import { canProvisionOriso, humanEntitlementsFor, type HumanEntitlements } from "./human-entitlements.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
@@ -66,6 +67,7 @@ interface AppOptions {
   bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
   runtimeStatusLoader?: (projects: CoordinationProject[]) => Promise<RuntimeStatus[]>;
   humanAccessProvider?: HumanAccessProvider;
+  humanAccessTimeoutMs?: number;
   emailOtpSender?: EmailOtpSender;
   emailOtpHmacKey?: string;
   orisoProvisioning?: OrisoProvisioningService;
@@ -101,9 +103,29 @@ export function createApp(options: AppOptions = {}) {
    * `user.projects` is now a derived projection of the grant rows rather than
    * authoritative storage.
    */
-  const syncHumanUser = async (user: HumanUser) => {
+  const humanAccessTimeoutMs = options.humanAccessTimeoutMs ?? 10_000;
+  const syncHumanUserUnsafe = async (user: HumanUser, deadlineAt = Date.now() + humanAccessTimeoutMs) => {
     if (!humanAccessProvider || user.role === "admin") return user;
-    const projects = await humanAccessProvider.projectsFor(user.email);
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) throw new Error("human_access_timeout");
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        reject(new Error("human_access_timeout"));
+      }, remainingMs);
+    });
+    let projects: HumanProject[];
+    try {
+      projects = await Promise.race([
+        humanAccessProvider.projectsFor(user.email, { signal: controller.signal }),
+        deadline
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+    if (Date.now() >= deadlineAt) throw new Error("human_access_timeout");
     passkeyStore.grants.replaceInfisical(user.id, projects.map((project) => ({
       userId: user.id,
       project,
@@ -112,6 +134,16 @@ export function createApp(options: AppOptions = {}) {
     })));
     return { ...user, projects: passkeyStore.grants.effective(user.id).map((grant) => grant.project) };
   };
+  // This queue is deliberately process-wide: the employee-list snapshot and
+  // rollback must be mutually exclusive with every grants.replaceInfisical
+  // writer, including auth/me. Provider reads are shared and cached, while the
+  // enqueue-time deadline bounds every caller's total wait.
+  const serializeHumanAccess = createDeadlineQueue(
+    humanAccessTimeoutMs,
+    () => Date.now(),
+    () => new Error("human_access_timeout")
+  );
+  const syncHumanUser = (user: HumanUser) => serializeHumanAccess((deadlineAt) => syncHumanUserUnsafe(user, deadlineAt));
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,
@@ -132,7 +164,8 @@ export function createApp(options: AppOptions = {}) {
     webauthn: options.webauthn,
     now: options.now,
     bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" },
-    syncHumanUser,
+    syncHumanUser: syncHumanUserUnsafe,
+    serializeHumanAccess,
     entitlementsFor: (user, principal) => humanEntitlementsFor(user, passkeyStore.grants, principal.method)
   });
   installEmailOtpAuth(api, {
@@ -278,7 +311,13 @@ export function createApp(options: AppOptions = {}) {
     try {
       if (registryProvider.health) await registryProvider.health();
       else await registryProvider.list();
-      res.json({ status: "ok" });
+      res.json({
+        status: "ok",
+        humanAccessQueue: {
+          enqueued: serializeHumanAccess.metrics.enqueued,
+          expired: serializeHumanAccess.metrics.expired
+        }
+      });
     } catch {
       res.status(503).json({ status: "unavailable" });
     }

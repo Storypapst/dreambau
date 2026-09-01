@@ -93,8 +93,9 @@ describe("employee invitation", () => {
 
     const listed = await agent.get("/testmails/api/auth/users");
 
-    const entry = listed.body.find((row: { email: string }) => row.email === "both@dreambau.com");
+    const entry = listed.body.users.find((row: { email: string }) => row.email === "both@dreambau.com");
     expect(entry.accessSources.sort()).toEqual(["infisical", "local"]);
+    expect(listed.body.sourceStatus).toEqual({ infisical: "available" });
     expect(JSON.stringify(listed.body)).not.toContain("clientSecret");
   });
 });

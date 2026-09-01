@@ -40,7 +40,8 @@ export function installPasskeyAuth(router: Router, options: {
   webauthn?: WebAuthnAdapter;
   now?: () => Date;
   bootstrapUser: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
-  syncHumanUser?: (user: import("./passkey-store.js").HumanUser) => Promise<import("./passkey-store.js").HumanUser>;
+  syncHumanUser?: (user: import("./passkey-store.js").HumanUser, deadlineAt?: number) => Promise<import("./passkey-store.js").HumanUser>;
+  serializeHumanAccess: <T>(operation: (deadlineAt: number) => Promise<T>) => Promise<T>;
   entitlementsFor?: (user: import("./passkey-store.js").HumanUser, principal: SessionPrincipal) => HumanEntitlements;
 }) {
   const webauthn = options.webauthn ?? defaultWebAuthn;
@@ -195,15 +196,75 @@ export function installPasskeyAuth(router: Router, options: {
   /** Which sources an administrator granted access from: local, Infisical or both. */
   const accessSourcesFor = (userId: string) =>
     [...new Set(options.store.grants.list(userId).filter((grant) => grant.status === "active").map((grant) => grant.source))].sort();
+  const listWithAccessSources = (users: import("./passkey-store.js").HumanUser[]) =>
+    users.map((user) => ({ ...user, accessSources: accessSourcesFor(user.id) }));
+  type TeamMembersResponsePayload = {
+    users: ReturnType<typeof listWithAccessSources>;
+    sourceStatus:
+      | { infisical: "available" }
+      | { infisical: "degraded"; correlationId: string };
+  };
+
+  const degradedEmployeeList = (
+    users: ReturnType<typeof listWithAccessSources>,
+    error: unknown
+  ) => {
+    const correlationId = randomUUID();
+    const errorType = error instanceof DOMException && error.name === "AbortError"
+      ? "abort"
+      : error instanceof Error && error.message === "human_access_timeout"
+        ? "timeout"
+        : "lookup";
+    console.warn("human_access_employee_list_degraded", {
+      correlationId,
+      errorType,
+      message: "human access synchronization failed"
+    });
+    return {
+      users,
+      sourceStatus: { infisical: "degraded" as const, correlationId }
+    };
+  };
+
+  const synchronizeHumanUser = (user: import("./passkey-store.js").HumanUser) => {
+    const sync = options.syncHumanUser;
+    return sync ? options.serializeHumanAccess((deadlineAt) => sync(user, deadlineAt)) : Promise.resolve(user);
+  };
 
   router.get("/auth/users", requireAdmin, async (_req, res) => {
+    const locallyStored = options.store.listUsers();
+    const localSnapshot = listWithAccessSources(locallyStored);
+    let payload: TeamMembersResponsePayload;
     try {
-      const users = options.store.listUsers();
-      const synchronized = options.syncHumanUser ? await Promise.all(users.map(options.syncHumanUser)) : users;
-      res.json(synchronized.map((user) => ({ ...user, accessSources: accessSourcesFor(user.id) })));
-    } catch {
-      res.status(503).json({ error: "human_access_unavailable" });
+      payload = await options.serializeHumanAccess(async (deadlineAt) => {
+        const infisicalSnapshots = new Map(locallyStored.map((user) => [
+          user.id,
+          options.store.grants.list(user.id)
+            .filter((grant) => grant.source === "infisical")
+            .map(({ userId, project, environments, source, status }) => ({ userId, project, environments, source, status }))
+        ]));
+        try {
+          let synchronized = locallyStored;
+          if (options.syncHumanUser) {
+            const outcomes = await Promise.allSettled(locallyStored.map((user) => options.syncHumanUser!(user, deadlineAt)));
+            const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+            if (rejected) throw rejected.reason;
+            synchronized = (outcomes as PromiseFulfilledResult<import("./passkey-store.js").HumanUser>[])
+              .map((outcome) => outcome.value);
+          }
+          return { users: listWithAccessSources(synchronized), sourceStatus: { infisical: "available" as const } };
+        } catch (error) {
+          for (const user of locallyStored) {
+            options.store.grants.replaceInfisical(user.id, infisicalSnapshots.get(user.id) ?? []);
+          }
+          return degradedEmployeeList(listWithAccessSources(locallyStored), error);
+        }
+      });
+    } catch (error) {
+      payload = degradedEmployeeList(localSnapshot, error);
     }
+    res.set("Cache-Control", "no-store");
+    res.json(payload);
   });
   router.post("/auth/users", requireAdmin, (req, res) => {
     const parsed = z.object({
@@ -261,7 +322,7 @@ export function installPasskeyAuth(router: Router, options: {
     }
     let user = principal.userId ? options.store.getUser(principal.userId) : null;
     if (!user || user.status !== "active") return res.status(403).json({ error: "user_disabled" });
-    try { if (options.syncHumanUser) user = await options.syncHumanUser(user); }
+    try { user = await synchronizeHumanUser(user); }
     catch { return res.status(503).json({ error: "human_access_unavailable" }); }
     res.json({ ...user, entitlements: options.entitlementsFor?.(user, principal) });
   });
