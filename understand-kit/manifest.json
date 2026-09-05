@@ -1,6 +1,6 @@
 {
   "name": "oriso-understand-kit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "date": "2026-09-05",
   "changelog": [
     "0.2.0 (2026-09-05) — the kit becomes subscribable over HTTP (concept step 7.3). New in the Dreambau app: GET /understand/api/v1/kit/manifest and .../kit/bundle, top-level (not under /testmails), read-only, behind the same machine bearer tokens as the Test-Access API (sha256 hash, timingSafeEqual, expiresAt/revokedAt, no new scope field); the bundle carries an ETag = sha256 of the archive and answers 304 on If-None-Match, 503 bundle_not_built when dist/ is missing. New in the kit: kit-subscribe.sh and install.sh --subscribe (manifest -> version compare -> download -> per-file sha256 verify -> unpack to ~/.oriso-dev-kit/, never blocking, ORISO_KIT_BASE / ORISO_KIT_TOKEN). settings.hook.json now runs kit-subscribe --max-seconds 10 before ua-pull; rules/templates/codex.md documents the same two lines for Codex.",
@@ -38,6 +38,10 @@
     {
       "path": "pages/features/case-handover.html",
       "sha256": "54f57ed7097ec6003c7b952e2812f182a7f546bdb6b48b602337351170461af1"
+    },
+    {
+      "path": "pages/index.html",
+      "sha256": "d6d7b96e986e254dc00a20fb6b5d360afd9c7d7051e3e77cc90cd8f94069e7c8"
     },
     {
       "path": "prompts/component-build.md",
