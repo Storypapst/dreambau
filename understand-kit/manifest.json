@@ -1,0 +1,86 @@
+{
+  "name": "oriso-understand-kit",
+  "version": "0.1.0",
+  "date": "2026-09-05",
+  "changelog": [
+    "0.1.0 (2026-09-05) — first kit in the dreambau monorepo. Content moved from ORISO '0 - Docs/dev-kit' (install.sh, ua-pull.sh, mcp-add.sh, settings.hook.json, .mcp.json.example, 5 prompts) plus the oriso-graph skill. New: install target ~/.oriso-dev-kit/ with a skill symlink into the repo, tool-neutral rules/AGENTS-block.md as the single source of the working rule, AGENTS.md / CLAUDE.md / codex.md repo templates, manifest + build-bundle.sh for the subscription endpoint, first feature page (Case Handover). Not included: ua-platform (builder, stays in ORISO Docs) and deep-run (analysis artefacts)."
+  ],
+  "files": [
+    {
+      "path": ".mcp.json.example",
+      "sha256": "9c176d8aead88d128b643e974e7eb247d03a690013cb49fa59630124f3950837"
+    },
+    {
+      "path": "README.md",
+      "sha256": "25d4b45d5fc37c0945d094f47ac41f428456735c2357b4c68344ab8536345944"
+    },
+    {
+      "path": "SECRET-SCAN.md",
+      "sha256": "efa7cfc87a804634fbf7c533b58e308bb42831448055920d9101bc13158c281b"
+    },
+    {
+      "path": "build-bundle.sh",
+      "sha256": "f91bf95087c7f39cbb80e34582114a1fd3a076ced42d7e7cd081faf06cb3d1c6"
+    },
+    {
+      "path": "install.sh",
+      "sha256": "ec7621464b2dfd268bb46b73094e71e463305fef2c78ea8a2b61c7c534bed669"
+    },
+    {
+      "path": "mcp-add.sh",
+      "sha256": "24d51709f9b819c4e5f3dd0cf2e460f60522a43d9bdb6426ecd90365412ea566"
+    },
+    {
+      "path": "pages/features/case-handover.html",
+      "sha256": "54f57ed7097ec6003c7b952e2812f182a7f546bdb6b48b602337351170461af1"
+    },
+    {
+      "path": "prompts/component-build.md",
+      "sha256": "1bcfe87a65d7b7736a83da2ffa14a4a7f7a0eb6d8d5de1bb7b1f7c245fdf9c6e"
+    },
+    {
+      "path": "prompts/html-to-story.md",
+      "sha256": "2010c10b0b8afcfbea540ba10dccb6795419fd581c02997c16c2df0a0fef83b3"
+    },
+    {
+      "path": "prompts/onboarding.md",
+      "sha256": "2a1a81913070b33937d843342046686b4c1ac404d2d8f08a2bb21065e9ac6772"
+    },
+    {
+      "path": "prompts/story-to-html.md",
+      "sha256": "4d69e356d2db513187626a498995186372a166e2dac47e8dc72074609512a85c"
+    },
+    {
+      "path": "prompts/ticket-check.md",
+      "sha256": "4c42fe4f36b4a361f287c51316d118d16bd10cdcf28546741bd8844ea40a9e4c"
+    },
+    {
+      "path": "rules/AGENTS-block.md",
+      "sha256": "821dae1c6ec7c19576cf2bee5b381260d4dbac5593b1282a9644b6a617aad1ab"
+    },
+    {
+      "path": "rules/templates/AGENTS.md",
+      "sha256": "e6e97f5dc37cce44a8a9d3fe5af5c2e926f622548a5aa06436bb6741448ef960"
+    },
+    {
+      "path": "rules/templates/CLAUDE.md",
+      "sha256": "5afc20b36e7a270b6fe0996cd2dbb2d9a155d38b15b6b4b2072218eaff569695"
+    },
+    {
+      "path": "rules/templates/codex.md",
+      "sha256": "ebad278128d8fa5df80d5866cb1514c5a73e68efd24129e6f7f3c715da482330"
+    },
+    {
+      "path": "settings.hook.json",
+      "sha256": "f85ca7b89fd5405e93f22c5daf3f4aee340bf2c7e283d5ab32ec2d4ac7f2a36f"
+    },
+    {
+      "path": "skills/oriso-graph/SKILL.md",
+      "sha256": "3c9a844a384a2edcd67bded18778e07473493ef9978c034b171b126ffc2317da"
+    },
+    {
+      "path": "ua-pull.sh",
+      "sha256": "48feb39239b3298f66ecce8a1b9072d0a1601b4130b4ad05ffc672c79af8cb94"
+    }
+  ]
+}
