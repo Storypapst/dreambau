@@ -35,9 +35,70 @@ checkout at once.
 `sha256` per file. A client that has `version` already does nothing; a client that downloads
 can verify each unpacked file.
 
-> **Status:** the bundle endpoint on the Dreambau app is not built yet (concept step 7.3).
-> Today `install.sh` is run against a local copy of this folder; the endpoint changes only
-> *where the copy comes from*, not what it does.
+> **Status:** the bundle endpoint is live in the Dreambau app (concept step 7.3) —
+> `GET /understand/api/v1/kit/manifest` and `GET /understand/api/v1/kit/bundle`. Running
+> `install.sh` against a local copy of this folder still works and does the same thing; the
+> endpoint only changes *where the copy comes from*.
+
+## Abonnieren
+
+### Was der Endpunkt anbietet
+
+| Route | Antwort |
+|---|---|
+| `GET /understand/api/v1/kit/manifest` | `manifest.json` — `version`, `date`, `changelog`, `files[]` mit sha256. |
+| `GET /understand/api/v1/kit/bundle` | `understand-kit-<version>.tar.gz` (`application/gzip`), `ETag` = sha256 des Archivs, `Content-Disposition` mit Dateinamen. `If-None-Match` mit dem gleichen ETag → `304`. Ist `dist/` nicht gebaut → `503 bundle_not_built`. |
+
+Beides ist **read-only** und braucht einen Bearer-Token. Es ist derselbe Token-Mechanismus
+wie bei der Test-Access-API (sha256-Hash, `timingSafeEqual`, `expiresAt`/`revokedAt`): ein
+gültiger, nicht abgelaufener, nicht widerrufener Token darf lesen. Kein eigenes Scope-Feld —
+ein Token, der die Test-Access-API erreicht, gehört per Definition zu einer Person oder
+Maschine im Team. Ein fehlender oder ungültiger Token bekommt `401` ohne Details; Token-Werte
+werden nirgends geloggt.
+
+### Token
+
+Der Token kommt zur Laufzeit aus der Umgebung oder aus Infisical — nie aus einer Datei in
+einem Repository:
+
+```bash
+# Variante A: einmal einloggen, dann liest kit-subscribe den Token selbst
+infisical login --domain https://secrets.dreambau.com --interactive
+# Projekt "ORISO Test Access", Env pre-dev, Key ORISO_KIT_TOKEN
+
+# Variante B: nur für diese Shell
+export ORISO_KIT_TOKEN='<token von Frank>'
+```
+
+`ORISO_KIT_BASE` überschreibt die Basis-URL (Default
+`https://dreambau.com/understand/api/v1/kit`), `ORISO_KIT_HOME` das Installationsziel
+(Default `~/.oriso-dev-kit`).
+
+### Der Abo-Aufruf
+
+```bash
+kit-subscribe                    # prüfen und bei neuerer Version aktualisieren
+kit-subscribe --max-seconds 10   # dasselbe mit Zeitlimit (was der Hook nutzt)
+bash install.sh --subscribe      # identisch, ohne den Wrapper
+```
+
+Der Ablauf: Manifest holen → `version` mit `~/.oriso-dev-kit/manifest.json` vergleichen → nur
+bei **neuerer** Version das Bundle laden → jede Datei gegen die sha256 aus dem Manifest prüfen
+→ erst dann nach `~/.oriso-dev-kit/` entpacken. Passt eine Prüfsumme nicht, wird **nichts**
+installiert. Der Client merged nie, er ersetzt.
+
+Der Aufruf ist absichtlich nie blockierend: kein Token, kein Netz, Endpunkt tot oder Bundle
+nicht gebaut → eine Zeile Ausgabe, Exit ≠ 0, und die Sitzung läuft normal weiter.
+
+### Hook (Claude Code) und Codex
+
+`settings.hook.json` enthält zwei `SessionStart`-Hooks in dieser Reihenfolge:
+`kit-subscribe --max-seconds 10` (Regeln und Prompts aktuell) und danach der bestehende
+`ua-pull`-Check (Graph aktuell). `install.sh` merged sie idempotent in
+`<repo>/.claude/settings.json`.
+
+Codex hat keinen Session-Hook. `rules/templates/codex.md` enthält dieselben zwei Zeilen zum
+Aufruf von Hand oder aus dem Shell-Profil.
 
 ## 5-Minuten-Setup
 
@@ -109,7 +170,8 @@ an MCP registration — goes in `CLAUDE.md` or the Codex file.
 | `install.sh` | Installs the kit to `~/.oriso-dev-kit/`, then wires plugin, MCP, `ua-pull`, skill symlink, hook and graph pull. Idempotent, with a summary table. |
 | `ua-pull.sh` | Fetches `.understand-anything/{knowledge-graph,meta,fingerprints,depth,platform-graph}.json` via SSH or HTTPS; `--verify` reports freshness; `--unlock` releases `skip-worktree` before a `git pull`. Plain shell — agent-neutral. |
 | `mcp-add.sh` | The two `claude mcp add` commands for the Storybook MCP servers, runnable on their own. |
-| `settings.hook.json` | A `SessionStart` hook snippet that runs `ua-pull --verify` (and pulls when stale). Merged into `<repo>/.claude/settings.json` by `install.sh`. |
+| `kit-subscribe.sh` | The subscription check: wrapper around `install.sh --subscribe` with a wall-clock limit (`--max-seconds`). Installed as `~/.local/bin/kit-subscribe`. |
+| `settings.hook.json` | A `SessionStart` hook snippet: first `kit-subscribe --max-seconds 10`, then `ua-pull --verify` (and pulls when stale). Merged into `<repo>/.claude/settings.json` by `install.sh`. |
 | `.mcp.json.example` | Project-scoped MCP template — env-var reference only, no secret. |
 | `rules/AGENTS-block.md` | The working rule, tool-neutral. Single source; paste into a repo's `AGENTS.md`. |
 | `rules/templates/AGENTS.md` | Repo template: rule block + "Besonderheit dieses Repos". |
@@ -169,9 +231,9 @@ it, then re-run `install.sh`; the installer never overwrites local work.
 
 ## Offen (nicht in diesem Ordner erledigt)
 
-- The bundle endpoint in the Dreambau app (token auth like the Test-Access API) — concept
-  step 7.3.
-- Switching `install.sh` / the hook from "run against a local copy" to "check the manifest,
-  download when newer" once that endpoint exists.
+- Frank has to issue the subscription tokens (`test-access` machine identities) and put one
+  under the Infisical key `ORISO_KIT_TOKEN`, project "ORISO Test Access", env `pre-dev`.
+- Deploying the Dreambau image that carries the built bundle (`understand-kit/dist/` is
+  produced in the Docker `kit` stage, not committed).
 - Whether graph delivery moves from the predev `/ua` Basic-Auth channel behind the same
   Dreambau token (one login instead of two).

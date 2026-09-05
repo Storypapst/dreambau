@@ -1,8 +1,9 @@
 {
   "name": "oriso-understand-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "date": "2026-09-05",
   "changelog": [
+    "0.2.0 (2026-09-05) — the kit becomes subscribable over HTTP (concept step 7.3). New in the Dreambau app: GET /understand/api/v1/kit/manifest and .../kit/bundle, top-level (not under /testmails), read-only, behind the same machine bearer tokens as the Test-Access API (sha256 hash, timingSafeEqual, expiresAt/revokedAt, no new scope field); the bundle carries an ETag = sha256 of the archive and answers 304 on If-None-Match, 503 bundle_not_built when dist/ is missing. New in the kit: kit-subscribe.sh and install.sh --subscribe (manifest -> version compare -> download -> per-file sha256 verify -> unpack to ~/.oriso-dev-kit/, never blocking, ORISO_KIT_BASE / ORISO_KIT_TOKEN). settings.hook.json now runs kit-subscribe --max-seconds 10 before ua-pull; rules/templates/codex.md documents the same two lines for Codex.",
     "0.1.0 (2026-09-05) — first kit in the dreambau monorepo. Content moved from ORISO '0 - Docs/dev-kit' (install.sh, ua-pull.sh, mcp-add.sh, settings.hook.json, .mcp.json.example, 5 prompts) plus the oriso-graph skill. New: install target ~/.oriso-dev-kit/ with a skill symlink into the repo, tool-neutral rules/AGENTS-block.md as the single source of the working rule, AGENTS.md / CLAUDE.md / codex.md repo templates, manifest + build-bundle.sh for the subscription endpoint, first feature page (Case Handover). Not included: ua-platform (builder, stays in ORISO Docs) and deep-run (analysis artefacts)."
   ],
   "files": [
@@ -12,7 +13,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "25d4b45d5fc37c0945d094f47ac41f428456735c2357b4c68344ab8536345944"
+      "sha256": "4958983bfa8a4dd02b273dac06c0531a0eb041d9bba8001781c98599a8727220"
     },
     {
       "path": "SECRET-SCAN.md",
@@ -20,11 +21,15 @@
     },
     {
       "path": "build-bundle.sh",
-      "sha256": "f91bf95087c7f39cbb80e34582114a1fd3a076ced42d7e7cd081faf06cb3d1c6"
+      "sha256": "b9587acb5c081879a2c575fa093ef479c1927bfec70dead01b16b1f8904845f5"
     },
     {
       "path": "install.sh",
-      "sha256": "ec7621464b2dfd268bb46b73094e71e463305fef2c78ea8a2b61c7c534bed669"
+      "sha256": "9f6562609c9ba7d8389efca1ab71123d2476bc0ff4e90e6447222ca9b654f247"
+    },
+    {
+      "path": "kit-subscribe.sh",
+      "sha256": "8b97cb52d92e39d5bc27fa69a7161004e1b14be20aa20b10fc702d2216d5720c"
     },
     {
       "path": "mcp-add.sh",
@@ -68,11 +73,11 @@
     },
     {
       "path": "rules/templates/codex.md",
-      "sha256": "ebad278128d8fa5df80d5866cb1514c5a73e68efd24129e6f7f3c715da482330"
+      "sha256": "b00d91641cce27136f737d0775a04071bd4d77574d2cb4db2ccab8015281678c"
     },
     {
       "path": "settings.hook.json",
-      "sha256": "f85ca7b89fd5405e93f22c5daf3f4aee340bf2c7e283d5ab32ec2d4ac7f2a36f"
+      "sha256": "c25acbe5ad42dda4b8ed10182607d065ba21b74e21837406feeb5cfd10cfe046"
     },
     {
       "path": "skills/oriso-graph/SKILL.md",

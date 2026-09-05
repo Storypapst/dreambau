@@ -44,15 +44,24 @@ environment section — **not** into any file inside an ORISO repository.
 
 ## Session start (the Claude `SessionStart` hook equivalent)
 
-Codex has no hook that fires on session start, so run the same check by hand — or from your
-shell profile — before starting work:
+Codex has no hook that fires on session start, so run the same two checks by hand — or from
+your shell profile — before starting work:
 
 ```bash
-ua-pull --verify || ua-pull
+kit-subscribe --max-seconds 10   # rules/prompts: update ~/.oriso-dev-kit/ if a newer kit is served
+ua-pull --verify || ua-pull      # knowledge graph: pull only when stale
 ```
 
-`--verify` exits 0 when the graph is fresh (≤ 24 h) and 1 when it is stale or missing, so the
-line above pulls only when needed. It prints one line either way.
+`kit-subscribe` asks the bundle endpoint for `manifest.json`, compares its `version` with the
+installed one, and downloads only when the served version is newer — verifying every file's
+sha256 against the manifest before unpacking. It prints one line, gives up after ten seconds
+and never fails the shell: a kit check must not stand between you and starting work.
+
+`ua-pull --verify` exits 0 when the graph is fresh (≤ 24 h) and 1 when it is stale or missing,
+so the line above pulls only when needed. It prints one line either way.
+
+The Claude Code equivalent is the `SessionStart` hook in `settings.hook.json`, which runs the
+same two commands in the same order.
 
 ## Codex-spezifische Besonderheit dieses Repos
 
