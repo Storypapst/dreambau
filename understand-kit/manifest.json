@@ -1,8 +1,9 @@
 {
   "name": "oriso-understand-kit",
-  "version": "0.3.0",
-  "date": "2026-09-05",
+  "version": "0.4.0",
+  "date": "2026-09-09",
   "changelog": [
+    "0.4.0 (2026-09-09) — the kit carries the delivery rules, per-person rules and a personal layer. rules/AGENTS-block.md now states the flow the team agreed on 2026-08-31: branch off dev, PR against dev (not pre-dev, not main), reviewers requested in the same step that opens the PR, an agent never merges, test on Dev after the merge and say so in the ticket, release discipline, Slack routing, and never manufacture review evidence. Pre-Dev is documented as Frank's environment: no developer deploy, an agent needs a per-task instruction naming it, and anything borrowed is restored. New: rules/devs/<handle>.md (one file per developer, shipped to everyone), rules/local/README.md, kit-local.sh with adapt/apply/status/drop so a personal change to a kit file survives every update (~/.oriso-dev-kit/local/ is outside the payload and re-applied after each subscription), skills/oriso-delivery, and skills/oriso-board-triage by Shazia Kausar. install.sh now links every kit and local skill into both <repo>/.claude/skills/ and ~/.codex/skills/, writes a minimal ~/.config/agent-routing/paths.env when a machine has none, and reports the developer's own rules file.",
     "0.2.0 (2026-09-05) — the kit becomes subscribable over HTTP (concept step 7.3). New in the Dreambau app: GET /understand/api/v1/kit/manifest and .../kit/bundle, top-level (not under /testmails), read-only, behind the same machine bearer tokens as the Test-Access API (sha256 hash, timingSafeEqual, expiresAt/revokedAt, no new scope field); the bundle carries an ETag = sha256 of the archive and answers 304 on If-None-Match, 503 bundle_not_built when dist/ is missing. New in the kit: kit-subscribe.sh and install.sh --subscribe (manifest -> version compare -> download -> per-file sha256 verify -> unpack to ~/.oriso-dev-kit/, never blocking, ORISO_KIT_BASE / ORISO_KIT_TOKEN). settings.hook.json now runs kit-subscribe --max-seconds 10 before ua-pull; rules/templates/codex.md documents the same two lines for Codex.",
     "0.1.0 (2026-09-05) — first kit in the dreambau monorepo. Content moved from ORISO '0 - Docs/dev-kit' (install.sh, ua-pull.sh, mcp-add.sh, settings.hook.json, .mcp.json.example, 5 prompts) plus the oriso-graph skill. New: install target ~/.oriso-dev-kit/ with a skill symlink into the repo, tool-neutral rules/AGENTS-block.md as the single source of the working rule, AGENTS.md / CLAUDE.md / codex.md repo templates, manifest + build-bundle.sh for the subscription endpoint, first feature page (Case Handover). Not included: ua-platform (builder, stays in ORISO Docs) and deep-run (analysis artefacts)."
   ],
@@ -13,7 +14,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "4958983bfa8a4dd02b273dac06c0531a0eb041d9bba8001781c98599a8727220"
+      "sha256": "d0e0718064d4454b3c704fd9a575b7ac3497b30dc25ccb73e7a1ec818fbd45b1"
     },
     {
       "path": "SECRET-SCAN.md",
@@ -21,11 +22,15 @@
     },
     {
       "path": "build-bundle.sh",
-      "sha256": "b9587acb5c081879a2c575fa093ef479c1927bfec70dead01b16b1f8904845f5"
+      "sha256": "17d44b02eae8a6169de9287bde6bafeec10379461ab0dcf4c4ca0ee90112370b"
     },
     {
       "path": "install.sh",
-      "sha256": "9f6562609c9ba7d8389efca1ab71123d2476bc0ff4e90e6447222ca9b654f247"
+      "sha256": "26c47255acbfc24b0393f70a2a060831417b91550c78931ceea620d5f15510b4"
+    },
+    {
+      "path": "kit-local.sh",
+      "sha256": "9b9ccfd0ff0edff6de78866c8e44db8794630ebc0533142bdf01982c0fd181e7"
     },
     {
       "path": "kit-subscribe.sh",
@@ -65,23 +70,71 @@
     },
     {
       "path": "rules/AGENTS-block.md",
-      "sha256": "821dae1c6ec7c19576cf2bee5b381260d4dbac5593b1282a9644b6a617aad1ab"
+      "sha256": "343af6036bd827b8c7255e0af736adf353a2b8e5449b7e01d6b03539dd90c8fc"
+    },
+    {
+      "path": "rules/devs/Hassan9215.md",
+      "sha256": "22c33f450049a2455ba9c3b74524eacba26f82910ae320c7cc6830164c57302b"
+    },
+    {
+      "path": "rules/devs/README.md",
+      "sha256": "e24d45eb25d97b7a247eca9f341ef77e0e1b6d5f9c7f95f7f0d1002f84abe149"
+    },
+    {
+      "path": "rules/devs/Shirloin.md",
+      "sha256": "aa7494e823e84efa36717469039ca2ac184b1cd9dd4b07b43915b7b8167ebc2f"
+    },
+    {
+      "path": "rules/devs/Storypapst.md",
+      "sha256": "f64c46137e1fd7d6fd106e5e7c80f6bb7e08f5b75f76da65cf4d1a250a35bca9"
+    },
+    {
+      "path": "rules/devs/nikunjdecyb.md",
+      "sha256": "e423415edae45a99e1fac08d425e55c7f84159dd6c0d9437708ee60aed831375"
+    },
+    {
+      "path": "rules/devs/shanzaeimran.md",
+      "sha256": "264f5965576b46ff443f7a03436c27cad6b99d5cfc4e8de08f1a1525a1183afa"
+    },
+    {
+      "path": "rules/devs/shazia-k.md",
+      "sha256": "4450fb27a9f216ff5518fe2e5a537f5d5e82002f3bc4f0cdc5ac11c5dc1ef0b5"
+    },
+    {
+      "path": "rules/local/README.md",
+      "sha256": "8b3198ba84f8e863e7151730e6e26b208d38b058dfcf3279108f2011ec633c9b"
     },
     {
       "path": "rules/templates/AGENTS.md",
-      "sha256": "e6e97f5dc37cce44a8a9d3fe5af5c2e926f622548a5aa06436bb6741448ef960"
+      "sha256": "2b300aa14465334cd70edfe74e86f199cf53f9b28effffd665bc3af373deab9f"
     },
     {
       "path": "rules/templates/CLAUDE.md",
-      "sha256": "5afc20b36e7a270b6fe0996cd2dbb2d9a155d38b15b6b4b2072218eaff569695"
+      "sha256": "a1647ee1066efbf774b065c899d57bd04fadab410d3a2048a59f984370def4e6"
     },
     {
       "path": "rules/templates/codex.md",
-      "sha256": "b00d91641cce27136f737d0775a04071bd4d77574d2cb4db2ccab8015281678c"
+      "sha256": "be9438eb52f127f541c47c215412f4d1ed64617dcc6f1e9f79119313a8b34423"
     },
     {
       "path": "settings.hook.json",
       "sha256": "c25acbe5ad42dda4b8ed10182607d065ba21b74e21837406feeb5cfd10cfe046"
+    },
+    {
+      "path": "skills/oriso-board-triage/SKILL.md",
+      "sha256": "28e90c6fca7c32abca80591df56cfd10a012fe8068d2a96276ef4c63cab48700"
+    },
+    {
+      "path": "skills/oriso-board-triage/references/environment.md",
+      "sha256": "218e717e545b4e93d0012d9780e85fe537a45aff3377f7cccbf6730fcbe7ea53"
+    },
+    {
+      "path": "skills/oriso-board-triage/references/verdicts.md",
+      "sha256": "29404f5a3203d24499db315565940ad957a6e5456f770fc2151a80fb1481ca3c"
+    },
+    {
+      "path": "skills/oriso-delivery/SKILL.md",
+      "sha256": "c8e0d0f64645214da84907cfcab9eedbff8fbfabadf0577e94ac327fbfcc47a5"
     },
     {
       "path": "skills/oriso-graph/SKILL.md",

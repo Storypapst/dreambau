@@ -7,19 +7,27 @@ other agent.
 This file adds **only** what is genuinely Claude-Code-specific: skills, hooks and MCP server
 registration.
 
-## Skill
+## Skills
 
-`oriso-graph` — answers code and architecture questions from the Understand-Anything graphs
-and enforces the working rule from `AGENTS.md`. Invoke with `/oriso-graph <question>`.
+The kit ships these and the installer links them into `<repo>/.claude/skills/`:
 
-The kit installer symlinks it:
+| Skill | For |
+|---|---|
+| `oriso-delivery` | branch, PR target, reviewers, merge rules, environments, board hygiene |
+| `oriso-graph` | code and architecture questions from the Understand-Anything graphs |
+| `oriso-board-triage` | auditing a board column against what is actually on the branch |
+
+Your own skills in `~/.oriso-dev-kit/local/skills/` are linked the same way and win over a
+kit skill of the same name. Run `bash ~/.oriso-dev-kit/install.sh` from this checkout to
+(re)create the links:
 
 ```
-<repo>/.claude/skills/oriso-graph  ->  ~/.oriso-dev-kit/skills/oriso-graph
+<repo>/.claude/skills/<name>  ->  ~/.oriso-dev-kit/skills/<name>
 ```
 
-so an updated kit updates the skill without a repository change. Run
-`bash ~/.oriso-dev-kit/install.sh` from this checkout to (re)create it.
+Symlinks, not copies, so an updated kit updates every repository without a repository change.
+To change a kit skill and keep the change across updates, use `kit-local adapt <path>` —
+never edit the file in `~/.oriso-dev-kit/` directly, the next update overwrites it.
 
 ## Plugin
 

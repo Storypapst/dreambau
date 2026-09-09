@@ -16,6 +16,20 @@ Codex merges `AGENTS.md` files from, in increasing precedence:
 Nothing needs to be copied or registered. If the working rule is in the repository's
 `AGENTS.md`, Codex already follows it.
 
+## Skills
+
+Since kit 0.4.0 the installer also links the kit's skills into `~/.codex/skills/` — once per
+machine, not per repository:
+
+| Skill | For |
+|---|---|
+| `oriso-delivery` | branch, PR target, reviewers, merge rules, environments, board hygiene |
+| `oriso-graph` | code and architecture questions from the Understand-Anything graphs |
+| `oriso-board-triage` | auditing a board column against what is actually on the branch |
+
+Your own skills in `~/.oriso-dev-kit/local/skills/` are linked alongside them and win over a
+kit skill of the same name.
+
 ## One-time machine setup
 
 The kit itself is agent-neutral: `ua-pull` is a shell script and the graphs are plain JSON.
@@ -37,9 +51,12 @@ export ORISO_UA_BASE='https://predev.oriso.org/ua'
 # 4. Kit subscription token (bundle endpoint on the Dreambau app, same token mechanism as
 #    the Test-Access API — a revocable per-person/per-machine bearer token).
 export ORISO_KIT_TOKEN='<token>'         # runtime only, never committed
+
+# 5. Your handle, so an agent reads the right rules/devs/<you>.md
+export ORISO_KIT_DEV='<your-github-handle>'
 ```
 
-Put steps 2–4 in your shell profile (`~/.zshrc`, `~/.bashrc`) or in `~/.codex/config.toml`'s
+Put steps 2–5 in your shell profile (`~/.zshrc`, `~/.bashrc`) or in `~/.codex/config.toml`'s
 environment section — **not** into any file inside an ORISO repository.
 
 ## Session start (the Claude `SessionStart` hook equivalent)
@@ -48,7 +65,7 @@ Codex has no hook that fires on session start, so run the same two checks by han
 your shell profile — before starting work:
 
 ```bash
-kit-subscribe --max-seconds 10   # rules/prompts: update ~/.oriso-dev-kit/ if a newer kit is served
+kit-subscribe --max-seconds 10   # rules/prompts/skills: update ~/.oriso-dev-kit/ if newer
 ua-pull --verify || ua-pull      # knowledge graph: pull only when stale
 ```
 

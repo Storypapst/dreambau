@@ -171,13 +171,18 @@ an MCP registration — goes in `CLAUDE.md` or the Codex file.
 | `ua-pull.sh` | Fetches `.understand-anything/{knowledge-graph,meta,fingerprints,depth,platform-graph}.json` via SSH or HTTPS; `--verify` reports freshness; `--unlock` releases `skip-worktree` before a `git pull`. Plain shell — agent-neutral. |
 | `mcp-add.sh` | The two `claude mcp add` commands for the Storybook MCP servers, runnable on their own. |
 | `kit-subscribe.sh` | The subscription check: wrapper around `install.sh --subscribe` with a wall-clock limit (`--max-seconds`). Installed as `~/.local/bin/kit-subscribe`. |
+| `kit-local.sh` | Your own layer: `kit-local adapt/apply/status/drop`. Keeps personal changes to kit files across updates. Installed as `~/.local/bin/kit-local`. |
 | `settings.hook.json` | A `SessionStart` hook snippet: first `kit-subscribe --max-seconds 10`, then `ua-pull --verify` (and pulls when stale). Merged into `<repo>/.claude/settings.json` by `install.sh`. |
 | `.mcp.json.example` | Project-scoped MCP template — env-var reference only, no secret. |
 | `rules/AGENTS-block.md` | The working rule, tool-neutral. Single source; paste into a repo's `AGENTS.md`. |
 | `rules/templates/AGENTS.md` | Repo template: rule block + "Besonderheit dieses Repos". |
 | `rules/templates/CLAUDE.md` | Repo template: pointer to `AGENTS.md` + Claude-only features. |
 | `rules/templates/codex.md` | How Codex reads `AGENTS.md`; one-time `~/.codex/` setup. |
-| `skills/oriso-graph/SKILL.md` | The graph-query skill (Claude Code loads it via the symlink `install.sh` creates). |
+| `rules/devs/<handle>.md` | One file per developer: repositories, review role, what an agent should do differently for that person. Ships to everyone. |
+| `rules/local/README.md` | How the personal overlay in `~/.oriso-dev-kit/local/` works. |
+| `skills/oriso-delivery/SKILL.md` | Branch, PR target, reviewers, merge rules, environments, board hygiene. |
+| `skills/oriso-graph/SKILL.md` | The graph-query skill (linked into `.claude/skills/` and `~/.codex/skills/` by `install.sh`). |
+| `skills/oriso-board-triage/` | Board column vs. branch reality (Shazia Kausar). Authoring copy: the shared library on the server. |
 | `prompts/*.md` | Five ready prompts: ticket check, onboarding, build a component, HTML → story, story → HTML. |
 | `pages/features/case-handover.html` | First feature explainer page (Legal-page style): how Case Handover works — flow, endpoints, ADRs, known gaps. Template for further feature pages. |
 | `SECRET-SCAN.md` | Result of the secret scan over this folder. |
@@ -225,9 +230,65 @@ missing or wrong: `infisical login --domain https://secrets.dreambau.com`, then 
 → Check that the SSH alias `predev` exists (`ssh -G predev`). Otherwise create the alias or
 switch to `--via-https` (`https://predev.oriso.org/ua`).
 
-**The skill symlink step was skipped**
-→ `<repo>/.claude/skills/oriso-graph` already exists as a real directory. Remove or rename
-it, then re-run `install.sh`; the installer never overwrites local work.
+**A skill link step was skipped**
+→ `<repo>/.claude/skills/<name>` (or `~/.codex/skills/<name>`) already exists as a real
+directory. Remove or rename it, then re-run `install.sh`; the installer never overwrites
+your own work.
+
+**My change to a kit file disappeared after an update**
+→ Expected: the subscription replaces the kit wholesale. Make the change once via
+`kit-local adapt <path>`, edit the copy under `~/.oriso-dev-kit/local/overrides/`, and it is
+re-applied after every update. `kit-local status` lists your overrides and tells you when the
+kit's own version of an adapted file has moved on.
+
+**A skill says it cannot resolve the project boundary**
+→ It is looking for `~/.config/agent-routing/paths.env`. Running `install.sh` from inside an
+ORISO checkout writes a minimal one (`PROJECT_ORISO_ROOT`); check the value it guessed.
+
+## Dein eigener Anteil: `~/.oriso-dev-kit/local/`
+
+An update replaces the kit wholesale — that is what keeps the team on one rule set, and it is
+why a change made directly in a kit file is gone at the next update. `local/` is outside the
+bundle payload and is never touched:
+
+```
+~/.oriso-dev-kit/local/
+  rules/       your own rule files
+  prompts/     your own prompts
+  skills/      your own skills — linked like kit skills, and winning over a kit skill of the same name
+  overrides/   a file here replaces the kit file of the same relative path, after every update
+```
+
+```bash
+kit-local adapt skills/oriso-graph/SKILL.md   # take a copy
+$EDITOR ~/.oriso-dev-kit/local/overrides/skills/oriso-graph/SKILL.md
+kit-local apply                               # and it stays applied from now on
+```
+
+`apply` runs automatically at the end of `install.sh` and after every successful
+subscription. When the kit's own version of a file you adapted changes, it says so — your
+override still applies, but it may now be based on an outdated original.
+
+Full description: `rules/local/README.md`.
+
+## Regeln pro Person: `rules/devs/`
+
+One file per developer, named after the GitHub handle, shipped to everyone: which
+repositories that person owns, their review role, and what an agent should do differently for
+them. Set `ORISO_KIT_DEV=<handle>` so an agent reads yours at session start. Personal notes
+that should not leave your machine belong in `local/rules/` instead.
+
+## Shared skill library
+
+`/srv/dreambau/agent-skills/` on `dreambau.com` is where the team's skills are authored:
+
+- `custom/` — the shared library. Skills that are ready for everyone.
+- `devs/<user>/` — your own drafts and personal variants, surviving a laptop.
+- `vendor/` — third-party skill sources.
+
+The kit is the *distribution* channel for that library: a skill that belongs to everyone is
+copied into `skills/` here, and the subscription carries it to every laptop. That replaces
+passing tarballs around by hand.
 
 ## Offen (nicht in diesem Ordner erledigt)
 

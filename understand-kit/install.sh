@@ -41,9 +41,13 @@ KIT_HOME="${ORISO_KIT_HOME:-$HOME/.oriso-dev-kit}"
 
 # The kit payload: what a bundle ships and what an update replaces. Kept in sync
 # with build-bundle.sh's PAYLOAD. dist/ is a build artefact and never installed.
-KIT_PAYLOAD=(install.sh ua-pull.sh mcp-add.sh kit-subscribe.sh build-bundle.sh \
+KIT_PAYLOAD=(install.sh ua-pull.sh mcp-add.sh kit-subscribe.sh kit-local.sh build-bundle.sh \
              settings.hook.json .mcp.json.example manifest.json README.md \
              SECRET-SCAN.md rules skills prompts pages)
+
+# Everything personal lives here and is deliberately NOT in KIT_PAYLOAD: an update
+# replaces the payload item by item and never sees this directory.
+LOCAL_DIR="$KIT_HOME/local"
 
 # Infisical is the credential source for both ORISO_SB_MCP_AUTH (step 3) and
 # ORISO_KIT_TOKEN (subscription). Self-hosted; never the Infisical cloud.
@@ -195,6 +199,9 @@ PYEOF
   done
   chmod +x "$KIT_HOME"/*.sh 2>/dev/null || true
   echo "[kit-subscribe] updated ${local_version:-none} -> $remote_version in $KIT_HOME"
+  # The update just overwrote the kit's own files. Put the developer's adaptations back
+  # on top, so an adaptation is made once and not once per release.
+  [ -x "$KIT_HOME/kit-local.sh" ] && bash "$KIT_HOME/kit-local.sh" apply
   return 0
 }
 
@@ -222,6 +229,48 @@ else
   note "[ok]      kit installed to $KIT_HOME (source: $SRC_DIR)"
 fi
 KIT_DIR="$KIT_HOME"
+
+# ---------------------------------------------------------------------------
+# 0b. Your own layer. Created once, never replaced by an update: overrides put back
+#     after every update, plus room for your own rules, prompts and skills.
+# ---------------------------------------------------------------------------
+if [ -f "$KIT_DIR/kit-local.sh" ]; then
+  bash "$KIT_DIR/kit-local.sh" init >/dev/null 2>&1
+  note "[ok]      your own layer ready: $LOCAL_DIR (rules, prompts, skills, overrides)"
+  note "[info]    adapt a kit file so it survives updates: kit-local adapt <path> ; kit-local apply"
+fi
+
+# ---------------------------------------------------------------------------
+# 0c. Path router. Several ORISO skills resolve the project boundary from
+#     ~/.config/agent-routing/paths.env. On a machine without it, those skills fall
+#     through to whatever the agent guesses — so write a minimal one from what we can
+#     actually observe here. An existing file is never modified.
+# ---------------------------------------------------------------------------
+ROUTER="$HOME/.config/agent-routing/paths.env"
+if [ -f "$ROUTER" ]; then
+  note "[ok]      path router present: $ROUTER"
+else
+  GUESS_ROOT=""
+  R="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -n "$R" ] && git -C "$R" remote get-url origin 2>/dev/null | grep -qi "OpenResilienceInitiative"; then
+    GUESS_ROOT="$(dirname "$R")"
+  fi
+  if [ -n "$GUESS_ROOT" ]; then
+    mkdir -p "$(dirname "$ROUTER")"
+    cat > "$ROUTER" <<ROUTEREOF
+# Machine-local path resolver. Written by the ORISO dev kit on $(date +%Y-%m-%d).
+# Agents source this file before resolving any project path, so nothing has to
+# hardcode one person's home directory. Edit it freely; the kit never rewrites it.
+PROJECT_ORISO_ROOT=$GUESS_ROOT
+TEST_ACCESS_URL=https://secrets.dreambau.com
+ROUTEREOF
+    note "[ok]      wrote $ROUTER (PROJECT_ORISO_ROOT=$GUESS_ROOT)"
+    note "[info]    check that line — it is the parent folder of your ORISO checkouts"
+  else
+    note "[skipped] path router — run this from inside an ORISO checkout and it writes"
+    note "          $ROUTER for you, or create it with: PROJECT_ORISO_ROOT=<your ORISO folder>"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # 1. claude CLI present?
@@ -326,6 +375,14 @@ else
   note "[skipped] kit-subscribe — not present in this kit (pre-0.2.0 bundle)"
 fi
 
+if [ -f "$KIT_DIR/kit-local.sh" ]; then
+  cp "$KIT_DIR/kit-local.sh" "$BIN_DIR/kit-local"
+  chmod +x "$BIN_DIR/kit-local"
+  note "[ok]      copied kit-local.sh -> $BIN_DIR/kit-local"
+else
+  note "[skipped] kit-local — not present in this kit (pre-0.4.0 bundle)"
+fi
+
 case ":$PATH:" in
   *":$BIN_DIR:"*)
     note "[ok]      $BIN_DIR already on PATH"
@@ -345,24 +402,40 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 #    This is a Claude-specific convenience only — the same working rule lives
 #    tool-neutrally in rules/AGENTS-block.md and belongs in the repo's AGENTS.md.
 # ---------------------------------------------------------------------------
-if [ -n "$REPO_ROOT" ] && [ -d "$KIT_DIR/skills/oriso-graph" ]; then
-  SKILLS_DIR="$REPO_ROOT/.claude/skills"
-  LINK="$SKILLS_DIR/oriso-graph"
-  mkdir -p "$SKILLS_DIR"
-  if [ -L "$LINK" ]; then
-    ln -sfn "$KIT_DIR/skills/oriso-graph" "$LINK"
-    note "[ok]      skill symlink refreshed: $LINK -> $KIT_DIR/skills/oriso-graph"
-  elif [ -e "$LINK" ]; then
-    note "[skipped] $LINK exists and is a real directory, not a symlink — remove or rename it, then re-run (not overwriting local work)"
+link_skill() {   # link_skill <source skill dir> <destination skills dir> <label>
+  local src="$1" dest_dir="$2" label="$3" name link
+  name="$(basename "$src")"
+  link="$dest_dir/$name"
+  mkdir -p "$dest_dir"
+  if [ -L "$link" ]; then
+    ln -sfn "$src" "$link"
+    note "[ok]      $label skill refreshed: $name"
+  elif [ -e "$link" ]; then
+    note "[skipped] $link is a real directory, not a symlink — remove or rename it, then re-run (not overwriting your own work)"
   else
-    ln -s "$KIT_DIR/skills/oriso-graph" "$LINK"
-    note "[ok]      skill symlink created: $LINK -> $KIT_DIR/skills/oriso-graph"
+    ln -s "$src" "$link"
+    note "[ok]      $label skill linked: $name"
   fi
-  note "[info]    add '.claude/skills/oriso-graph' to .git/info/exclude if you do not want it in git status"
-elif [ -z "$REPO_ROOT" ]; then
-  note "[skipped] skill symlink — not inside a git repo checkout"
+}
+
+# Kit skills first, then the developer's own from local/skills/. A local skill of the same
+# name wins, because it is linked second.
+SKILL_SOURCES=()
+[ -d "$KIT_DIR/skills" ] && for d in "$KIT_DIR"/skills/*/; do [ -d "$d" ] && SKILL_SOURCES+=("${d%/}"); done
+[ -d "$LOCAL_DIR/skills" ] && for d in "$LOCAL_DIR"/skills/*/; do [ -d "$d" ] && SKILL_SOURCES+=("${d%/}"); done
+
+if [ "${#SKILL_SOURCES[@]}" -eq 0 ]; then
+  note "[skipped] skill links — this kit ships no skills and local/skills/ is empty"
 else
-  note "[skipped] skill symlink — $KIT_DIR/skills/oriso-graph not found in this kit"
+  # Claude Code: skills live in the repository checkout.
+  if [ -n "$REPO_ROOT" ]; then
+    for s in "${SKILL_SOURCES[@]}"; do link_skill "$s" "$REPO_ROOT/.claude/skills" "Claude"; done
+    note "[info]    add '.claude/skills/' to .git/info/exclude if you do not want the links in git status"
+  else
+    note "[skipped] Claude skill links — not inside a git repo checkout"
+  fi
+  # Codex: skills live once per machine, not per repository.
+  for s in "${SKILL_SOURCES[@]}"; do link_skill "$s" "$HOME/.codex/skills" "Codex"; done
 fi
 
 # ---------------------------------------------------------------------------
@@ -465,6 +538,26 @@ else
   note "            export ORISO_UA_BASE='https://<dreambau-base>'  # ask Frank"
   note "            export ORISO_UA_AUTH='user:pass'                # ask Frank"
   note "          or add an SSH alias 'predev' to ~/.ssh/config, then run: ua-pull --via-ssh"
+fi
+
+# ---------------------------------------------------------------------------
+# 8. Your own rules file, and your adaptations back on top.
+# ---------------------------------------------------------------------------
+DEV_HANDLE="${ORISO_KIT_DEV:-}"
+if [ -z "$DEV_HANDLE" ] && [ -n "$REPO_ROOT" ]; then
+  # gh knows the GitHub handle; git config is the fallback. Neither is fatal.
+  DEV_HANDLE="$(gh api user --jq .login 2>/dev/null || true)"
+fi
+if [ -n "$DEV_HANDLE" ] && [ -f "$KIT_DIR/rules/devs/$DEV_HANDLE.md" ]; then
+  note "[ok]      your rules: $KIT_DIR/rules/devs/$DEV_HANDLE.md"
+elif [ -n "$DEV_HANDLE" ]; then
+  note "[info]    no team rules file for '$DEV_HANDLE' yet — add rules/devs/$DEV_HANDLE.md and send it to Frank"
+else
+  note "[info]    set ORISO_KIT_DEV=<your github handle> so agents read rules/devs/<you>.md"
+fi
+
+if [ -f "$KIT_DIR/kit-local.sh" ]; then
+  bash "$KIT_DIR/kit-local.sh" apply
 fi
 
 # ---------------------------------------------------------------------------
