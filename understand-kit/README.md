@@ -58,17 +58,31 @@ werden nirgends geloggt.
 
 ### Token
 
-Der Token kommt zur Laufzeit aus der Umgebung oder aus Infisical — nie aus einer Datei in
-einem Repository:
+**Du hast schon einen.** Der Kit-Endpunkt akzeptiert jedes gültige Test-Access-Maschinen-Token,
+und jede Entwicklerin hat ein persönliches (`shazia-mbp-oriso`, `riccardo-windows-oriso`, …).
+Es gibt also kein gemeinsames Kit-Geheimnis zu verteilen, und wer ausscheidet, verliert genau
+seinen eigenen Zugang.
+
+`kit-subscribe` sucht in dieser Reihenfolge:
+
+1. `ORISO_KIT_TOKEN` — ausdrücklicher Override, für CI oder eine einzelne Shell
+2. macOS-Keychain, Service `dreambau-test-access`, Account = deine Identität
+3. `~/.config/dreambau-test-access/identities/<identität>.token`
+4. Infisical, Key `ORISO_KIT_TOKEN` — der alte gemeinsame Weg, nur noch als Rückfall
 
 ```bash
-# Variante A: einmal einloggen, dann liest kit-subscribe den Token selbst
-infisical login --domain https://secrets.dreambau.com --interactive
-# Projekt "ORISO Test Access", Env pre-dev, Key ORISO_KIT_TOKEN
+# Normalfall: Identität benennen, den Rest macht der Keychain
+export ORISO_TEST_ACCESS_IDENTITY='<deine-identität>'   # z. B. shazia-mbp-oriso
 
-# Variante B: nur für diese Shell
-export ORISO_KIT_TOKEN='<token von Frank>'
+# Nur für diese Shell
+export ORISO_KIT_TOKEN='<token>'
 ```
+
+Liegt genau eine `*oriso*.token`-Datei unter `~/.config/dreambau-test-access/identities/`,
+wird die Identität daraus erkannt und `ORISO_TEST_ACCESS_IDENTITY` ist nicht nötig. Bei
+mehreren wird **nicht** geraten.
+
+Der Wert wird nie ausgegeben und nie in eine Datei geschrieben.
 
 `ORISO_KIT_BASE` überschreibt die Basis-URL (Default
 `https://dreambau.com/understand/api/v1/kit`), `ORISO_KIT_HOME` das Installationsziel

@@ -48,9 +48,10 @@ infisical login --domain https://secrets.dreambau.com --interactive
 export ORISO_UA_BASE='https://predev.oriso.org/ua'
 # export ORISO_UA_AUTH='<user:pass>'     # ask Frank; runtime only
 
-# 4. Kit subscription token (bundle endpoint on the Dreambau app, same token mechanism as
-#    the Test-Access API — a revocable per-person/per-machine bearer token).
-export ORISO_KIT_TOKEN='<token>'         # runtime only, never committed
+# 4. Kit subscription. No separate token: the endpoint accepts your existing personal
+#    Test-Access machine token, read from the macOS Keychain at runtime.
+export ORISO_TEST_ACCESS_IDENTITY='<your-identity>'   # e.g. shazia-mbp-oriso
+# export ORISO_KIT_TOKEN='<token>'       # only if you need a one-off override
 
 # 5. Your handle, so an agent reads the right rules/devs/<you>.md
 export ORISO_KIT_DEV='<your-github-handle>'
