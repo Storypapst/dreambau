@@ -111,13 +111,30 @@ kit_subscribe() {
   token="${ORISO_KIT_TOKEN:-}"
 
   identity="${ORISO_TEST_ACCESS_IDENTITY:-}"
+
+  # Auto-detect the identity when it was not named. Two sources, in this order.
   if [ -z "$identity" ]; then
-    # One ORISO identity per machine is the norm; pick it when it is unambiguous.
+    # (a) the credential-file fallback, when exactly one ORISO identity is present.
     for f in "$HOME/.config/dreambau-test-access/identities/"*oriso*.token; do
       [ -f "$f" ] || continue
       if [ -n "$identity" ]; then identity=""; break; fi   # more than one: do not guess
       identity="$(basename "$f" .token)"
     done
+  fi
+  if [ -z "$identity" ] && command -v security >/dev/null 2>&1; then
+    # (b) the Keychain, which is the normal store and has no file to glob. `security`
+    #     returns one arbitrary account for the service — often the wrong project
+    #     (…-dreambau, …-orimo). So: take it only if it is already the ORISO one,
+    #     otherwise reuse its machine prefix and check whether <prefix>-oriso exists.
+    #     Only account names are read here; no secret is fetched by this probe.
+    any="$(security find-generic-password -s dreambau-test-access 2>/dev/null \
+           | sed -n 's/.*"acct"<blob>="\(.*\)"/\1/p' | head -1)"
+    case "$any" in
+      *-oriso) identity="$any" ;;
+      ?*) candidate="${any%-*}-oriso"
+          security find-generic-password -s dreambau-test-access -a "$candidate" >/dev/null 2>&1 \
+            && identity="$candidate" ;;
+    esac
   fi
 
   if [ -z "$token" ] && [ -n "$identity" ] && command -v security >/dev/null 2>&1; then
@@ -142,6 +159,9 @@ kit_subscribe() {
     return 1
   fi
   token="$(printf '%s' "$token" | tr -d '\r\n')"
+  # Say which identity was used — never the value. Silent credential magic is how
+  # people end up debugging the wrong account.
+  [ -n "$identity" ] && echo "[kit-subscribe] identity: $identity"
 
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/oriso-kit-subscribe.XXXXXX")" || return 1
   trap 'rm -rf "$tmp"' RETURN
@@ -152,6 +172,9 @@ kit_subscribe() {
   if [ "$http_status" != "200" ]; then
     case "$http_status" in
       401) echo "[kit-subscribe] failed — 401 unauthorized (token invalid, expired or revoked)" ;;
+      301|302|404) echo "[kit-subscribe] failed — HTTP $http_status: the host answers but has no kit endpoint." ;
+                   echo "                Either the /understand ingress path is not applied yet, or ORISO_KIT_BASE points somewhere else." ;;
+      503) echo "[kit-subscribe] failed — 503: the endpoint is up but its bundle is not built" ;;
       000) echo "[kit-subscribe] failed — $base unreachable: $(tail -1 "$tmp/curl.err" 2>/dev/null)" ;;
       *)   echo "[kit-subscribe] failed — manifest request returned HTTP $http_status" ;;
     esac
