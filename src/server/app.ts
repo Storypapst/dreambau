@@ -13,6 +13,7 @@ import { z } from "zod";
 import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
 import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
 import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
+import { createUnderstandKitRouter } from "./understand-kit.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
 import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
@@ -73,6 +74,7 @@ interface AppOptions {
   orisoProvisioning?: OrisoProvisioningService;
   orisoProvisioningServices?: Partial<Record<OrisoProvisioningEnvironment, OrisoProvisioningService>>;
   docsMirrorDir?: string | null;
+  understandKitDir?: string | null;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -322,9 +324,13 @@ export function createApp(options: AppOptions = {}) {
       res.status(503).json({ status: "unavailable" });
     }
   });
+  // One machine-identity source for every machine-token surface (Test Access
+  // API and the Understand-Kit subscription endpoint), so a revoked token is
+  // revoked for both at once.
+  const machineIdentitySource = options.machineIdentityLoader
+    ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath));
   api.use("/v1", createTestAccessRouter({
-    identities: options.machineIdentityLoader
-      ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath)),
+    identities: machineIdentitySource,
     registryProvider,
     registryWriter,
     database,
@@ -865,6 +871,20 @@ export function createApp(options: AppOptions = {}) {
   });
   api.get("/export/markdown", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
   app.use("/testmails/api", api);
+  // Understand-Kit subscription endpoint — a top-level surface of its own, not
+  // part of the test-mail dashboard. Same bearer tokens, read-only.
+  const understandKitDir = options.understandKitDir === undefined
+    ? process.env.UNDERSTAND_KIT_DIR
+      ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../understand-kit")
+    : options.understandKitDir;
+  if (understandKitDir) {
+    app.use("/understand/api/v1", createUnderstandKitRouter({
+      kitDir: understandKitDir,
+      identities: machineIdentitySource,
+      onAuthenticated: (identity) => database.recordMachineIdentityUse(identity.id),
+      now: options.now
+    }));
+  }
   app.get("/testmails/testmails.md", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
   const docsMirrorDir = options.docsMirrorDir === undefined ? process.env.DOCS_MIRROR_DIR ?? null : options.docsMirrorDir;
   if (docsMirrorDir) app.use("/testmails/docs", requireActiveHumanSession, createDocsMirrorRouter(docsMirrorDir));
