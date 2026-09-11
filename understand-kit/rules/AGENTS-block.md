@@ -6,6 +6,15 @@
 > can follow it. Agent-specific conveniences (slash commands, plugins, hooks) are listed at
 > the end as *examples only* — never as a requirement.
 
+## Who you are working for
+
+The person running your session is the developer named in `rules/devs/$ORISO_KIT_DEV.md`
+(or the file matching `gh api user --jq .login`). Read that file first. Their GitHub handle,
+Slack handle and Slack ID are in `rules/team/team-directory.md`. Issues, PRs, comments and
+Slack drafts are written as and for *them*, with their own `gh` login. Many skills were first
+written by Frank: where a skill names Frank, Björn or Christoph, that is a role (owner of
+Pre-Dev, QA, release) — **never assume the user is Frank.**
+
 ## How work reaches Dev
 
 The flow the team agreed on 2026-08-31 and has run since. `dev` is the integration branch.
@@ -149,3 +158,6 @@ two places that a kit update never overwrites:
   (your repositories, your review role, anything an agent should do differently for you).
 
 Read `rules/local/README.md` for how the overlay is applied.
+
+Team facts every agent needs — people and reviewer routing, Slack channels, PR and commit
+details — are in `rules/team/`. What each shipped skill does: `skills/README.md`.

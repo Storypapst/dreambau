@@ -1,0 +1,29 @@
+{
+  "skill_name": "issue-subtask-pr-loop",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Build a large cross-repo ORISO feature whose architecture and ownership are still unclear, then open the PRs.",
+      "expected_output": "Routes to Wayfinder before delivery issues and does not open PRs while decisions remain unresolved.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The approved ORISO spec is ready. Create the work breakdown and PRs for Frontend and UserService.",
+      "expected_output": "Creates or reuses a parent, native sub-issues, one reviewable PR per child against the current project branch, and uses the project team directory.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Audit these ten ORISO PRs and repair any that have no GitHub issue.",
+      "expected_output": "Reconciles existing issues first, avoids duplicate cards, and adds machine-readable PR links and current statuses.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Ask Bjorn and Hassan to review this deployment PR and update the board.",
+      "expected_output": "Resolves identities through the project directory, distinguishes product feedback from deployment authority, excludes inappropriate reviewers, and drafts rather than sends team communication without authorization.",
+      "files": []
+    }
+  ]
+}

@@ -1,8 +1,9 @@
 {
   "name": "oriso-understand-kit",
-  "version": "0.4.2",
-  "date": "2026-09-10",
+  "version": "0.4.3",
+  "date": "2026-09-11",
   "changelog": [
+    "0.4.3 (2026-09-11) — first shipped to Shazia only (canary via her server folder, not the endpoint). Three more team skills: code-archaeology (find existing work before rebuilding it), issue-subtask-pr-loop (issue → sub-issues → PRs, readiness score; PR level now targets dev, level 14 no longer lets an agent merge) and oriso-quality-gate. New rules/team/: team-directory (people, GitHub/Slack IDs, reviewer routing — no private emails), slack-channels, pr-commit (dev, not pre-dev). These replace Frank-local .oriso/agent/ files the skills used to read. AGENTS-block gains 'Who you are working for': the user is the developer in rules/devs/$ORISO_KIT_DEV.md, never assumed to be Frank; names in skills are roles. skills/README.md: one-line overview of every skill. rules/devs/shazia-k.md: her GitHub/Slack identity and reviewer fallback.",
     "0.4.2 (2026-09-10) — identity auto-detection actually works on a Keychain-only machine. 0.4.1 derived the identity from the credential-file directory, which most machines do not have because the Keychain is the normal store, so resolution silently found nothing. It now also asks the Keychain for an account on service 'dreambau-test-access': used directly when it already ends in -oriso, otherwise the machine prefix is reused and <prefix>-oriso is checked before use (the probe reads account names only, never a secret). The identity in use is printed — never the token. HTTP 301/302/404 and 503 from the endpoint now say what they mean (ingress path missing, wrong base URL, bundle not built) instead of showing a bare status code.",
     "0.4.1/0.4.2 (2026-09-09) — no separate kit token. The endpoint accepts any valid Test-Access machine token and every developer already has a personal one, so kit-subscribe now resolves it in order: ORISO_KIT_TOKEN, the macOS Keychain (service 'dreambau-test-access', account = ORISO_TEST_ACCESS_IDENTITY, auto-detected when exactly one *oriso*.token file exists), the ~/.config/dreambau-test-access/identities/ file fallback, and finally the legacy shared Infisical key. That removes the shared secret and makes access revocable per person. New kit-publish.sh mirrors the kit's skills into the server's shared library (/srv/dreambau/agent-skills/custom/) and marks each copy with .mirrored-from-kit, so there is one authoring place instead of two.",
     "0.4.0 (2026-09-09) — the kit carries the delivery rules, per-person rules and a personal layer. rules/AGENTS-block.md now states the flow the team agreed on 2026-08-31: branch off dev, PR against dev (not pre-dev, not main), reviewers requested in the same step that opens the PR, an agent never merges, test on Dev after the merge and say so in the ticket, release discipline, Slack routing, and never manufacture review evidence. Pre-Dev is documented as Frank's environment: no developer deploy, an agent needs a per-task instruction naming it, and anything borrowed is restored. New: rules/devs/<handle>.md (one file per developer, shipped to everyone), rules/local/README.md, kit-local.sh with adapt/apply/status/drop so a personal change to a kit file survives every update (~/.oriso-dev-kit/local/ is outside the payload and re-applied after each subscription), skills/oriso-delivery, and skills/oriso-board-triage by Shazia Kausar. install.sh now links every kit and local skill into both <repo>/.claude/skills/ and ~/.codex/skills/, writes a minimal ~/.config/agent-routing/paths.env when a machine has none, and reports the developer's own rules file.",
@@ -76,7 +77,7 @@
     },
     {
       "path": "rules/AGENTS-block.md",
-      "sha256": "343af6036bd827b8c7255e0af736adf353a2b8e5449b7e01d6b03539dd90c8fc"
+      "sha256": "e887f67c3ff416e8c029e12573913b7cd138c7a6451fac6b2f4d95d1e02941b9"
     },
     {
       "path": "rules/devs/Hassan9215.md",
@@ -104,11 +105,23 @@
     },
     {
       "path": "rules/devs/shazia-k.md",
-      "sha256": "4450fb27a9f216ff5518fe2e5a537f5d5e82002f3bc4f0cdc5ac11c5dc1ef0b5"
+      "sha256": "a5a58b41da1d0e58536cd8945a093c6c9305e8c47f9335b67ff93a6c74847243"
     },
     {
       "path": "rules/local/README.md",
       "sha256": "8b3198ba84f8e863e7151730e6e26b208d38b058dfcf3279108f2011ec633c9b"
+    },
+    {
+      "path": "rules/team/pr-commit.md",
+      "sha256": "dc0b0ed4a719bc4396b0dca22024f3ecf360c8f9b92603d3b32c58859c8dad93"
+    },
+    {
+      "path": "rules/team/slack-channels.md",
+      "sha256": "3e3648fbb1104ef2e1e488c6deb08196b994fe991573f50546f6e0b0dbae988d"
+    },
+    {
+      "path": "rules/team/team-directory.md",
+      "sha256": "41c204a9e2efd620091305473c1287504756afab33397df8603815406761b3ce"
     },
     {
       "path": "rules/templates/AGENTS.md",
@@ -125,6 +138,30 @@
     {
       "path": "settings.hook.json",
       "sha256": "c25acbe5ad42dda4b8ed10182607d065ba21b74e21837406feeb5cfd10cfe046"
+    },
+    {
+      "path": "skills/README.md",
+      "sha256": "33bcc54aeae0432fd7df1bac11ffebb51fca83c6b485977ae67aa0ad9c420086"
+    },
+    {
+      "path": "skills/code-archaeology/SKILL.md",
+      "sha256": "79f76f61bfa71eade6dc7191a0516a6b7563dd246d57decb682c8bda9545d314"
+    },
+    {
+      "path": "skills/code-archaeology/evals/evals.json",
+      "sha256": "29937efc0a76a112181f3829f97fb3b061ef49a7095b4203e0ad8ed80e364b00"
+    },
+    {
+      "path": "skills/issue-subtask-pr-loop/SKILL.md",
+      "sha256": "619577ec45f3c9ec2ef25ec583b1fb97e2b1a64e9e6ce3a86f5c1d6ad1cdb02e"
+    },
+    {
+      "path": "skills/issue-subtask-pr-loop/evals/evals.json",
+      "sha256": "3e81548074e64277ab791d9f535053a8b28ad79986d17f3ffb55d8a40b316bc4"
+    },
+    {
+      "path": "skills/issue-subtask-pr-loop/references/readiness-score.md",
+      "sha256": "3e1aba38476cf9f0ac04adb524b0c4318f69b729415e68dc796baf5d737a3d9a"
     },
     {
       "path": "skills/oriso-board-triage/SKILL.md",
@@ -145,6 +182,10 @@
     {
       "path": "skills/oriso-graph/SKILL.md",
       "sha256": "3c9a844a384a2edcd67bded18778e07473493ef9978c034b171b126ffc2317da"
+    },
+    {
+      "path": "skills/oriso-quality-gate/SKILL.md",
+      "sha256": "717f629ed06fd55714320ba9e1cc95cbbb92ea9d649fadbedffef33baf083c3e"
     },
     {
       "path": "ua-pull.sh",

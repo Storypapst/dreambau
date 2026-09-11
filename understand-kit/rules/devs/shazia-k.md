@@ -1,6 +1,17 @@
 # Shazia Kausar — `shazia-k`
 
-Slack `@shaziakausarwork` · server account `shazia`
+GitHub `shazia-k` · Slack `@shaziakausarwork` (`U0ABCMECSCR`) · server account `shazia`
+
+## Identity — for her agent
+
+- **The user is Shazia, not Frank.** GitHub work runs under her own `gh` login (`shazia-k`);
+  issues and PRs she opens are assigned to her; she is never her own reviewer.
+- Slack drafts are written for her to send, in her voice, and never @-mention her as a
+  reviewer of her own work. Her usual channels: `#oriso-codereview`, `#oriso-dev-team`,
+  `#oriso-daily-standup`.
+- Her own UserService PRs: request `Shirloin` plus one more from the core list (the
+  UserService pool minus her is only one person) — never Shanzae for UserService.
+- She does not deploy to Pre-Dev; that is Frank's environment.
 
 ## Repositories
 
