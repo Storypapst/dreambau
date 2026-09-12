@@ -43,7 +43,7 @@ function fakeLocator(visible: boolean, label: string) {
 }
 
 describe("Playwright login broker", () => {
-  it.each([false, true])("recovers a pre-submit form reset only before a request was dispatched (dispatched=%s)", async (dispatched) => {
+  it.each(["none", "before", "during"])("recovers a pre-submit form reset only before a request was dispatched (dispatch=%s)", async (dispatch) => {
     let loginRequests = 0;
     let dispatchedRequests = 0;
     let resets = 0;
@@ -77,9 +77,16 @@ describe("Playwright login broker", () => {
           form.querySelector('button').addEventListener('pointerover', () => {
             if (!reset) {
               reset = true;
-              if (${dispatched}) fetch('/credential-attempt', { method: 'POST' });
+              if (${dispatch === "before"}) fetch('/credential-attempt', { method: 'POST' });
               fetch('/reset-observed');
               render();
+              if (${dispatch === "during"}) {
+                document.querySelector('input[name="username"]').hidden = true;
+                setTimeout(() => {
+                  fetch('/credential-attempt', { method: 'POST' });
+                  document.querySelector('input[name="username"]').hidden = false;
+                }, 2600);
+              }
             }
           });
           form.addEventListener('submit', (event) => {
@@ -104,7 +111,7 @@ describe("Playwright login broker", () => {
         getOtp: async () => { throw new Error("OTP should not be requested"); },
         requiredAuthState: { cookieNames: ["keycloak"], localStorageKeys: [] }
       });
-      if (dispatched) {
+      if (dispatch !== "none") {
         await expect(login).rejects.toThrow(/stalled at/);
         expect(dispatchedRequests).toBe(1);
         expect(loginRequests).toBe(0);

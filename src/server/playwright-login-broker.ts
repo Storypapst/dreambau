@@ -257,6 +257,7 @@ export async function activateLoginSubmit(
       await sleep(100);
       if (await transitionStarted()) return;
       await prepareRetry();
+      if (await transitionStarted()) return;
     }
   }
   await fallback();
@@ -356,17 +357,18 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     otpChallenge.catch(() => {});
 
     let recoveredFormReset = false;
+    const loginTransitionStarted = async () => {
+      if (submissionMayHaveStarted || page.url() !== preSubmitUrl) return true;
+      if (otpWasVisibleBeforeSubmit) return false;
+      for (const candidate of otpCandidates(page)) {
+        if (await candidate.first().isVisible().catch(() => false)) return true;
+      }
+      return false;
+    };
     await activateLoginSubmit(
       () => submitCandidates(page),
       () => passwordField.press("Enter"),
-      async () => {
-        if (page.url() !== preSubmitUrl) return true;
-        if (otpWasVisibleBeforeSubmit) return false;
-        for (const candidate of otpCandidates(page)) {
-          if (await candidate.first().isVisible().catch(() => false)) return true;
-        }
-        return false;
-      },
+      loginTransitionStarted,
       2_000,
       undefined,
       async () => {
@@ -376,8 +378,10 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
         // A late login-page mount can replace both filled fields while click
         // waits for actionability. Recover that reset once, not a rejected login.
         if (await username.inputValue() || await password.inputValue()) return;
+        if (await loginTransitionStarted()) return;
         recoveredFormReset = true;
         await username.fill(request.username, { timeout: 2_000 });
+        if (await loginTransitionStarted()) return;
         await password.fill(request.password, { timeout: 2_000 });
       }
     );
