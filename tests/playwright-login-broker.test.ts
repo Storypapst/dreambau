@@ -43,6 +43,93 @@ function fakeLocator(visible: boolean, label: string) {
 }
 
 describe("Playwright login broker", () => {
+  it.each(["none", "before", "during"])("recovers a pre-submit form reset only before a request was dispatched (dispatch=%s)", async (dispatch) => {
+    let loginRequests = 0;
+    let dispatchedRequests = 0;
+    let resets = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/credential-attempt" && req.method === "POST") {
+        dispatchedRequests += 1;
+        res.statusCode = 400;
+        res.end("rejected");
+        return;
+      }
+      if (req.url === "/reset-observed") {
+        resets += 1;
+        res.end("ok");
+        return;
+      }
+      if (req.url === "/app?username=test-user&password=test-password") {
+        loginRequests += 1;
+        res.setHeader("Set-Cookie", "keycloak=fixture-token; Path=/; HttpOnly");
+        res.end("signed in");
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.end(`<!doctype html><main></main><script>
+        let reset = false;
+        function render() {
+          document.querySelector('main').innerHTML = '<form><input autocomplete="username" name="username"><input type="password" name="password"><button type="submit" disabled>Sign in</button></form>';
+          const form = document.querySelector('form');
+          form.addEventListener('input', () => {
+            form.querySelector('button').disabled = !form.username.value || !form.password.value;
+          });
+          form.querySelector('button').addEventListener('pointerover', () => {
+            if (!reset) {
+              reset = true;
+              if (${dispatch === "before"}) fetch('/credential-attempt', { method: 'POST' });
+              fetch('/reset-observed');
+              render();
+              if (${dispatch === "during"}) {
+                document.querySelector('input[name="username"]').hidden = true;
+                setTimeout(() => {
+                  fetch('/credential-attempt', { method: 'POST' });
+                  document.querySelector('input[name="username"]').hidden = false;
+                }, 2600);
+              }
+            }
+          });
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (form.username.value && form.password.value)
+              location.href = '/app?' + new URLSearchParams(new FormData(form));
+          });
+        }
+        render();
+      </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-reset-login-"));
+    const statePath = join(root, "state.json");
+    try {
+      const login = playwrightLogin({
+        username: "test-user", password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/admin/login`, statePath,
+        ignoreHTTPSErrors: false,
+        getOtp: async () => { throw new Error("OTP should not be requested"); },
+        requiredAuthState: { cookieNames: ["keycloak"], localStorageKeys: [] }
+      });
+      if (dispatch !== "none") {
+        await expect(login).rejects.toThrow(/stalled at/);
+        expect(dispatchedRequests).toBe(1);
+        expect(loginRequests).toBe(0);
+        expect(resets).toBe(1);
+        return;
+      }
+      await login;
+      expect(resets).toBe(1);
+      expect(loginRequests).toBe(1);
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      expect(state.cookies).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "keycloak", value: "fixture-token" })
+      ]));
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 25_000);
+
   it("re-resolves a semantic login button when React detaches the first match", async () => {
     const detached = {
       first: () => detached,
