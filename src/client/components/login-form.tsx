@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { t, type Locale } from "@/i18n";
-import { Checkbox } from "@/components/ui/checkbox";
 import { rememberLoginEmail, rememberedLoginEmail } from "@/login-hint";
 import { authenticateWithPasskey } from "@/passkey-client";
 import { rememberStaySignedIn, rememberedStaySignedIn } from "@/remember-me";
@@ -82,7 +81,7 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
               <FieldLabel htmlFor="email">E-Mail</FieldLabel>
               <Input id="email" type="email" autoComplete="username webauthn" value={email} onChange={(event) => setEmail(event.target.value)} />
             </Field>
-            <label className="flex items-center gap-2 text-sm"><Checkbox id="stay-signed-in" checked={staySignedIn} onCheckedChange={(checked) => setStaySignedIn(checked === true)} />{t(locale, "login.staySignedIn")}</label>
+            <label className="flex items-center gap-2 text-sm" htmlFor="stay-signed-in"><input id="stay-signed-in" type="checkbox" className="size-4 accent-primary" checked={staySignedIn} onChange={(event) => setStaySignedIn(event.target.checked)} />{t(locale, "login.staySignedIn")}</label>
             <Button type="button" onClick={passkeyLogin} disabled={busy || !email}><KeyRoundIcon />{locale === "de" ? "Mit Passkey anmelden" : "Sign in with passkey"}</Button>
             <Button type="button" variant="outline" onClick={requestEmailOtp} disabled={busy || !email}><MailIcon data-icon="inline-start" />{locale === "de" ? "Code per E-Mail senden" : "Send code by email"}</Button>
             {emailOtpRequestedFor === email.trim().toLowerCase() && <><Alert><MailIcon /><AlertTitle>{locale === "de" ? "Postfach prüfen" : "Check your inbox"}</AlertTitle><AlertDescription>{locale === "de" ? "Wenn das Konto berechtigt ist, wurde ein sechsstelliger Code gesendet." : "If the account is eligible, a six-digit code was sent."}</AlertDescription></Alert>
