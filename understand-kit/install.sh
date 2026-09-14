@@ -49,7 +49,7 @@ KIT_HOME="${ORISO_KIT_HOME:-$HOME/.oriso-dev-kit}"
 # The kit payload: what a bundle ships and what an update replaces. Kept in sync
 # with build-bundle.sh's PAYLOAD. dist/ is a build artefact and never installed.
 KIT_PAYLOAD=(install.sh ua-pull.sh mcp-add.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh \
-             settings.hook.json .mcp.json.example manifest.json README.md \
+             test-access-install.sh settings.hook.json .mcp.json.example manifest.json README.md \
              SECRET-SCAN.md rules skills prompts pages)
 
 # Everything personal lives here and is deliberately NOT in KIT_PAYLOAD: an update
@@ -273,7 +273,13 @@ PYEOF
 
 if [ "$MODE" = "subscribe" ]; then
   kit_subscribe
-  exit $?
+  kit_status=$?
+  # The Test-Access CLI follows the same subscription: one manifest request, a
+  # download only when a newer version is served. Never blocks the session.
+  if [ -f "$KIT_HOME/test-access-install.sh" ]; then
+    bash "$KIT_HOME/test-access-install.sh" 2>&1 | sed -n '1,3p'
+  fi
+  exit $kit_status
 fi
 
 # ---------------------------------------------------------------------------
@@ -432,6 +438,21 @@ mkdir -p "$BIN_DIR"
 cp "$KIT_DIR/ua-pull.sh" "$BIN_DIR/ua-pull"
 chmod +x "$BIN_DIR/ua-pull"
 note "[ok]      copied ua-pull.sh -> $BIN_DIR/ua-pull"
+
+# ---------------------------------------------------------------------------
+# 4a. The Test-Access CLI: installed from the Dreambau release endpoint, never
+#     from a checkout or a hand-delivered file. Re-runs update it; --subscribe
+#     keeps it current afterwards.
+# ---------------------------------------------------------------------------
+if [ -f "$KIT_DIR/test-access-install.sh" ]; then
+  cp "$KIT_DIR/test-access-install.sh" "$BIN_DIR/test-access-install"
+  chmod +x "$BIN_DIR/test-access-install"
+  if bash "$KIT_DIR/test-access-install.sh"; then
+    note "[ok]      test-access CLI installed/current — 'test-access --version' shows the release; 'test-access-install' updates it"
+  else
+    note "[warn]    test-access CLI not installed — see the [test-access-install] lines above; run 'test-access-install' again once the token is in place"
+  fi
+fi
 
 if [ -f "$KIT_DIR/kit-subscribe.sh" ]; then
   cp "$KIT_DIR/kit-subscribe.sh" "$BIN_DIR/kit-subscribe"

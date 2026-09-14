@@ -25,7 +25,11 @@ RUN npm test
 RUN npm run build
 
 FROM deps AS build
-RUN npm run build && npm prune --omit=dev
+# GIT_SHA is stamped into the Test-Access CLI manifest; the image has no git.
+#   docker build --build-arg GIT_SHA=$(git rev-parse --short=12 HEAD) ...
+ARG GIT_SHA=unknown
+COPY scripts/build-test-access-bundle.sh ./scripts/build-test-access-bundle.sh
+RUN npm run build && GIT_SHA=$GIT_SHA npm run cli:bundle && npm prune --omit=dev
 
 # The Understand-Kit bundle the /understand/api/v1/kit endpoint serves.
 # understand-kit/dist/ is a gitignored build artefact, so the archive is built

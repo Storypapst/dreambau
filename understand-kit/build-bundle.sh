@@ -34,7 +34,8 @@ command -v python3 >/dev/null 2>&1 || { echo "build-bundle.sh: python3 is requir
 [ -f manifest.json ] || { echo "build-bundle.sh: manifest.json not found in $KIT_DIR" >&2; exit 1; }
 
 # Payload = everything the bundle ships. Build output and VCS metadata are excluded.
-PAYLOAD=(install.sh ua-pull.sh mcp-add.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh settings.hook.json \
+PAYLOAD=(install.sh ua-pull.sh mcp-add.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh \
+         test-access-install.sh settings.hook.json \
          .mcp.json.example README.md SECRET-SCAN.md rules skills prompts pages)
 
 # ---------------------------------------------------------------------------
