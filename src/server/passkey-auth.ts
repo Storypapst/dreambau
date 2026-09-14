@@ -26,7 +26,7 @@ const defaultWebAuthn: WebAuthnAdapter = {
   verifyAuthenticationResponse
 };
 
-const flowSchema = z.object({ flowId: z.uuid(), response: z.object({ id: z.string().min(1) }).passthrough() });
+const flowSchema = z.object({ flowId: z.uuid(), response: z.object({ id: z.string().min(1) }).passthrough(), remember: z.boolean().optional() });
 
 export function installPasskeyAuth(router: Router, options: {
   store: PasskeyStore;
@@ -155,8 +155,11 @@ export function installPasskeyAuth(router: Router, options: {
       if (!result.verified) return res.status(400).json({ error: "verification_failed" });
       options.store.updateCredentialCounter(credential.id, result.authenticationInfo.newCounter, now().toISOString());
       options.sessions.destroy(req.cookies?.[cookieName]);
-      res.cookie(cookieName, options.sessions.create({ authenticated: true, method: "passkey", userId: challenge.userId }), cookieOptions(options.secureCookies));
-      res.json({ verified: true });
+      // "Stay signed in" is a passkey-only privilege: recovery codes and email
+      // codes are weaker factors and keep the 12 hour default.
+      const cookie = options.sessions.create({ authenticated: true, method: "passkey", userId: challenge.userId }, { remember: parsed.data.remember === true });
+      res.cookie(cookieName, cookie, cookieOptions(options.secureCookies, options.sessions.maxAgeOf(cookie)));
+      res.json({ verified: true, remember: parsed.data.remember === true });
     } catch {
       res.status(400).json({ error: "verification_failed" });
     }

@@ -36,6 +36,7 @@ const messages = {
     "page.saveFailed": "Speichern fehlgeschlagen",
     "page.openMail": "Mail öffnen",
     "page.language": "Sprache",
+    "login.staySignedIn": "30 Tage angemeldet bleiben",
     "page.filteredCount": "{shown} von {total} Konten",
     "page.noAccounts": "Keine Konten gefunden",
     "page.adjustFilters": "Filter oder Suchbegriff anpassen."
@@ -72,6 +73,7 @@ const messages = {
     "page.saveFailed": "Could not save",
     "page.openMail": "Open mail",
     "page.language": "Language",
+    "login.staySignedIn": "Stay signed in for 30 days",
     "page.filteredCount": "{shown} of {total} accounts",
     "page.noAccounts": "No accounts found",
     "page.adjustFilters": "Adjust filters or search terms."

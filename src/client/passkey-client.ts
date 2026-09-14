@@ -11,9 +11,15 @@ interface RegistrationDependencies {
   startRegistration: (options: any) => Promise<any>;
 }
 
+export interface AuthenticateOptions {
+  /** Ask the server for a 30 day session instead of the 12 hour default. */
+  remember?: boolean;
+}
+
 export async function authenticateWithPasskey(
   email: string,
-  dependencies: BrowserDependencies = { api: defaultApi, startAuthentication }
+  dependencies: BrowserDependencies = { api: defaultApi, startAuthentication },
+  authenticateOptions: AuthenticateOptions = {}
 ) {
   const request = await dependencies.api("/auth/passkeys/authentication/options", {
     method: "POST",
@@ -25,7 +31,7 @@ export async function authenticateWithPasskey(
   const response = await dependencies.startAuthentication({ optionsJSON: request.options });
   return dependencies.api("/auth/passkeys/authentication/verify", {
     method: "POST",
-    body: JSON.stringify({ flowId: request.flowId, response })
+    body: JSON.stringify({ flowId: request.flowId, response, remember: authenticateOptions.remember === true })
   });
 }
 
