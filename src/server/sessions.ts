@@ -78,10 +78,15 @@ export class SessionStore {
     return this.record(cookie)?.principal ?? null;
   }
 
-  /** Remaining cookie lifetime in milliseconds, or the default when the cookie is unknown. */
+  /**
+   * Total lifetime granted at creation, in milliseconds, for the cookie's
+   * Max-Age. Deliberately not the remaining time: the cookie is set in the
+   * same request that created the session, and a constant value keeps the
+   * header exact instead of drifting by the milliseconds in between.
+   */
   maxAgeOf(cookie: string | undefined) {
     const record = this.record(cookie);
-    return record ? Math.max(0, record.expiresAt - this.now()) : SESSION_MAX_AGE_MS;
+    return record ? record.expiresAt - record.createdAt : SESSION_MAX_AGE_MS;
   }
 
   destroy(cookie: string | undefined) {

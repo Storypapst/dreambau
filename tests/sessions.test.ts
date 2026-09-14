@@ -48,7 +48,7 @@ describe("session lifetime", () => {
     expect(sessions.maxAgeOf(cookie)).toBe(REMEMBERED_SESSION_MAX_AGE_MS);
     time.advance(29 * DAY);
     expect(sessions.get(cookie)).toEqual({ authenticated: true, method: "passkey", userId: "user-1" });
-    expect(sessions.maxAgeOf(cookie)).toBe(DAY);
+    expect(sessions.maxAgeOf(cookie)).toBe(REMEMBERED_SESSION_MAX_AGE_MS);
     time.advance(2 * DAY);
     expect(sessions.get(cookie)).toBeNull();
   });
