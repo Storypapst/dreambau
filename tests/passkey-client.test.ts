@@ -7,7 +7,7 @@ describe("passkey browser client", () => {
     const api = vi.fn(async (path: string, init?: RequestInit) => {
       calls.push(path);
       if (path.endsWith("/options")) return { flowId: "flow", options: { challenge: "challenge" } };
-      expect(JSON.parse(String(init?.body))).toEqual({ flowId: "flow", response: { id: "credential" } });
+      expect(JSON.parse(String(init?.body))).toEqual({ flowId: "flow", response: { id: "credential" }, remember: false });
       return { verified: true };
     });
     const startAuthentication = vi.fn(async ({ optionsJSON }) => {
@@ -16,6 +16,15 @@ describe("passkey browser client", () => {
     });
     await authenticateWithPasskey("frank@dreambau.com", { api, startAuthentication });
     expect(calls).toEqual(["/auth/passkeys/authentication/options", "/auth/passkeys/authentication/verify"]);
+  });
+
+  it("forwards the stay-signed-in choice to the verification request", async () => {
+    const api = vi.fn(async (path: string, init?: RequestInit) => path.endsWith("/options")
+      ? { flowId: "flow", options: { challenge: "challenge" } }
+      : (expect(JSON.parse(String(init?.body))).toEqual({ flowId: "flow", response: { id: "credential" }, remember: true }), { verified: true, remember: true }));
+    const startAuthentication = vi.fn(async () => ({ id: "credential" }));
+    await authenticateWithPasskey("frank@dreambau.com", { api, startAuthentication }, { remember: true });
+    expect(api).toHaveBeenCalledTimes(2);
   });
 
   it("does not open the password manager when the account has no registered passkey", async () => {

@@ -151,8 +151,13 @@ export function createApp(options: AppOptions = {}) {
     options.passwordHash ?? config.passwordHash,
     options.sessionSecret ?? config.sessionSecret,
     options.secureCookies ?? config.secureCookies,
-    () => passkeyStore.credentialCount() === 0
+    () => passkeyStore.credentialCount() === 0,
+    passkeyStore.sessions,
+    options.now ? () => options.now!().getTime() : undefined
   );
+  // Expired session rows are pruned hourly; `unref` keeps the timer from
+  // holding a test process open.
+  setInterval(() => sessions.prune(), 60 * 60 * 1000).unref();
   const accountLoader = options.loadAccounts ?? (() => loadAccountsFile(config.accountsPath));
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
   installPasskeyAuth(api, {

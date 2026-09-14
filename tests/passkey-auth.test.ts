@@ -149,6 +149,52 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
+  it("keeps a remembered passkey login for 30 days across an app restart", async () => {
+    const twelveHours = 12 * 60 * 60;
+    const thirtyDays = 30 * 24 * 60 * 60;
+    const { app, passkeyStore, user, webauthn } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+
+    const plain = await request(app).post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    const plainVerify = await request(app).post("/testmails/api/auth/passkeys/authentication/verify")
+      .send({ flowId: plain.body.flowId, response: { id: "credential-id" } });
+    expect(plainVerify.status).toBe(200);
+    expect(plainVerify.body).toEqual({ verified: true, remember: false });
+    expect(String(plainVerify.headers["set-cookie"])).toContain(`Max-Age=${twelveHours}`);
+
+    const remembered = await request(app).post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    const rememberedVerify = await request(app).post("/testmails/api/auth/passkeys/authentication/verify")
+      .send({ flowId: remembered.body.flowId, response: { id: "credential-id" }, remember: true });
+    expect(rememberedVerify.status).toBe(200);
+    expect(rememberedVerify.body).toEqual({ verified: true, remember: true });
+    const cookieHeader = String(rememberedVerify.headers["set-cookie"]);
+    expect(cookieHeader).toContain(`Max-Age=${thirtyDays}`);
+    const cookie = cookieHeader.split(";")[0];
+
+    // A fresh app over the same database, as after a deployment, still accepts the cookie.
+    const restarted = createApp({
+      passwordHash, secureCookies: false, loadAccounts: () => [], passkeyStore, webauthn,
+      rpId: "dreambau.com", expectedOrigin: "https://dreambau.com",
+      bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" }
+    });
+    const session = await request(restarted).get("/testmails/api/auth/session").set("Cookie", cookie);
+    expect(session.body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
+    passkeyStore.close();
+  });
+
+  it("does not remember a recovery-code login", async () => {
+    const { app, passkeyStore, user } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" } });
+    const codes = await agent.post("/testmails/api/auth/recovery-codes");
+    const recovery = await request(app).post("/testmails/api/auth/recovery").send({ email: user.email, code: codes.body.codes[0], remember: true });
+    expect(recovery.status).toBe(200);
+    expect(String(recovery.headers["set-cookie"])).toContain(`Max-Age=${12 * 60 * 60}`);
+    passkeyStore.close();
+  });
+
   it("issues one-time recovery codes to a passkey session and recovery can only bootstrap a new passkey", async () => {
     const { app, passkeyStore, user } = setup();
     passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
