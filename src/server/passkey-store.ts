@@ -120,6 +120,13 @@ export function createPasskeyStore(path: string) {
       last_seen_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS human_sessions_expires ON human_sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS human_user_preferences (
+      user_id TEXT NOT NULL REFERENCES human_users(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      value_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, key)
+    );
   `);
   const userColumns = new Set((sqlite.prepare("PRAGMA table_info(human_users)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!userColumns.has("role")) sqlite.exec("ALTER TABLE human_users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
@@ -365,6 +372,23 @@ export function createPasskeyStore(path: string) {
     debugEmailOtpChallenges(userId: string) {
       return sqlite.prepare(`SELECT id,code_hmac,expires_at,attempts_remaining,requested_at,consumed_at
         FROM email_otp_challenges WHERE user_id=? ORDER BY requested_at`).all(userId);
+    },
+    /**
+     * Small per-user settings such as saved filter presets. Values are opaque
+     * JSON for the store; the route validates shape and size per key.
+     */
+    getPreference(userId: string, key: string): unknown {
+      const row = sqlite.prepare("SELECT value_json FROM human_user_preferences WHERE user_id=? AND key=?").get(userId, key) as { value_json: string } | undefined;
+      if (!row) return null;
+      try { return JSON.parse(row.value_json); } catch { return null; }
+    },
+    setPreference(userId: string, key: string, value: unknown) {
+      sqlite.prepare(`INSERT INTO human_user_preferences(user_id,key,value_json,updated_at) VALUES(?,?,?,?)
+        ON CONFLICT(user_id,key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at`)
+        .run(userId, key, JSON.stringify(value), new Date().toISOString());
+    },
+    deletePreference(userId: string, key: string) {
+      return sqlite.prepare("DELETE FROM human_user_preferences WHERE user_id=? AND key=?").run(userId, key).changes === 1;
     },
     /**
      * Human sessions live next to the users so a deployment or pod restart

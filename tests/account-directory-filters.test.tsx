@@ -16,6 +16,7 @@ vi.mock("../src/client/components/taxonomy-settings.js", () => ({ TaxonomySettin
 vi.mock("../src/client/components/version-bulk-action.js", () => ({ VersionBulkAction: () => null }));
 vi.mock("../src/client/components/employee-management.js", () => ({ EmployeeManagement: () => null }));
 vi.mock("../src/client/components/passkey-manager.js", () => ({ PasskeyManager: () => null }));
+vi.mock("../src/client/components/filter-presets.js", () => ({ FilterPresets: () => null }));
 vi.mock("../src/client/components/coordination-dashboard.js", () => ({ CoordinationDashboard: () => null }));
 
 function account(email: string, extra: Partial<AccountView["metadata"]> = {}): AccountView {

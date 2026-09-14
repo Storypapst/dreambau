@@ -160,6 +160,58 @@ export function installPasskeyAuth(router: Router, options: {
     } catch (error) { next(error); }
   });
 
+  // Per-user preferences (currently: saved filter presets). Any user-bound
+  // session may read and write its own; the value is validated per key so the
+  // table never becomes a dumping ground.
+  const preferenceKeySchema = z.enum(["filter-presets"]);
+  const filterStateSchema = z.object({
+    query: z.string().max(200).default(""),
+    domain: z.string().max(60).default("all"),
+    status: z.string().max(40).default("all"),
+    quality: z.string().max(40).default("all"),
+    project: z.string().max(40).default("all"),
+    versionAfter: z.string().max(40).default(""),
+    roles: z.array(z.string().max(80)).max(50).default([]),
+    topics: z.array(z.string().max(80)).max(50).default([]),
+    conversations: z.array(z.string().max(80)).max(50).default([])
+  });
+  const preferenceValueSchemas: Record<z.infer<typeof preferenceKeySchema>, z.ZodTypeAny> = {
+    "filter-presets": z.array(z.object({ id: z.string().min(1).max(64), name: z.string().trim().min(1).max(60), filters: filterStateSchema })).max(50)
+  };
+  const preferenceOwner = (res: any): string | null => {
+    const principal = res.locals.session as SessionPrincipal;
+    return principal.userId ?? null;
+  };
+
+  router.get("/auth/me/preferences/:key", options.requireSession, (req, res) => {
+    const key = preferenceKeySchema.safeParse(req.params.key);
+    const userId = preferenceOwner(res);
+    if (!key.success) return res.status(404).json({ error: "preference_not_found" });
+    if (!userId) return res.status(403).json({ error: "user_session_required" });
+    res.set("Cache-Control", "no-store");
+    res.json({ key: key.data, value: options.store.getPreference(userId, key.data) });
+  });
+
+  router.put("/auth/me/preferences/:key", options.requireSession, (req, res) => {
+    const key = preferenceKeySchema.safeParse(req.params.key);
+    const userId = preferenceOwner(res);
+    if (!key.success) return res.status(404).json({ error: "preference_not_found" });
+    if (!userId) return res.status(403).json({ error: "user_session_required" });
+    const value = preferenceValueSchemas[key.data].safeParse(req.body?.value);
+    if (!value.success || JSON.stringify(value.data).length > 16 * 1024) return res.status(400).json({ error: "invalid_request" });
+    options.store.setPreference(userId, key.data, value.data);
+    res.json({ key: key.data, value: value.data });
+  });
+
+  router.delete("/auth/me/preferences/:key", options.requireSession, (req, res) => {
+    const key = preferenceKeySchema.safeParse(req.params.key);
+    const userId = preferenceOwner(res);
+    if (!key.success) return res.status(404).json({ error: "preference_not_found" });
+    if (!userId) return res.status(403).json({ error: "user_session_required" });
+    options.store.deletePreference(userId, key.data);
+    res.json({ key: key.data, value: null });
+  });
+
   // Passkey management for the signed-in owner. Strong session only: a
   // recovery-code session may add its first passkey through registration, but
   // must not delete or rename the ones that exist.

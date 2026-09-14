@@ -182,6 +182,48 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
+  it("stores filter presets per user and validates their shape", async () => {
+    const { app, passkeyStore, user } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const other = passkeyStore.createUser({ email: "other@dreambau.com", name: "Other", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "other-credential", userId: other.id, publicKey: new Uint8Array([9]), counter: 0, transports: ["internal"], deviceType: "singleDevice", backedUp: false });
+
+    expect((await request(app).get("/testmails/api/auth/me/preferences/filter-presets")).status).toBe(401);
+
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" } });
+
+    const empty = await agent.get("/testmails/api/auth/me/preferences/filter-presets");
+    expect(empty.status).toBe(200);
+    expect(empty.headers["cache-control"]).toBe("no-store");
+    expect(empty.body).toEqual({ key: "filter-presets", value: null });
+
+    const presets = [{ id: "p1", name: "ORISO active", filters: { query: "", domain: "oriso.org", status: "active", quality: "all", project: "all", versionAfter: "", roles: ["consultant"], topics: [], conversations: [] } }];
+    const saved = await agent.put("/testmails/api/auth/me/preferences/filter-presets").send({ value: presets });
+    expect(saved.status).toBe(200);
+    expect(saved.body.value).toEqual(presets);
+    expect((await agent.get("/testmails/api/auth/me/preferences/filter-presets")).body.value).toEqual(presets);
+
+    // Missing fields are filled with defaults; wrong shapes are refused.
+    const partial = await agent.put("/testmails/api/auth/me/preferences/filter-presets").send({ value: [{ id: "p2", name: " Short ", filters: { query: "lisa" } }] });
+    expect(partial.status).toBe(200);
+    expect(partial.body.value[0]).toEqual({ id: "p2", name: "Short", filters: { query: "lisa", domain: "all", status: "all", quality: "all", project: "all", versionAfter: "", roles: [], topics: [], conversations: [] } });
+    expect((await agent.put("/testmails/api/auth/me/preferences/filter-presets").send({ value: { not: "a list" } })).status).toBe(400);
+    expect((await agent.put("/testmails/api/auth/me/preferences/filter-presets").send({ value: [{ id: "p3", name: "", filters: {} }] })).status).toBe(400);
+    expect((await agent.put("/testmails/api/auth/me/preferences/unknown-key").send({ value: [] })).status).toBe(404);
+
+    // Another user sees only their own presets.
+    const otherAgent = request.agent(app);
+    const otherOptions = await otherAgent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: other.email });
+    await otherAgent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: otherOptions.body.flowId, response: { id: "other-credential" } });
+    expect((await otherAgent.get("/testmails/api/auth/me/preferences/filter-presets")).body.value).toBeNull();
+
+    expect((await agent.delete("/testmails/api/auth/me/preferences/filter-presets")).body).toEqual({ key: "filter-presets", value: null });
+    expect((await agent.get("/testmails/api/auth/me/preferences/filter-presets")).body.value).toBeNull();
+    passkeyStore.close();
+  });
+
   it("lets a passkey session add, list, rename and delete passkeys but never the last one", async () => {
     const { app, passkeyStore, user, webauthn } = setup();
     passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["hybrid"], deviceType: "multiDevice", backedUp: true, name: "Pixel (Google)" });
