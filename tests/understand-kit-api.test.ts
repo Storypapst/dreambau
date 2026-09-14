@@ -64,7 +64,26 @@ function kitDir(options: { withBundle: boolean }) {
   return dir;
 }
 
-function app(options: { withBundle: boolean }) {
+const cliBundleBody = Buffer.from("console.log('test-access 1.2.3 (abc)');\n");
+const cliManifest = {
+  name: "test-access-cli",
+  version: "1.2.3",
+  gitSha: "abc",
+  playwrightVersion: "1.61.1",
+  files: [{ path: "test-access.mjs", sha256: createHash("sha256").update(cliBundleBody).digest("hex"), bytes: cliBundleBody.byteLength }]
+};
+
+/** A built CLI directory as scripts/build-test-access-bundle.sh leaves it. */
+function cliDir(options: { withBundle: boolean }) {
+  const dir = mkdtempSync(path.join(tmpdir(), "test-access-cli-"));
+  if (options.withBundle) {
+    writeFileSync(path.join(dir, "manifest.json"), `${JSON.stringify(cliManifest, null, 2)}\n`);
+    writeFileSync(path.join(dir, "test-access.mjs"), cliBundleBody);
+  }
+  return dir;
+}
+
+function app(options: { withBundle: boolean; withCli?: boolean }) {
   const database = createDatabase(path.join(mkdtempSync(path.join(tmpdir(), "kit-db-")), "test.sqlite"));
   return createApp({
     passwordHash: "unused",
@@ -72,11 +91,47 @@ function app(options: { withBundle: boolean }) {
     database,
     loadAccounts: () => [],
     machineIdentities: identities(),
-    understandKitDir: kitDir(options)
+    understandKitDir: kitDir(options),
+    testAccessCliDir: cliDir({ withBundle: options.withCli ?? true })
   });
 }
 
 const bundleEtag = `"${createHash("sha256").update(archiveBody).digest("hex")}"`;
+const cliEtag = `"${cliManifest.files[0].sha256}"`;
+
+describe("test-access CLI release API v1", () => {
+  it("requires the same machine token as the kit", async () => {
+    expect((await request(app({ withBundle: true })).get("/understand/api/v1/cli/manifest")).status).toBe(401);
+    expect((await request(app({ withBundle: true })).get("/understand/api/v1/cli/bundle").set("authorization", `Bearer ${revokedToken}`)).status).toBe(401);
+  });
+
+  it("serves the CLI manifest and the checksummed bundle", async () => {
+    const server = app({ withBundle: true });
+    const manifest = await request(server).get("/understand/api/v1/cli/manifest").set("authorization", `Bearer ${validToken}`);
+    expect(manifest.status).toBe(200);
+    expect(manifest.headers["cache-control"]).toBe("no-store");
+    expect(manifest.body).toEqual(cliManifest);
+
+    const bundle = await request(server).get("/understand/api/v1/cli/bundle").set("authorization", `Bearer ${validToken}`);
+    expect(bundle.status).toBe(200);
+    expect(bundle.headers["content-type"]).toContain("text/javascript");
+    expect(bundle.headers["content-disposition"]).toBe('attachment; filename="test-access-1.2.3.mjs"');
+    expect(bundle.headers["x-cli-version"]).toBe("1.2.3");
+    expect(bundle.headers.etag).toBe(cliEtag);
+    expect(bundle.text).toBe(cliBundleBody.toString("utf8"));
+
+    const cached = await request(server).get("/understand/api/v1/cli/bundle").set("authorization", `Bearer ${validToken}`).set("if-none-match", cliEtag);
+    expect(cached.status).toBe(304);
+  });
+
+  it("answers 503 while the CLI bundle is not built", async () => {
+    const response = await request(app({ withBundle: true, withCli: false }))
+      .get("/understand/api/v1/cli/manifest")
+      .set("authorization", `Bearer ${validToken}`);
+    expect(response.status).toBe(503);
+    expect(response.body.error).toBe("cli_unavailable");
+  });
+});
 
 describe("understand kit subscription API v1", () => {
   it("rejects a request without a token", async () => {

@@ -104,6 +104,24 @@ installiert. Der Client merged nie, er ersetzt.
 Der Aufruf ist absichtlich nie blockierend: kein Token, kein Netz, Endpunkt tot oder Bundle
 nicht gebaut → eine Zeile Ausgabe, Exit ≠ 0, und die Sitzung läuft normal weiter.
 
+### Das Test-Access-CLI kommt über denselben Weg
+
+Das `test-access`-Kommando wird **nicht** aus einem Checkout gebaut und nicht per Hand verteilt.
+Der Dreambau-Server liefert unter `/understand/api/v1/cli/manifest` und `/cli/bundle` die
+exakt getaggte Version (`test-access-cli/<version>` auf `main`), mit sha256 im Manifest.
+
+```bash
+test-access-install            # installieren oder auf die servierte Version aktualisieren
+test-access-install --check    # nur vergleichen: installiert vs. serviert
+test-access --version          # zeigt Version und Commit des installierten CLI
+```
+
+`install.sh` führt das beim Erstinstallieren aus, `kit-subscribe` hält es danach aktuell.
+Token-Regel wie beim Kit (persönliches Test-Access-Token, nie geteilt). Die Prüfsumme wird vor
+dem Einsetzen geprüft; bei Abweichung bleibt das installierte CLI unangetastet. Playwright wird
+in der Version aus dem Manifest neben das CLI installiert, sobald es fehlt oder abweicht.
+`ORISO_KIT_BASE_CLI` überschreibt die Basis-URL.
+
 ### Hook (Claude Code) und Codex
 
 `settings.hook.json` enthält zwei `SessionStart`-Hooks in dieser Reihenfolge:
