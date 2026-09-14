@@ -65,6 +65,7 @@ const messages = {
     "passkeys.newNamePlaceholder": "z. B. MacBook Safari",
     "passkeys.add": "Passkey hinzufügen",
     "page.filteredCount": "{shown} von {total} Konten",
+    "page.resetFilters": "Zurücksetzen ({count})",
     "page.noAccounts": "Keine Konten gefunden",
     "page.adjustFilters": "Filter oder Suchbegriff anpassen."
   },
@@ -129,6 +130,7 @@ const messages = {
     "passkeys.newNamePlaceholder": "e.g. MacBook Safari",
     "passkeys.add": "Add passkey",
     "page.filteredCount": "{shown} of {total} accounts",
+    "page.resetFilters": "Reset ({count})",
     "page.noAccounts": "No accounts found",
     "page.adjustFilters": "Adjust filters or search terms."
   }
