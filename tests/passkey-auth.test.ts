@@ -99,7 +99,7 @@ describe("passkey authentication", () => {
       response: { id: "credential-id", response: { transports: ["internal"] } }
     });
     expect(verified.status).toBe(200);
-    expect(verified.body).toEqual({ verified: true, email: user.email });
+    expect(verified.body).toEqual({ verified: true, email: user.email, passkeyId: "credential-id" });
     expect(passkeyStore.getCredential("credential-id")?.userId).toBe(user.id);
     expect((await agent.get("/testmails/api/auth/session")).body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
     await agent.post("/testmails/api/auth/logout");
@@ -179,6 +179,87 @@ describe("passkey authentication", () => {
     });
     const session = await request(restarted).get("/testmails/api/auth/session").set("Cookie", cookie);
     expect(session.body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
+    passkeyStore.close();
+  });
+
+  it("lets a passkey session add, list, rename and delete passkeys but never the last one", async () => {
+    const { app, passkeyStore, user, webauthn } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["hybrid"], deviceType: "multiDevice", backedUp: true, name: "Pixel (Google)" });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    expect(options.body.options.hints).toEqual(["client-device", "hybrid"]);
+    const login = await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" }, remember: true });
+    const rememberedCookie = String(login.headers["set-cookie"]).split(";")[0];
+
+    const listed = await agent.get("/testmails/api/auth/passkeys");
+    expect(listed.status).toBe(200);
+    expect(listed.headers["cache-control"]).toBe("no-store");
+    expect(listed.body.passkeys).toHaveLength(1);
+    expect(listed.body.passkeys[0]).toMatchObject({ id: "credential-id", name: "Pixel (Google)", transports: ["hybrid"], deviceType: "multiDevice", backedUp: true });
+    expect(listed.body.passkeys[0]).not.toHaveProperty("publicKey");
+
+    // The last passkey stays: deleting it would strand the account.
+    expect((await agent.delete("/testmails/api/auth/passkeys/credential-id")).status).toBe(409);
+
+    // Adding a second passkey from a live passkey session keeps that session.
+    vi.mocked(webauthn.verifyRegistrationResponse).mockResolvedValueOnce({
+      verified: true,
+      registrationInfo: { credential: { id: "mac-credential", publicKey: new Uint8Array([4, 5, 6]), counter: 0, transports: ["internal"] }, credentialDeviceType: "singleDevice", credentialBackedUp: false }
+    });
+    const registration = await agent.post("/testmails/api/auth/passkeys/registration/options").send({});
+    expect(registration.status).toBe(200);
+    expect(vi.mocked(webauthn.generateRegistrationOptions).mock.calls.at(-1)?.[0]).toMatchObject({
+      authenticatorSelection: { residentKey: "required", userVerification: "required" },
+      preferredAuthenticatorType: "localDevice"
+    });
+    const added = await agent.post("/testmails/api/auth/passkeys/registration/verify").send({ flowId: registration.body.flowId, response: { id: "mac-credential" }, name: "  MacBook Safari " });
+    expect(added.status).toBe(200);
+    expect(added.body).toEqual({ verified: true, email: user.email, passkeyId: "mac-credential" });
+    expect(added.headers["set-cookie"]).toBeUndefined();
+    expect((await request(app).get("/testmails/api/auth/session").set("Cookie", rememberedCookie)).body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
+
+    const renamed = await agent.patch("/testmails/api/auth/passkeys/mac-credential").send({ name: "MacBook Touch ID" });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.passkeys.map((entry: { name: string }) => entry.name)).toEqual(["Pixel (Google)", "MacBook Touch ID"]);
+    expect((await agent.patch("/testmails/api/auth/passkeys/mac-credential").send({ name: "" })).status).toBe(400);
+    expect((await agent.patch("/testmails/api/auth/passkeys/unknown").send({ name: "x" })).status).toBe(404);
+
+    const deleted = await agent.delete("/testmails/api/auth/passkeys/credential-id");
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.passkeys.map((entry: { id: string }) => entry.id)).toEqual(["mac-credential"]);
+    expect(passkeyStore.getCredential("credential-id")).toBeNull();
+    passkeyStore.close();
+  });
+
+  it("derives a passkey name from the authenticator when none is given", async () => {
+    const { app, passkeyStore, user, webauthn } = setup();
+    const agent = request.agent(app);
+    await agent.post("/testmails/api/auth/login").send({ password: "bootstrap-password" });
+    vi.mocked(webauthn.verifyRegistrationResponse).mockResolvedValueOnce({
+      verified: true,
+      registrationInfo: { credential: { id: "phone-credential", publicKey: new Uint8Array([1]), counter: 0, transports: ["hybrid"] }, credentialDeviceType: "multiDevice", credentialBackedUp: true }
+    });
+    const options = await agent.post("/testmails/api/auth/passkeys/registration/options").send({});
+    const verified = await agent.post("/testmails/api/auth/passkeys/registration/verify").send({ flowId: options.body.flowId, response: { id: "phone-credential" } });
+    expect(verified.status).toBe(200);
+    // Bootstrap sessions are upgraded to a passkey session by the first registration.
+    expect(String(verified.headers["set-cookie"])).toContain("dreambau_testmails_session=");
+    expect((await agent.get("/testmails/api/auth/passkeys")).body.passkeys[0].name).toBe("Hybrid passkey (phone)");
+    passkeyStore.close();
+  });
+
+  it("hides passkey management from recovery and anonymous sessions", async () => {
+    const { app, passkeyStore, user } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    expect((await request(app).get("/testmails/api/auth/passkeys")).status).toBe(401);
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" } });
+    const codes = await agent.post("/testmails/api/auth/recovery-codes");
+    const recovery = request.agent(app);
+    await recovery.post("/testmails/api/auth/recovery").send({ email: user.email, code: codes.body.codes[0] });
+    expect((await recovery.get("/testmails/api/auth/passkeys")).status).toBe(403);
+    expect((await recovery.delete("/testmails/api/auth/passkeys/credential-id")).status).toBe(403);
     passkeyStore.close();
   });
 

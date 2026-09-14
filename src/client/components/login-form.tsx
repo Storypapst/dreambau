@@ -28,9 +28,10 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
     catch (reason) { setError(reason instanceof Error && reason.message === "rate_limited" ? (locale === "de" ? "Zu viele Versuche. Bitte später erneut probieren." : "Too many attempts. Please try again later.") : reason instanceof Error && reason.message === "bootstrap_disabled" ? (locale === "de" ? "Der Passwort-Bootstrap ist bereits dauerhaft deaktiviert." : "Password bootstrap is already permanently disabled.") : (locale === "de" ? "Das Passwort ist nicht korrekt." : "The password is incorrect.")); }
     finally { setBusy(false); }
   }
+  const [hybridHint, setHybridHint] = useState(false);
   async function passkeyLogin() {
-    setBusy(true); setError("");
-    try { await authenticateWithPasskey(email, undefined, { remember: staySignedIn }); rememberLoginEmail(email); rememberStaySignedIn(staySignedIn); onAuthenticated(); }
+    setBusy(true); setError(""); setHybridHint(false);
+    try { await authenticateWithPasskey(email, undefined, { remember: staySignedIn, onHybridOnly: () => setHybridHint(true) }); rememberLoginEmail(email); rememberStaySignedIn(staySignedIn); onAuthenticated(); }
     catch (reason) { setError(reason instanceof Error && reason.message === "passkey_not_registered"
       ? (locale === "de" ? "Für dieses Konto ist noch kein Passkey registriert. Bitte den Enrollment-Code unten verwenden und danach den Passkey einrichten." : "No passkey is registered for this account yet. Use the enrollment code below, then set up the passkey.")
       : (locale === "de" ? "Passkey-Anmeldung fehlgeschlagen." : "Passkey sign-in failed.")); }
@@ -81,6 +82,7 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
               <FieldLabel htmlFor="email">E-Mail</FieldLabel>
               <Input id="email" type="email" autoComplete="username webauthn" value={email} onChange={(event) => setEmail(event.target.value)} />
             </Field>
+            {hybridHint && <Alert data-testid="hybrid-only-hint"><AlertTitle>{t(locale, "login.hybridOnlyTitle")}</AlertTitle><AlertDescription>{t(locale, "login.hybridOnlyBody")}</AlertDescription></Alert>}
             <label className="flex items-center gap-2 text-sm" htmlFor="stay-signed-in"><input id="stay-signed-in" type="checkbox" className="size-4 accent-primary" checked={staySignedIn} onChange={(event) => setStaySignedIn(event.target.checked)} />{t(locale, "login.staySignedIn")}</label>
             <Button type="button" onClick={passkeyLogin} disabled={busy || !email}><KeyRoundIcon />{locale === "de" ? "Mit Passkey anmelden" : "Sign in with passkey"}</Button>
             <Button type="button" variant="outline" onClick={requestEmailOtp} disabled={busy || !email}><MailIcon data-icon="inline-start" />{locale === "de" ? "Code per E-Mail senden" : "Send code by email"}</Button>
