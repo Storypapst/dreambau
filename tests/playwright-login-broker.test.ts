@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  ORISO_REQUIRED_AUTH_STATE,
   activateLoginSubmit,
   isOtpChallenge,
   playwrightLogin,
@@ -192,7 +193,7 @@ describe("Playwright login broker", () => {
       loginUrl: "https://app.oriso-dev.site",
       ignoreHTTPSErrors: true,
       requiredAuthState: {
-        cookieNames: ["keycloak"],
+        cookieNames: ["keycloak", "oriso_admin_access_token"],
         localStorageKeys: ["auth.keycloak"]
       }
     }));
@@ -345,6 +346,75 @@ describe("Playwright login broker", () => {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
   }, 20_000);
+
+  // The ORISO Admin shares its host with the counselling app, so it keeps its
+  // session in a cookie of its own: httpOnly, on /admin, set by its auth BFF
+  // after the page loaded, and nothing in localStorage. `keycloak` is the name
+  // the Admin used before it moved to `oriso_admin_access_token`.
+  it.each(["keycloak", "oriso_admin_access_token"])(
+    "accepts the ORISO Admin session cookie %s as restorable state",
+    async (cookieName) => {
+      const server = createServer((req, res) => {
+        if (req.method === "POST" && req.url === "/admin/auth/session") {
+          res.setHeader(
+            "Set-Cookie",
+            `${cookieName}=admin-access-token; Path=/admin; HttpOnly; SameSite=Strict`
+          );
+          res.end("{}");
+          return;
+        }
+        if (req.url === "/admin/dashboard") {
+          res.setHeader("Content-Type", "text/html");
+          res.end(`<!doctype html><p>signed in</p>
+            <script>
+              setTimeout(() => { fetch('/admin/auth/session', { method: 'POST' }); }, 250);
+            </script>`);
+          return;
+        }
+        res.setHeader("Content-Type", "text/html");
+        res.end(`<!doctype html><form id="login">
+            <input id="username">
+            <input id="passwordInput" type="password">
+            <button>Login</button>
+          </form>
+          <script>
+            document.querySelector('#login').addEventListener('submit', (event) => {
+              event.preventDefault();
+              location.href = '/admin/dashboard';
+            });
+          </script>`);
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("test server did not bind");
+      const root = await mkdtemp(join(tmpdir(), "playwright-admin-cookie-"));
+      const statePath = join(root, "state.json");
+      try {
+        await playwrightLogin({
+          username: "test-admin",
+          password: "test-password",
+          loginUrl: `http://127.0.0.1:${address.port}/admin/login`,
+          statePath,
+          ignoreHTTPSErrors: false,
+          getOtp: async () => { throw new Error("OTP should not be requested"); },
+          requiredAuthState: ORISO_REQUIRED_AUTH_STATE
+        });
+
+        const state = JSON.parse(await readFile(statePath, "utf8"));
+        expect(state.cookies).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            name: cookieName,
+            value: "admin-access-token",
+            path: "/admin",
+            httpOnly: true
+          })
+        ]));
+      } finally {
+        await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      }
+    },
+    20_000
+  );
 
   it("logs in against dynamic React ids using semantic selectors and ignores the search field", async () => {
     let received: URL | null = null;
