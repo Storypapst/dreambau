@@ -22,6 +22,7 @@
 - Keep S/MIME private identities on the operator Mac in Keychain service `dreambau-test-smime`; do not copy private keys to this application.
 - Read mailbox passwords on the operator Mac from Keychain service `dreambau-test-mailbox` only during the explicit secret-import operation.
 - Treat `oriso.org` accounts as intentionally unencrypted. The other five domains use S/MIME with AES-256, `encryptOnAppend=true`, and `allowSpamTraining=false`.
+- Treat every mailbox listed in `unencryptedAccounts` (`src/server/accounts.ts`) as intentionally unencrypted regardless of its domain. These mailboxes are registered as 2FA email-OTP recipients in a product realm; encryption at rest would deliver the OTP mail as an S/MIME enveloped-data blob and no tooling could read the code. Provision them with `encryptionAtRest {"@type":"Disabled"}` and never issue them an S/MIME identity.
 - Do not expose an endpoint that deletes Stalwart accounts. Version-based cleanup is filter plus `delete_candidate` marking only.
 - Run exactly one application replica while SQLite is the metadata store.
 - The app must work on mobile, support keyboard navigation, show visible focus, and respect reduced motion.
