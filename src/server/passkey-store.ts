@@ -398,7 +398,7 @@ export function createPasskeyStore(path: string) {
         sqlite.prepare("DELETE FROM human_sessions WHERE id=?").run(id);
       },
       deleteExpired(now: number) {
-        return sqlite.prepare("DELETE FROM human_sessions WHERE expires_at<?").run(now).changes;
+        return sqlite.prepare("DELETE FROM human_sessions WHERE expires_at<=?").run(now).changes;
       }
     } satisfies SessionBackend,
     close() { sqlite.close(); }
