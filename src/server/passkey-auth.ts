@@ -68,9 +68,19 @@ export function installPasskeyAuth(router: Router, options: {
   const now = options.now ?? (() => new Date());
   const expiresAt = () => new Date(now().getTime() + 5 * 60 * 1000).toISOString();
 
+// Enrolling a passkey mints a passkey session, which is the only session
+// requireStrongSession accepts. So the factors allowed to enrol are exactly the
+// ones already trusted to establish an identity: the first bootstrap login, an
+// existing passkey adding a second one, and a recovery code — which exists for
+// the case of a lost authenticator. An e-mail OTP is the deliberately weaker,
+// read-only factor; letting it enrol would let its holder promote itself.
+const ENROLMENT_METHODS: ReadonlyArray<SessionPrincipal["method"]> = ["password-bootstrap", "passkey", "recovery"];
+const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(principal.method);
+
   router.post("/auth/passkeys/registration/options", options.requireSession, async (req, res, next) => {
     try {
       const principal = res.locals.session as SessionPrincipal;
+      if (!mayEnrol(principal)) return res.status(403).json({ error: "enrolment_not_allowed" });
       let user = principal.userId ? options.store.getUser(principal.userId) : null;
       if (principal.method === "password-bootstrap") {
         user = options.store.getUserByEmail(options.bootstrapUser.email)
@@ -99,6 +109,7 @@ export function installPasskeyAuth(router: Router, options: {
   });
 
   router.post("/auth/passkeys/registration/verify", options.requireSession, async (req, res) => {
+    if (!mayEnrol(res.locals.session as SessionPrincipal)) return res.status(403).json({ error: "enrolment_not_allowed" });
     const parsed = flowSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_request" });
     const challenge = options.store.consumeChallenge(parsed.data.flowId, "registration", now());
