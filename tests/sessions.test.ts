@@ -53,6 +53,20 @@ describe("session lifetime", () => {
     expect(sessions.get(cookie)).toBeNull();
   });
 
+  it("is dead at the exact expiry instant, not one tick later", () => {
+    // The lifetime is absolute and exact to the second, so the boundary belongs
+    // to the expired side. A strict < kept a session alive during its own
+    // expiry millisecond.
+    const time = clock();
+    const sessions = new SessionStore("test-secret", undefined, time.now);
+    const cookie = sessions.create({ authenticated: true, method: "passkey", userId: "user-1" });
+
+    time.advance(SESSION_MAX_AGE_MS - 1);
+    expect(sessions.get(cookie)).not.toBeNull();
+    time.advance(1);
+    expect(sessions.get(cookie)).toBeNull();
+  });
+
   it("refuses to remember sessions created by weaker factors", () => {
     const time = clock();
     const sessions = new SessionStore("test-secret", undefined, time.now);
