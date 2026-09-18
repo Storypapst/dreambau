@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  ORISO_REQUIRED_AUTH_STATE,
   activateLoginSubmit,
   isOtpChallenge,
   playwrightLogin,
@@ -43,6 +44,93 @@ function fakeLocator(visible: boolean, label: string) {
 }
 
 describe("Playwright login broker", () => {
+  it.each(["none", "before", "during"])("recovers a pre-submit form reset only before a request was dispatched (dispatch=%s)", async (dispatch) => {
+    let loginRequests = 0;
+    let dispatchedRequests = 0;
+    let resets = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/credential-attempt" && req.method === "POST") {
+        dispatchedRequests += 1;
+        res.statusCode = 400;
+        res.end("rejected");
+        return;
+      }
+      if (req.url === "/reset-observed") {
+        resets += 1;
+        res.end("ok");
+        return;
+      }
+      if (req.url === "/app?username=test-user&password=test-password") {
+        loginRequests += 1;
+        res.setHeader("Set-Cookie", "keycloak=fixture-token; Path=/; HttpOnly");
+        res.end("signed in");
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.end(`<!doctype html><main></main><script>
+        let reset = false;
+        function render() {
+          document.querySelector('main').innerHTML = '<form><input autocomplete="username" name="username"><input type="password" name="password"><button type="submit" disabled>Sign in</button></form>';
+          const form = document.querySelector('form');
+          form.addEventListener('input', () => {
+            form.querySelector('button').disabled = !form.username.value || !form.password.value;
+          });
+          form.querySelector('button').addEventListener('pointerover', () => {
+            if (!reset) {
+              reset = true;
+              if (${dispatch === "before"}) fetch('/credential-attempt', { method: 'POST' });
+              fetch('/reset-observed');
+              render();
+              if (${dispatch === "during"}) {
+                document.querySelector('input[name="username"]').hidden = true;
+                setTimeout(() => {
+                  fetch('/credential-attempt', { method: 'POST' });
+                  document.querySelector('input[name="username"]').hidden = false;
+                }, 2600);
+              }
+            }
+          });
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (form.username.value && form.password.value)
+              location.href = '/app?' + new URLSearchParams(new FormData(form));
+          });
+        }
+        render();
+      </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const root = await mkdtemp(join(tmpdir(), "playwright-reset-login-"));
+    const statePath = join(root, "state.json");
+    try {
+      const login = playwrightLogin({
+        username: "test-user", password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/admin/login`, statePath,
+        ignoreHTTPSErrors: false,
+        getOtp: async () => { throw new Error("OTP should not be requested"); },
+        requiredAuthState: { cookieNames: ["keycloak"], localStorageKeys: [] }
+      });
+      if (dispatch !== "none") {
+        await expect(login).rejects.toThrow(/stalled at/);
+        expect(dispatchedRequests).toBe(1);
+        expect(loginRequests).toBe(0);
+        expect(resets).toBe(1);
+        return;
+      }
+      await login;
+      expect(resets).toBe(1);
+      expect(loginRequests).toBe(1);
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      expect(state.cookies).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "keycloak", value: "fixture-token" })
+      ]));
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 25_000);
+
   it("re-resolves a semantic login button when React detaches the first match", async () => {
     const detached = {
       first: () => detached,
@@ -192,7 +280,7 @@ describe("Playwright login broker", () => {
       loginUrl: "https://app.oriso-dev.site",
       ignoreHTTPSErrors: true,
       requiredAuthState: {
-        cookieNames: ["keycloak"],
+        cookieNames: ["keycloak", "oriso_admin_access_token"],
         localStorageKeys: ["auth.keycloak"]
       }
     }));
@@ -345,6 +433,75 @@ describe("Playwright login broker", () => {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
   }, 20_000);
+
+  // The ORISO Admin shares its host with the counselling app, so it keeps its
+  // session in a cookie of its own: httpOnly, on /admin, set by its auth BFF
+  // after the page loaded, and nothing in localStorage. `keycloak` is the name
+  // the Admin used before it moved to `oriso_admin_access_token`.
+  it.each(["keycloak", "oriso_admin_access_token"])(
+    "accepts the ORISO Admin session cookie %s as restorable state",
+    async (cookieName) => {
+      const server = createServer((req, res) => {
+        if (req.method === "POST" && req.url === "/admin/auth/session") {
+          res.setHeader(
+            "Set-Cookie",
+            `${cookieName}=admin-access-token; Path=/admin; HttpOnly; SameSite=Strict`
+          );
+          res.end("{}");
+          return;
+        }
+        if (req.url === "/admin/dashboard") {
+          res.setHeader("Content-Type", "text/html");
+          res.end(`<!doctype html><p>signed in</p>
+            <script>
+              setTimeout(() => { fetch('/admin/auth/session', { method: 'POST' }); }, 250);
+            </script>`);
+          return;
+        }
+        res.setHeader("Content-Type", "text/html");
+        res.end(`<!doctype html><form id="login">
+            <input id="username">
+            <input id="passwordInput" type="password">
+            <button>Login</button>
+          </form>
+          <script>
+            document.querySelector('#login').addEventListener('submit', (event) => {
+              event.preventDefault();
+              location.href = '/admin/dashboard';
+            });
+          </script>`);
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("test server did not bind");
+      const root = await mkdtemp(join(tmpdir(), "playwright-admin-cookie-"));
+      const statePath = join(root, "state.json");
+      try {
+        await playwrightLogin({
+          username: "test-admin",
+          password: "test-password",
+          loginUrl: `http://127.0.0.1:${address.port}/admin/login`,
+          statePath,
+          ignoreHTTPSErrors: false,
+          getOtp: async () => { throw new Error("OTP should not be requested"); },
+          requiredAuthState: ORISO_REQUIRED_AUTH_STATE
+        });
+
+        const state = JSON.parse(await readFile(statePath, "utf8"));
+        expect(state.cookies).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            name: cookieName,
+            value: "admin-access-token",
+            path: "/admin",
+            httpOnly: true
+          })
+        ]));
+      } finally {
+        await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      }
+    },
+    20_000
+  );
 
   it("logs in against dynamic React ids using semantic selectors and ignores the search field", async () => {
     let received: URL | null = null;

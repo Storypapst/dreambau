@@ -38,6 +38,15 @@ export interface BrowserLoginRequest {
   };
 }
 
+// The counselling app keeps its session in `keycloak`. The Admin shares that
+// host (/app next to /admin) and keeps its own httpOnly session in
+// `oriso_admin_access_token` on /admin; Admins deployed before that rename
+// still use `keycloak` there.
+export const ORISO_REQUIRED_AUTH_STATE: NonNullable<BrowserLoginRequest["requiredAuthState"]> = {
+  cookieNames: ["keycloak", "oriso_admin_access_token"],
+  localStorageKeys: ["auth.keycloak"]
+};
+
 export interface BrokerDependencies {
   baseUrl: string;
   identity: string;
@@ -244,7 +253,8 @@ export async function activateLoginSubmit(
   fallback: () => Promise<void>,
   transitionStarted: () => Promise<boolean>,
   timeoutMs = 2_000,
-  sleep: (ms: number) => Promise<void> = (ms) => delay(ms)
+  sleep: (ms: number) => Promise<void> = (ms) => delay(ms),
+  prepareRetry: () => Promise<void> = async () => {}
 ): Promise<void> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const submit = await resolveVisible(candidates(), "submit", timeoutMs).catch(() => null);
@@ -254,6 +264,8 @@ export async function activateLoginSubmit(
       return;
     } catch {
       await sleep(100);
+      if (await transitionStarted()) return;
+      await prepareRetry();
       if (await transitionStarted()) return;
     }
   }
@@ -288,6 +300,14 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
   try {
     const page = await context.newPage();
     const failedResponses: string[] = [];
+    let submissionMayHaveStarted = false;
+    page.on("request", (request) => {
+      // Do not refill after a potentially dispatched authentication request.
+      // Admin's initial session teardown is not a credential submission.
+      if (request.method() === "POST" && new URL(request.url()).pathname !== "/admin/auth/clear-token") {
+        submissionMayHaveStarted = true;
+      }
+    });
     page.on("response", (response) => {
       if (response.status() >= 400) failedResponses.push(`${response.status()} ${new URL(response.url()).pathname}`);
     });
@@ -345,16 +365,33 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     });
     otpChallenge.catch(() => {});
 
+    let recoveredFormReset = false;
+    const loginTransitionStarted = async () => {
+      if (submissionMayHaveStarted || page.url() !== preSubmitUrl) return true;
+      if (otpWasVisibleBeforeSubmit) return false;
+      for (const candidate of otpCandidates(page)) {
+        if (await candidate.first().isVisible().catch(() => false)) return true;
+      }
+      return false;
+    };
     await activateLoginSubmit(
       () => submitCandidates(page),
       () => passwordField.press("Enter"),
+      loginTransitionStarted,
+      2_000,
+      undefined,
       async () => {
-        if (page.url() !== preSubmitUrl) return true;
-        if (otpWasVisibleBeforeSubmit) return false;
-        for (const candidate of otpCandidates(page)) {
-          if (await candidate.first().isVisible().catch(() => false)) return true;
-        }
-        return false;
+        if (recoveredFormReset || submissionMayHaveStarted || page.url() !== preSubmitUrl) return;
+        const username = await resolveVisible(usernameCandidates(page), "username", 2_000);
+        const password = await resolveVisible(passwordCandidates(page), "password", 2_000);
+        // A late login-page mount can replace both filled fields while click
+        // waits for actionability. Recover that reset once, not a rejected login.
+        if (await username.inputValue() || await password.inputValue()) return;
+        if (await loginTransitionStarted()) return;
+        recoveredFormReset = true;
+        await username.fill(request.username, { timeout: 2_000 });
+        if (await loginTransitionStarted()) return;
+        await password.fill(request.password, { timeout: 2_000 });
       }
     );
 
@@ -431,12 +468,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       statePath,
       ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
       getOtp,
-      requiredAuthState: account.project === "oriso"
-        ? {
-            cookieNames: ["keycloak"],
-            localStorageKeys: ["auth.keycloak"]
-          }
-        : undefined
+      requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined
     });
     await chmod(statePath, 0o600);
     (dependencies.scheduleCleanup ?? scheduleCleanup)(stateDirectory, STATE_TTL_MS);

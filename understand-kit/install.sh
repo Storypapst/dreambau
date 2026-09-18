@@ -166,9 +166,10 @@ kit_subscribe() {
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/oriso-kit-subscribe.XXXXXX")" || return 1
   trap 'rm -rf "$tmp"' RETURN
 
-  http_status="$(curl -sS -o "$tmp/manifest.json" -w '%{http_code}' \
+  # Read the header from stdin: process arguments are observable by other tools.
+  http_status="$(printf 'Authorization: Bearer %s\n' "$token" | curl -sS -o "$tmp/manifest.json" -w '%{http_code}' \
     --connect-timeout 4 --max-time 8 \
-    -H "Authorization: Bearer $token" "$base/manifest" 2>"$tmp/curl.err")"
+    -H @- "$base/manifest" 2>"$tmp/curl.err")"
   if [ "$http_status" != "200" ]; then
     case "$http_status" in
       401) echo "[kit-subscribe] failed — 401 unauthorized (token invalid, expired or revoked)" ;;
@@ -212,9 +213,9 @@ PYEOF
   fi
 
   filename="understand-kit-$remote_version.tar.gz"
-  http_status="$(curl -sS -o "$tmp/$filename" -w '%{http_code}' \
+  http_status="$(printf 'Authorization: Bearer %s\n' "$token" | curl -sS -o "$tmp/$filename" -w '%{http_code}' \
     --connect-timeout 4 --max-time 60 \
-    -H "Authorization: Bearer $token" "$base/bundle" 2>"$tmp/curl.err")"
+    -H @- "$base/bundle" 2>"$tmp/curl.err")"
   if [ "$http_status" != "200" ]; then
     if [ "$http_status" = "503" ]; then
       echo "[kit-subscribe] failed — endpoint says the bundle is not built yet (503)"

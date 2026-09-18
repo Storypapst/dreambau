@@ -24,18 +24,16 @@ export function readMacOSKeychainCredential(identity: string, options: KeychainO
   const find = () => spawn(
     "security",
     ["find-generic-password", "-s", options.service ?? "dreambau-test-access", "-a", identity, "-w"],
-    { encoding: "utf8", timeout: 2_000 }
+    { encoding: "utf8", timeout: 120_000 }
   );
-  let result = find();
-  if (result.status !== 0) {
-    spawn(
-      "security",
-      ["unlock-keychain", join(options.home ?? homedir(), "Library", "Keychains", "login.keychain-db")],
-      { encoding: "utf8", timeout: 2_000, stdio: ["ignore", "pipe", "pipe"] }
-    );
-    result = find();
+  const result = find();
+  if (result.status === 0) return String(result.stdout).trim();
+  const code = (result.error as NodeJS.ErrnoException | undefined)?.code;
+  if (result.status === 44 || code === "ENOENT") return "";
+  if (code === "ETIMEDOUT") {
+    throw new Error("Keychain approval timed out after 120 seconds. Run again and approve the macOS dialog.");
   }
-  return result.status === 0 ? String(result.stdout).trim() : "";
+  throw new Error("macOS Keychain access was denied or unavailable. Approve the Keychain dialog and retry; the stored token has not been changed.");
 }
 
 const safeNamePattern = /^[A-Za-z0-9._-]+$/;
