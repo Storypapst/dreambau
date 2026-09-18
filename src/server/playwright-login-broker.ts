@@ -38,6 +38,15 @@ export interface BrowserLoginRequest {
   };
 }
 
+// The counselling app keeps its session in `keycloak`. The Admin shares that
+// host (/app next to /admin) and keeps its own httpOnly session in
+// `oriso_admin_access_token` on /admin; Admins deployed before that rename
+// still use `keycloak` there.
+export const ORISO_REQUIRED_AUTH_STATE: NonNullable<BrowserLoginRequest["requiredAuthState"]> = {
+  cookieNames: ["keycloak", "oriso_admin_access_token"],
+  localStorageKeys: ["auth.keycloak"]
+};
+
 export interface BrokerDependencies {
   baseUrl: string;
   identity: string;
@@ -459,12 +468,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       statePath,
       ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
       getOtp,
-      requiredAuthState: account.project === "oriso"
-        ? {
-            cookieNames: ["keycloak"],
-            localStorageKeys: ["auth.keycloak"]
-          }
-        : undefined
+      requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined
     });
     await chmod(statePath, 0o600);
     (dependencies.scheduleCleanup ?? scheduleCleanup)(stateDirectory, STATE_TTL_MS);
