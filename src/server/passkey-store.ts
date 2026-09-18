@@ -19,8 +19,10 @@ const credentialInputSchema = z.object({
   counter: z.number().int().nonnegative(),
   transports: z.array(z.string().min(1)),
   deviceType: z.string().min(1),
-  backedUp: z.boolean()
+  backedUp: z.boolean(),
+  name: z.string().trim().min(1).max(60).optional()
 });
+const credentialNameSchema = z.string().trim().min(1).max(60);
 const challengeSchema = z.object({
   sessionId: z.string().min(1),
   kind: z.enum(["registration", "authentication"]),
@@ -49,9 +51,14 @@ export interface StoredCredential {
   transports: string[];
   deviceType: string;
   backedUp: boolean;
+  /** Human label chosen at registration or later; null for passkeys from before labels existed. */
+  name: string | null;
   createdAt: string;
   lastUsedAt: string | null;
 }
+
+/** Public shape of a passkey for the owner's own management view. Never carries the public key. */
+export type PasskeySummary = Omit<StoredCredential, "publicKey" | "counter" | "userId">;
 
 export function createPasskeyStore(path: string) {
   const sqlite = new Database(path);
@@ -116,6 +123,8 @@ export function createPasskeyStore(path: string) {
   `);
   const userColumns = new Set((sqlite.prepare("PRAGMA table_info(human_users)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!userColumns.has("role")) sqlite.exec("ALTER TABLE human_users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+  const credentialColumns = new Set((sqlite.prepare("PRAGMA table_info(passkey_credentials)").all() as Array<{ name: string }>).map((column) => column.name));
+  if (!credentialColumns.has("name")) sqlite.exec("ALTER TABLE passkey_credentials ADD COLUMN name TEXT");
 
   // Existing project assignments become explicit local grants before the column
   // stops being authoritative. Idempotent, so opening the store never duplicates.
@@ -168,9 +177,11 @@ export function createPasskeyStore(path: string) {
     transports: z.array(z.string()).parse(JSON.parse(row.transports)),
     deviceType: row.device_type,
     backedUp: Boolean(row.backed_up),
+    name: row.name ?? null,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at
   });
+  const toSummary = ({ publicKey: _publicKey, counter: _counter, userId: _userId, ...summary }: StoredCredential): PasskeySummary => summary;
 
   return {
     createUser(input: z.input<typeof userInputSchema>) {
@@ -227,10 +238,32 @@ export function createPasskeyStore(path: string) {
       const credential = credentialInputSchema.parse(input);
       const createdAt = new Date().toISOString();
       sqlite.prepare(`INSERT INTO passkey_credentials
-        (id,user_id,public_key,counter,transports,device_type,backed_up,created_at,last_used_at)
-        VALUES(?,?,?,?,?,?,?,?,NULL)`)
+        (id,user_id,public_key,counter,transports,device_type,backed_up,name,created_at,last_used_at)
+        VALUES(?,?,?,?,?,?,?,?,?,NULL)`)
         .run(credential.id, credential.userId, Buffer.from(credential.publicKey), credential.counter,
-          JSON.stringify(credential.transports), credential.deviceType, Number(credential.backedUp), createdAt);
+          JSON.stringify(credential.transports), credential.deviceType, Number(credential.backedUp), credential.name ?? null, createdAt);
+    },
+    listPasskeys(userId: string): PasskeySummary[] {
+      return (sqlite.prepare("SELECT * FROM passkey_credentials WHERE user_id=? ORDER BY created_at").all(userId) as any[])
+        .map(rowToCredential).map(toSummary);
+    },
+    renamePasskey(userId: string, id: string, name: string) {
+      const parsed = credentialNameSchema.parse(name);
+      const result = sqlite.prepare("UPDATE passkey_credentials SET name=? WHERE id=? AND user_id=?").run(parsed, id, userId);
+      return result.changes === 1;
+    },
+    /**
+     * Removes one passkey but never the last one: without any passkey the
+     * account would fall back to recovery codes only.
+     */
+    deletePasskey(userId: string, id: string): "deleted" | "not_found" | "last_passkey" {
+      return sqlite.transaction(() => {
+        const owned = sqlite.prepare("SELECT id FROM passkey_credentials WHERE user_id=?").all(userId) as Array<{ id: string }>;
+        if (!owned.some((row) => row.id === id)) return "not_found" as const;
+        if (owned.length <= 1) return "last_passkey" as const;
+        sqlite.prepare("DELETE FROM passkey_credentials WHERE id=? AND user_id=?").run(id, userId);
+        return "deleted" as const;
+      })();
     },
     getCredential(id: string) {
       const row = sqlite.prepare("SELECT * FROM passkey_credentials WHERE id=?").get(id);

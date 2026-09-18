@@ -127,7 +127,20 @@ describe("LoginForm passkey onboarding", () => {
 
     expect(sessionStorage.getItem("testmails-login-email")).toBe("frank@dreambau.com");
     expect(localStorage.getItem("testmails-login-email")).toBeNull();
-    expect(vi.mocked(authenticateWithPasskey).mock.calls[0]?.[2]).toEqual({ remember: false });
+    expect(vi.mocked(authenticateWithPasskey).mock.calls[0]?.[2]).toMatchObject({ remember: false });
+  });
+
+  it("explains the QR code when every passkey lives on the phone", async () => {
+    vi.mocked(authenticateWithPasskey).mockImplementation(async (_email, _deps, options) => { options?.onHybridOnly?.(); throw new Error("cancelled"); });
+    await renderWithBootstrapStatus({ enabled: false });
+    const email = container.querySelector('input[type="email"]') as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(email, "frank@dreambau.com");
+      email.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const button = Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.includes("Mit Passkey anmelden"));
+    await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.querySelector('[data-testid="hybrid-only-hint"]')?.textContent).toContain("Dein Passkey liegt auf einem anderen Gerät");
   });
 
   it("asks for a 30-day session when stay-signed-in is ticked and remembers the choice", async () => {
@@ -145,7 +158,7 @@ describe("LoginForm passkey onboarding", () => {
     const button = Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.includes("Mit Passkey anmelden"));
     await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-    expect(vi.mocked(authenticateWithPasskey).mock.calls[0]?.[2]).toEqual({ remember: true });
+    expect(vi.mocked(authenticateWithPasskey).mock.calls[0]?.[2]).toMatchObject({ remember: true });
     expect(localStorage.getItem("testmails-remember-me")).toBe("1");
   });
 
