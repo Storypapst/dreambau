@@ -170,6 +170,14 @@ const passwordAlphabets = [
   "!$%*+-=?"
 ];
 
+function adviceSeekerRegistrationUsername(email: string) {
+  return email
+    .trim()
+    .toLowerCase()
+    .replace("@", "_at_")
+    .replace(/[^a-z0-9=_\-./+]/g, "_");
+}
+
 /**
  * Generates the application password stored in the provisioned Test Access
  * record. The invited human sets exactly this password during ORISO
@@ -385,11 +393,15 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     return response;
   }
 
-  async function credentialToken(record: TestAccessRecord, totpSecret?: string) {
+  async function credentialToken(
+    record: TestAccessRecord,
+    totpSecret?: string,
+    username = record.username
+  ) {
     const form = new URLSearchParams({
       client_id: options.clientId,
       grant_type: "password",
-      username: record.username,
+      username,
       password: record.secret
     });
     if (totpSecret) form.set("otp", generateEnvironmentTotp(totpSecret, now()).code);
@@ -438,12 +450,43 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     });
   }
 
-  async function retryAuthenticatedToken(record: TestAccessRecord, totpSecret?: string) {
-    let probe = await credentialToken(record, totpSecret);
+  async function publicRegistrationJson(
+    path: string,
+    agencyId: number,
+    init: { method?: string; body?: string } = {}
+  ) {
+    const method = init.method ?? "GET";
+    const csrfToken = ["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)
+      ? null
+      : randomUUID();
+    return fetch(`${apiBaseUrl}${path}`, {
+      method,
+      headers: {
+        agencyId: String(agencyId),
+        "X-U25-CSRF-TOKEN": "dreambau-test-access",
+        ...(csrfToken
+          ? {
+              "X-CSRF-Token": csrfToken,
+              Cookie: `CSRF-TOKEN=${csrfToken}`
+            }
+          : {}),
+        ...(init.body ? { "Content-Type": "application/json" } : {})
+      },
+      body: init.body,
+      signal: requestSignal()
+    });
+  }
+
+  async function retryAuthenticatedToken(
+    record: TestAccessRecord,
+    totpSecret?: string,
+    username = record.username
+  ) {
+    let probe = await credentialToken(record, totpSecret, username);
     for (const delay of provisioningRetryDelaysMs) {
       if (probe.kind === "authenticated") return probe.token;
       await sleep(delay);
-      probe = await credentialToken(record, totpSecret);
+      probe = await credentialToken(record, totpSecret, username);
     }
     return probe.kind === "authenticated" ? probe.token : null;
   }
@@ -506,7 +549,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         return {
           path: "/users/askers/new",
           body: {
-            username: input.record.username,
+            username: adviceSeekerRegistrationUsername(input.record.email ?? input.record.username),
             password: encodeURIComponent(input.record.secret),
             postcode: options.defaultPostcode,
             agencyId: options.defaultAgencyId,
@@ -627,10 +670,15 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       let created = false;
       if (!userToken) {
         const request = creationRequest(input);
-        const createResponse = await authorizedJson(request.path, {
-          method: "POST",
-          body: JSON.stringify(request.body)
-        });
+        const createResponse = input.role === "advice-seeker"
+          ? await publicRegistrationJson(request.path, options.defaultAgencyId, {
+              method: "POST",
+              body: JSON.stringify(request.body)
+            })
+          : await authorizedJson(request.path, {
+              method: "POST",
+              body: JSON.stringify(request.body)
+            });
         if (!createResponse.ok) {
           if (createResponse.status === 409) {
             throw new OrisoProvisioningError("account_credentials_mismatch");
@@ -656,7 +704,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           if (!relationResponse.ok) throw new OrisoProvisioningError("account_create_failed");
         }
         created = true;
-        const postCreateToken = await retryAuthenticatedToken(input.record);
+        const postCreateUsername = input.role === "advice-seeker"
+          ? adviceSeekerRegistrationUsername(input.record.email ?? input.record.username)
+          : input.record.username;
+        const postCreateToken = await retryAuthenticatedToken(input.record, undefined, postCreateUsername);
         if (!postCreateToken) {
           throw new OrisoProvisioningError("account_credentials_mismatch");
         }
