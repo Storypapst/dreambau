@@ -10,6 +10,7 @@ export interface RuntimeConfig {
   passwordHash: string;
   sessionSecret: string;
   accountsPath: string;
+  accountsSource: "file" | "infisical";
   databasePath: string;
   exportPath: string;
   machineIdentitiesPath: string;
@@ -162,6 +163,9 @@ export function loadConfig(): RuntimeConfig {
     passwordHash: fromFileOrEnv("password-hash", "TESTMAILS_PASSWORD_HASH"),
     sessionSecret: fromFileOrEnv("session-secret", "TESTMAILS_SESSION_SECRET"),
     accountsPath: process.env.TESTMAILS_ACCOUNTS_PATH ?? "/run/secrets/testmails/accounts.json",
+    // Opt-in, so switching the catalogue to Infisical is a deploy decision
+    // rather than something that changes under an unrelated release.
+    accountsSource: process.env.TESTMAILS_ACCOUNTS_SOURCE === "infisical" ? "infisical" : "file",
     databasePath: process.env.TESTMAILS_DATABASE_PATH ?? "/data/testmails.sqlite",
     exportPath: process.env.TESTMAILS_EXPORT_PATH ?? "/data/export/testmails.md",
     machineIdentitiesPath: process.env.TEST_ACCESS_IDENTITIES_PATH ?? "/run/secrets/test-access/machine-identities.json",

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { installAuth } from "./auth.js";
 import { createDocsMirrorRouter } from "./docs-mirror.js";
 import { loadAccounts as loadAccountsFile, type AccountRecord } from "./accounts.js";
+import { createInfisicalAccountSource, type AccountSource } from "./infisical-accounts.js";
 import { loadConfig } from "./config.js";
 import { createDatabase, type RegistryDatabase } from "./db.js";
 import { lifecycleStatuses, metadataPatchSchema } from "./metadata.js";
@@ -160,7 +161,11 @@ export function createApp(options: AppOptions = {}) {
   // Expired session rows are pruned hourly; `unref` keeps the timer from
   // holding a test process open.
   setInterval(() => sessions.prune(), 60 * 60 * 1000).unref();
-  const accountLoader = options.loadAccounts ?? (() => loadAccountsFile(config.accountsPath));
+  // Assigned once the registry provider exists; until then, and whenever
+  // Infisical has not answered yet, the secret file is the catalogue.
+  let accountSource: AccountSource | null = null;
+  const accountLoader = options.loadAccounts
+    ?? (() => accountSource ? accountSource.load() : loadAccountsFile(config.accountsPath));
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
   installPasskeyAuth(api, {
     store: passkeyStore,
@@ -257,6 +262,19 @@ export function createApp(options: AppOptions = {}) {
     });
   };
   const registryProvider = options.registryProvider ?? runtimeRegistryProvider();
+  // The mailbox catalogue lives in Infisical as `kind: "mailbox"` records, in the
+  // same projects this provider already reads. Only wire it up when the registry
+  // itself is Infisical-backed; the file-backed registry is built *from* the
+  // catalogue and would be circular.
+  if (!options.loadAccounts && config.accountsSource === "infisical" && config.registryProvider === "infisical") {
+    const source = createInfisicalAccountSource({ registryProvider, fallbackPath: config.accountsPath, now: options.now });
+    const pull = () => source.refresh().catch((error) => {
+      console.error(`account catalogue refresh failed: ${error instanceof Error ? error.message : error}`);
+    });
+    void pull();
+    setInterval(pull, 5 * 60 * 1000).unref();
+    accountSource = source;
+  }
   const registryWriter = options.registryWriter ?? (
     config.registryProvider === "infisical" && config.infisical?.writer
       ? createInfisicalRegistryWriter({
@@ -322,6 +340,7 @@ export function createApp(options: AppOptions = {}) {
       else await registryProvider.list();
       res.json({
         status: "ok",
+        accounts: accountSource?.status() ?? { source: "file" as const, count: accountLoader().length, lastRefreshAt: null, lastFailureAt: null, lastFailure: null },
         humanAccessQueue: {
           enqueued: serializeHumanAccess.metrics.enqueued,
           expired: serializeHumanAccess.metrics.expired

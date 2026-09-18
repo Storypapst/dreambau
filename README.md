@@ -244,6 +244,26 @@ drei konfigurierten Projekt-IDs und den vier Umgebungen `local`, `pre-dev`,
 widersprüchliche Records stoppen den Import. Upstream-Antworten und
 Credentials erscheinen nicht in Fehlern.
 
+### Postfach-Katalog aus Infisical
+
+Der Katalog der Testpostfächer liegt in denselben Projekten als Records mit
+`kind: "mailbox"` in der Umgebung `production-test` — 90 im Projekt `dreambau`,
+60 in `oriso`, 30 in `orimo`. Mit `TESTMAILS_ACCOUNTS_SOURCE=infisical` liest
+der Hub den Katalog von dort statt aus dem Secret-File.
+
+Das löst zwei Dinge. Postfach-Zugangsdaten hängen nicht mehr am macOS Keychain
+einer einzelnen Person, also kann jede Machine Identity provisionieren. Und
+`encryption` wird aus `encryptionFor(email)` **berechnet** statt gespeichert:
+ein veraltetes Flag kann nicht mehr entstehen. Genau das war passiert — vier
+OTP-Postfächer waren in Stalwart wochenlang unverschlüsselt, während die Datei
+weiter `encrypted` behauptete.
+
+Der Schalter ist bewusst opt-in und `file` bleibt Voreinstellung. Solange
+Infisical noch nicht geantwortet hat, und nur dann, beantwortet die Datei den
+Katalog; ein späterer fehlgeschlagener Refresh verwirft einen guten Stand nie.
+`GET /testmails/health/ready` zeigt unter `accounts`, aus welcher Quelle der
+laufende Katalog stammt, wie viele Konten er hat und wann er zuletzt frisch war.
+
 ### Mailbox und Anwendungslogin
 
 Ein Springfield-Konto ist immer zunächst eine Mailbox. Das in der Kontokarte

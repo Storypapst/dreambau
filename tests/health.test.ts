@@ -17,6 +17,7 @@ describe("health checks", () => {
     expect(ready.status).toBe(200);
     expect(ready.body).toEqual({
       status: "ok",
+      accounts: { source: "file", count: 0, lastRefreshAt: null, lastFailureAt: null, lastFailure: null },
       humanAccessQueue: { enqueued: 0, expired: 0 }
     });
   });

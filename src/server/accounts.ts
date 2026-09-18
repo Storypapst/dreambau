@@ -37,7 +37,12 @@ export function encryptionFor(email: string): AccountRecord["encryption"] {
 }
 
 export function parseAccounts(raw: string): AccountRecord[] {
-  const parsed = z.array(accountSchema).parse(JSON.parse(raw));
+  return validateAccounts(z.array(accountSchema).parse(JSON.parse(raw)));
+}
+
+// The same catalogue rules apply however the records arrived — parsed from the
+// secret file or mapped from Infisical mailbox records — so both paths run this.
+export function validateAccounts(parsed: AccountRecord[]): AccountRecord[] {
   const emails = new Set<string>();
   for (const account of parsed) {
     if (emails.has(account.email)) throw new Error(`Duplicate email: ${account.email}`);
