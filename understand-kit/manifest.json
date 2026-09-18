@@ -26,7 +26,7 @@
     },
     {
       "path": "build-bundle.sh",
-      "sha256": "9176bb8e43973ba7708fe95d64cdb482b87730e13edebf4ebee47bbf3440e760"
+      "sha256": "0983d216e72ae62589ce2c87a249d3c4dbb0a593a55887b58a781ba909aba9fe"
     },
     {
       "path": "install.sh",
@@ -187,6 +187,10 @@
     {
       "path": "skills/oriso-quality-gate/SKILL.md",
       "sha256": "717f629ed06fd55714320ba9e1cc95cbbb92ea9d649fadbedffef33baf083c3e"
+    },
+    {
+      "path": "test-access-install.sh",
+      "sha256": "83dff9356b6217b3e3644a60ee85586d44aa12c4d366ae9cbba5921c594a2cf2"
     },
     {
       "path": "ua-pull.sh",
