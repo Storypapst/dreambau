@@ -121,6 +121,28 @@ export function writeFiltersToLocation(state: FilterState) {
   if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
 }
 
+/** A named filter state saved per user on the server. */
+export interface FilterPreset {
+  id: string;
+  name: string;
+  filters: FilterState;
+}
+
+/** Normalises the server value of the `filter-presets` preference. */
+export function coercePresets(input: unknown): FilterPreset[] {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const { id, name, filters } = entry as Record<string, unknown>;
+    if (typeof id !== "string" || !id || typeof name !== "string" || !name.trim()) return [];
+    return [{ id, name: name.trim(), filters: coerceFilters(filters) }];
+  });
+}
+
+export function sameFilters(left: FilterState, right: FilterState) {
+  return serializeFilters(left).toString() === serializeFilters(right).toString();
+}
+
 /** Start-up order: URL beats the last remembered state beats the defaults. */
 export function initialFilters(): FilterState {
   return readFiltersFromLocation() ?? loadLastFilters() ?? DEFAULT_FILTERS;
