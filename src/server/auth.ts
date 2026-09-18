@@ -1,11 +1,20 @@
 import argon2 from "argon2";
 import type { NextFunction, Request, Response, Router } from "express";
-import { cookieName, cookieOptions, SessionStore } from "./sessions.js";
+import { cookieName, cookieOptions, SessionStore, type SessionBackend } from "./sessions.js";
 
 interface FailureWindow { count: number; startedAt: number }
 
-export function installAuth(router: Router, passwordHash: string, sessionSecret: string, secureCookies: boolean, passwordLoginAllowed: () => boolean = () => true) {
-  const sessions = new SessionStore(sessionSecret || "test-only-session-secret");
+export function installAuth(
+  router: Router,
+  passwordHash: string,
+  sessionSecret: string,
+  secureCookies: boolean,
+  passwordLoginAllowed: () => boolean = () => true,
+  sessionBackend?: SessionBackend,
+  now?: () => number
+) {
+  const sessions = new SessionStore(sessionSecret || "test-only-session-secret", sessionBackend, now);
+  sessions.prune();
   const failures = new Map<string, FailureWindow>();
   const windowMs = 15 * 60 * 1000;
 

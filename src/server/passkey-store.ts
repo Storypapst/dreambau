@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { z } from "zod";
 import { ALL_TEST_ENVIRONMENTS, createHumanGrantStore, migrateLegacyProjectGrants } from "./human-grants.js";
+import type { SessionBackend, SessionRecord } from "./sessions.js";
 
 const projectSchema = z.enum(["oriso", "orimo", "dreambau"]);
 const synchronizedProjectsSchema = z.array(projectSchema).max(3);
@@ -102,6 +103,16 @@ export function createPasskeyStore(path: string) {
     );
     CREATE INDEX IF NOT EXISTS email_otp_challenges_user_requested
       ON email_otp_challenges(user_id, requested_at DESC);
+    CREATE TABLE IF NOT EXISTS human_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES human_users(id) ON DELETE CASCADE,
+      method TEXT NOT NULL CHECK(method IN ('password-bootstrap','passkey','recovery','email-otp')),
+      remember INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS human_sessions_expires ON human_sessions(expires_at);
   `);
   const userColumns = new Set((sqlite.prepare("PRAGMA table_info(human_users)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!userColumns.has("role")) sqlite.exec("ALTER TABLE human_users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
@@ -322,6 +333,41 @@ export function createPasskeyStore(path: string) {
       return sqlite.prepare(`SELECT id,code_hmac,expires_at,attempts_remaining,requested_at,consumed_at
         FROM email_otp_challenges WHERE user_id=? ORDER BY requested_at`).all(userId);
     },
+    /**
+     * Human sessions live next to the users so a deployment or pod restart
+     * does not sign everyone out. Only the opaque session id is stored; the
+     * cookie carries the HMAC signature and is never persisted.
+     */
+    sessions: {
+      get(id: string): SessionRecord | null {
+        const row = sqlite.prepare("SELECT * FROM human_sessions WHERE id=?").get(id) as any;
+        if (!row) return null;
+        return {
+          id: row.id,
+          principal: { authenticated: true, method: row.method, userId: row.user_id ?? null },
+          remember: Boolean(row.remember),
+          createdAt: row.created_at,
+          expiresAt: row.expires_at,
+          lastSeenAt: row.last_seen_at
+        };
+      },
+      put(record: SessionRecord) {
+        sqlite.prepare(`INSERT INTO human_sessions(id,user_id,method,remember,created_at,expires_at,last_seen_at)
+          VALUES(?,?,?,?,?,?,?)
+          ON CONFLICT(id) DO UPDATE SET user_id=excluded.user_id,method=excluded.method,remember=excluded.remember,
+            created_at=excluded.created_at,expires_at=excluded.expires_at,last_seen_at=excluded.last_seen_at`)
+          .run(record.id, record.principal.userId, record.principal.method, Number(record.remember), record.createdAt, record.expiresAt, record.lastSeenAt);
+      },
+      touch(id: string, lastSeenAt: number) {
+        sqlite.prepare("UPDATE human_sessions SET last_seen_at=? WHERE id=?").run(lastSeenAt, id);
+      },
+      delete(id: string) {
+        sqlite.prepare("DELETE FROM human_sessions WHERE id=?").run(id);
+      },
+      deleteExpired(now: number) {
+        return sqlite.prepare("DELETE FROM human_sessions WHERE expires_at<=?").run(now).changes;
+      }
+    } satisfies SessionBackend,
     close() { sqlite.close(); }
   };
 }

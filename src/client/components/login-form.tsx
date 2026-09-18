@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input";
 import { t, type Locale } from "@/i18n";
 import { rememberLoginEmail, rememberedLoginEmail } from "@/login-hint";
 import { authenticateWithPasskey } from "@/passkey-client";
+import { rememberStaySignedIn, rememberedStaySignedIn } from "@/remember-me";
 
 export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onAuthenticated: () => void }) {
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState(rememberedLoginEmail);
+  const [staySignedIn, setStaySignedIn] = useState(rememberedStaySignedIn);
   const [recoveryCode, setRecoveryCode] = useState("");
   const [emailOtp, setEmailOtp] = useState("");
   const [emailOtpRequestedFor, setEmailOtpRequestedFor] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   }
   async function passkeyLogin() {
     setBusy(true); setError("");
-    try { await authenticateWithPasskey(email); rememberLoginEmail(email); onAuthenticated(); }
+    try { await authenticateWithPasskey(email, undefined, { remember: staySignedIn }); rememberLoginEmail(email); rememberStaySignedIn(staySignedIn); onAuthenticated(); }
     catch (reason) { setError(reason instanceof Error && reason.message === "passkey_not_registered"
       ? (locale === "de" ? "Für dieses Konto ist noch kein Passkey registriert. Bitte den Enrollment-Code unten verwenden und danach den Passkey einrichten." : "No passkey is registered for this account yet. Use the enrollment code below, then set up the passkey.")
       : (locale === "de" ? "Passkey-Anmeldung fehlgeschlagen." : "Passkey sign-in failed.")); }
@@ -79,6 +81,7 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
               <FieldLabel htmlFor="email">E-Mail</FieldLabel>
               <Input id="email" type="email" autoComplete="username webauthn" value={email} onChange={(event) => setEmail(event.target.value)} />
             </Field>
+            <label className="flex items-center gap-2 text-sm" htmlFor="stay-signed-in"><input id="stay-signed-in" type="checkbox" className="size-4 accent-primary" checked={staySignedIn} onChange={(event) => setStaySignedIn(event.target.checked)} />{t(locale, "login.staySignedIn")}</label>
             <Button type="button" onClick={passkeyLogin} disabled={busy || !email}><KeyRoundIcon />{locale === "de" ? "Mit Passkey anmelden" : "Sign in with passkey"}</Button>
             <Button type="button" variant="outline" onClick={requestEmailOtp} disabled={busy || !email}><MailIcon data-icon="inline-start" />{locale === "de" ? "Code per E-Mail senden" : "Send code by email"}</Button>
             {emailOtpRequestedFor === email.trim().toLowerCase() && <><Alert><MailIcon /><AlertTitle>{locale === "de" ? "Postfach prüfen" : "Check your inbox"}</AlertTitle><AlertDescription>{locale === "de" ? "Wenn das Konto berechtigt ist, wurde ein sechsstelliger Code gesendet." : "If the account is eligible, a six-digit code was sent."}</AlertDescription></Alert>

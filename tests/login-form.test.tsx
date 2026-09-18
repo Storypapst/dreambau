@@ -127,6 +127,32 @@ describe("LoginForm passkey onboarding", () => {
 
     expect(sessionStorage.getItem("testmails-login-email")).toBe("frank@dreambau.com");
     expect(localStorage.getItem("testmails-login-email")).toBeNull();
+    expect(vi.mocked(authenticateWithPasskey).mock.calls[0]?.[2]).toEqual({ remember: false });
+  });
+
+  it("asks for a 30-day session when stay-signed-in is ticked and remembers the choice", async () => {
+    vi.mocked(authenticateWithPasskey).mockResolvedValue({ verified: true, remember: true });
+    await renderWithBootstrapStatus({ enabled: false });
+    const email = container.querySelector('input[type="email"]') as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(email, "frank@dreambau.com");
+      email.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const checkbox = container.querySelector("#stay-signed-in") as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    await act(async () => checkbox.click());
+    expect(checkbox.checked).toBe(true);
+    const button = Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.includes("Mit Passkey anmelden"));
+    await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(vi.mocked(authenticateWithPasskey).mock.calls[0]?.[2]).toEqual({ remember: true });
+    expect(localStorage.getItem("testmails-remember-me")).toBe("1");
+  });
+
+  it("restores the last stay-signed-in choice from this browser", async () => {
+    localStorage.setItem("testmails-remember-me", "1");
+    await renderWithBootstrapStatus({ enabled: false });
+    expect((container.querySelector("#stay-signed-in") as HTMLInputElement).checked).toBe(true);
   });
 
   it("directs users without a passkey to their enrollment code", async () => {
