@@ -218,8 +218,17 @@ function readTestAccessCredential(identity: string) {
   return readMachineCredential(identity, { readKeychain: readMacOSKeychainCredential });
 }
 
+/** Stamped by scripts/build-test-access-bundle.sh; "dev" when run from source. */
+export function testAccessCliVersion() {
+  return `test-access ${process.env.TEST_ACCESS_CLI_VERSION ?? "dev"} (${process.env.TEST_ACCESS_CLI_SHA ?? "source"})`;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
+  if (argv[0] === "--version" || argv[0] === "-V") {
+    process.stdout.write(`${testAccessCliVersion()}\n`);
+    return;
+  }
   const identityIndex = argv.indexOf("--identity");
   const identity = identityIndex >= 0 ? argv.splice(identityIndex, 2)[1] : process.env.TEST_ACCESS_IDENTITY ?? "";
   const baseUrl = process.env.TEST_ACCESS_URL ?? "https://dreambau.com/testmails/api/v1";

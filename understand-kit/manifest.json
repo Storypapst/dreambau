@@ -1,8 +1,9 @@
 {
   "name": "oriso-understand-kit",
-  "version": "0.4.4",
-  "date": "2026-09-12",
+  "version": "0.5.0",
+  "date": "2026-09-14",
   "changelog": [
+    "0.5.0 (2026-09-14) — the Test-Access CLI ships through the kit. New test-access-install.sh (also copied to ~/.local/bin/test-access-install): fetches /understand/api/v1/cli/manifest with the personal token, downloads the bundle only when a newer version is served, verifies the sha256 before swapping it in with a backup, writes the test-access wrapper and installs Playwright in the manifest's version next to it. install.sh runs it at step 4a; --subscribe (and therefore the session hook) keeps it current. No more hand-delivered CLI files, no checkout needed; 'test-access --version' names the release and commit.",
     "0.4.4 (2026-09-12) — kit subscription sends its authorization header through stdin rather than process arguments. Regression coverage verifies authenticated manifest and bundle downloads, repeat subscription, and preservation of personal files.",
     "0.4.3 (2026-09-11) — first shipped to Shazia only (canary via her server folder, not the endpoint). Three more team skills: code-archaeology (find existing work before rebuilding it), issue-subtask-pr-loop (issue → sub-issues → PRs, readiness score; PR level now targets dev, level 14 no longer lets an agent merge) and oriso-quality-gate. New rules/team/: team-directory (people, GitHub/Slack IDs, reviewer routing — no private emails), slack-channels, pr-commit (dev, not pre-dev). These replace Frank-local .oriso/agent/ files the skills used to read. AGENTS-block gains 'Who you are working for': the user is the developer in rules/devs/$ORISO_KIT_DEV.md, never assumed to be Frank; names in skills are roles. skills/README.md: one-line overview of every skill. rules/devs/shazia-k.md: her GitHub/Slack identity and reviewer fallback.",
     "0.4.2 (2026-09-10) — identity auto-detection actually works on a Keychain-only machine. 0.4.1 derived the identity from the credential-file directory, which most machines do not have because the Keychain is the normal store, so resolution silently found nothing. It now also asks the Keychain for an account on service 'dreambau-test-access': used directly when it already ends in -oriso, otherwise the machine prefix is reused and <prefix>-oriso is checked before use (the probe reads account names only, never a secret). The identity in use is printed — never the token. HTTP 301/302/404 and 503 from the endpoint now say what they mean (ingress path missing, wrong base URL, bundle not built) instead of showing a bare status code.",
@@ -18,7 +19,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "a112aeee24d245a484fe498cd75217a39d78a963995a7037624009a2d9215ca5"
+      "sha256": "f59bc5083d56039d8bf1fb83be0a87e7ef151206befb26283af83cbe97ce6ba6"
     },
     {
       "path": "SECRET-SCAN.md",
@@ -26,11 +27,11 @@
     },
     {
       "path": "build-bundle.sh",
-      "sha256": "4e2dd0d8e64291d876cbfa97b54fb87f72ac42f9f3e9aa1ff4b1835d22146a1f"
+      "sha256": "0983d216e72ae62589ce2c87a249d3c4dbb0a593a55887b58a781ba909aba9fe"
     },
     {
       "path": "install.sh",
-      "sha256": "00bf9750e5ed99e28d1b2dedc97b08e864b3732ea97369e3333d22377caef4a8"
+      "sha256": "a5a20a26140ad9906d32568a099b3b7a4dd545d990e447d5a17cbf483d1c773b"
     },
     {
       "path": "kit-local.sh",
@@ -187,6 +188,10 @@
     {
       "path": "skills/oriso-quality-gate/SKILL.md",
       "sha256": "717f629ed06fd55714320ba9e1cc95cbbb92ea9d649fadbedffef33baf083c3e"
+    },
+    {
+      "path": "test-access-install.sh",
+      "sha256": "83dff9356b6217b3e3644a60ee85586d44aa12c4d366ae9cbba5921c594a2cf2"
     },
     {
       "path": "ua-pull.sh",

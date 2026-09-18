@@ -58,6 +58,13 @@ function etagMatches(header: string | undefined, etag: string) {
 
 export function createUnderstandKitRouter(options: {
   kitDir: string;
+  /**
+   * Where the built Test-Access CLI lives (`manifest.json` + `test-access.mjs`),
+   * produced by scripts/build-test-access-bundle.sh. Served at /cli/manifest and
+   * /cli/bundle with the same token rule as the kit, so one install command on
+   * a developer's machine gets exactly the released CLI, checksum included.
+   */
+  cliDir?: string;
   identities: MachineIdentitySource;
   onAuthenticated?: (identity: MachineIdentity) => void;
   now?: () => Date;
@@ -124,6 +131,51 @@ export function createUnderstandKitRouter(options: {
       if (etagMatches(req.header("if-none-match"), etag)) return res.status(304).end();
       res.set("Content-Type", "application/gzip");
       res.set("Content-Disposition", `attachment; filename="${filename}"`);
+      res.set("Content-Length", String(body.byteLength));
+      res.send(body);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  const cliManifestPath = options.cliDir ? path.join(options.cliDir, "manifest.json") : null;
+  const readCliManifest = async (): Promise<{ raw: string; parsed: { version?: unknown; files?: unknown } } | null> => {
+    if (!cliManifestPath) return null;
+    try {
+      const raw = await fs.readFile(cliManifestPath, "utf8");
+      return { raw, parsed: JSON.parse(raw) };
+    } catch {
+      return null;
+    }
+  };
+
+  router.get("/cli/manifest", async (_req, res) => {
+    const manifest = await readCliManifest();
+    if (!manifest) return res.status(503).json({ error: "cli_unavailable", message: "test-access CLI bundle not built" });
+    res.set("Cache-Control", "no-store");
+    res.type("application/json; charset=utf-8").send(manifest.raw);
+  });
+
+  router.get("/cli/bundle", async (req, res, next) => {
+    const manifest = await readCliManifest();
+    if (!manifest || !options.cliDir) return res.status(503).json({ error: "cli_unavailable", message: "test-access CLI bundle not built" });
+    const version = typeof manifest.parsed.version === "string" ? manifest.parsed.version : "";
+    const bundlePath = path.join(options.cliDir, "test-access.mjs");
+    let stats;
+    try {
+      stats = await fs.stat(bundlePath);
+    } catch {
+      return res.status(503).json({ error: "cli_unavailable", message: "test-access CLI bundle not built: test-access.mjs is missing" });
+    }
+    try {
+      const { digest, body } = await archiveDigest(bundlePath, stats.mtimeMs, stats.size);
+      const etag = `"${digest}"`;
+      res.set("ETag", etag);
+      res.set("Cache-Control", "no-store");
+      res.set("X-Cli-Version", version);
+      if (etagMatches(req.header("if-none-match"), etag)) return res.status(304).end();
+      res.set("Content-Type", "text/javascript; charset=utf-8");
+      res.set("Content-Disposition", `attachment; filename="test-access-${version || "unknown"}.mjs"`);
       res.set("Content-Length", String(body.byteLength));
       res.send(body);
     } catch (error) {

@@ -75,6 +75,8 @@ interface AppOptions {
   orisoProvisioningServices?: Partial<Record<OrisoProvisioningEnvironment, OrisoProvisioningService>>;
   docsMirrorDir?: string | null;
   understandKitDir?: string | null;
+  /** Directory with the built Test-Access CLI (dist/cli by default); null disables the endpoint. */
+  testAccessCliDir?: string | null;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -882,9 +884,15 @@ export function createApp(options: AppOptions = {}) {
     ? process.env.UNDERSTAND_KIT_DIR
       ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../understand-kit")
     : options.understandKitDir;
+  // dist/server/app.js → dist/cli; from source (tsx) there is no bundle and
+  // the endpoint answers 503 until scripts/build-test-access-bundle.sh ran.
+  const testAccessCliDir = options.testAccessCliDir === undefined
+    ? process.env.TEST_ACCESS_CLI_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../cli")
+    : options.testAccessCliDir;
   if (understandKitDir) {
     app.use("/understand/api/v1", createUnderstandKitRouter({
       kitDir: understandKitDir,
+      cliDir: testAccessCliDir ?? undefined,
       identities: machineIdentitySource,
       onAuthenticated: (identity) => database.recordMachineIdentityUse(identity.id),
       now: options.now

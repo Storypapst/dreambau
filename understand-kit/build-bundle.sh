@@ -34,13 +34,14 @@ command -v python3 >/dev/null 2>&1 || { echo "build-bundle.sh: python3 is requir
 [ -f manifest.json ] || { echo "build-bundle.sh: manifest.json not found in $KIT_DIR" >&2; exit 1; }
 
 # Payload = everything the bundle ships. Build output and VCS metadata are excluded.
-PAYLOAD=(install.sh ua-pull.sh mcp-add.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh settings.hook.json \
+PAYLOAD=(install.sh ua-pull.sh mcp-add.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh \
+         test-access-install.sh settings.hook.json \
          .mcp.json.example README.md SECRET-SCAN.md rules skills prompts pages)
 
 # ---------------------------------------------------------------------------
 # 1. Regenerate manifest.json (version/date optionally bumped, files + sha256)
 # ---------------------------------------------------------------------------
-VERSION="$(python3 - "$NEW_VERSION" <<'PYEOF'
+VERSION="$(python3 - "$NEW_VERSION" "${PAYLOAD[@]}" <<'PYEOF'
 import json, os, sys, hashlib, datetime
 
 new_version = sys.argv[1] or None
@@ -50,9 +51,13 @@ if new_version:
     manifest["version"] = new_version
     manifest["date"] = datetime.date.today().isoformat()
 
-payload = ["install.sh", "ua-pull.sh", "mcp-add.sh", "kit-subscribe.sh",
-           "kit-local.sh", "kit-publish.sh", "build-bundle.sh", "settings.hook.json", ".mcp.json.example",
-           "README.md", "SECRET-SCAN.md", "rules", "skills", "prompts", "pages"]
+# The payload comes from the shell PAYLOAD array, which is also what tar packs.
+# A second hand-maintained list here once drifted: test-access-install.sh shipped
+# in the archive but was missing from the manifest, so kit_subscribe verified
+# every other file and ran that one unchecked.
+payload = sys.argv[2:]
+if not payload:
+    raise SystemExit("build-bundle.sh: no payload passed to the manifest generator")
 
 files = []
 for item in payload:
