@@ -135,6 +135,38 @@ describe("the catalogue source falls back to the file", () => {
     expect(source.load()[0].password).toMatch(/^secret-for-/);
   });
 
+  it("boots on an unusable file instead of crash-looping, and says so", async () => {
+    // The file is a drifting copy. The drift that started this work made it fail
+    // validation outright, and load() runs synchronously during createApp — so
+    // throwing here would take the whole hub down before the first refresh runs.
+    const broken = fallbackFile(fileShaped().map((account, index) =>
+      index === 0 ? { ...account, encryption: { state: "disabled" } } : account));
+    const source = createInfisicalAccountSource({
+      registryProvider: provider(async () => { throw new Error("unreachable"); }),
+      fallbackPath: broken
+    });
+
+    expect(() => source.load()).not.toThrow();
+    expect(source.load()).toEqual([]);
+    const status = source.status();
+    expect(status.source).toBe("none");
+    expect(status.degraded).toBe(true);
+    expect(status.lastFailure).toMatch(/Encryption must be encrypted/);
+  });
+
+  it("leaves the degraded state behind once Infisical answers", async () => {
+    const broken = fallbackFile(fileShaped().map((account, index) =>
+      index === 0 ? { ...account, encryption: { state: "disabled" } } : account));
+    const source = createInfisicalAccountSource({
+      registryProvider: provider(async () => sixDomains()),
+      fallbackPath: broken
+    });
+
+    expect(source.status().degraded).toBe(true);
+    await source.refresh();
+    expect(source.status()).toMatchObject({ source: "infisical", degraded: false, count: 6 });
+  });
+
   it("stays on the file when Infisical never answers", async () => {
     const source = createInfisicalAccountSource({
       registryProvider: provider(async () => { throw new Error("unreachable"); }),

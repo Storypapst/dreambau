@@ -39,7 +39,9 @@ export function accountsFromRecords(records: TestAccessRecord[]): AccountRecord[
 }
 
 export interface AccountSourceStatus {
-  source: "infisical" | "file";
+  source: "infisical" | "file" | "none";
+  /** No catalogue at all: Infisical has not answered and the file is unusable. */
+  degraded: boolean;
   count: number;
   lastRefreshAt: string | null;
   lastFailureAt: string | null;
@@ -63,12 +65,24 @@ export function createInfisicalAccountSource(options: {
   let lastRefreshAt: string | null = null;
   let lastFailureAt: string | null = null;
   let lastFailure: string | null = null;
+  let fallbackFailure: string | null = null;
 
   return {
     load() {
       if (cached) return cached;
-      // Before the first successful pull, and only then, the file answers.
-      return loadAccountsFile(options.fallbackPath);
+      // Before the first successful pull, and only then, the file answers. It
+      // may be unusable — it is a copy that drifts, and the drift that started
+      // this work made it fail validation outright. Booting with an empty,
+      // loudly degraded catalogue beats crash-looping before the first refresh
+      // ever gets a chance to run.
+      try {
+        const accounts = loadAccountsFile(options.fallbackPath);
+        fallbackFailure = null;
+        return accounts;
+      } catch (error) {
+        fallbackFailure = error instanceof Error ? error.message : "unknown error";
+        return [];
+      }
     },
     async refresh() {
       try {
@@ -85,14 +99,15 @@ export function createInfisicalAccountSource(options: {
       }
     },
     status() {
-      let count = 0;
-      try { count = this.load().length; } catch { count = 0; }
+      const count = this.load().length;
+      const source = cached ? "infisical" : fallbackFailure ? "none" : "file";
       return {
-        source: cached ? "infisical" : "file",
+        source,
+        degraded: source === "none",
         count,
         lastRefreshAt,
         lastFailureAt,
-        lastFailure
+        lastFailure: lastFailure ?? fallbackFailure
       };
     }
   };

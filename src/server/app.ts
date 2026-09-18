@@ -338,9 +338,14 @@ export function createApp(options: AppOptions = {}) {
     try {
       if (registryProvider.health) await registryProvider.health();
       else await registryProvider.list();
+      // No catalogue means the hub cannot answer its central question, so it is
+      // not ready even when Infisical itself responds.
+      const accountStatus = accountSource?.status()
+        ?? { source: "file" as const, degraded: false, count: accountLoader().length, lastRefreshAt: null, lastFailureAt: null, lastFailure: null };
+      if (accountStatus.degraded) return res.status(503).json({ status: "unavailable", accounts: accountStatus });
       res.json({
         status: "ok",
-        accounts: accountSource?.status() ?? { source: "file" as const, count: accountLoader().length, lastRefreshAt: null, lastFailureAt: null, lastFailure: null },
+        accounts: accountStatus,
         humanAccessQueue: {
           enqueued: serializeHumanAccess.metrics.enqueued,
           expired: serializeHumanAccess.metrics.expired
