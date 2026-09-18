@@ -41,7 +41,7 @@ export class MemorySessionBackend implements SessionBackend {
   delete(id: string) { this.sessions.delete(id); }
   deleteExpired(now: number) {
     let removed = 0;
-    for (const [id, record] of this.sessions) if (record.expiresAt < now) { this.sessions.delete(id); removed += 1; }
+    for (const [id, record] of this.sessions) if (record.expiresAt <= now) { this.sessions.delete(id); removed += 1; }
     return removed;
   }
 }
@@ -106,7 +106,7 @@ export class SessionStore {
     const record = this.backend.get(id);
     const now = this.now();
     if (!record) return null;
-    if (record.expiresAt < now) { this.backend.delete(id); return null; }
+    if (record.expiresAt <= now) { this.backend.delete(id); return null; }
     if (now - record.lastSeenAt > 60 * 1000) this.backend.touch(id, now);
     return record;
   }

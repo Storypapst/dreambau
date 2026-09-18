@@ -28,7 +28,8 @@ function account(email: string): AccountRecord {
 }
 
 function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccessProvider, humanAccessTimeoutMs?: number) {
-  const passkeyStore = createPasskeyStore(path.join(mkdtempSync(path.join(tmpdir(), "passkey-auth-")), "auth.sqlite"));
+  const sqlitePath = path.join(mkdtempSync(path.join(tmpdir(), "passkey-auth-")), "auth.sqlite");
+  const passkeyStore = createPasskeyStore(sqlitePath);
   const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso", "dreambau"], role: "admin" });
   const webauthn: WebAuthnAdapter = {
     generateRegistrationOptions: vi.fn(async () => ({ challenge: "registration-challenge", rp: { id: "dreambau.com" } })),
@@ -57,7 +58,7 @@ function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccess
     bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" },
     humanAccessProvider, humanAccessTimeoutMs
   });
-  return { app, passkeyStore, user, webauthn };
+  return { app, passkeyStore, user, webauthn, sqlitePath };
 }
 
 function infisicalProvider(mode: "project-failure" | "malformed-memberships") {
@@ -152,7 +153,7 @@ describe("passkey authentication", () => {
   it("keeps a remembered passkey login for 30 days across an app restart", async () => {
     const twelveHours = 12 * 60 * 60;
     const thirtyDays = 30 * 24 * 60 * 60;
-    const { app, passkeyStore, user, webauthn } = setup();
+    const { app, passkeyStore, user, webauthn, sqlitePath } = setup();
     passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
 
     const plain = await request(app).post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
@@ -171,15 +172,20 @@ describe("passkey authentication", () => {
     expect(cookieHeader).toContain(`Max-Age=${thirtyDays}`);
     const cookie = cookieHeader.split(";")[0];
 
-    // A fresh app over the same database, as after a deployment, still accepts the cookie.
+    // A deployment replaces the process, so the store object goes with it. Closing
+    // this one and opening a second over the same file is what actually proves the
+    // session was written to SQLite; reusing the live object would pass even if
+    // sessions still lived in memory.
+    passkeyStore.close();
+    const restartedStore = createPasskeyStore(sqlitePath);
     const restarted = createApp({
-      passwordHash, secureCookies: false, loadAccounts: () => [], passkeyStore, webauthn,
+      passwordHash, secureCookies: false, loadAccounts: () => [], passkeyStore: restartedStore, webauthn,
       rpId: "dreambau.com", expectedOrigin: "https://dreambau.com",
       bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" }
     });
     const session = await request(restarted).get("/testmails/api/auth/session").set("Cookie", cookie);
     expect(session.body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
-    passkeyStore.close();
+    restartedStore.close();
   });
 
   it("lets a passkey session add, list, rename and delete passkeys but never the last one", async () => {
