@@ -26,7 +26,27 @@ const defaultWebAuthn: WebAuthnAdapter = {
   verifyAuthenticationResponse
 };
 
-const flowSchema = z.object({ flowId: z.uuid(), response: z.object({ id: z.string().min(1) }).passthrough(), remember: z.boolean().optional() });
+const flowSchema = z.object({
+  flowId: z.uuid(),
+  response: z.object({ id: z.string().min(1) }).passthrough(),
+  remember: z.boolean().optional(),
+  name: z.string().trim().min(1).max(60).optional()
+});
+
+/**
+ * Hints steer the browser towards the authenticator that actually holds the
+ * passkey. "client-device" first keeps Touch ID / Windows Hello ahead of the
+ * QR-code hybrid flow; hybrid stays listed so a phone-held passkey still works.
+ */
+const AUTHENTICATION_HINTS = ["client-device", "hybrid"] as const;
+
+/** A readable default label when the browser gave none. */
+function defaultPasskeyName(deviceType: string, transports: string[]) {
+  const hybridOnly = transports.length > 0 && transports.every((transport) => transport === "hybrid");
+  if (hybridOnly) return "Hybrid passkey (phone)";
+  if (transports.includes("usb") || transports.includes("nfc")) return "Security key";
+  return deviceType === "multiDevice" ? "Synced passkey" : "Device passkey";
+}
 
 export function installPasskeyAuth(router: Router, options: {
   store: PasskeyStore;
@@ -48,9 +68,19 @@ export function installPasskeyAuth(router: Router, options: {
   const now = options.now ?? (() => new Date());
   const expiresAt = () => new Date(now().getTime() + 5 * 60 * 1000).toISOString();
 
+// Enrolling a passkey mints a passkey session, which is the only session
+// requireStrongSession accepts. So the factors allowed to enrol are exactly the
+// ones already trusted to establish an identity: the first bootstrap login, an
+// existing passkey adding a second one, and a recovery code — which exists for
+// the case of a lost authenticator. An e-mail OTP is the deliberately weaker,
+// read-only factor; letting it enrol would let its holder promote itself.
+const ENROLMENT_METHODS: ReadonlyArray<SessionPrincipal["method"]> = ["password-bootstrap", "passkey", "recovery"];
+const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(principal.method);
+
   router.post("/auth/passkeys/registration/options", options.requireSession, async (req, res, next) => {
     try {
       const principal = res.locals.session as SessionPrincipal;
+      if (!mayEnrol(principal)) return res.status(403).json({ error: "enrolment_not_allowed" });
       let user = principal.userId ? options.store.getUser(principal.userId) : null;
       if (principal.method === "password-bootstrap") {
         user = options.store.getUserByEmail(options.bootstrapUser.email)
@@ -66,7 +96,10 @@ export function installPasskeyAuth(router: Router, options: {
         userDisplayName: user.name,
         attestationType: "none",
         excludeCredentials: credentials.map((credential) => ({ id: credential.id, transports: credential.transports })),
-        authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
+        // A discoverable credential on the local device is what makes Touch ID
+        // appear without the QR-code detour in other browsers on the same Mac.
+        authenticatorSelection: { residentKey: "required", userVerification: "required" },
+        preferredAuthenticatorType: "localDevice",
         supportedAlgorithmIDs: [-7, -257]
       });
       const flowId = randomUUID();
@@ -76,6 +109,7 @@ export function installPasskeyAuth(router: Router, options: {
   });
 
   router.post("/auth/passkeys/registration/verify", options.requireSession, async (req, res) => {
+    if (!mayEnrol(res.locals.session as SessionPrincipal)) return res.status(403).json({ error: "enrolment_not_allowed" });
     const parsed = flowSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "invalid_request" });
     const challenge = options.store.consumeChallenge(parsed.data.flowId, "registration", now());
@@ -97,19 +131,25 @@ export function installPasskeyAuth(router: Router, options: {
       });
       if (!result.verified || !result.registrationInfo) return res.status(400).json({ error: "verification_failed" });
       const info = result.registrationInfo;
+      const transports: string[] = info.credential.transports ?? (parsed.data.response as any).response?.transports ?? [];
       options.store.addCredential({
         id: info.credential.id,
         userId: challenge.userId,
         publicKey: info.credential.publicKey,
         counter: info.credential.counter,
-        transports: info.credential.transports ?? (parsed.data.response as any).response?.transports ?? [],
+        transports,
         deviceType: info.credentialDeviceType,
-        backedUp: info.credentialBackedUp
+        backedUp: info.credentialBackedUp,
+        name: parsed.data.name ?? defaultPasskeyName(info.credentialDeviceType, transports)
       });
-      options.sessions.destroy(req.cookies?.[cookieName]);
-      res.cookie(cookieName, options.sessions.create({ authenticated: true, method: "passkey", userId: challenge.userId }), cookieOptions(options.secureCookies));
+      // Adding a further passkey from a live passkey session keeps that session,
+      // including its "stay signed in" lifetime. Weaker sessions are upgraded.
+      if (principal.method !== "passkey") {
+        options.sessions.destroy(req.cookies?.[cookieName]);
+        res.cookie(cookieName, options.sessions.create({ authenticated: true, method: "passkey", userId: challenge.userId }), cookieOptions(options.secureCookies));
+      }
       const user = options.store.getUser(challenge.userId);
-      res.json({ verified: true, email: user?.email });
+      res.json({ verified: true, email: user?.email, passkeyId: info.credential.id });
     } catch {
       res.status(400).json({ error: "verification_failed" });
     }
@@ -127,8 +167,37 @@ export function installPasskeyAuth(router: Router, options: {
       });
       const flowId = randomUUID();
       options.store.putChallenge({ sessionId: flowId, kind: "authentication", challenge: generated.challenge, userId: user?.status === "active" ? user.id : null, expiresAt: expiresAt() });
-      res.json({ flowId, options: generated });
+      res.json({ flowId, options: { ...generated, hints: [...AUTHENTICATION_HINTS] } });
     } catch (error) { next(error); }
+  });
+
+  // Passkey management for the signed-in owner. Strong session only: a
+  // recovery-code session may add its first passkey through registration, but
+  // must not delete or rename the ones that exist.
+  router.get("/auth/passkeys", options.requireStrongSession, (_req, res) => {
+    const principal = res.locals.session as SessionPrincipal;
+    if (!principal.userId) return res.status(403).json({ error: "passkey_required" });
+    res.set("Cache-Control", "no-store");
+    res.json({ passkeys: options.store.listPasskeys(principal.userId) });
+  });
+
+  router.patch("/auth/passkeys/:id", options.requireStrongSession, (req, res) => {
+    const principal = res.locals.session as SessionPrincipal;
+    const parsed = z.object({ name: z.string().trim().min(1).max(60) }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "invalid_request" });
+    if (!principal.userId || !options.store.renamePasskey(principal.userId, String(req.params.id), parsed.data.name)) {
+      return res.status(404).json({ error: "passkey_not_found" });
+    }
+    res.json({ passkeys: options.store.listPasskeys(principal.userId) });
+  });
+
+  router.delete("/auth/passkeys/:id", options.requireStrongSession, (req, res) => {
+    const principal = res.locals.session as SessionPrincipal;
+    if (!principal.userId) return res.status(403).json({ error: "passkey_required" });
+    const outcome = options.store.deletePasskey(principal.userId, String(req.params.id));
+    if (outcome === "not_found") return res.status(404).json({ error: "passkey_not_found" });
+    if (outcome === "last_passkey") return res.status(409).json({ error: "last_passkey" });
+    res.json({ passkeys: options.store.listPasskeys(principal.userId) });
   });
 
   router.post("/auth/passkeys/authentication/verify", async (req, res) => {
