@@ -67,6 +67,20 @@ function bootWithInfisicalCatalogue() {
 }
 
 describe("booting with the Infisical catalogue", () => {
+  it("refuses to start when the flag is set without an Infisical registry", () => {
+    setEnv({
+      TEST_ACCESS_PROVIDER: "file",
+      TESTMAILS_ACCOUNTS_SOURCE: "infisical",
+      TESTMAILS_ACCOUNTS_PATH: unusableAccountsFile()
+    });
+    expect(() => createApp({
+      passwordHash: "unused", sessionSecret: "unused-session-secret", secureCookies: false,
+      database: createDatabase(":memory:"),
+      passkeyStore: createPasskeyStore(path.join(mkdtempSync(path.join(tmpdir(), "boot-passkeys-")), "auth.sqlite")),
+      exportPath: null, machineIdentities: []
+    })).toThrow(/requires TEST_ACCESS_PROVIDER=infisical/);
+  });
+
   it("starts even though the fallback file no longer validates", () => {
     expect(() => bootWithInfisicalCatalogue()).not.toThrow();
   });
@@ -74,7 +88,10 @@ describe("booting with the Infisical catalogue", () => {
   it("reports itself unready instead of serving an empty catalogue in silence", async () => {
     const response = await request(bootWithInfisicalCatalogue()).get("/testmails/health/ready");
     expect(response.status).toBe(503);
-    expect(response.body.accounts).toMatchObject({ source: "none", degraded: true, count: 0 });
-    expect(response.body.accounts.lastFailure).toEqual(expect.any(String));
+    expect(response.body.accounts).toMatchObject({ source: "none", degraded: true, count: 0, failing: true });
+    // The upstream message names a mailbox and internal validation detail, and
+    // this endpoint is public and unauthenticated.
+    expect(response.body.accounts).not.toHaveProperty("lastFailure");
+    expect(JSON.stringify(response.body)).not.toMatch(/abe\.simpson/);
   });
 });
