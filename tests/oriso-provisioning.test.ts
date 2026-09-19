@@ -22,7 +22,16 @@ describe("ORISO environment routing", () => {
 
   it.each([
     "abe.simpson@getme.global",
-    "abe.simpson@trail.ist",
+    "abe.simpson@trail.ist"
+  ])("routes %s to dev", (email) => {
+    // Both domains were deliberately excluded until 2026-09-19. Being routed
+    // here is not permission on its own: the account still has to carry project
+    // ORISO, which viewProject checks before provisioning is allowed.
+    expect(environmentForOrisoEmail(email)).toBe("dev");
+  });
+
+  it.each([
+    "abe.simpson@example.invalid",
     "abe@simpson@oriso.org",
     "not-an-email"
   ])("fails closed for unsupported identity %s", (email) => {

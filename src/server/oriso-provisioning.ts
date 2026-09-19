@@ -13,11 +13,18 @@ export const orisoProvisioningRoles = [
 export type OrisoProvisioningRole = typeof orisoProvisioningRoles[number];
 export type OrisoProvisioningEnvironment = "pre-dev" | "dev";
 
-const orisoEnvironmentByDomain: Record<string, OrisoProvisioningEnvironment> = {
+// Which ORISO environment a mailbox domain belongs to. Being listed here does not
+// make an account provisionable — viewProject still has to resolve to "oriso",
+// which for getme.global and trail.ist means setting the account's project to
+// ORISO by hand. That keeps the decision per mailbox instead of per domain.
+// tests/oriso-domain-scope.test.ts fails if the client's copy disagrees.
+export const orisoEnvironmentByDomain: Record<string, OrisoProvisioningEnvironment> = {
   "dreambau.com": "pre-dev",
   "dreambau.de": "pre-dev",
   "oriso.org": "dev",
-  "openresilience.cc": "dev"
+  "openresilience.cc": "dev",
+  "getme.global": "dev",
+  "trail.ist": "dev"
 };
 
 export function environmentForOrisoEmail(email: string): OrisoProvisioningEnvironment | null {
