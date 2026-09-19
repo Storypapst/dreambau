@@ -32,7 +32,10 @@ export const ORISO_ENVIRONMENT_BY_DOMAIN: Record<string, "pre-dev" | "dev"> = {
 
 export function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null {
   if (!isOrisoScoped(account)) return null;
-  return ORISO_ENVIRONMENT_BY_DOMAIN[account.domain] ?? null;
+  // environmentForOrisoEmail lowercases on the server. Without the same
+  // treatment here a mixed-case domain hides the button on an account the
+  // server would happily provision, or shows one that leads to a 422.
+  return ORISO_ENVIRONMENT_BY_DOMAIN[account.domain.trim().toLowerCase()] ?? null;
 }
 
 export function OtpAccess({ account, locale, compact = false, orisoProvisioningEnvironments = [], onProvisioned }: {

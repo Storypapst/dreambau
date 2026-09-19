@@ -34,6 +34,14 @@ describe("the button follows the account's project, not its domain", () => {
     expect(orisoEnvironment(account("trail.ist", "ORISO"))).toBe("dev");
   });
 
+  it("agrees with the server on a mixed-case domain", () => {
+    // The catalogue lowercases today, but the file fallback does not, and the
+    // two sides must not disagree about the same account.
+    expect(orisoEnvironment(account("GetMe.Global", "ORISO"))).toBe("dev");
+    expect(environmentForOrisoEmail("Abe.Simpson@GetMe.Global")).toBe("dev");
+    expect(orisoEnvironment(account(" trail.ist ", "ORISO"))).toBe("dev");
+  });
+
   it("stays out of the way while the project is unset", () => {
     // Deliberate: the domain alone must not move an account into ORISO scope,
     // because that would also move it out of everyone's dreambau project view.
