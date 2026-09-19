@@ -56,7 +56,9 @@ export interface AccountSource {
 }
 
 export function createInfisicalAccountSource(options: {
-  registryProvider: RegistryProvider;
+  /** Resolved lazily: the source is created before the provider exists, so that
+   *  the very first synchronous catalogue read already routes through here. */
+  registryProvider: () => RegistryProvider;
   fallbackPath: string;
   now?: () => Date;
 }): AccountSource {
@@ -86,11 +88,14 @@ export function createInfisicalAccountSource(options: {
     },
     async refresh() {
       try {
-        const accounts = accountsFromRecords(await options.registryProvider.list());
+        const accounts = accountsFromRecords(await options.registryProvider().list());
         cached = accounts;
         lastRefreshAt = now().toISOString();
         lastFailure = null;
         lastFailureAt = null;
+        // The fallback's own failure is history once Infisical answers; leaving
+        // it in lastFailure makes a healthy hub look broken.
+        fallbackFailure = null;
       } catch (error) {
         // A failed refresh never discards a good catalogue.
         lastFailureAt = now().toISOString();

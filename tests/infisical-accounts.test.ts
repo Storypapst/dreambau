@@ -97,8 +97,8 @@ describe("mailbox records become catalogue accounts", () => {
 });
 
 describe("the catalogue source falls back to the file", () => {
-  const provider = (list: () => Promise<TestAccessRecord[]>): RegistryProvider =>
-    ({ list, async get() { return null; } });
+  const provider = (list: () => Promise<TestAccessRecord[]>): (() => RegistryProvider) =>
+    () => ({ list, async get() { return null; } });
 
   it("serves the file until Infisical has answered once", async () => {
     const source = createInfisicalAccountSource({
@@ -135,6 +135,21 @@ describe("the catalogue source falls back to the file", () => {
     expect(source.load()[0].password).toMatch(/^secret-for-/);
   });
 
+  it("does not reach for the registry provider before the first refresh", () => {
+    // app.ts creates this source before the provider exists and hands it over as
+    // a thunk. Touching the thunk during a plain load() would hit the temporal
+    // dead zone and take the process down.
+    let resolved = 0;
+    const source = createInfisicalAccountSource({
+      registryProvider: () => { resolved += 1; throw new Error("provider not built yet"); },
+      fallbackPath: fallbackFile(fileShaped())
+    });
+
+    expect(() => source.load()).not.toThrow();
+    expect(() => source.status()).not.toThrow();
+    expect(resolved).toBe(0);
+  });
+
   it("boots on an unusable file instead of crash-looping, and says so", async () => {
     // The file is a drifting copy. The drift that started this work made it fail
     // validation outright, and load() runs synchronously during createApp — so
@@ -165,6 +180,8 @@ describe("the catalogue source falls back to the file", () => {
     expect(source.status().degraded).toBe(true);
     await source.refresh();
     expect(source.status()).toMatchObject({ source: "infisical", degraded: false, count: 6 });
+    // A healthy catalogue must not keep reporting the fallback's old failure.
+    expect(source.status().lastFailure).toBeNull();
   });
 
   it("stays on the file when Infisical never answers", async () => {

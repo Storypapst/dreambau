@@ -32,7 +32,7 @@ describe("health checks", () => {
     await expect(request(app).get("/testmails/health/live")).resolves.toMatchObject({ status: 200, body: { status: "ok" } });
     const ready = await request(app).get("/testmails/health/ready");
     expect(ready.status).toBe(503);
-    expect(ready.body).toEqual({ status: "unavailable" });
+    expect(ready.body).toEqual({ status: "unavailable", accounts: { source: "file", degraded: false, count: 0, lastRefreshAt: null, lastFailureAt: null, lastFailure: null } });
     expect(JSON.stringify(ready.body)).not.toContain("upstream-secret-detail");
   });
 });
