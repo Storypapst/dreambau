@@ -161,10 +161,23 @@ export function createApp(options: AppOptions = {}) {
   // Expired session rows are pruned hourly; `unref` keeps the timer from
   // holding a test process open.
   setInterval(() => sessions.prune(), 60 * 60 * 1000).unref();
-  // Assigned once the registry provider exists; until then, and whenever
-  // Infisical has not answered yet, the secret file is the catalogue.
-  let accountSource: AccountSource | null = null;
-  const accountLoader = options.loadAccounts
+  // Created here, before anything reads the catalogue. The registry provider is
+  // built further down, so it is handed over as a thunk: an earlier version
+  // assigned this only after the provider existed, and the boot-time export ran
+  // in between, went straight to the file and crash-looped the container on a
+  // file that no longer validates.
+  const accountSource: AccountSource | null =
+    !options.loadAccounts && config.accountsSource === "infisical" && config.registryProvider === "infisical"
+      ? createInfisicalAccountSource({
+          registryProvider: () => registryProvider,
+          fallbackPath: config.accountsPath,
+          now: options.now
+        })
+      : null;
+  // Annotated because the file-backed registry provider is built *from* this
+  // loader while the loader reaches the provider through accountSource, and
+  // TypeScript gives up on the cycle and infers any.
+  const accountLoader: () => AccountRecord[] = options.loadAccounts
     ?? (() => accountSource ? accountSource.load() : loadAccountsFile(config.accountsPath));
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
   installPasskeyAuth(api, {
@@ -247,7 +260,11 @@ export function createApp(options: AppOptions = {}) {
   const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
   const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
-  const regenerate = async () => { if (exportPath) await writeMarkdownAtomically(exportPath, markdown()); };
+  // A degraded boot must not overwrite a good export with an empty catalogue.
+  const regenerate = async () => {
+    if (!exportPath || accountViews().length === 0) return;
+    await writeMarkdownAtomically(exportPath, markdown());
+  };
   void regenerate();
   const environments: TestEnvironment[] = ["local", "pre-dev", "dev", "production-test"];
   const runtimeRegistryProvider = () => {
@@ -262,18 +279,13 @@ export function createApp(options: AppOptions = {}) {
     });
   };
   const registryProvider = options.registryProvider ?? runtimeRegistryProvider();
-  // The mailbox catalogue lives in Infisical as `kind: "mailbox"` records, in the
-  // same projects this provider already reads. Only wire it up when the registry
-  // itself is Infisical-backed; the file-backed registry is built *from* the
-  // catalogue and would be circular.
-  if (!options.loadAccounts && config.accountsSource === "infisical" && config.registryProvider === "infisical") {
-    const source = createInfisicalAccountSource({ registryProvider, fallbackPath: config.accountsPath, now: options.now });
-    const pull = () => source.refresh().catch((error) => {
+  // Refreshing starts only now, because the thunk above resolves this provider.
+  if (accountSource) {
+    const pull = () => accountSource.refresh().catch((error) => {
       console.error(`account catalogue refresh failed: ${error instanceof Error ? error.message : error}`);
     });
     void pull();
     setInterval(pull, 5 * 60 * 1000).unref();
-    accountSource = source;
   }
   const registryWriter = options.registryWriter ?? (
     config.registryProvider === "infisical" && config.infisical?.writer
@@ -335,24 +347,33 @@ export function createApp(options: AppOptions = {}) {
       .filter((record) => user.projects.includes(record.project));
   };
   app.get("/testmails/health/ready", async (_req, res) => {
+    // Reported on both paths: when the registry is unreachable, the catalogue is
+    // usually the thing an operator actually needs to see.
+    const accountStatus = () => {
+      try {
+        return accountSource?.status()
+          ?? { source: "file" as const, degraded: false, count: accountLoader().length, lastRefreshAt: null, lastFailureAt: null, lastFailure: null };
+      } catch (error) {
+        return { source: "none" as const, degraded: true, count: 0, lastRefreshAt: null, lastFailureAt: null, lastFailure: error instanceof Error ? error.message : "unknown error" };
+      }
+    };
     try {
       if (registryProvider.health) await registryProvider.health();
       else await registryProvider.list();
       // No catalogue means the hub cannot answer its central question, so it is
       // not ready even when Infisical itself responds.
-      const accountStatus = accountSource?.status()
-        ?? { source: "file" as const, degraded: false, count: accountLoader().length, lastRefreshAt: null, lastFailureAt: null, lastFailure: null };
-      if (accountStatus.degraded) return res.status(503).json({ status: "unavailable", accounts: accountStatus });
+      const accounts = accountStatus();
+      if (accounts.degraded) return res.status(503).json({ status: "unavailable", accounts });
       res.json({
         status: "ok",
-        accounts: accountStatus,
+        accounts,
         humanAccessQueue: {
           enqueued: serializeHumanAccess.metrics.enqueued,
           expired: serializeHumanAccess.metrics.expired
         }
       });
     } catch {
-      res.status(503).json({ status: "unavailable" });
+      res.status(503).json({ status: "unavailable", accounts: accountStatus() });
     }
   });
   // One machine-identity source for every machine-token surface (Test Access
