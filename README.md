@@ -244,6 +244,27 @@ drei konfigurierten Projekt-IDs und den vier Umgebungen `local`, `pre-dev`,
 widersprüchliche Records stoppen den Import. Upstream-Antworten und
 Credentials erscheinen nicht in Fehlern.
 
+### ORISO-Provisioning pro Postfach freigeben
+
+Provisionierbar ist ein Postfach, wenn zwei Dinge stimmen: seine Domain kennt
+eine ORISO-Umgebung, und `viewProject` liefert für den Datensatz `oriso`.
+
+`dreambau.com` und `dreambau.de` zeigen auf `pre-dev`, `oriso.org`,
+`openresilience.cc`, `getme.global` und `trail.ist` auf `dev`. `getme.global`
+und `trail.ist` kamen am 19.09.2026 dazu.
+
+Die Domain allein genügt aber nicht. Für `getme.global` und `trail.ist` muss das
+Projekt des Kontos ausdrücklich auf `ORISO` stehen — bis dahin antwortet die
+Route `422 mailbox_project_mismatch`. Das ist Absicht: die Domain-Zuordnung
+pauschal zu ändern würde diese Konten für alle aus dem Projekt-Scope `dreambau`
+nach `oriso` verschieben, und wer in Infisical nur `dreambau` hat, verlöre sie
+aus der Sicht. So entscheidet stattdessen der Operator pro Postfach, sichtbar in
+der Oberfläche und jederzeit zurücknehmbar.
+
+Ein Konto, dessen Projekt auf `TRAIL.IST` oder `DREAMBAU` steht, ist ausdrücklich
+ausgenommen. Client und Server halten dieselbe Zuordnung; ein Auseinanderlaufen
+lässt `tests/oriso-domain-scope.test.ts` fehlschlagen.
+
 ### Postfach-Katalog aus Infisical
 
 Der Katalog der Testpostfächer liegt in denselben Projekten als Records mit
