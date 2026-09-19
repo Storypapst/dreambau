@@ -18,11 +18,24 @@ function isOrisoScoped(account: AccountView) {
   return account.domain === "oriso.org" || account.domain === "openresilience.cc";
 }
 
-function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null {
+// Mirrors orisoEnvironmentByDomain on the server; tests/oriso-domain-scope.test.ts
+// fails on drift. getme.global and trail.ist reach this only once their account
+// carries project ORISO — isOrisoScoped decides that, this only says where.
+export const ORISO_ENVIRONMENT_BY_DOMAIN: Record<string, "pre-dev" | "dev"> = {
+  "dreambau.com": "pre-dev",
+  "dreambau.de": "pre-dev",
+  "oriso.org": "dev",
+  "openresilience.cc": "dev",
+  "getme.global": "dev",
+  "trail.ist": "dev"
+};
+
+export function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null {
   if (!isOrisoScoped(account)) return null;
-  if (account.domain === "dreambau.com" || account.domain === "dreambau.de") return "pre-dev";
-  if (account.domain === "oriso.org" || account.domain === "openresilience.cc") return "dev";
-  return null;
+  // environmentForOrisoEmail lowercases on the server. Without the same
+  // treatment here a mixed-case domain hides the button on an account the
+  // server would happily provision, or shows one that leads to a 422.
+  return ORISO_ENVIRONMENT_BY_DOMAIN[account.domain.trim().toLowerCase()] ?? null;
 }
 
 export function OtpAccess({ account, locale, compact = false, orisoProvisioningEnvironments = [], onProvisioned }: {

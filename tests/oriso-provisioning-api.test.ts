@@ -607,21 +607,44 @@ describe("human self-service ORISO PreDev provisioning", () => {
       .send({ environment: "pre-dev", role: "super-admin" });
     expect(badRole.status).toBe(400);
 
+    // getme.global routes to dev since 2026-09-19, so this request no longer
+    // stops at the domain. It stops one gate later, on the project: the mailbox
+    // still has to be marked ORISO before it may be provisioned.
     const wrongProject = await agent
       .post(`/testmails/api/accounts/${encodeURIComponent(moe.email)}/oriso-provisioning`)
-      .send({ environment: "pre-dev", role: "tenant-admin" });
+      .send({ environment: "dev", role: "tenant-admin" });
     expect(wrongProject.status).toBe(422);
-    expect(wrongProject.body).toEqual({ error: "environment_not_supported" });
+    expect(wrongProject.body).toEqual({ error: "mailbox_project_mismatch" });
+
+    const wrongEnvironment = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(moe.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(wrongEnvironment.status).toBe(422);
+    expect(wrongEnvironment.body).toMatchObject({ error: "environment_mismatch" });
     expect(service.provision).not.toHaveBeenCalled();
   });
 
-  it("reports an unsupported mailbox domain consistently on GET", async () => {
+  it("lets a getme.global mailbox through once it is marked ORISO", async () => {
+    // This is the whole point of routing getme.global to dev: the operator marks
+    // the mailbox, and only then does provisioning become available. The domain
+    // alone never grants it, so nobody loses the domain from their project view.
+    const { agent, moe, database } = await setup();
+    database.upsertMetadata(moe.email, { project: "ORISO", roles: [], lifecycleStatus: "unused" });
+
+    const response = await agent.get(
+      `/testmails/api/accounts/${encodeURIComponent(moe.email)}/oriso-provisioning`
+    );
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ environment: "dev" });
+  });
+
+  it("reports an unmarked getme.global mailbox consistently on GET", async () => {
     const { agent, moe, service } = await setup();
     const response = await agent.get(
       `/testmails/api/accounts/${encodeURIComponent(moe.email)}/oriso-provisioning`
     );
     expect(response.status).toBe(422);
-    expect(response.body).toEqual({ error: "environment_not_supported" });
+    expect(response.body).toEqual({ error: "mailbox_project_mismatch" });
     expect(service.status).not.toHaveBeenCalled();
   });
 

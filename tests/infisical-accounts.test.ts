@@ -87,8 +87,17 @@ describe("mailbox records become catalogue accounts", () => {
     expect(accountsFromRecords(records).map((account) => account.email)).toEqual(sixDomains().map((record) => record.email));
   });
 
-  it("refuses a catalogue that does not cover all six domains", () => {
-    expect(() => accountsFromRecords(sixDomains().slice(0, 5))).toThrow(/six domains/);
+  it("refuses a catalogue that has lost one of the six known domains", () => {
+    // A short catalogue is a truncated catalogue; serving it silently is worse
+    // than refusing.
+    expect(() => accountsFromRecords(sixDomains().slice(0, 5))).toThrow(/missing: trail\.ist/);
+  });
+
+  it("accepts a seventh domain instead of taking the whole catalogue down", () => {
+    // A new mailbox on a new domain used to throw "Unexpected domain" and with
+    // it every other account, which is how one new address could empty the hub.
+    const accounts = accountsFromRecords([...sixDomains(), mailbox("bart.simpson@neue-domain.test", { id: "extra-1" })]);
+    expect(accounts).toHaveLength(7);
   });
 
   it("refuses an empty result rather than serving an empty catalogue", () => {

@@ -17,7 +17,11 @@ const accountSchema = z.object({
 });
 export type AccountRecord = z.infer<typeof accountSchema>;
 
-const expectedDomains = new Set(["dreambau.com", "dreambau.de", "getme.global", "openresilience.cc", "oriso.org", "trail.ist"]);
+// The six domains the catalogue has always carried. They must all be present —
+// a catalogue that lost one is truncated, and silently serving a short list is
+// worse than refusing. Additional domains are allowed: a new mailbox on a new
+// domain used to throw here and take every other account down with it.
+export const requiredDomains = new Set(["dreambau.com", "dreambau.de", "getme.global", "openresilience.cc", "oriso.org", "trail.ist"]);
 
 export const unencryptedDomains = new Set(["oriso.org"]);
 // Mailboxes that carry a 2FA email OTP for a product realm. Encryption at rest turns every
@@ -48,11 +52,12 @@ export function validateAccounts(parsed: AccountRecord[]): AccountRecord[] {
     if (emails.has(account.email)) throw new Error(`Duplicate email: ${account.email}`);
     emails.add(account.email);
     if (account.email.split("@").at(-1) !== account.domain) throw new Error(`Domain mismatch: ${account.email}`);
-    if (!expectedDomains.has(account.domain)) throw new Error(`Unexpected domain: ${account.domain}`);
     const expected = encryptionFor(account.email).state;
     if (account.encryption.state !== expected) throw new Error(`Encryption must be ${expected}: ${account.email}`);
   }
-  if (new Set(parsed.map((account) => account.domain)).size !== 6) throw new Error("Exactly six domains are required");
+  const present = new Set(parsed.map((account) => account.domain));
+  const missing = [...requiredDomains].filter((domain) => !present.has(domain));
+  if (missing.length > 0) throw new Error(`Catalogue is missing: ${missing.join(", ")}`);
   return parsed;
 }
 
