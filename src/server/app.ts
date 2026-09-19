@@ -166,6 +166,11 @@ export function createApp(options: AppOptions = {}) {
   // assigned this only after the provider existed, and the boot-time export ran
   // in between, went straight to the file and crash-looped the container on a
   // file that no longer validates.
+  // Setting the flag and getting the file anyway is the kind of quiet mismatch
+  // that cost two crash-looped deploys. Say so at startup instead.
+  if (!options.loadAccounts && config.accountsSource === "infisical" && config.registryProvider !== "infisical") {
+    throw new Error("TESTMAILS_ACCOUNTS_SOURCE=infisical requires TEST_ACCESS_PROVIDER=infisical");
+  }
   const accountSource: AccountSource | null =
     !options.loadAccounts && config.accountsSource === "infisical" && config.registryProvider === "infisical"
       ? createInfisicalAccountSource({
@@ -281,7 +286,9 @@ export function createApp(options: AppOptions = {}) {
   const registryProvider = options.registryProvider ?? runtimeRegistryProvider();
   // Refreshing starts only now, because the thunk above resolves this provider.
   if (accountSource) {
-    const pull = () => accountSource.refresh().catch((error) => {
+    const pull = () => accountSource.refresh().then(regenerate).catch((error) => {
+      // The boot-time export is skipped while the catalogue is empty, so the
+      // first successful refresh is what actually writes testmails.md.
       console.error(`account catalogue refresh failed: ${error instanceof Error ? error.message : error}`);
     });
     void pull();
@@ -349,12 +356,17 @@ export function createApp(options: AppOptions = {}) {
   app.get("/testmails/health/ready", async (_req, res) => {
     // Reported on both paths: when the registry is unreachable, the catalogue is
     // usually the thing an operator actually needs to see.
+    // Readiness is public and unauthenticated, so it reports that the catalogue
+    // failed and when — never the upstream message, which carries mailbox
+    // addresses and internal validation detail. The message stays in the logs.
     const accountStatus = () => {
       try {
-        return accountSource?.status()
-          ?? { source: "file" as const, degraded: false, count: accountLoader().length, lastRefreshAt: null, lastFailureAt: null, lastFailure: null };
-      } catch (error) {
-        return { source: "none" as const, degraded: true, count: 0, lastRefreshAt: null, lastFailureAt: null, lastFailure: error instanceof Error ? error.message : "unknown error" };
+        const status = accountSource?.status();
+        if (!status) return { source: "file" as const, degraded: false, count: accountLoader().length, lastRefreshAt: null, lastFailureAt: null, failing: false };
+        const { lastFailure, ...rest } = status;
+        return { ...rest, failing: lastFailure !== null };
+      } catch {
+        return { source: "none" as const, degraded: true, count: 0, lastRefreshAt: null, lastFailureAt: null, failing: true };
       }
     };
     try {
