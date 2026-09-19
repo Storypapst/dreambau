@@ -93,6 +93,9 @@ export function createInfisicalAccountSource(options: {
         lastRefreshAt = now().toISOString();
         lastFailure = null;
         lastFailureAt = null;
+        // The fallback's own failure is history once Infisical answers; leaving
+        // it in lastFailure makes a healthy hub look broken.
+        fallbackFailure = null;
       } catch (error) {
         // A failed refresh never discards a good catalogue.
         lastFailureAt = now().toISOString();

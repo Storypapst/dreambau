@@ -180,6 +180,8 @@ describe("the catalogue source falls back to the file", () => {
     expect(source.status().degraded).toBe(true);
     await source.refresh();
     expect(source.status()).toMatchObject({ source: "infisical", degraded: false, count: 6 });
+    // A healthy catalogue must not keep reporting the fallback's old failure.
+    expect(source.status().lastFailure).toBeNull();
   });
 
   it("stays on the file when Infisical never answers", async () => {
