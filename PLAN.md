@@ -21,8 +21,8 @@
 - Store the 180 test mailbox records only in Kubernetes Secret `testmails-accounts`; mount it read-only.
 - Keep S/MIME private identities on the operator Mac in Keychain service `dreambau-test-smime`; do not copy private keys to this application.
 - Read mailbox passwords on the operator Mac from Keychain service `dreambau-test-mailbox` only during the explicit secret-import operation.
-- Treat `oriso.org` accounts as intentionally unencrypted. The other five domains use S/MIME with AES-256, `encryptOnAppend=true`, and `allowSpamTraining=false`.
-- Treat every mailbox listed in `unencryptedAccounts` (`src/server/accounts.ts`) as intentionally unencrypted regardless of its domain. These mailboxes are registered as 2FA email-OTP recipients in a product realm; encryption at rest would deliver the OTP mail as an S/MIME enveloped-data blob and no tooling could read the code. Provision them with `encryptionAtRest {"@type":"Disabled"}` and never issue them an S/MIME identity.
+- Describe encryption at rest as Stalwart actually stores it. Measured on 2026-09-21, 217 of 218 mailboxes are `Disabled`; only the mailboxes in `encryptedAccounts` (`src/server/accounts.ts`, today just `homer.simpson@dreambau.com`) use S/MIME with AES-256, `encryptOnAppend=true` and `allowSpamTraining=false`. The earlier rule — encrypted everywhere except `oriso.org` — was never carried out, and 145 of the 180 catalogue accounts claimed encryption they did not have.
+- Keep test mailboxes unencrypted unless there is a reason to encrypt one. They are read through IMAP and JMAP, and many receive 2FA email OTPs for a product realm; encryption at rest delivers each mail as an S/MIME enveloped-data blob and no tooling can read the code. Before encrypting a mailbox, add it to `encryptedAccounts` in the same change, so the catalogue never describes a state Stalwart does not have.
 - Do not expose an endpoint that deletes Stalwart accounts. Version-based cleanup is filter plus `delete_candidate` marking only.
 - Run exactly one application replica while SQLite is the metadata store.
 - The app must work on mobile, support keyboard navigation, show visible focus, and respect reduced motion.
@@ -98,7 +98,7 @@ Each account row or detail sheet shows:
 - `encryptOnAppend`: true for encrypted accounts
 - `allowSpamTraining`: false for encrypted accounts
 - Private-key location statement: matching PKCS#12 identity is held externally in the operator Mac Keychain
-- `oriso.org` explanation: deliberately unencrypted for comparison testing
+- Unencrypted is the default; `homer.simpson@dreambau.com` remains the encrypted reference mailbox for comparison testing
 
 ### Editable metadata
 

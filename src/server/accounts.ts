@@ -23,21 +23,20 @@ export type AccountRecord = z.infer<typeof accountSchema>;
 // domain used to throw here and take every other account down with it.
 export const requiredDomains = new Set(["dreambau.com", "dreambau.de", "getme.global", "openresilience.cc", "oriso.org", "trail.ist"]);
 
-export const unencryptedDomains = new Set(["oriso.org"]);
-// Mailboxes that carry a 2FA email OTP for a product realm. Encryption at rest turns every
-// delivered mail into an S/MIME enveloped-data blob, so the OTP code becomes unreadable.
-export const unencryptedAccounts = new Set([
-  "abe.simpson@dreambau.de",
-  "homer.simpson@dreambau.de",
-  "lisa.simpson@dreambau.de",
-  "maggie.simpson@dreambau.de"
-]);
+// Encryption at rest as Stalwart actually has it, measured on 2026-09-21 across
+// all 218 accounts: every mailbox is Disabled except one. The policy used to
+// say the opposite — encrypted everywhere except oriso.org and four OTP
+// mailboxes — and 145 of the 180 catalogue accounts claimed S/MIME that did not
+// exist. Once #120 made this value derived instead of stored, nothing would
+// ever have flagged it again. The test mailboxes are read through IMAP and
+// JMAP, and encryption at rest turns every delivered mail, including 2FA codes,
+// into an unreadable S/MIME blob, so unencrypted is also the right default.
+export const encryptedAccounts = new Set(["homer.simpson@dreambau.com"]);
 
 export function encryptionFor(email: string): AccountRecord["encryption"] {
-  const domain = email.split("@").at(-1) ?? "";
-  return unencryptedDomains.has(domain) || unencryptedAccounts.has(email)
-    ? { state: "disabled" }
-    : { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false };
+  return encryptedAccounts.has(email.trim().toLowerCase())
+    ? { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false }
+    : { state: "disabled" };
 }
 
 export function parseAccounts(raw: string): AccountRecord[] {

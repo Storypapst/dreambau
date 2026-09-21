@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { encryptionFor, loadAccounts, parseAccounts, unencryptedAccounts, type AccountRecord } from "../src/server/accounts.js";
+import { encryptedAccounts, encryptionFor, loadAccounts, parseAccounts, type AccountRecord } from "../src/server/accounts.js";
 
 const domains = ["dreambau.com", "dreambau.de", "getme.global", "openresilience.cc", "oriso.org", "trail.ist"];
 function fixture(): AccountRecord[] {
@@ -43,26 +43,40 @@ describe("account secret loader", () => {
     const accounts = fixture(); accounts[0].password = "";
     expect(() => loadAccounts(write(accounts))).toThrow(/password/i);
   });
-  it("requires disabled encryption for ORISO and AES-256 S/MIME elsewhere", () => {
+  it("describes every mailbox as unencrypted, as Stalwart stores them", () => {
+    // 217 of 218 Stalwart accounts are Disabled; the fixture has none of the
+    // named exceptions, so every record must say so.
     const accounts = loadAccounts(write(fixture()));
-    expect(accounts.filter((a) => a.domain === "oriso.org").every((a) => a.encryption.state === "disabled")).toBe(true);
-    expect(accounts.filter((a) => a.domain !== "oriso.org").every((a) => a.encryption.state === "encrypted" && a.encryption.symmetricMode === "AES-256")).toBe(true);
+    expect(accounts.every((a) => a.encryption.state === "disabled")).toBe(true);
+  });
+  it("keeps AES-256 S/MIME for the one mailbox Stalwart really encrypts", () => {
+    const accounts = fixture();
+    const index = accounts.findIndex((account) => account.email === "person1@dreambau.com");
+    accounts[index] = { ...accounts[index], email: "homer.simpson@dreambau.com", encryption: encryptionFor("homer.simpson@dreambau.com") };
+    const homer = loadAccounts(write(accounts)).find((a) => a.email === "homer.simpson@dreambau.com");
+    expect(homer?.encryption).toMatchObject({ state: "encrypted", symmetricMode: "AES-256" });
+    expect([...encryptedAccounts]).toEqual(["homer.simpson@dreambau.com"]);
   });
   it("keeps the 2FA email-OTP mailboxes unencrypted so the code stays readable", () => {
     const accounts = loadAccounts(write(withOtpMailbox()));
     const otpMailbox = accounts.find((a) => a.email === "abe.simpson@dreambau.de");
     expect(otpMailbox?.encryption.state).toBe("disabled");
-    expect([...unencryptedAccounts].every((email) => encryptionFor(email).state === "disabled")).toBe(true);
+    for (const name of ["abe", "homer", "lisa", "maggie"]) {
+      expect(encryptionFor(`${name}.simpson@dreambau.de`).state).toBe("disabled");
+    }
   });
-  it("rejects an encrypted OTP mailbox and an unencrypted ordinary mailbox", () => {
-    const encryptedOtp = withOtpMailbox();
-    const otpIndex = encryptedOtp.findIndex((a) => a.email === "abe.simpson@dreambau.de");
-    encryptedOtp[otpIndex] = { ...encryptedOtp[otpIndex], encryption: encryptionFor("person2@dreambau.de") };
-    expect(() => loadAccounts(write(encryptedOtp))).toThrow(/disabled: abe\.simpson@dreambau\.de/);
+  it("rejects a file that claims encryption Stalwart does not have, in either direction", () => {
+    // The drift this policy change corrects: a stored flag saying encrypted for
+    // a mailbox that is not. The file fallback still stores the flag, so it must
+    // still be refused rather than served as truth.
+    const claimsEncrypted = fixture();
+    const index = claimsEncrypted.findIndex((a) => a.email === "person2@dreambau.de");
+    claimsEncrypted[index] = { ...claimsEncrypted[index], encryption: encryptionFor("homer.simpson@dreambau.com") };
+    expect(() => loadAccounts(write(claimsEncrypted))).toThrow(/disabled: person2@dreambau\.de/);
 
-    const plaintextOrdinary = fixture();
-    const ordinaryIndex = plaintextOrdinary.findIndex((a) => a.email === "person2@dreambau.de");
-    plaintextOrdinary[ordinaryIndex] = { ...plaintextOrdinary[ordinaryIndex], encryption: { state: "disabled" } };
-    expect(() => loadAccounts(write(plaintextOrdinary))).toThrow(/encrypted: person2@dreambau\.de/);
+    const claimsDisabled = fixture();
+    const homerIndex = claimsDisabled.findIndex((a) => a.email === "person1@dreambau.com");
+    claimsDisabled[homerIndex] = { ...claimsDisabled[homerIndex], email: "homer.simpson@dreambau.com", encryption: { state: "disabled" } };
+    expect(() => loadAccounts(write(claimsDisabled))).toThrow(/encrypted: homer\.simpson@dreambau\.com/);
   });
 });

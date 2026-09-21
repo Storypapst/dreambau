@@ -49,9 +49,9 @@ const fileShaped = () => DOMAINS.map((domain) => {
     jmap: "https://box.dreambau.com/.well-known/jmap",
     caldav: `https://box.dreambau.com/dav/cal/${encoded}/`,
     carddav: `https://box.dreambau.com/dav/card/${encoded}/`,
-    encryption: domain === "oriso.org"
-      ? { state: "disabled" }
-      : { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false }
+    // As Stalwart stores them: unencrypted. homer.simpson@dreambau.com is the
+    // only encrypted mailbox and is not part of this fixture.
+    encryption: { state: "disabled" }
   };
 });
 
@@ -65,17 +65,15 @@ describe("mailbox records become catalogue accounts", () => {
       imap: "mail.dreambau.com:993",
       caldav: "https://box.dreambau.com/dav/cal/bart.simpson%40dreambau.com/"
     });
-    expect(account.encryption.state).toBe("encrypted");
+    expect(account.encryption.state).toBe("disabled");
   });
 
   it("derives encryption from the policy, so a stale flag cannot exist", () => {
-    // The four OTP mailboxes must come out unencrypted even though nothing in
-    // the Infisical record says so — that drift is what broke the file.
-    for (const name of ["abe", "homer", "lisa", "maggie"]) {
-      expect(accountFromMailboxRecord(mailbox(`${name}.simpson@dreambau.de`)).encryption.state).toBe("disabled");
-    }
-    expect(accountFromMailboxRecord(mailbox("bart.simpson@dreambau.de")).encryption.state).toBe("encrypted");
-    expect(accountFromMailboxRecord(mailbox("bart.simpson@oriso.org")).encryption.state).toBe("disabled");
+    // Nothing in the Infisical record says anything about encryption; the
+    // policy alone decides, and it describes Stalwart as it is.
+    expect(accountFromMailboxRecord(mailbox("bart.simpson@dreambau.de")).encryption.state).toBe("disabled");
+    expect(accountFromMailboxRecord(mailbox("abe.simpson@dreambau.de")).encryption.state).toBe("disabled");
+    expect(accountFromMailboxRecord(mailbox("homer.simpson@dreambau.com")).encryption.state).toBe("encrypted");
   });
 
   it("ignores everything that is not a production-test mailbox", () => {
@@ -164,7 +162,7 @@ describe("the catalogue source falls back to the file", () => {
     // validation outright, and load() runs synchronously during createApp — so
     // throwing here would take the whole hub down before the first refresh runs.
     const broken = fallbackFile(fileShaped().map((account, index) =>
-      index === 0 ? { ...account, encryption: { state: "disabled" } } : account));
+      index === 0 ? { ...account, encryption: { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false } } : account));
     const source = createInfisicalAccountSource({
       registryProvider: provider(async () => { throw new Error("unreachable"); }),
       fallbackPath: broken
@@ -175,12 +173,12 @@ describe("the catalogue source falls back to the file", () => {
     const status = source.status();
     expect(status.source).toBe("none");
     expect(status.degraded).toBe(true);
-    expect(status.lastFailure).toMatch(/Encryption must be encrypted/);
+    expect(status.lastFailure).toMatch(/Encryption must be disabled/);
   });
 
   it("leaves the degraded state behind once Infisical answers", async () => {
     const broken = fallbackFile(fileShaped().map((account, index) =>
-      index === 0 ? { ...account, encryption: { state: "disabled" } } : account));
+      index === 0 ? { ...account, encryption: { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false } } : account));
     const source = createInfisicalAccountSource({
       registryProvider: provider(async () => sixDomains()),
       fallbackPath: broken
