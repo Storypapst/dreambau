@@ -58,3 +58,14 @@ button, input, textarea, select { font: inherit; }
 .tag-remove:hover { opacity: 1; }
 .tag-remove svg { width: 0.75rem; height: 0.75rem; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+.opt-pill { display: inline-flex; max-width: 100%; align-items: center; border-radius: 0.4rem; padding: 0.15rem 0.5rem; font-size: 0.8rem; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
+.opt-blue { background: oklch(0.94 0.04 235); color: oklch(0.42 0.12 240); }
+.opt-amber { background: oklch(0.95 0.06 85); color: oklch(0.47 0.11 70); }
+.opt-violet { background: oklch(0.94 0.04 310); color: oklch(0.45 0.14 310); }
+.opt-green { background: oklch(0.94 0.05 160); color: oklch(0.42 0.11 160); }
+.opt-rose { background: oklch(0.94 0.04 15); color: oklch(0.48 0.16 20); }
+.opt-slate { background: oklch(0.94 0.005 255); color: oklch(0.42 0.02 255); }
+.opt-teal { background: oklch(0.94 0.04 195); color: oklch(0.42 0.09 195); }
+.opt-orange { background: oklch(0.94 0.05 50); color: oklch(0.5 0.14 45); }
+.release-table th:first-child, .release-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); }
+.release-table tr:hover td:first-child { background: color-mix(in oklch, var(--muted) 50%, var(--card)); }

@@ -29,7 +29,8 @@
     "evidence:cli": "tsx src/evidence/cli/index.ts",
     "evidence:install": "bash scripts/install-evidence-cli.sh",
     "lint": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.evidence.json --noEmit",
-    "evidence:maintenance": "tsx src/evidence/server/maintenance.ts"
+    "evidence:maintenance": "tsx src/evidence/server/maintenance.ts",
+    "release-list-import": "tsx src/server/release-list-import-cli.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1095.0",
