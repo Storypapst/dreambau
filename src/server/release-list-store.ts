@@ -26,6 +26,7 @@ export interface ReleaseItem {
   functional: string[];
   statusComment: string;
   notes: string;
+  releaseNotes: string;
   completed: boolean;
   createdAt: string;
   createdBy: string;
@@ -50,6 +51,7 @@ export const itemPatchSchema = z.object({
   functional: z.array(z.string().min(1)).max(10),
   statusComment: text(4000),
   notes: text(8000),
+  releaseNotes: text(15000),
   completed: z.boolean()
 }).partial().strict();
 export type ItemPatch = z.infer<typeof itemPatchSchema>;
@@ -107,13 +109,13 @@ export class ReleaseListError extends Error {
 interface ItemRow {
   id: string; list_id: string; parent_id: string | null; position: number; name: string; areas: string; description: string;
   cross_references: string; cross_reference_ids: string; dev_status: string | null; functional: string; status_comment: string;
-  notes: string; completed: number; created_at: string; created_by: string; updated_at: string; updated_by: string; comment_count: number;
+  notes: string; release_notes: string; completed: number; created_at: string; created_by: string; updated_at: string; updated_by: string; comment_count: number;
 }
 
 const columnFor: Record<keyof ItemPatch, string> = {
   name: "name", areas: "areas", description: "description", crossReferences: "cross_references",
   crossReferenceIds: "cross_reference_ids", devStatus: "dev_status", functional: "functional",
-  statusComment: "status_comment", notes: "notes", completed: "completed"
+  statusComment: "status_comment", notes: "notes", releaseNotes: "release_notes", completed: "completed"
 };
 
 export class ReleaseListStore {
@@ -150,6 +152,9 @@ export class ReleaseListStore {
         actor_id TEXT NOT NULL, actor_name TEXT NOT NULL, changed_at TEXT NOT NULL
       );
     `);
+    // Added after the first live import; CREATE TABLE IF NOT EXISTS does not extend an existing table.
+    const itemColumns = (sqlite.prepare("PRAGMA table_info(release_items)").all() as Array<{ name: string }>).map((column) => column.name);
+    if (!itemColumns.includes("release_notes")) sqlite.exec("ALTER TABLE release_items ADD COLUMN release_notes TEXT NOT NULL DEFAULT ''");
   }
 
   lists(): ReleaseList[] {
@@ -342,7 +347,7 @@ export class ReleaseListStore {
       id: row.id, listId: row.list_id, parentId: row.parent_id, position: row.position, name: row.name,
       areas: JSON.parse(row.areas), description: row.description, crossReferences: row.cross_references,
       crossReferenceIds: JSON.parse(row.cross_reference_ids), devStatus: row.dev_status, functional: JSON.parse(row.functional),
-      statusComment: row.status_comment, notes: row.notes, completed: row.completed === 1,
+      statusComment: row.status_comment, notes: row.notes, releaseNotes: row.release_notes, completed: row.completed === 1,
       createdAt: row.created_at, createdBy: row.created_by, updatedAt: row.updated_at, updatedBy: row.updated_by,
       commentCount: row.comment_count
     };

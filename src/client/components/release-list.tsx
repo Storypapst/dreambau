@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArchiveIcon, ArrowLeftIcon, CheckIcon, DownloadIcon, FilterXIcon, ListChecksIcon, MessageSquareIcon, PlusIcon, SearchIcon } from "lucide-react";
+import { ArchiveIcon, ArrowLeftIcon, CheckIcon, DownloadIcon, FileTextIcon, FilterXIcon, ListChecksIcon, MessageSquareIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   addReleaseComment,
@@ -21,10 +21,12 @@ import {
   type ReleaseSelectField
 } from "@/release-list-client";
 import type { Locale } from "@/i18n";
+import { renderMarkdown } from "@/safe-markdown";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -32,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -45,7 +48,7 @@ const copy = {
     details: "Details", comments: "Kommentare", activity: "Änderungen", addComment: "Kommentar hinzufügen", post: "Senden", noComments: "Noch keine Kommentare.",
     archive: "Archivieren", archiveTitle: "Feature archivieren?", archiveText: "Das Feature und seine Unterpunkte verschwinden aus der Liste. Die Daten bleiben in der Datenbank.",
     cancel: "Abbrechen", newName: "Name des neuen Features", subItemOf: "Unterpunkt von", lastEdit: (who: string, when: string) => `Zuletzt geändert von ${who}, ${when}`,
-    addSubItem: "Unterpunkt hinzufügen", findValue: "Wert suchen", linked: "Verknüpfte Features", created: "angelegt", archived: "archiviert"
+    addSubItem: "Unterpunkt hinzufügen", findValue: "Wert suchen", openNotes: "Öffnen", addNotes: "Hinzufügen", preview: "Vorschau", edit: "Bearbeiten", save: "Speichern", close: "Schließen", notesHint: "Markdown: # Überschrift, **fett**, *kursiv*, - Liste, [Link](https://…)", notesEmpty: "Noch keine Release Notes.", discard: "Ungespeicherte Änderungen verwerfen?", linked: "Verknüpfte Features", created: "angelegt", archived: "archiviert"
   },
   en: {
     kicker: "Release planning", back: "Back to test accounts", export: "Export CSV", add: "New feature", search: "Search features",
@@ -56,14 +59,14 @@ const copy = {
     details: "Details", comments: "Comments", activity: "Changes", addComment: "Add a comment", post: "Post", noComments: "No comments yet.",
     archive: "Archive", archiveTitle: "Archive this feature?", archiveText: "The feature and its sub-items disappear from the list. The data stays in the database.",
     cancel: "Cancel", newName: "Name of the new feature", subItemOf: "Sub-item of", lastEdit: (who: string, when: string) => `Last changed by ${who}, ${when}`,
-    addSubItem: "Add sub-item", findValue: "Find a value", linked: "Linked features", created: "created", archived: "archived"
+    addSubItem: "Add sub-item", findValue: "Find a value", openNotes: "Open", addNotes: "Add", preview: "Preview", edit: "Edit", save: "Save", close: "Close", notesHint: "Markdown: # Heading, **bold**, *italic*, - list, [link](https://…)", notesEmpty: "No release notes yet.", discard: "Discard unsaved changes?", linked: "Linked features", created: "created", archived: "archived"
   }
 } as const;
 type Copy = typeof copy.de | typeof copy.en;
 
 const columns = {
-  de: { name: "Feature", areas: "Bereiche", description: "Beschreibung", crossReferences: "Querverweise", devStatus: "Status auf Dev", functional: "Funktionsfähig?", statusComment: "Status-Kommentar", notes: "Notizen" },
-  en: { name: "Feature", areas: "Areas", description: "Description", crossReferences: "Cross-references", devStatus: "Status on Dev", functional: "Working?", statusComment: "Status comment", notes: "Notes" }
+  de: { name: "Feature", areas: "Bereiche", description: "Beschreibung", crossReferences: "Querverweise", devStatus: "Status auf Dev", functional: "Staging", statusComment: "Status-Kommentar", notes: "Notizen", releaseNotes: "Release Notes" },
+  en: { name: "Feature", areas: "Areas", description: "Description", crossReferences: "Cross-references", devStatus: "Status on Dev", functional: "Staging", statusComment: "Status comment", notes: "Notes", releaseNotes: "Release notes" }
 } as const;
 
 const multiple: Record<ReleaseSelectField, boolean> = { areas: true, devStatus: false, functional: true };
@@ -153,9 +156,9 @@ export function ReleaseListPage({ locale, onBack }: { locale: Locale; onBack: ()
       </div>
     </div></header>
     <section className="mx-auto max-w-[1800px] px-4 py-6 lg:px-8">
-      {visible.length ? <Card className="py-0"><Table className="release-table min-w-[1400px] table-fixed">
-        <colgroup><col className="w-72" /><col className="w-56" /><col className="w-80" /><col className="w-44" /><col className="w-40" /><col className="w-44" /><col className="w-72" /><col className="w-80" /></colgroup>
-        <TableHeader><TableRow>{(["name", "areas", "description", "crossReferences", "devStatus", "functional", "statusComment", "notes"] as const).map((key) => <TableHead key={key} className="text-muted-foreground">{columns[locale][key]}</TableHead>)}</TableRow></TableHeader>
+      {visible.length ? <Card className="py-0"><Table className="release-table min-w-[1660px] table-fixed">
+        <colgroup><col className="w-72" /><col className="w-56" /><col className="w-80" /><col className="w-44" /><col className="w-40" /><col className="w-44" /><col className="w-72" /><col className="w-80" /><col className="w-64" /></colgroup>
+        <TableHeader><TableRow>{(["name", "areas", "description", "crossReferences", "devStatus", "functional", "statusComment", "notes", "releaseNotes"] as const).map((key) => <TableHead key={key} className="text-muted-foreground">{columns[locale][key]}</TableHead>)}</TableRow></TableHeader>
         <TableBody>{visible.map((item) => <TableRow key={item.id} className="align-top">
           <TableCell className="py-3 align-top whitespace-normal"><button type="button" className={`flex w-full items-start gap-2 text-left font-semibold hover:underline ${item.parentId ? "pl-5 font-medium text-muted-foreground" : ""}`} onClick={() => setOpenItemId(item.id)}>{item.parentId && <span aria-hidden>↳</span>}<span className="min-w-0 flex-1">{item.name}</span>{item.commentCount > 0 && <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground"><MessageSquareIcon className="size-3.5" />{item.commentCount}</span>}</button></TableCell>
           <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="areas" label={columns[locale].areas} item={item} options={options.areas} text={text} onChange={(value) => patch(item, { areas: value })} onCreate={(label) => createOption("areas", label)} /></TableCell>
@@ -165,6 +168,7 @@ export function ReleaseListPage({ locale, onBack }: { locale: Locale; onBack: ()
           <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="functional" label={columns[locale].functional} item={item} options={options.functional} text={text} onChange={(value) => patch(item, { functional: value })} onCreate={(label) => createOption("functional", label)} /></TableCell>
           <TableCell className="py-3 align-top whitespace-normal"><Clamp>{item.statusComment}</Clamp></TableCell>
           <TableCell className="py-3 align-top whitespace-normal"><Clamp>{item.notes}</Clamp></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><ReleaseNotesField item={item} text={text} title={columns[locale].releaseNotes} onSave={(value) => patch(item, { releaseNotes: value })} /></TableCell>
         </TableRow>)}</TableBody>
       </Table></Card> : <Card><CardContent><Empty><EmptyHeader><EmptyTitle>{text.empty}</EmptyTitle><EmptyDescription>{text.emptyHint}</EmptyDescription></EmptyHeader></Empty></CardContent></Card>}
     </section>
@@ -177,7 +181,7 @@ export function ReleaseListPage({ locale, onBack }: { locale: Locale; onBack: ()
 export function filterItems(items: ReleaseItem[], filters: Filters) {
   const query = filters.query.trim().toLowerCase();
   return items.filter((item) =>
-    (!query || [item.name, item.description, item.crossReferences, item.statusComment, item.notes].some((value) => value.toLowerCase().includes(query)))
+    (!query || [item.name, item.description, item.crossReferences, item.statusComment, item.notes, item.releaseNotes].some((value) => value.toLowerCase().includes(query)))
     && (!filters.areas.length || item.areas.some((id) => filters.areas.includes(id)))
     && (!filters.devStatus.length || (item.devStatus !== null && filters.devStatus.includes(item.devStatus)))
     && (!filters.functional.length || item.functional.some((id) => filters.functional.includes(id))));
@@ -295,6 +299,7 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
           {current.crossReferenceIds.length > 0 && <><dt className="text-muted-foreground">{text.linked}</dt><dd className="flex flex-col gap-1">{current.crossReferenceIds.map((id) => names.has(id) && <button key={id} type="button" className="w-fit text-left text-blue-700 hover:underline" onClick={() => onOpen(id)}>{names.get(id)}</button>)}</dd></>}
         </dl>
         <FieldGroup>{textFields.map((field) => <Field key={field}><FieldLabel htmlFor={`release-${field}`}>{labels[field]}</FieldLabel><Textarea id={`release-${field}`} value={drafts[field]} maxLength={field === "notes" ? 8000 : 4000} onChange={(event) => setDrafts((value) => ({ ...value, [field]: event.target.value }))} onBlur={() => { if (drafts[field] !== current[field]) void save({ [field]: drafts[field] }); }} /></Field>)}</FieldGroup>
+        <div className="flex flex-col gap-2"><p className="text-sm font-medium">{labels.releaseNotes}</p><ReleaseNotesField item={current} text={text} title={labels.releaseNotes} onSave={(value) => save({ releaseNotes: value })} /></div>
         {!current.parentId && <NewItemButton variant="outline" label={text.addSubItem} placeholder={text.newName} onCreate={(subName) => onAddSubItem(subName, current.id)} />}
         <Separator />
         <section className="flex flex-col gap-3"><h3 className="font-semibold">{text.comments}</h3>
@@ -310,4 +315,41 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
       </div>
     </SheetContent>
   </Sheet>;
+}
+
+/** Plain-text teaser for the table cell; the dialog renders the real Markdown. */
+function markdownTeaser(source: string) {
+  return source.replace(/```[\s\S]*?```/g, " ").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/^[#>\-*+\s]+/gm, "").replace(/[*_`~]/g, "").trim();
+}
+
+export function ReleaseNotesField({ item, title, text, onSave }: { item: ReleaseItem; title: string; text: Copy; onSave: (value: string) => Promise<void> | void }) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"preview" | "edit">("preview");
+  const [draft, setDraft] = useState(item.releaseNotes);
+  const html = useMemo(() => renderMarkdown(draft), [draft]);
+  function show() { setDraft(item.releaseNotes); setMode(item.releaseNotes ? "preview" : "edit"); setOpen(true); }
+  async function save() { await onSave(draft); setOpen(false); }
+  const dirty = draft !== item.releaseNotes;
+  return <>
+    <button type="button" onClick={show} className="flex w-full flex-col items-start gap-1 rounded-md p-1 text-left hover:bg-muted" aria-label={`${title}: ${item.name}`}>
+      {item.releaseNotes ? <><span className="line-clamp-3 text-sm text-foreground/90">{markdownTeaser(item.releaseNotes)}</span><span className="flex items-center gap-1 text-xs font-medium text-blue-700"><FileTextIcon className="size-3.5" />{text.openNotes}</span></>
+        : <span className="flex items-center gap-1 text-sm text-muted-foreground"><PlusIcon className="size-3.5" />{text.addNotes}</span>}
+    </button>
+    <Dialog open={open} onOpenChange={(next) => { if (!next && dirty && !window.confirm(text.discard)) return; setOpen(next); }}>
+      <DialogContent className="flex h-[92vh] max-h-[92vh] w-[calc(100vw-2rem)] flex-col gap-4 sm:max-w-5xl">
+        <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{item.name}</DialogDescription></DialogHeader>
+        <Tabs value={mode} onValueChange={(value) => setMode(value as "preview" | "edit")} className="flex min-h-0 flex-1 flex-col">
+          <TabsList><TabsTrigger value="preview">{text.preview}</TabsTrigger><TabsTrigger value="edit">{text.edit}</TabsTrigger></TabsList>
+          <TabsContent value="preview" className="min-h-0 flex-1 overflow-y-auto rounded-lg border bg-card p-6">
+            {draft.trim() ? <div className="md-body" dangerouslySetInnerHTML={{ __html: html }} /> : <p className="text-sm text-muted-foreground">{text.notesEmpty}</p>}
+          </TabsContent>
+          <TabsContent value="edit" className="flex min-h-0 flex-1 flex-col gap-2">
+            <Textarea aria-label={title} value={draft} maxLength={15000} onChange={(event) => setDraft(event.target.value)} className="min-h-0 flex-1 resize-none font-mono text-sm [field-sizing:fixed]" />
+            <p className="text-xs text-muted-foreground">{text.notesHint}</p>
+          </TabsContent>
+        </Tabs>
+        <DialogFooter><Button variant="outline" onClick={() => { setDraft(item.releaseNotes); setOpen(false); }}>{text.close}</Button><Button onClick={() => void save()} disabled={!dirty}>{text.save}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>;
 }

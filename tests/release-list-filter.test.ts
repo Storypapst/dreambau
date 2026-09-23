@@ -4,7 +4,7 @@ import type { ReleaseItem } from "../src/client/release-list-client.js";
 
 const item = (overrides: Partial<ReleaseItem>): ReleaseItem => ({
   id: "i", listId: "l", parentId: null, position: 1, name: "", areas: [], description: "", crossReferences: "", crossReferenceIds: [],
-  devStatus: null, functional: [], statusComment: "", notes: "", completed: false, createdAt: "", createdBy: "", updatedAt: "", updatedBy: "",
+  devStatus: null, functional: [], statusComment: "", notes: "", releaseNotes: "", completed: false, createdAt: "", createdBy: "", updatedAt: "", updatedBy: "",
   commentCount: 0, ...overrides
 });
 

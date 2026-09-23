@@ -7,7 +7,8 @@ import { createApp } from "../src/server/app.js";
 import { createDatabase } from "../src/server/db.js";
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
-import type { ReleaseSeed } from "../src/server/release-list-store.js";
+import Database from "better-sqlite3";
+import { ReleaseListStore, type ReleaseSeed } from "../src/server/release-list-store.js";
 
 const seed: ReleaseSeed = {
   title: "OBP 2.1 feature reference list",
@@ -66,6 +67,15 @@ describe("release list import", () => {
     expect(database.releaseLists.getList("other")).toBeNull();
   });
 
+  it("adds the release-notes column to a table created before it existed", () => {
+    const sqlite = new Database(":memory:");
+    sqlite.exec("CREATE TABLE release_items (id TEXT PRIMARY KEY, list_id TEXT NOT NULL, parent_id TEXT, position INTEGER NOT NULL, source_id TEXT, name TEXT NOT NULL, areas TEXT NOT NULL DEFAULT '[]', description TEXT NOT NULL DEFAULT '', cross_references TEXT NOT NULL DEFAULT '', cross_reference_ids TEXT NOT NULL DEFAULT '[]', dev_status TEXT, functional TEXT NOT NULL DEFAULT '[]', status_comment TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', completed INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, created_by TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL, archived_at TEXT, archived_by TEXT)");
+    const store = new ReleaseListStore(sqlite);
+    store.importSeed("obp-2-1", "oriso", seed);
+    expect(store.items("obp-2-1")[0].releaseNotes).toBe("");
+    new ReleaseListStore(sqlite);
+  });
+
   it("refuses a second import that would silently overwrite team edits", () => {
     const { database } = setup();
     expect(() => database.releaseLists.importSeed("obp-2-1", "oriso", seed)).toThrow("list_exists");
@@ -96,13 +106,16 @@ describe("release list API", () => {
     expect(rejected.status).toBe(400);
     expect(rejected.body.error).toBe("unknown_option");
 
+    const notes = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ releaseNotes: "# 2.1\n\n- Queue fixed" });
+    expect(notes.body.releaseNotes).toBe("# 2.1\n\n- Queue fixed");
+
     const selfLink = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ crossReferenceIds: [first.id] });
     expect(selfLink.body.error).toBe("invalid_reference");
     const unknownLink = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ crossReferenceIds: ["not-an-item"] });
     expect(unknownLink.status).toBe(400);
 
     const activity = await agent.get(`/testmails/api/release-lists/obp-2-1/items/${first.id}/activity`);
-    expect(activity.body.changes.map((change: { field: string }) => change.field).sort()).toEqual(["devStatus", "functional"]);
+    expect(activity.body.changes.map((change: { field: string }) => change.field).sort()).toEqual(["devStatus", "functional", "releaseNotes"]);
   });
 
   it("adds items, options and comments, and archives an item with its sub-items", async () => {

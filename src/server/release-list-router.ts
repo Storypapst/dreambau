@@ -104,12 +104,12 @@ function toCsv(items: ReleaseItem[], options: ReleaseOptions): string {
   const label = (field: keyof ReleaseOptions, ids: string[]) =>
     ids.map((id) => options[field].find((option) => option.id === id)?.label ?? id).join("; ");
   const names = new Map(items.map((item) => [item.id, item.name]));
-  const header = ["Feature", "Areas", "Description", "Cross-references", "Status on Dev", "Working?", "Status comment", "Notes", "Parent", "Completed"];
+  const header = ["Feature", "Areas", "Description", "Cross-references", "Status on Dev", "Staging", "Status comment", "Notes", "Release notes", "Parent", "Completed"];
   const rows = items.map((item) => [
     item.name, label("areas", item.areas), item.description,
     [item.crossReferences, ...item.crossReferenceIds.map((id) => names.get(id) ?? "")].filter(Boolean).join("; "),
     label("devStatus", item.devStatus ? [item.devStatus] : []), label("functional", item.functional),
-    item.statusComment, item.notes, item.parentId ? names.get(item.parentId) ?? "" : "", item.completed ? "yes" : "no"
+    item.statusComment, item.notes, item.releaseNotes, item.parentId ? names.get(item.parentId) ?? "" : "", item.completed ? "yes" : "no"
   ]);
   const cell = (value: string) => {
     // Spreadsheet apps evaluate =, +, - or @ as a formula, even behind leading whitespace, and treat a leading tab or CR alike.

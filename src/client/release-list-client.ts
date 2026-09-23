@@ -23,6 +23,7 @@ export interface ReleaseItem {
   functional: string[];
   statusComment: string;
   notes: string;
+  releaseNotes: string;
   completed: boolean;
   createdAt: string;
   createdBy: string;
@@ -31,7 +32,7 @@ export interface ReleaseItem {
   commentCount: number;
 }
 
-export type ItemPatch = Partial<Pick<ReleaseItem, "name" | "areas" | "description" | "crossReferences" | "crossReferenceIds" | "devStatus" | "functional" | "statusComment" | "notes" | "completed">>;
+export type ItemPatch = Partial<Pick<ReleaseItem, "name" | "areas" | "description" | "crossReferences" | "crossReferenceIds" | "devStatus" | "functional" | "statusComment" | "notes" | "releaseNotes" | "completed">>;
 export interface ReleaseComment { id: number; itemId: string; authorName: string; body: string; createdAt: string }
 export interface ReleaseChange { id: number; itemId: string; field: string; oldValue: string; newValue: string; actorName: string; changedAt: string }
 export interface ReleaseListDetail { list: ReleaseList; options: ReleaseOptions; items: ReleaseItem[] }
