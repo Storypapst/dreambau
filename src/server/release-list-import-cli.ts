@@ -35,6 +35,11 @@ async function main() {
       process.exitCode = 1;
       return;
     }
+    if (error instanceof ReleaseListError && error.code === "invalid_reference") {
+      process.stderr.write("The seed references a parent or cross-referenced record that is not in the file. Nothing was imported.\n");
+      process.exitCode = 1;
+      return;
+    }
     throw error;
   } finally {
     sqlite.close();

@@ -58,6 +58,14 @@ describe("release list import", () => {
     expect(database.releaseLists.options("obp-2-1").devStatus.map((option) => option.color)).toEqual(["green", "amber"]);
   });
 
+  it("refuses a seed whose parent or cross-reference points at a missing record", () => {
+    const { database } = setup();
+    const broken = (overrides: Partial<ReleaseSeed["features"][number]>) => ({ ...seed, features: [{ ...seed.features[0], ...overrides }] });
+    expect(() => database.releaseLists.importSeed("other", "oriso", broken({ parentSourceId: "RecMissing" }))).toThrow("invalid_reference");
+    expect(() => database.releaseLists.importSeed("other", "oriso", broken({ crossReferenceIds: ["RecMissing"] }))).toThrow("invalid_reference");
+    expect(database.releaseLists.getList("other")).toBeNull();
+  });
+
   it("refuses a second import that would silently overwrite team edits", () => {
     const { database } = setup();
     expect(() => database.releaseLists.importSeed("obp-2-1", "oriso", seed)).toThrow("list_exists");
@@ -88,6 +96,11 @@ describe("release list API", () => {
     expect(rejected.status).toBe(400);
     expect(rejected.body.error).toBe("unknown_option");
 
+    const selfLink = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ crossReferenceIds: [first.id] });
+    expect(selfLink.body.error).toBe("invalid_reference");
+    const unknownLink = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ crossReferenceIds: ["not-an-item"] });
+    expect(unknownLink.status).toBe(400);
+
     const activity = await agent.get(`/testmails/api/release-lists/obp-2-1/items/${first.id}/activity`);
     expect(activity.body.changes.map((change: { field: string }) => change.field).sort()).toEqual(["devStatus", "functional"]);
   });
@@ -113,12 +126,14 @@ describe("release list API", () => {
   it("exports CSV with labels instead of option ids and defuses spreadsheet formulas", async () => {
     const { app, database } = setup();
     const [first] = database.releaseLists.items("obp-2-1");
-    database.releaseLists.updateItem("obp-2-1", first.id, { statusComment: "=HYPERLINK(\"x\")" }, { id: "u", name: "U" });
+    database.releaseLists.updateItem("obp-2-1", first.id, { statusComment: "=HYPERLINK(\"x\")", notes: "  +1 more", description: "\t-2" }, { id: "u", name: "U" });
     const agent = await signIn(app, "member@dreambau.com");
     const csv = await agent.get("/testmails/api/release-lists/obp-2-1/export.csv");
     expect(csv.status).toBe(200);
     expect(csv.text).toContain("Counselling & chat; Data protection");
     expect(csv.text).toContain("\"'=HYPERLINK(\"\"x\"\")\"");
+    expect(csv.text).toContain("'  +1 more");
+    expect(csv.text).toContain("'\t-2");
     expect(csv.text).not.toContain("OptBuilt");
   });
 });

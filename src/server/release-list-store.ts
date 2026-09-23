@@ -99,7 +99,7 @@ const toneColor: Record<"success" | "warning" | "neutral" | "danger", OptionColo
 };
 
 export class ReleaseListError extends Error {
-  constructor(readonly code: "list_not_found" | "item_not_found" | "option_not_found" | "unknown_option" | "list_exists" | "invalid_parent") {
+  constructor(readonly code: "list_not_found" | "item_not_found" | "option_not_found" | "unknown_option" | "list_exists" | "invalid_parent" | "invalid_reference") {
     super(code);
   }
 }
@@ -205,6 +205,10 @@ export class ReleaseListStore {
     if (patch.areas) known("areas", patch.areas);
     if (patch.functional) known("functional", patch.functional);
     if (patch.devStatus) known("devStatus", [patch.devStatus]);
+    if (patch.crossReferenceIds) {
+      const active = new Set(this.items(listId).map((item) => item.id));
+      if (patch.crossReferenceIds.some((id) => id === itemId || !active.has(id))) throw new ReleaseListError("invalid_reference");
+    }
     const at = this.now().toISOString();
     const apply = this.sqlite.transaction(() => {
       for (const [key, value] of Object.entries(patch) as Array<[keyof ItemPatch, ItemPatch[keyof ItemPatch]]>) {
@@ -285,15 +289,19 @@ export class ReleaseListStore {
       seed.options.devStatus.forEach((option, index) => insertOption.run(listId, "devStatus", option.id, option.en, toneColor[option.tone], index + 1));
       seed.options.functional.forEach((option, index) => insertOption.run(listId, "functional", option.id, option.en, toneColor[option.tone], index + 1));
       const ids = new Map(seed.features.map((feature) => [feature.sourceId, randomUUID()]));
+      // A dangling reference would otherwise import as a top-level item or a lost link, and nobody would notice.
+      const dangling = seed.features.flatMap((feature) => [feature.parentSourceId, ...feature.crossReferenceIds])
+        .filter((sourceId): sourceId is string => sourceId !== null && !ids.has(sourceId));
+      if (dangling.length) throw new ReleaseListError("invalid_reference");
       const insertItem = this.sqlite.prepare(`INSERT INTO release_items(id,list_id,parent_id,position,source_id,name,areas,description,cross_references,
         cross_reference_ids,dev_status,functional,status_comment,notes,completed,created_at,created_by,updated_at,updated_by)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
       seed.features.forEach((feature, index) => {
         const notes = [feature.notes, feature.notes2].filter((value) => value.trim()).join("\n\n");
         insertItem.run(
-          ids.get(feature.sourceId), listId, feature.parentSourceId ? ids.get(feature.parentSourceId) ?? null : null, index + 1,
+          ids.get(feature.sourceId), listId, feature.parentSourceId ? ids.get(feature.parentSourceId) : null, index + 1,
           feature.sourceId, feature.name, JSON.stringify(feature.areas), feature.description, feature.crossReferences,
-          JSON.stringify(feature.crossReferenceIds.map((sourceId) => ids.get(sourceId)).filter(Boolean)),
+          JSON.stringify(feature.crossReferenceIds.map((sourceId) => ids.get(sourceId))),
           feature.devStatus, JSON.stringify(feature.functional), feature.statusComment, notes, Number(feature.completed),
           at, actor, at, actor
         );

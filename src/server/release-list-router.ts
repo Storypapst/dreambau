@@ -17,7 +17,7 @@ import {
 const fieldSchema = z.enum(releaseSelectFields);
 
 const statusFor: Record<ReleaseListError["code"], number> = {
-  list_not_found: 404, item_not_found: 404, option_not_found: 404, unknown_option: 400, list_exists: 409, invalid_parent: 400
+  list_not_found: 404, item_not_found: 404, option_not_found: 404, unknown_option: 400, list_exists: 409, invalid_parent: 400, invalid_reference: 400
 };
 
 /**
@@ -112,8 +112,8 @@ function toCsv(items: ReleaseItem[], options: ReleaseOptions): string {
     item.statusComment, item.notes, item.parentId ? names.get(item.parentId) ?? "" : "", item.completed ? "yes" : "no"
   ]);
   const cell = (value: string) => {
-    // A leading =, +, - or @ turns into a formula in spreadsheet apps.
-    const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+    // Spreadsheet apps evaluate =, +, - or @ as a formula, even behind leading whitespace, and treat a leading tab or CR alike.
+    const safe = /^(\s*[=+\-@]|[\t\r])/.test(value) ? `'${value}` : value;
     return /[",\n\r]/.test(safe) ? `"${safe.replaceAll("\"", "\"\"")}"` : safe;
   };
   return `﻿${[header, ...rows].map((row) => row.map(cell).join(",")).join("\r\n")}\r\n`;
