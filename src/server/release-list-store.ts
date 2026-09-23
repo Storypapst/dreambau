@@ -189,7 +189,8 @@ export class ReleaseListStore {
   createItem(listId: string, input: z.infer<typeof newItemSchema>, actor: ReleaseActor): ReleaseItem {
     this.requireList(listId);
     const parentId = input.parentId ?? null;
-    if (parentId) this.getItem(listId, parentId);
+    // One level of sub-items only: archive, ordering and the UI all assume it.
+    if (parentId && this.getItem(listId, parentId).parentId !== null) throw new ReleaseListError("invalid_parent");
     const at = this.now().toISOString();
     const id = randomUUID();
     const position = (this.sqlite.prepare("SELECT COALESCE(MAX(position), 0) AS p FROM release_items WHERE list_id=?").get(listId) as { p: number }).p + 1;
@@ -283,6 +284,8 @@ export class ReleaseListStore {
     const actor = options.actorName ?? "Slack import";
     const at = this.now().toISOString();
     const run = this.sqlite.transaction(() => {
+      // The export does not promise parents before their sub-items; check the links at commit.
+      this.sqlite.pragma("defer_foreign_keys = ON");
       if (this.getList(listId)) {
         if (!options.replace) throw new ReleaseListError("list_exists");
         this.sqlite.prepare("DELETE FROM release_lists WHERE id=?").run(listId);
@@ -298,6 +301,11 @@ export class ReleaseListStore {
       const dangling = seed.features.flatMap((feature) => [feature.parentSourceId, ...feature.crossReferenceIds])
         .filter((sourceId): sourceId is string => sourceId !== null && !ids.has(sourceId));
       if (dangling.length) throw new ReleaseListError("invalid_reference");
+      const known = (field: ReleaseSelectField) => new Set(seed.options[field].map((option) => option.id));
+      const areaIds = known("areas"), statusIds = known("devStatus"), stagingIds = known("functional");
+      const unknownOption = seed.features.some((feature) => feature.areas.some((id) => !areaIds.has(id))
+        || feature.functional.some((id) => !stagingIds.has(id)) || (feature.devStatus !== null && !statusIds.has(feature.devStatus)));
+      if (unknownOption) throw new ReleaseListError("unknown_option");
       const insertItem = this.sqlite.prepare(`INSERT INTO release_items(id,list_id,parent_id,position,source_id,name,areas,description,cross_references,
         cross_reference_ids,dev_status,functional,status_comment,notes,completed,created_at,created_by,updated_at,updated_by)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);

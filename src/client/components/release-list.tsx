@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArchiveIcon, ArrowLeftIcon, CheckIcon, DownloadIcon, FileTextIcon, FilterXIcon, ListChecksIcon, MessageSquareIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -257,8 +257,30 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
   onClose: () => void; onPatch: (item: ReleaseItem, change: ItemPatch) => Promise<void>; onCreateOption: (field: ReleaseSelectField, label: string) => Promise<ReleaseOption>;
   onArchive: (item: ReleaseItem) => Promise<void>; onOpen: (id: string) => void; onAddSubItem: (name: string, parentId: string) => Promise<void>; onCommented: (itemId: string) => void;
 }) {
-  const [name, setName] = useState(item?.name ?? "");
-  const [drafts, setDrafts] = useState<Record<typeof textFields[number], string>>(() => ({ description: item?.description ?? "", statusComment: item?.statusComment ?? "", notes: item?.notes ?? "", crossReferences: item?.crossReferences ?? "" }));
+  type Editable = "name" | typeof textFields[number];
+  const snapshot = (source: ReleaseItem | null): Record<Editable, string> => ({ name: source?.name ?? "", description: source?.description ?? "", statusComment: source?.statusComment ?? "", notes: source?.notes ?? "", crossReferences: source?.crossReferences ?? "" });
+  const [drafts, setDrafts] = useState(() => snapshot(item));
+  // What each field held when this person last saw it. A blur saves only their own edits,
+  // so a focus refresh that brought in someone else's change is never written back over it.
+  const baseline = useRef(snapshot(item));
+  const name = drafts.name;
+  const setName = (value: string) => setDrafts((current) => ({ ...current, name: value }));
+  useEffect(() => {
+    if (!item) return;
+    const fresh = snapshot(item);
+    setDrafts((current) => {
+      const next = { ...current };
+      for (const key of Object.keys(fresh) as Editable[]) {
+        if (current[key] === baseline.current[key] && fresh[key] !== baseline.current[key]) { next[key] = fresh[key]; baseline.current[key] = fresh[key]; }
+      }
+      return next;
+    });
+  }, [item]);
+  function commit(field: Editable, value: string) {
+    if (value === baseline.current[field]) return;
+    baseline.current[field] = value;
+    void save({ [field]: value });
+  }
   const [activity, setActivity] = useState<{ comments: ReleaseComment[]; changes: ReleaseChange[] }>({ comments: [], changes: [] });
   const [comment, setComment] = useState("");
   const labels = columns[locale];
@@ -293,12 +315,12 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
       <SheetHeader><SheetTitle className="sr-only">{current.name}</SheetTitle><SheetDescription>{text.lastEdit(current.updatedBy, new Date(current.updatedAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB"))}</SheetDescription></SheetHeader>
       <div className="flex flex-col gap-6 px-4 pb-8">
         {current.parentId && <p className="text-sm text-muted-foreground">{text.subItemOf} <button type="button" className="text-blue-700 hover:underline" onClick={() => onOpen(current.parentId!)}>{names.get(current.parentId)}</button></p>}
-        <Input aria-label={labels.name} className="h-auto border-transparent px-0 text-2xl font-bold shadow-none focus-visible:border-input focus-visible:px-2 md:text-2xl" value={name} maxLength={200} onChange={(event) => setName(event.target.value)} onBlur={() => { if (name.trim() && name.trim() !== current.name) void save({ name: name.trim() }); else setName(current.name); }} />
+        <Input aria-label={labels.name} className="h-auto border-transparent px-0 text-2xl font-bold shadow-none focus-visible:border-input focus-visible:px-2 md:text-2xl" value={name} maxLength={200} onChange={(event) => setName(event.target.value)} onBlur={() => { if (name.trim()) { setName(name.trim()); commit("name", name.trim()); } else setName(baseline.current.name); }} />
         <dl className="grid grid-cols-[9rem_minmax(0,1fr)] items-start gap-x-4 gap-y-3 text-sm">
           {(["areas", "devStatus", "functional"] as const).map((field) => <div key={field} className="contents"><dt className="pt-1.5 text-muted-foreground">{labels[field]}</dt><dd><SelectCell field={field} label={labels[field]} item={current} options={options[field]} text={text} onChange={(value) => save(field === "devStatus" ? { devStatus: value[0] ?? null } : { [field]: value })} onCreate={(label) => onCreateOption(field, label)} /></dd></div>)}
           {current.crossReferenceIds.length > 0 && <><dt className="text-muted-foreground">{text.linked}</dt><dd className="flex flex-col gap-1">{current.crossReferenceIds.map((id) => names.has(id) && <button key={id} type="button" className="w-fit text-left text-blue-700 hover:underline" onClick={() => onOpen(id)}>{names.get(id)}</button>)}</dd></>}
         </dl>
-        <FieldGroup>{textFields.map((field) => <Field key={field}><FieldLabel htmlFor={`release-${field}`}>{labels[field]}</FieldLabel><Textarea id={`release-${field}`} value={drafts[field]} maxLength={field === "notes" ? 8000 : 4000} onChange={(event) => setDrafts((value) => ({ ...value, [field]: event.target.value }))} onBlur={() => { if (drafts[field] !== current[field]) void save({ [field]: drafts[field] }); }} /></Field>)}</FieldGroup>
+        <FieldGroup>{textFields.map((field) => <Field key={field}><FieldLabel htmlFor={`release-${field}`}>{labels[field]}</FieldLabel><Textarea id={`release-${field}`} value={drafts[field]} maxLength={field === "notes" ? 8000 : 4000} onChange={(event) => setDrafts((value) => ({ ...value, [field]: event.target.value }))} onBlur={() => commit(field, drafts[field])} /></Field>)}</FieldGroup>
         <div className="flex flex-col gap-2"><p className="text-sm font-medium">{labels.releaseNotes}</p><ReleaseNotesField item={current} text={text} title={labels.releaseNotes} onSave={(value) => save({ releaseNotes: value })} /></div>
         {!current.parentId && <NewItemButton variant="outline" label={text.addSubItem} placeholder={text.newName} onCreate={(subName) => onAddSubItem(subName, current.id)} />}
         <Separator />

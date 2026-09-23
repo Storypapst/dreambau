@@ -1,4 +1,4 @@
-import { api } from "@/api";
+import { api, unauthorizedEvent } from "@/api";
 
 export type ReleaseSelectField = "areas" | "devStatus" | "functional";
 export const optionColors = ["blue", "amber", "violet", "green", "rose", "slate", "teal", "orange"] as const;
@@ -47,7 +47,9 @@ export const createReleaseItem = (listId: string, name: string, parentId: string
 export const updateReleaseItem = (listId: string, itemId: string, patch: ItemPatch) =>
   api<ReleaseItem>(`${base}/${listId}/items/${itemId}`, json(patch, "PATCH"));
 export async function archiveReleaseItem(listId: string, itemId: string) {
+  // Not routed through api(): a 204 has no JSON body. The 401 signal still has to fire.
   const response = await fetch(`/testmails/api${base}/${listId}/items/${itemId}`, { method: "DELETE" });
+  if (response.status === 401) window.dispatchEvent(new Event(unauthorizedEvent));
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? `HTTP ${response.status}`);
 }
 export const loadReleaseActivity = (listId: string, itemId: string) =>

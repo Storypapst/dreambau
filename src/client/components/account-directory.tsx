@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DownloadIcon, ExternalLinkIcon, FilterXIcon, LanguagesIcon, ListChecksIcon, LogOutIcon, RouteIcon, SearchIcon, ShieldCheckIcon } from "lucide-react";
 import { DEFAULT_FILTERS, countActiveFilters, domainValues, fixtureValues, initialFilters, lifecycleValues, projectValues, readFiltersFromLocation, saveLastFilters, writeFiltersToLocation, type FilterState } from "@/filter-state";
 import { api } from "@/api";
@@ -33,8 +33,11 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   const [showCoordination, setShowCoordination] = useState(false);
   // /testmails/releases is a shareable deep link; the server already answers it with the SPA shell.
   const [showReleases, setShowReleasesState] = useState(() => window.location.pathname.startsWith("/testmails/releases"));
+  const accountsUrl = useRef("/testmails/");
   function setShowReleases(show: boolean) {
-    window.history.pushState(null, "", show ? "/testmails/releases" : "/testmails/");
+    // Coming back restores the account view with its filter query string.
+    if (show) accountsUrl.current = window.location.pathname + window.location.search;
+    window.history.pushState(null, "", show ? "/testmails/releases" : accountsUrl.current);
     setShowReleasesState(show);
   }
   useEffect(() => {
@@ -59,9 +62,10 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   const setTopicFilters = (update: string[] | ((current: string[]) => string[])) => setFilters((current) => ({ ...current, topics: typeof update === "function" ? update(current.topics) : update }));
   const setConversationFilters = (update: string[] | ((current: string[]) => string[])) => setFilters((current) => ({ ...current, conversations: typeof update === "function" ? update(current.conversations) : update }));
   const activeFilterCount = countActiveFilters(filters);
-  useEffect(() => { writeFiltersToLocation(filters); saveLastFilters(filters); }, [filters]);
+  const onReleasePage = () => window.location.pathname.startsWith("/testmails/releases");
+  useEffect(() => { if (onReleasePage()) return; writeFiltersToLocation(filters); saveLastFilters(filters); }, [filters]);
   useEffect(() => {
-    const onPopState = () => setFilters(readFiltersFromLocation() ?? DEFAULT_FILTERS);
+    const onPopState = () => { if (!onReleasePage()) setFilters(readFiltersFromLocation() ?? DEFAULT_FILTERS); };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);

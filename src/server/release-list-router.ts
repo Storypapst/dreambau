@@ -27,6 +27,8 @@ const statusFor: Record<ReleaseListError["code"], number> = {
  */
 export function createReleaseListRouter(store: ReleaseListStore) {
   const router = express.Router();
+  // Project-scoped team data: keep it out of shared browser and proxy caches.
+  router.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   const user = (res: express.Response) => res.locals.humanUser as HumanUser;
   const actor = (res: express.Response) => ({ id: user(res).id, name: user(res).name });
 

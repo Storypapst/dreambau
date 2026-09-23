@@ -62,7 +62,7 @@ describe("release list import", () => {
   it("refuses a seed whose parent or cross-reference points at a missing record", () => {
     const { database } = setup();
     const broken = (overrides: Partial<ReleaseSeed["features"][number]>) => ({ ...seed, features: [{ ...seed.features[0], ...overrides }] });
-    expect(() => database.releaseLists.importSeed("other", "oriso", broken({ parentSourceId: "RecMissing" }))).toThrow("invalid_reference");
+    expect(() => database.releaseLists.importSeed("other", "oriso", broken({ parentSourceId: "RecMissing", crossReferenceIds: [] }))).toThrow("invalid_reference");
     expect(() => database.releaseLists.importSeed("other", "oriso", broken({ crossReferenceIds: ["RecMissing"] }))).toThrow("invalid_reference");
     expect(database.releaseLists.getList("other")).toBeNull();
   });
@@ -74,6 +74,23 @@ describe("release list import", () => {
     store.importSeed("obp-2-1", "oriso", seed);
     expect(store.items("obp-2-1")[0].releaseNotes).toBe("");
     new ReleaseListStore(sqlite);
+  });
+
+  it("imports a sub-item that comes before its parent in the export", () => {
+    const { database } = setup();
+    const reordered = { ...seed, features: [seed.features[2], seed.features[0], seed.features[1]] };
+    database.releaseLists.importSeed("reordered", "oriso", reordered);
+    const items = database.releaseLists.items("reordered");
+    expect(items.map((item) => item.name)).toEqual(["Live chat queue", "Two-factor authentication (2FA)", "Change order"]);
+    expect(items[2].parentId).toBe(items[1].id);
+  });
+
+  it("refuses a seed that uses an option id it does not define", () => {
+    const { database } = setup();
+    const withUnknown = (overrides: Partial<ReleaseSeed["features"][number]>) => ({ ...seed, features: [{ ...seed.features[1], ...overrides }] });
+    expect(() => database.releaseLists.importSeed("x1", "oriso", withUnknown({ areas: ["OptNope"] }))).toThrow("unknown_option");
+    expect(() => database.releaseLists.importSeed("x2", "oriso", withUnknown({ devStatus: "OptNope" }))).toThrow("unknown_option");
+    expect(() => database.releaseLists.importSeed("x3", "oriso", withUnknown({ functional: ["OptNope"] }))).toThrow("unknown_option");
   });
 
   it("refuses a second import that would silently overwrite team edits", () => {
@@ -96,6 +113,7 @@ describe("release list API", () => {
     const agent = await signIn(app, "member@dreambau.com");
     const list = await agent.get("/testmails/api/release-lists/obp-2-1");
     expect(list.status).toBe(200);
+    expect(list.headers["cache-control"]).toBe("no-store");
     const [first] = list.body.items;
 
     const updated = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ devStatus: "OptUnclear", functional: ["OptAdjust"] });
@@ -130,6 +148,9 @@ describe("release list API", () => {
     expect(comment.body).toMatchObject({ authorName: "Team Member", body: "Please confirm with Christine." });
 
     const before = (await agent.get("/testmails/api/release-lists/obp-2-1")).body.items;
+    const subItem = before.find((item: { name: string }) => item.name === "Change order");
+    const nested = await agent.post("/testmails/api/release-lists/obp-2-1/items").send({ name: "Too deep", parentId: subItem.id });
+    expect(nested.body.error).toBe("invalid_parent");
     const parent = before.find((item: { name: string }) => item.name === "Two-factor authentication (2FA)");
     expect((await agent.delete(`/testmails/api/release-lists/obp-2-1/items/${parent.id}`)).status).toBe(204);
     const after = (await agent.get("/testmails/api/release-lists/obp-2-1")).body.items.map((item: { name: string }) => item.name);

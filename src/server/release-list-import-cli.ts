@@ -18,7 +18,7 @@ function argument(name: string) {
 async function main() {
   const listId = argument("list");
   const project = argument("project");
-  if (!listId || !/^[a-z0-9-]{3,40}$/.test(listId) || !project) {
+  if (!listId || !/^[a-z0-9-]{3,40}$/.test(listId) || !project || !["oriso", "orimo", "dreambau"].includes(project)) {
     process.stderr.write("Usage: release-list-import --list <id> --project <oriso|orimo|dreambau> [--replace] < seed.json\n");
     process.exitCode = 2;
     return;
@@ -32,6 +32,11 @@ async function main() {
   } catch (error) {
     if (error instanceof ReleaseListError && error.code === "list_exists") {
       process.stderr.write(`List ${listId} already exists. Pass --replace to overwrite it, which discards every edit made since.\n`);
+      process.exitCode = 1;
+      return;
+    }
+    if (error instanceof ReleaseListError && error.code === "unknown_option") {
+      process.stderr.write("The seed uses an area, status or staging value that is not in its options. Nothing was imported.\n");
       process.exitCode = 1;
       return;
     }
