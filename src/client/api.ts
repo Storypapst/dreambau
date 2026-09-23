@@ -4,7 +4,7 @@
  * this signal that looks like a broken feature instead of a lost session:
  * each action fails with its own message and the stale rows stay on screen.
  */
-const unauthorizedEvent = "testmails:unauthorized";
+export const unauthorizedEvent = "testmails:unauthorized";
 
 export function onUnauthorized(handler: () => void): () => void {
   window.addEventListener(unauthorizedEvent, handler);
