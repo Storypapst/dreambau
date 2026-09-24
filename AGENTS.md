@@ -43,3 +43,30 @@ npm run build
 Run live E2E only with credentials sourced from the operator Keychain. In
 particular, resolve `TESTMAILS_E2E_PASSWORD` at runtime rather than placing its
 value in a command literal, file, log or chat.
+
+## Canvas or epic: offer the epic (Frank, 2026-09-24)
+
+Frank wants delivery work tracked in **GitHub epics rather than Slack canvases**. A canvas is
+a snapshot that goes stale the day after it is written. An epic lives on the board, links its
+issues and PRs, and shows their live state.
+
+- **Every time you create or update a Slack canvas** (or a similar overview page) about delivery
+  work, ask proactively in the same reply: "Should this also be an epic — or should the existing
+  epic #N be updated?" Search for an existing epic or parent issue first, and never propose a
+  duplicate.
+- **Always attach a concrete epic proposal to the question**, ready to paste, in the project's
+  language rules (GitHub = English):
+  1. Title, plus two or three plain-language sentences on what and why.
+  2. A status table: item as a link | what, in a few words | owner | state marker
+     (✅ done · ⏳ running · 🔴 blocked · 💤 waiting on a human).
+  3. Merge or build order, when it matters.
+  4. "How to test" as action-plus-expected-result checkboxes.
+  5. "Fixed" and "still open" as separate lists.
+
+  Tables beat prose. The proposal must be understandable at a glance by someone who never
+  saw the chat.
+- **Create or change the epic only after Frank says yes.** Drafting the proposal is the default.
+  Follow the project's issue rules when you do (ORISO: one main issue per package with slices as
+  a checklist, issue type `Epic`, board fields set and read back).
+- A canvas is still fine as a one-off handover to a person. The epic is the durable record, so
+  link the two both ways.
