@@ -68,5 +68,5 @@ issues and PRs, and shows their live state.
 - **Create or change the epic only after Frank says yes.** Drafting the proposal is the default.
   Follow the project's issue rules when you do (ORISO: one main issue per package with slices as
   a checklist, issue type `Epic`, board fields set and read back).
-- A canvas is still fine as a one-off handover to a person. The epic is the durable record, so
-  link the two both ways.
+- A canvas is still fine as a one-off handover to a person. The epic is the durable record: the
+  canvas links to the epic, but GitHub never links back to Slack (outside readers cannot open it).
