@@ -70,3 +70,21 @@ issues and PRs, and shows their live state.
   a checklist, issue type `Epic`, board fields set and read back).
 - A canvas is still fine as a one-off handover to a person. The epic is the durable record: the
   canvas links to the epic, but GitHub never links back to Slack (outside readers cannot open it).
+
+## GitHub descriptions: the working surface, machine parts in code blocks (Frank, 2026-09-25)
+
+Frank wants agents to work **much more in the description field** of issues, epics and PRs:
+the body is the live record, comments are the history.
+
+- **Keep the current state in the description.** When merge order, status tables, the test
+  checklist or "fixed vs. still open" change, update them there — not only in a new comment.
+- **Edit sections, never rewrite the whole body.** Fetch the live body first, keep the top
+  (the plain-language story) verbatim, change only the sections that moved (usually the lower
+  ones), write it back, then read it back and diff.
+- **Text for people stays plain; text for machines goes in code blocks.** Anything meant for
+  developers or agents rather than people — contracts, endpoints, field names, migrations,
+  commands, test counts, stack details — goes in a fenced `text` block, so a human can skip it.
+- **One line above every block** says who it is for and why it helps, for example
+  "**For developers — merge details (skip if you only need the status):**". No more than one line.
+- **Delegation carries the rule.** When a subagent or a job on the Dreambau server writes to
+  GitHub, include this rule in its prompt.
