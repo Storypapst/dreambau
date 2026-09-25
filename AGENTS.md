@@ -51,9 +51,9 @@ a snapshot that goes stale the day after it is written. An epic lives on the boa
 issues and PRs, and shows their live state.
 
 - **Every time you create or update a Slack canvas** (or a similar overview page) about delivery
-  work, ask proactively in the same reply: "Should this also be an epic — or should the existing
-  epic #N be updated?" Search for an existing epic or parent issue first, and never propose a
-  duplicate.
+  work, search for an existing epic or parent issue first, then ask proactively in the same reply.
+  If one exists, name it: "Should epic #123 be updated to match?" If none exists, ask whether Frank
+  wants a new epic. Never propose a duplicate.
 - **Always attach a concrete epic proposal to the question**, ready to paste, in the project's
   language rules (GitHub = English):
   1. Title, plus two or three plain-language sentences on what and why.
