@@ -216,7 +216,7 @@ function SelectCell({ field, label, item, options, text, locale, onChange, onCre
   const value = field === "devStatus" ? (item.devStatus ? [item.devStatus] : []) : item[field];
   const selected = value.map((id) => options.find((option) => option.id === id)).filter((option): option is ReleaseOption => Boolean(option));
   return <OptionPicker options={options} value={value} multiple={multiple[field]} onChange={onChange} onCreate={onCreate} text={text} locale={locale}>
-    <button type="button" className="flex min-h-8 w-full flex-wrap content-start items-start gap-1 rounded-md p-1 text-left hover:bg-muted" aria-label={`${label}: ${item.name}`}>
+    <button type="button" className="flex min-h-8 w-full flex-wrap content-start items-start gap-1 rounded-md p-1 text-left hover:bg-muted" aria-label={`${label}: ${displayName(item, locale)}`}>
       {selected.length ? selected.map((option) => <OptionPill key={option.id} option={option} locale={locale} />) : <span className="px-1 text-sm text-muted-foreground">{text.none}</span>}
     </button>
   </OptionPicker>;
