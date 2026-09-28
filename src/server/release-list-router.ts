@@ -17,7 +17,7 @@ import {
 const fieldSchema = z.enum(releaseSelectFields);
 
 const statusFor: Record<ReleaseListError["code"], number> = {
-  list_not_found: 404, item_not_found: 404, option_not_found: 404, unknown_option: 400, list_exists: 409, invalid_parent: 400, invalid_reference: 400
+  list_not_found: 404, item_not_found: 404, option_not_found: 404, unknown_option: 400, list_exists: 409, translation_exists: 409, invalid_parent: 400, invalid_reference: 400
 };
 
 /**
@@ -64,7 +64,7 @@ export function createReleaseListRouter(store: ReleaseListStore) {
     const list = store.getList(listId)!;
     res.type("text/csv; charset=utf-8")
       .attachment(`${list.id}.csv`)
-      .send(toCsv(store.items(listId), store.options(listId)));
+      .send(toCsv(store.items(listId), store.options(listId), req.query.locale === "de" ? "de" : "en"));
   }));
 
   router.post("/:listId/items", handle((req, res) => {
@@ -102,16 +102,20 @@ export function createReleaseListRouter(store: ReleaseListStore) {
   return router;
 }
 
-function toCsv(items: ReleaseItem[], options: ReleaseOptions): string {
+function toCsv(items: ReleaseItem[], options: ReleaseOptions, locale: "de" | "en"): string {
+  const value = (item: ReleaseItem, field: "name" | "description" | "crossReferences" | "statusComment" | "notes" | "releaseNotes") =>
+    locale === "de" ? item.translations[field] ?? item[field] : item[field];
   const label = (field: keyof ReleaseOptions, ids: string[]) =>
-    ids.map((id) => options[field].find((option) => option.id === id)?.label ?? id).join("; ");
-  const names = new Map(items.map((item) => [item.id, item.name]));
-  const header = ["Feature", "Areas", "Description", "Cross-references", "Status on Dev", "Staging", "Status comment", "Notes", "Release notes", "Parent", "Completed"];
+    ids.map((id) => { const option = options[field].find((entry) => entry.id === id); return option ? locale === "de" ? option.labelDe || option.label : option.label : id; }).join("; ");
+  const names = new Map(items.map((item) => [item.id, value(item, "name")]));
+  const header = locale === "de"
+    ? ["Feature", "Bereiche", "Beschreibung", "Querverweise", "Status auf Dev", "Staging", "Status-Kommentar", "Notizen", "Release Notes", "Übergeordnetes Feature", "Abgeschlossen"]
+    : ["Feature", "Areas", "Description", "Cross-references", "Status on Dev", "Staging", "Status comment", "Notes", "Release notes", "Parent", "Completed"];
   const rows = items.map((item) => [
-    item.name, label("areas", item.areas), item.description,
-    [item.crossReferences, ...item.crossReferenceIds.map((id) => names.get(id) ?? "")].filter(Boolean).join("; "),
+    value(item, "name"), label("areas", item.areas), value(item, "description"),
+    [value(item, "crossReferences"), ...item.crossReferenceIds.map((id) => names.get(id) ?? "")].filter(Boolean).join("; "),
     label("devStatus", item.devStatus ? [item.devStatus] : []), label("functional", item.functional),
-    item.statusComment, item.notes, item.releaseNotes, item.parentId ? names.get(item.parentId) ?? "" : "", item.completed ? "yes" : "no"
+    value(item, "statusComment"), value(item, "notes"), value(item, "releaseNotes"), item.parentId ? names.get(item.parentId) ?? "" : "", item.completed ? locale === "de" ? "ja" : "yes" : locale === "de" ? "nein" : "no"
   ]);
   const cell = (value: string) => {
     // Spreadsheet apps evaluate =, +, - or @ as a formula, even behind leading whitespace, and treat a leading tab or CR alike.

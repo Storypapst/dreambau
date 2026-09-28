@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArchiveIcon, ArrowLeftIcon, CheckIcon, DownloadIcon, FileTextIcon, FilterXIcon, ListChecksIcon, MessageSquareIcon, PlusIcon, SearchIcon } from "lucide-react";
+import { ArchiveIcon, ArrowLeftIcon, CheckIcon, DownloadIcon, FileTextIcon, FilterXIcon, LanguagesIcon, ListChecksIcon, MessageSquareIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   addReleaseComment,
@@ -18,7 +18,8 @@ import {
   type ReleaseItem,
   type ReleaseListDetail,
   type ReleaseOption,
-  type ReleaseSelectField
+  type ReleaseSelectField,
+  type ReleaseTextField
 } from "@/release-list-client";
 import type { Locale } from "@/i18n";
 import { renderMarkdown } from "@/safe-markdown";
@@ -73,7 +74,12 @@ const multiple: Record<ReleaseSelectField, boolean> = { areas: true, devStatus: 
 type Filters = Record<ReleaseSelectField, string[]> & { query: string };
 const noFilters: Filters = { query: "", areas: [], devStatus: [], functional: [] };
 
-export function ReleaseListPage({ locale, onBack }: { locale: Locale; onBack: () => void }) {
+const displayText = (item: ReleaseItem, field: ReleaseTextField, locale: Locale) =>
+  locale === "de" ? item.translations[field] ?? item[field] : item[field];
+const displayName = (item: ReleaseItem, locale: Locale) => displayText(item, "name", locale);
+const displayOption = (option: ReleaseOption, locale: Locale) => locale === "de" ? option.labelDe || option.label : option.label;
+
+export function ReleaseListPage({ locale, onLocaleChange, onBack }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onBack: () => void }) {
   const text = copy[locale];
   const [detail, setDetail] = useState<ReleaseListDetail | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "empty" | "error">("loading");
@@ -99,21 +105,21 @@ export function ReleaseListPage({ locale, onBack }: { locale: Locale; onBack: ()
   const replaceItem = (item: ReleaseItem) => setDetail((current) => current && ({ ...current, items: current.items.map((entry) => entry.id === item.id ? item : entry) }));
   async function patch(item: ReleaseItem, change: ItemPatch) {
     if (!detail) return;
-    replaceItem({ ...item, ...change });
+    replaceItem({ ...item, ...change, translations: { ...item.translations, ...change.translations } });
     try { replaceItem(await updateReleaseItem(detail.list.id, item.id, change)); }
     catch (error) { replaceItem(item); toast.error(`${text.saveFailed}: ${error instanceof Error ? error.message : ""}`); }
   }
   async function createOption(field: ReleaseSelectField, label: string) {
     if (!detail) throw new Error("no list");
     const color = optionColors[detail.options[field].length % optionColors.length];
-    const option = await addReleaseOption(detail.list.id, field, label, color);
+    const option = await addReleaseOption(detail.list.id, field, label, color, locale === "de" ? label : undefined);
     setDetail((current) => current && ({ ...current, options: { ...current.options, [field]: [...current.options[field], option] } }));
     return option;
   }
   async function addItem(name: string, parentId: string | null = null) {
     if (!detail) return;
     try {
-      const item = await createReleaseItem(detail.list.id, name, parentId);
+      const item = await createReleaseItem(detail.list.id, name, parentId, locale === "de" ? name : undefined);
       await refresh();
       setOpenItemId(item.id);
     } catch (error) { toast.error(`${text.saveFailed}: ${error instanceof Error ? error.message : ""}`); }
@@ -127,7 +133,7 @@ export function ReleaseListPage({ locale, onBack }: { locale: Locale; onBack: ()
     } catch (error) { toast.error(`${text.saveFailed}: ${error instanceof Error ? error.message : ""}`); }
   }
 
-  const visible = useMemo(() => detail ? filterItems(detail.items, filters) : [], [detail, filters]);
+  const visible = useMemo(() => detail ? filterItems(detail.items, filters, locale) : [], [detail, filters, locale]);
   const filtered = filters.query.trim() !== "" || filters.areas.length > 0 || filters.devStatus.length > 0 || filters.functional.length > 0;
 
   if (state === "error") return <main className="grid min-h-screen place-items-center p-6"><Alert variant="destructive" className="max-w-lg"><AlertTitle>{text.loadError}</AlertTitle><AlertDescription>{text.loadErrorHint}</AlertDescription></Alert></main>;
@@ -135,20 +141,20 @@ export function ReleaseListPage({ locale, onBack }: { locale: Locale; onBack: ()
   if (!detail) return <main className="min-h-screen animate-pulse bg-muted/40" aria-label={text.kicker} />;
 
   const { list, options, items } = detail;
-  const names = new Map(items.map((item) => [item.id, item.name]));
+  const names = new Map(items.map((item) => [item.id, displayName(item, locale)]));
   const openItem = items.find((item) => item.id === openItemId) ?? null;
 
   return <main className="min-h-screen bg-muted/20">
     <header className="border-b bg-card"><div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-6 lg:px-8">
       <Button variant="ghost" className="w-fit" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />{text.back}</Button>
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-4"><div className="rounded-xl bg-primary p-3 text-primary-foreground"><ListChecksIcon /></div><div className="flex max-w-4xl flex-col gap-2"><p className="text-sm font-medium text-muted-foreground">{text.kicker}</p><h1 className="text-3xl font-bold tracking-tight">{list.title}</h1>{list.intro && <p className="text-muted-foreground">{list.intro}</p>}</div></div>
-        <div className="flex flex-wrap gap-2"><NewItemButton label={text.add} placeholder={text.newName} onCreate={(name) => addItem(name)} /><Button variant="outline" asChild><a href={releaseCsvUrl(list.id)}><DownloadIcon data-icon="inline-start" />{text.export}</a></Button></div>
+        <div className="flex items-start gap-4"><div className="rounded-xl bg-primary p-3 text-primary-foreground"><ListChecksIcon /></div><div className="flex max-w-4xl flex-col gap-2"><p className="text-sm font-medium text-muted-foreground">{text.kicker}</p><h1 className="text-3xl font-bold tracking-tight">{locale === "de" ? list.titleDe || list.title : list.title}</h1>{list.intro && <p className="text-muted-foreground">{locale === "de" ? list.introDe || list.intro : list.intro}</p>}</div></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" aria-label={locale === "de" ? "Sprache wechseln" : "Switch language"} onClick={() => onLocaleChange(locale === "de" ? "en" : "de")}><LanguagesIcon data-icon="inline-start" />{locale === "de" ? "EN" : "DE"}</Button><NewItemButton label={text.add} placeholder={text.newName} onCreate={(name) => addItem(name)} /><Button variant="outline" asChild><a href={releaseCsvUrl(list.id, locale)}><DownloadIcon data-icon="inline-start" />{text.export}</a></Button></div>
       </div>
-      <StatusSummary items={items} options={options} filters={filters} onToggle={(field, id) => setFilters((current) => ({ ...current, [field]: toggle(current[field], id) }))} />
+      <StatusSummary items={items} options={options} filters={filters} locale={locale} onToggle={(field, id) => setFilters((current) => ({ ...current, [field]: toggle(current[field], id) }))} />
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-80"><SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" /><Input aria-label={text.search} placeholder={text.search} value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} className="pl-9" /></div>
-        {(["areas", "devStatus", "functional"] as const).map((field) => <OptionPicker key={field} options={options[field]} value={filters[field]} multiple onChange={(value) => setFilters((current) => ({ ...current, [field]: value }))} text={text}>
+        {(["areas", "devStatus", "functional"] as const).map((field) => <OptionPicker key={field} options={options[field]} value={filters[field]} multiple onChange={(value) => setFilters((current) => ({ ...current, [field]: value }))} text={text} locale={locale}>
           <Button variant="outline" aria-label={columns[locale][field]}>{columns[locale][field]}{filters[field].length > 0 && <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">{filters[field].length}</span>}</Button>
         </OptionPicker>)}
         {filtered && <Button variant="ghost" onClick={() => setFilters(noFilters)}><FilterXIcon data-icon="inline-start" />{text.clear}</Button>}
@@ -160,28 +166,28 @@ export function ReleaseListPage({ locale, onBack }: { locale: Locale; onBack: ()
         <colgroup><col className="w-72" /><col className="w-56" /><col className="w-80" /><col className="w-44" /><col className="w-40" /><col className="w-44" /><col className="w-72" /><col className="w-80" /><col className="w-64" /></colgroup>
         <TableHeader><TableRow>{(["name", "areas", "description", "crossReferences", "devStatus", "functional", "statusComment", "notes", "releaseNotes"] as const).map((key) => <TableHead key={key} className="text-muted-foreground">{columns[locale][key]}</TableHead>)}</TableRow></TableHeader>
         <TableBody>{visible.map((item) => <TableRow key={item.id} className="align-top">
-          <TableCell className="py-3 align-top whitespace-normal"><button type="button" className={`flex w-full items-start gap-2 text-left font-semibold hover:underline ${item.parentId ? "pl-5 font-medium text-muted-foreground" : ""}`} onClick={() => setOpenItemId(item.id)}>{item.parentId && <span aria-hidden>↳</span>}<span className="min-w-0 flex-1">{item.name}</span>{item.commentCount > 0 && <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground"><MessageSquareIcon className="size-3.5" />{item.commentCount}</span>}</button></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="areas" label={columns[locale].areas} item={item} options={options.areas} text={text} onChange={(value) => patch(item, { areas: value })} onCreate={(label) => createOption("areas", label)} /></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><Clamp>{item.description}</Clamp></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><div className="flex flex-col gap-1">{item.crossReferenceIds.map((id) => names.has(id) && <button key={id} type="button" className="w-fit text-left text-sm text-blue-700 hover:underline" onClick={() => setOpenItemId(id)}>{names.get(id)}</button>)}{item.crossReferences && <Clamp>{item.crossReferences}</Clamp>}</div></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="devStatus" label={columns[locale].devStatus} item={item} options={options.devStatus} text={text} onChange={(value) => patch(item, { devStatus: value[0] ?? null })} onCreate={(label) => createOption("devStatus", label)} /></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="functional" label={columns[locale].functional} item={item} options={options.functional} text={text} onChange={(value) => patch(item, { functional: value })} onCreate={(label) => createOption("functional", label)} /></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><Clamp>{item.statusComment}</Clamp></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><Clamp>{item.notes}</Clamp></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><ReleaseNotesField item={item} text={text} title={columns[locale].releaseNotes} onSave={(value) => patch(item, { releaseNotes: value })} /></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><button type="button" className={`flex w-full items-start gap-2 text-left font-semibold hover:underline ${item.parentId ? "pl-5 font-medium text-muted-foreground" : ""}`} onClick={() => setOpenItemId(item.id)}>{item.parentId && <span aria-hidden>↳</span>}<span className="min-w-0 flex-1">{displayName(item, locale)}</span>{item.commentCount > 0 && <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground"><MessageSquareIcon className="size-3.5" />{item.commentCount}</span>}</button></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="areas" label={columns[locale].areas} item={item} options={options.areas} text={text} locale={locale} onChange={(value) => patch(item, { areas: value })} onCreate={(label) => createOption("areas", label)} /></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><Clamp>{displayText(item, "description", locale)}</Clamp></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><div className="flex flex-col gap-1">{item.crossReferenceIds.map((id) => names.has(id) && <button key={id} type="button" className="w-fit text-left text-sm text-blue-700 hover:underline" onClick={() => setOpenItemId(id)}>{names.get(id)}</button>)}{displayText(item, "crossReferences", locale) && <Clamp>{displayText(item, "crossReferences", locale)}</Clamp>}</div></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="devStatus" label={columns[locale].devStatus} item={item} options={options.devStatus} text={text} locale={locale} onChange={(value) => patch(item, { devStatus: value[0] ?? null })} onCreate={(label) => createOption("devStatus", label)} /></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="functional" label={columns[locale].functional} item={item} options={options.functional} text={text} locale={locale} onChange={(value) => patch(item, { functional: value })} onCreate={(label) => createOption("functional", label)} /></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><Clamp>{displayText(item, "statusComment", locale)}</Clamp></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><Clamp>{displayText(item, "notes", locale)}</Clamp></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><ReleaseNotesField item={item} locale={locale} text={text} title={columns[locale].releaseNotes} onSave={(value) => patch(item, locale === "de" ? { translations: { releaseNotes: value } } : { releaseNotes: value })} /></TableCell>
         </TableRow>)}</TableBody>
       </Table></Card> : <Card><CardContent><Empty><EmptyHeader><EmptyTitle>{text.empty}</EmptyTitle><EmptyDescription>{text.emptyHint}</EmptyDescription></EmptyHeader></Empty></CardContent></Card>}
     </section>
-    <ItemSheet key={openItem?.id ?? "closed"} listId={list.id} item={openItem} items={items} options={options} locale={locale} text={text}
+    <ItemSheet key={`${openItem?.id ?? "closed"}-${locale}`} listId={list.id} item={openItem} items={items} options={options} locale={locale} text={text}
       onClose={() => setOpenItemId(null)} onPatch={patch} onCreateOption={createOption} onArchive={archive} onOpen={setOpenItemId}
       onAddSubItem={(name, parentId) => addItem(name, parentId)} onCommented={(itemId) => setDetail((current) => current && ({ ...current, items: current.items.map((entry) => entry.id === itemId ? { ...entry, commentCount: entry.commentCount + 1 } : entry) }))} />
   </main>;
 }
 
-export function filterItems(items: ReleaseItem[], filters: Filters) {
+export function filterItems(items: ReleaseItem[], filters: Filters, locale: Locale = "en") {
   const query = filters.query.trim().toLowerCase();
   return items.filter((item) =>
-    (!query || [item.name, item.description, item.crossReferences, item.statusComment, item.notes, item.releaseNotes].some((value) => value.toLowerCase().includes(query)))
+    (!query || ["name", "description", "crossReferences", "statusComment", "notes", "releaseNotes"].some((field) => displayText(item, field as ReleaseTextField, locale).toLowerCase().includes(query)))
     && (!filters.areas.length || item.areas.some((id) => filters.areas.includes(id)))
     && (!filters.devStatus.length || (item.devStatus !== null && filters.devStatus.includes(item.devStatus)))
     && (!filters.functional.length || item.functional.some((id) => filters.functional.includes(id))));
@@ -194,32 +200,32 @@ function Clamp({ children }: { children: string }) {
   return <p className="line-clamp-4 text-sm whitespace-pre-line text-foreground/90" title={children}>{children}</p>;
 }
 
-export function OptionPill({ option }: { option: ReleaseOption }) {
-  return <span className={`opt-pill opt-${option.color}`}>{option.label}</span>;
+export function OptionPill({ option, locale = "en" }: { option: ReleaseOption; locale?: Locale }) {
+  return <span className={`opt-pill opt-${option.color}`}>{displayOption(option, locale)}</span>;
 }
 
-function StatusSummary({ items, options, filters, onToggle }: { items: ReleaseItem[]; options: ReleaseListDetail["options"]; filters: Filters; onToggle: (field: "devStatus" | "functional", id: string) => void }) {
+function StatusSummary({ items, options, filters, locale, onToggle }: { items: ReleaseItem[]; options: ReleaseListDetail["options"]; filters: Filters; locale: Locale; onToggle: (field: "devStatus" | "functional", id: string) => void }) {
   const count = (field: "devStatus" | "functional", id: string) => items.filter((item) => field === "devStatus" ? item.devStatus === id : item.functional.includes(id)).length;
   return <div className="flex flex-wrap gap-x-6 gap-y-2">{(["devStatus", "functional"] as const).map((field) => <div key={field} className="flex flex-wrap items-center gap-1.5">{options[field].map((option) => {
     const active = filters[field].includes(option.id);
-    return <button key={option.id} type="button" aria-pressed={active} onClick={() => onToggle(field, option.id)} className={`opt-pill opt-${option.color} gap-1.5 ${active ? "ring-2 ring-ring ring-offset-1" : "opacity-90 hover:opacity-100"}`}>{option.label}<span className="font-semibold tabular-nums">{count(field, option.id)}</span></button>;
+    return <button key={option.id} type="button" aria-pressed={active} onClick={() => onToggle(field, option.id)} className={`opt-pill opt-${option.color} gap-1.5 ${active ? "ring-2 ring-ring ring-offset-1" : "opacity-90 hover:opacity-100"}`}>{displayOption(option, locale)}<span className="font-semibold tabular-nums">{count(field, option.id)}</span></button>;
   })}</div>)}</div>;
 }
 
-function SelectCell({ field, label, item, options, text, onChange, onCreate }: { field: ReleaseSelectField; label: string; item: ReleaseItem; options: ReleaseOption[]; text: Copy; onChange: (value: string[]) => void; onCreate: (label: string) => Promise<ReleaseOption> }) {
+function SelectCell({ field, label, item, options, text, locale, onChange, onCreate }: { field: ReleaseSelectField; label: string; item: ReleaseItem; options: ReleaseOption[]; text: Copy; locale: Locale; onChange: (value: string[]) => void; onCreate: (label: string) => Promise<ReleaseOption> }) {
   const value = field === "devStatus" ? (item.devStatus ? [item.devStatus] : []) : item[field];
   const selected = value.map((id) => options.find((option) => option.id === id)).filter((option): option is ReleaseOption => Boolean(option));
-  return <OptionPicker options={options} value={value} multiple={multiple[field]} onChange={onChange} onCreate={onCreate} text={text}>
+  return <OptionPicker options={options} value={value} multiple={multiple[field]} onChange={onChange} onCreate={onCreate} text={text} locale={locale}>
     <button type="button" className="flex min-h-8 w-full flex-wrap content-start items-start gap-1 rounded-md p-1 text-left hover:bg-muted" aria-label={`${label}: ${item.name}`}>
-      {selected.length ? selected.map((option) => <OptionPill key={option.id} option={option} />) : <span className="px-1 text-sm text-muted-foreground">{text.none}</span>}
+      {selected.length ? selected.map((option) => <OptionPill key={option.id} option={option} locale={locale} />) : <span className="px-1 text-sm text-muted-foreground">{text.none}</span>}
     </button>
   </OptionPicker>;
 }
 
-export function OptionPicker({ options, value, multiple: isMultiple, onChange, onCreate, text, children }: { options: ReleaseOption[]; value: string[]; multiple: boolean; onChange: (value: string[]) => void; onCreate?: (label: string) => Promise<ReleaseOption>; text: Copy; children: ReactNode }) {
+export function OptionPicker({ options, value, multiple: isMultiple, onChange, onCreate, text, locale = "en", children }: { options: ReleaseOption[]; value: string[]; multiple: boolean; onChange: (value: string[]) => void; onCreate?: (label: string) => Promise<ReleaseOption>; text: Copy; locale?: Locale; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const exists = options.some((option) => option.label.toLowerCase() === search.trim().toLowerCase());
+  const exists = options.some((option) => displayOption(option, locale).toLowerCase() === search.trim().toLowerCase());
   function choose(id: string) {
     if (isMultiple) return onChange(toggle(value, id));
     onChange(value.includes(id) ? [] : [id]);
@@ -233,7 +239,7 @@ export function OptionPicker({ options, value, multiple: isMultiple, onChange, o
   return <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) setSearch(""); }}><PopoverTrigger asChild>{children}</PopoverTrigger>
     <PopoverContent className="w-72 p-0" align="start"><Command><CommandInput value={search} onValueChange={setSearch} placeholder={text.findValue} /><CommandList>
       <CommandEmpty>{text.noOptions}</CommandEmpty>
-      <CommandGroup>{options.map((option) => <CommandItem key={option.id} value={option.label} onSelect={() => choose(option.id)}><CheckIcon className={value.includes(option.id) ? "opacity-100" : "opacity-0"} /><OptionPill option={option} /></CommandItem>)}</CommandGroup>
+      <CommandGroup>{options.map((option) => <CommandItem key={option.id} value={displayOption(option, locale)} onSelect={() => choose(option.id)}><CheckIcon className={value.includes(option.id) ? "opacity-100" : "opacity-0"} /><OptionPill option={option} locale={locale} /></CommandItem>)}</CommandGroup>
       {onCreate && search.trim() && !exists && <CommandGroup forceMount><CommandItem forceMount value={`__create ${search}`} onSelect={() => void create()}><PlusIcon />{text.create(search.trim())}</CommandItem></CommandGroup>}
     </CommandList></Command></PopoverContent>
   </Popover>;
@@ -258,7 +264,11 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
   onArchive: (item: ReleaseItem) => Promise<void>; onOpen: (id: string) => void; onAddSubItem: (name: string, parentId: string) => Promise<void>; onCommented: (itemId: string) => void;
 }) {
   type Editable = "name" | typeof textFields[number];
-  const snapshot = (source: ReleaseItem | null): Record<Editable, string> => ({ name: source?.name ?? "", description: source?.description ?? "", statusComment: source?.statusComment ?? "", notes: source?.notes ?? "", crossReferences: source?.crossReferences ?? "" });
+  const snapshot = (source: ReleaseItem | null): Record<Editable, string> => ({
+    name: source ? displayText(source, "name", locale) : "", description: source ? displayText(source, "description", locale) : "",
+    statusComment: source ? displayText(source, "statusComment", locale) : "", notes: source ? displayText(source, "notes", locale) : "",
+    crossReferences: source ? displayText(source, "crossReferences", locale) : ""
+  });
   const [drafts, setDrafts] = useState(() => snapshot(item));
   // What each field held when this person last saw it. A blur saves only their own edits,
   // so a focus refresh that brought in someone else's change is never written back over it.
@@ -279,7 +289,7 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
   function commit(field: Editable, value: string) {
     if (value === baseline.current[field]) return;
     baseline.current[field] = value;
-    void save({ [field]: value });
+    void save(locale === "de" ? { translations: { [field]: value } } : { [field]: value });
   }
   const [activity, setActivity] = useState<{ comments: ReleaseComment[]; changes: ReleaseChange[] }>({ comments: [], changes: [] });
   const [comment, setComment] = useState("");
@@ -292,8 +302,11 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
   useEffect(() => { void reloadActivity(); }, [reloadActivity]);
   if (!item) return null;
   const current = item;
-  const names = new Map(items.map((entry) => [entry.id, entry.name]));
-  const optionLabel = (id: string) => [...options.areas, ...options.devStatus, ...options.functional].find((option) => option.id === id)?.label ?? id;
+  const names = new Map(items.map((entry) => [entry.id, displayName(entry, locale)]));
+  const optionLabel = (id: string) => {
+    const option = [...options.areas, ...options.devStatus, ...options.functional].find((entry) => entry.id === id);
+    return option ? displayOption(option, locale) : id;
+  };
 
   async function save(change: ItemPatch) { await onPatch(current, change); void reloadActivity(); }
   async function postComment() {
@@ -312,16 +325,16 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
 
   return <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
     <SheetContent className="w-full overflow-y-auto sm:max-w-2xl" onOpenAutoFocus={(event) => event.preventDefault()}>
-      <SheetHeader><SheetTitle className="sr-only">{current.name}</SheetTitle><SheetDescription>{text.lastEdit(current.updatedBy, new Date(current.updatedAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB"))}</SheetDescription></SheetHeader>
+      <SheetHeader><SheetTitle className="sr-only">{displayName(current, locale)}</SheetTitle><SheetDescription>{text.lastEdit(current.updatedBy, new Date(current.updatedAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB"))}</SheetDescription></SheetHeader>
       <div className="flex flex-col gap-6 px-4 pb-8">
         {current.parentId && <p className="text-sm text-muted-foreground">{text.subItemOf} <button type="button" className="text-blue-700 hover:underline" onClick={() => onOpen(current.parentId!)}>{names.get(current.parentId)}</button></p>}
         <Input aria-label={labels.name} className="h-auto border-transparent px-0 text-2xl font-bold shadow-none focus-visible:border-input focus-visible:px-2 md:text-2xl" value={name} maxLength={200} onChange={(event) => setName(event.target.value)} onBlur={() => { if (name.trim()) { setName(name.trim()); commit("name", name.trim()); } else setName(baseline.current.name); }} />
         <dl className="grid grid-cols-[9rem_minmax(0,1fr)] items-start gap-x-4 gap-y-3 text-sm">
-          {(["areas", "devStatus", "functional"] as const).map((field) => <div key={field} className="contents"><dt className="pt-1.5 text-muted-foreground">{labels[field]}</dt><dd><SelectCell field={field} label={labels[field]} item={current} options={options[field]} text={text} onChange={(value) => save(field === "devStatus" ? { devStatus: value[0] ?? null } : { [field]: value })} onCreate={(label) => onCreateOption(field, label)} /></dd></div>)}
+          {(["areas", "devStatus", "functional"] as const).map((field) => <div key={field} className="contents"><dt className="pt-1.5 text-muted-foreground">{labels[field]}</dt><dd><SelectCell field={field} label={labels[field]} item={current} options={options[field]} text={text} locale={locale} onChange={(value) => save(field === "devStatus" ? { devStatus: value[0] ?? null } : { [field]: value })} onCreate={(label) => onCreateOption(field, label)} /></dd></div>)}
           {current.crossReferenceIds.length > 0 && <><dt className="text-muted-foreground">{text.linked}</dt><dd className="flex flex-col gap-1">{current.crossReferenceIds.map((id) => names.has(id) && <button key={id} type="button" className="w-fit text-left text-blue-700 hover:underline" onClick={() => onOpen(id)}>{names.get(id)}</button>)}</dd></>}
         </dl>
         <FieldGroup>{textFields.map((field) => <Field key={field}><FieldLabel htmlFor={`release-${field}`}>{labels[field]}</FieldLabel><Textarea id={`release-${field}`} value={drafts[field]} maxLength={field === "notes" ? 8000 : 4000} onChange={(event) => setDrafts((value) => ({ ...value, [field]: event.target.value }))} onBlur={() => commit(field, drafts[field])} /></Field>)}</FieldGroup>
-        <div className="flex flex-col gap-2"><p className="text-sm font-medium">{labels.releaseNotes}</p><ReleaseNotesField item={current} text={text} title={labels.releaseNotes} onSave={(value) => save({ releaseNotes: value })} /></div>
+        <div className="flex flex-col gap-2"><p className="text-sm font-medium">{labels.releaseNotes}</p><ReleaseNotesField item={current} locale={locale} text={text} title={labels.releaseNotes} onSave={(value) => save(locale === "de" ? { translations: { releaseNotes: value } } : { releaseNotes: value })} /></div>
         {!current.parentId && <NewItemButton variant="outline" label={text.addSubItem} placeholder={text.newName} onCreate={(subName) => onAddSubItem(subName, current.id)} />}
         <Separator />
         <section className="flex flex-col gap-3"><h3 className="font-semibold">{text.comments}</h3>
@@ -344,22 +357,22 @@ function markdownTeaser(source: string) {
   return source.replace(/```[\s\S]*?```/g, " ").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/^[#>\-*+\s]+/gm, "").replace(/[*_`~]/g, "").trim();
 }
 
-export function ReleaseNotesField({ item, title, text, onSave }: { item: ReleaseItem; title: string; text: Copy; onSave: (value: string) => Promise<void> | void }) {
+export function ReleaseNotesField({ item, title, text, locale = "en", onSave }: { item: ReleaseItem; title: string; text: Copy; locale?: Locale; onSave: (value: string) => Promise<void> | void }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"preview" | "edit">("preview");
-  const [draft, setDraft] = useState(item.releaseNotes);
+  const [draft, setDraft] = useState(displayText(item, "releaseNotes", locale));
   const html = useMemo(() => renderMarkdown(draft), [draft]);
-  function show() { setDraft(item.releaseNotes); setMode(item.releaseNotes ? "preview" : "edit"); setOpen(true); }
+  function show() { setDraft(displayText(item, "releaseNotes", locale)); setMode(displayText(item, "releaseNotes", locale) ? "preview" : "edit"); setOpen(true); }
   async function save() { await onSave(draft); setOpen(false); }
-  const dirty = draft !== item.releaseNotes;
+  const dirty = draft !== displayText(item, "releaseNotes", locale);
   return <>
-    <button type="button" onClick={show} className="flex w-full flex-col items-start gap-1 rounded-md p-1 text-left hover:bg-muted" aria-label={`${title}: ${item.name}`}>
-      {item.releaseNotes ? <><span className="line-clamp-3 text-sm text-foreground/90">{markdownTeaser(item.releaseNotes)}</span><span className="flex items-center gap-1 text-xs font-medium text-blue-700"><FileTextIcon className="size-3.5" />{text.openNotes}</span></>
+    <button type="button" onClick={show} className="flex w-full flex-col items-start gap-1 rounded-md p-1 text-left hover:bg-muted" aria-label={`${title}: ${displayName(item, locale)}`}>
+      {displayText(item, "releaseNotes", locale) ? <><span className="line-clamp-3 text-sm text-foreground/90">{markdownTeaser(displayText(item, "releaseNotes", locale))}</span><span className="flex items-center gap-1 text-xs font-medium text-blue-700"><FileTextIcon className="size-3.5" />{text.openNotes}</span></>
         : <span className="flex items-center gap-1 text-sm text-muted-foreground"><PlusIcon className="size-3.5" />{text.addNotes}</span>}
     </button>
     <Dialog open={open} onOpenChange={(next) => { if (!next && dirty && !window.confirm(text.discard)) return; setOpen(next); }}>
       <DialogContent className="flex h-[92vh] max-h-[92vh] w-[calc(100vw-2rem)] flex-col gap-4 sm:max-w-5xl">
-        <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{item.name}</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{displayName(item, locale)}</DialogDescription></DialogHeader>
         <Tabs value={mode} onValueChange={(value) => setMode(value as "preview" | "edit")} className="flex min-h-0 flex-1 flex-col">
           <TabsList><TabsTrigger value="preview">{text.preview}</TabsTrigger><TabsTrigger value="edit">{text.edit}</TabsTrigger></TabsList>
           <TabsContent value="preview" className="min-h-0 flex-1 overflow-y-auto rounded-lg border bg-card p-6">
@@ -370,7 +383,7 @@ export function ReleaseNotesField({ item, title, text, onSave }: { item: Release
             <p className="text-xs text-muted-foreground">{text.notesHint}</p>
           </TabsContent>
         </Tabs>
-        <DialogFooter><Button variant="outline" onClick={() => { setDraft(item.releaseNotes); setOpen(false); }}>{text.close}</Button><Button onClick={() => void save()} disabled={!dirty}>{text.save}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={() => { setDraft(displayText(item, "releaseNotes", locale)); setOpen(false); }}>{text.close}</Button><Button onClick={() => void save()} disabled={!dirty}>{text.save}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>;

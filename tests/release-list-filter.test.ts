@@ -3,13 +3,13 @@ import { filterItems } from "../src/client/components/release-list.js";
 import type { ReleaseItem } from "../src/client/release-list-client.js";
 
 const item = (overrides: Partial<ReleaseItem>): ReleaseItem => ({
-  id: "i", listId: "l", parentId: null, position: 1, name: "", areas: [], description: "", crossReferences: "", crossReferenceIds: [],
+  id: "i", listId: "l", parentId: null, position: 1, name: "", translations: {}, areas: [], description: "", crossReferences: "", crossReferenceIds: [],
   devStatus: null, functional: [], statusComment: "", notes: "", releaseNotes: "", completed: false, createdAt: "", createdBy: "", updatedAt: "", updatedBy: "",
   commentCount: 0, ...overrides
 });
 
 const items = [
-  item({ id: "a", name: "Live chat queue", areas: ["chat"], devStatus: "built", functional: ["yes"] }),
+  item({ id: "a", name: "Live chat queue", translations: { name: "Live-Chat-Warteschlange" }, areas: ["chat"], devStatus: "built", functional: ["yes"] }),
   item({ id: "b", name: "Two-factor authentication", areas: ["auth", "chat"], devStatus: "unclear", functional: ["unclear", "adjust"], statusComment: "Does not work via email." }),
   item({ id: "c", name: "Unique persistent links", areas: ["chat"], devStatus: null })
 ];
@@ -18,6 +18,8 @@ const none = { query: "", areas: [], devStatus: [], functional: [] };
 describe("release list filters", () => {
   it("searches names and status comments case-insensitively", () => {
     expect(filterItems(items, { ...none, query: "EMAIL" }).map((entry) => entry.id)).toEqual(["b"]);
+    expect(filterItems(items, { ...none, query: "Warteschlange" }, "de").map((entry) => entry.id)).toEqual(["a"]);
+    expect(filterItems(items, { ...none, query: "Warteschlange" }, "en")).toEqual([]);
   });
 
   it("matches any selected value within a field and requires every active field", () => {

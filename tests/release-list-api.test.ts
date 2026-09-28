@@ -97,6 +97,24 @@ describe("release list import", () => {
     const { database } = setup();
     expect(() => database.releaseLists.importSeed("obp-2-1", "oriso", seed)).toThrow("list_exists");
   });
+
+  it("adds German originals by source ID without replacing live English edits", () => {
+    const { database } = setup();
+    const original = database.releaseLists.items("obp-2-1")[0];
+    database.releaseLists.updateItem("obp-2-1", original.id, { statusComment: "Updated on Dev" }, { id: "editor", name: "Editor" });
+    const translated = {
+      titleDe: "OBP 2.1 Referenzliste", introDe: "Einleitung",
+      options: [...seed.options.areas, ...seed.options.devStatus, ...seed.options.functional].map((option) => ({ id: option.id, labelDe: `DE ${option.en}` })),
+      items: seed.features.map((feature) => ({ sourceId: feature.sourceId, translations: { name: `DE ${feature.name}`, description: "Deutsche Beschreibung" } }))
+    };
+    expect(database.releaseLists.importTranslations("obp-2-1", translated)).toEqual({ items: 3, options: 6 });
+    expect(database.releaseLists.getList("obp-2-1")?.titleDe).toBe("OBP 2.1 Referenzliste");
+    expect(database.releaseLists.options("obp-2-1").areas[0].labelDe).toBe("DE Counselling & chat");
+    expect(database.releaseLists.getItem("obp-2-1", original.id)).toMatchObject({
+      name: "Live chat queue", statusComment: "Updated on Dev", translations: { name: "DE Live chat queue" }
+    });
+    expect(() => database.releaseLists.importTranslations("obp-2-1", translated)).toThrow("translation_exists");
+  });
 });
 
 describe("release list API", () => {
@@ -127,13 +145,19 @@ describe("release list API", () => {
     const notes = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ releaseNotes: "# 2.1\n\n- Queue fixed" });
     expect(notes.body.releaseNotes).toBe("# 2.1\n\n- Queue fixed");
 
+    const german = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ translations: { name: "Live-Chat-Warteschlange" } });
+    expect(german.body).toMatchObject({ name: "Live chat queue", translations: { name: "Live-Chat-Warteschlange" } });
+    const germanCsv = await agent.get("/testmails/api/release-lists/obp-2-1/export.csv?locale=de");
+    expect(germanCsv.text).toContain("Live-Chat-Warteschlange");
+    expect(germanCsv.text).toContain("Beschreibung");
+
     const selfLink = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ crossReferenceIds: [first.id] });
     expect(selfLink.body.error).toBe("invalid_reference");
     const unknownLink = await agent.patch(`/testmails/api/release-lists/obp-2-1/items/${first.id}`).send({ crossReferenceIds: ["not-an-item"] });
     expect(unknownLink.status).toBe(400);
 
     const activity = await agent.get(`/testmails/api/release-lists/obp-2-1/items/${first.id}/activity`);
-    expect(activity.body.changes.map((change: { field: string }) => change.field).sort()).toEqual(["devStatus", "functional", "releaseNotes"]);
+    expect(activity.body.changes.map((change: { field: string }) => change.field).sort()).toEqual(["devStatus", "functional", "releaseNotes", "translations"]);
   });
 
   it("adds items, options and comments, and archives an item with its sub-items", async () => {
