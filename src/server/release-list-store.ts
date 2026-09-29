@@ -128,7 +128,7 @@ interface ListRow { id: string; project: string; title: string; title_de: string
 
 export const releaseTranslationSchema = z.object({
   titleDe: z.string().min(1), introDe: z.string(),
-  options: z.array(z.object({ id: z.string(), labelDe: z.string().min(1) })),
+  options: z.array(z.object({ field: z.enum(releaseSelectFields), id: z.string(), labelDe: z.string().min(1) })),
   items: z.array(z.object({ sourceId: z.string(), translations: translationsSchema.required({ name: true }) }))
 }).strict();
 export type ReleaseTranslationSeed = z.infer<typeof releaseTranslationSchema>;
@@ -328,6 +328,9 @@ export class ReleaseListStore {
       const dangling = seed.features.flatMap((feature) => [feature.parentSourceId, ...feature.crossReferenceIds])
         .filter((sourceId): sourceId is string => sourceId !== null && !ids.has(sourceId));
       if (dangling.length) throw new ReleaseListError("invalid_reference");
+      // Deferred checks only prove the parent exists; keep the one-level hierarchy createItem enforces, which also rules out cycles.
+      const parentOf = new Map(seed.features.map((feature) => [feature.sourceId, feature.parentSourceId]));
+      if (seed.features.some((feature) => feature.parentSourceId !== null && parentOf.get(feature.parentSourceId) !== null)) throw new ReleaseListError("invalid_parent");
       const known = (field: ReleaseSelectField) => new Set(seed.options[field].map((option) => option.id));
       const areaIds = known("areas"), statusIds = known("devStatus"), stagingIds = known("functional");
       const unknownOption = seed.features.some((feature) => feature.areas.some((id) => !areaIds.has(id))
@@ -351,22 +354,33 @@ export class ReleaseListStore {
     return run();
   }
 
-  /** Add German originals by stable Slack IDs without replacing English text, comments, or status edits. */
+  /**
+   * Add German originals by stable Slack IDs without replacing English text, comments, or status edits.
+   * Only imported records are matched; items and options the team added since need no translation.
+   */
   importTranslations(listId: string, seed: ReleaseTranslationSeed): { items: number; options: number } {
-    const list = this.getList(listId);
-    if (!list) throw new ReleaseListError("list_not_found");
-    if (list.titleDe) throw new ReleaseListError("translation_exists");
     return this.sqlite.transaction(() => {
-      const knownItems = this.sqlite.prepare("SELECT source_id FROM release_items WHERE list_id=? AND archived_at IS NULL").all(listId) as Array<{ source_id: string | null }>;
-      const expected = new Set(knownItems.map((row) => row.source_id));
-      if (seed.items.length !== expected.size || new Set(seed.items.map((item) => item.sourceId)).size !== expected.size || seed.items.some((item) => !expected.has(item.sourceId))) throw new ReleaseListError("invalid_reference");
-      const knownOptions = this.sqlite.prepare("SELECT id FROM release_list_options WHERE list_id=?").all(listId) as Array<{ id: string }>;
-      const optionIds = new Set(knownOptions.map((row) => row.id));
-      if (seed.options.length !== optionIds.size || new Set(seed.options.map((option) => option.id)).size !== optionIds.size || seed.options.some((option) => !optionIds.has(option.id))) throw new ReleaseListError("unknown_option");
+      // Read inside the write transaction, so two concurrent runs cannot both pass this check.
+      const list = this.getList(listId);
+      if (!list) throw new ReleaseListError("list_not_found");
+      if (list.titleDe) throw new ReleaseListError("translation_exists");
+      const imported = this.sqlite.prepare("SELECT source_id, archived_at FROM release_items WHERE list_id=? AND source_id IS NOT NULL")
+        .all(listId) as Array<{ source_id: string; archived_at: string | null }>;
+      const importedIds = new Set(imported.map((row) => row.source_id));
+      const seedIds = new Set(seed.items.map((item) => item.sourceId));
+      // Every active imported item needs a German name; archived ones may be in the file or not.
+      if (seedIds.size !== seed.items.length || seed.items.some((item) => !importedIds.has(item.sourceId))
+        || imported.some((row) => row.archived_at === null && !seedIds.has(row.source_id))) throw new ReleaseListError("invalid_reference");
+      // The same option ID may exist in several fields, so field plus ID is the key.
+      const optionKey = (field: string, id: string) => `${field}\u0000${id}`;
+      const knownOptions = this.sqlite.prepare("SELECT field, id FROM release_list_options WHERE list_id=?").all(listId) as Array<{ field: string; id: string }>;
+      const optionKeys = new Set(knownOptions.map((row) => optionKey(row.field, row.id)));
+      const seedOptionKeys = new Set(seed.options.map((option) => optionKey(option.field, option.id)));
+      if (seedOptionKeys.size !== seed.options.length || seed.options.some((option) => !optionKeys.has(optionKey(option.field, option.id)))) throw new ReleaseListError("unknown_option");
       this.sqlite.prepare("UPDATE release_lists SET title_de=?, intro_de=? WHERE id=?").run(seed.titleDe, seed.introDe, listId);
-      const updateOption = this.sqlite.prepare("UPDATE release_list_options SET label_de=? WHERE list_id=? AND id=?");
-      for (const option of seed.options) updateOption.run(option.labelDe, listId, option.id);
-      const updateItem = this.sqlite.prepare("UPDATE release_items SET translations=? WHERE list_id=? AND source_id=? AND archived_at IS NULL");
+      const updateOption = this.sqlite.prepare("UPDATE release_list_options SET label_de=? WHERE list_id=? AND field=? AND id=?");
+      for (const option of seed.options) updateOption.run(option.labelDe, listId, option.field, option.id);
+      const updateItem = this.sqlite.prepare("UPDATE release_items SET translations=? WHERE list_id=? AND source_id=?");
       for (const item of seed.items) updateItem.run(JSON.stringify(item.translations), listId, item.sourceId);
       return { items: seed.items.length, options: seed.options.length };
     })();

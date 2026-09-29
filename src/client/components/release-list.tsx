@@ -275,16 +275,19 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
   const baseline = useRef(snapshot(item));
   const name = drafts.name;
   const setName = (value: string) => setDrafts((current) => ({ ...current, name: value }));
+  // Read the drafts through a ref: the merge writes the baseline, and React may replay state updaters.
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
   useEffect(() => {
     if (!item) return;
     const fresh = snapshot(item);
-    setDrafts((current) => {
-      const next = { ...current };
-      for (const key of Object.keys(fresh) as Editable[]) {
-        if (current[key] === baseline.current[key] && fresh[key] !== baseline.current[key]) { next[key] = fresh[key]; baseline.current[key] = fresh[key]; }
-      }
-      return next;
-    });
+    const current = draftsRef.current;
+    const next = { ...current };
+    let changed = false;
+    for (const key of Object.keys(fresh) as Editable[]) {
+      if (current[key] === baseline.current[key] && fresh[key] !== baseline.current[key]) { next[key] = fresh[key]; baseline.current[key] = fresh[key]; changed = true; }
+    }
+    if (changed) setDrafts(next);
   }, [item]);
   function commit(field: Editable, value: string) {
     if (value === baseline.current[field]) return;

@@ -104,7 +104,7 @@ describe("release list import", () => {
     database.releaseLists.updateItem("obp-2-1", original.id, { statusComment: "Updated on Dev" }, { id: "editor", name: "Editor" });
     const translated = {
       titleDe: "OBP 2.1 Referenzliste", introDe: "Einleitung",
-      options: [...seed.options.areas, ...seed.options.devStatus, ...seed.options.functional].map((option) => ({ id: option.id, labelDe: `DE ${option.en}` })),
+      options: (["areas", "devStatus", "functional"] as const).flatMap((field) => seed.options[field].map((option) => ({ field, id: option.id, labelDe: `DE ${option.en}` }))),
       items: seed.features.map((feature) => ({ sourceId: feature.sourceId, translations: { name: `DE ${feature.name}`, description: "Deutsche Beschreibung" } }))
     };
     expect(database.releaseLists.importTranslations("obp-2-1", translated)).toEqual({ items: 3, options: 6 });
@@ -114,6 +114,55 @@ describe("release list import", () => {
       name: "Live chat queue", statusComment: "Updated on Dev", translations: { name: "DE Live chat queue" }
     });
     expect(() => database.releaseLists.importTranslations("obp-2-1", translated)).toThrow("translation_exists");
+  });
+
+  it("translates only imported records and tolerates items and options added since", () => {
+    const { database } = setup();
+    const actor = { id: "editor", name: "Editor" };
+    database.releaseLists.createItem("obp-2-1", { name: "Added by the team", parentId: null }, actor);
+    database.releaseLists.addOption("obp-2-1", "areas", { label: "Added area", color: "teal" });
+    const archived = database.releaseLists.items("obp-2-1").find((item) => item.name === "Change order")!;
+    database.releaseLists.archiveItem("obp-2-1", archived.id, actor);
+    const translated = {
+      titleDe: "Liste", introDe: "",
+      options: [{ field: "areas" as const, id: "OptA", labelDe: "Beratung & Chat" }],
+      items: [{ sourceId: "Rec1", translations: { name: "Live-Chat" } }, { sourceId: "Rec2", translations: { name: "Zwei-Faktor" } }]
+    };
+    expect(database.releaseLists.importTranslations("obp-2-1", translated)).toEqual({ items: 2, options: 1 });
+  });
+
+  it("still needs every active imported item and rejects unknown ones", () => {
+    const { database } = setup();
+    const base = { titleDe: "Liste", introDe: "", options: [] };
+    const all = seed.features.map((feature) => ({ sourceId: feature.sourceId, translations: { name: feature.name } }));
+    expect(() => database.releaseLists.importTranslations("obp-2-1", { ...base, items: all.slice(1) })).toThrow("invalid_reference");
+    expect(() => database.releaseLists.importTranslations("obp-2-1", { ...base, items: [...all, { sourceId: "Rec9", translations: { name: "x" } }] })).toThrow("invalid_reference");
+    expect(database.releaseLists.getList("obp-2-1")?.titleDe).toBe("");
+  });
+
+  it("keeps option translations apart when two fields share an ID", () => {
+    const database = createDatabase(":memory:");
+    const shared = { ...seed, options: { ...seed.options, functional: [...seed.options.functional, { id: "OptUnclear", en: "Unclear on Staging", tone: "neutral" as const }] } };
+    database.releaseLists.importSeed("obp-2-1", "oriso", shared);
+    database.releaseLists.importTranslations("obp-2-1", {
+      titleDe: "Liste", introDe: "",
+      options: [{ field: "devStatus", id: "OptUnclear", labelDe: "Unklar" }, { field: "functional", id: "OptUnclear", labelDe: "Unklar auf Staging" }],
+      items: seed.features.map((feature) => ({ sourceId: feature.sourceId, translations: { name: feature.name } }))
+    });
+    const options = database.releaseLists.options("obp-2-1");
+    expect(options.devStatus.find((option) => option.id === "OptUnclear")?.labelDe).toBe("Unklar");
+    expect(options.functional.find((option) => option.id === "OptUnclear")?.labelDe).toBe("Unklar auf Staging");
+  });
+
+  it("rejects sub-items of sub-items and parent loops in the seed", () => {
+    const database = createDatabase(":memory:");
+    const nested = { ...seed, features: [...seed.features, { ...seed.features[2], sourceId: "Rec4", parentSourceId: "Rec3" }] };
+    expect(() => database.releaseLists.importSeed("deep", "oriso", nested)).toThrow("invalid_parent");
+    const loop = { ...seed, features: [{ ...seed.features[0], parentSourceId: "Rec2" }, { ...seed.features[1], parentSourceId: "Rec1" }, { ...seed.features[2], parentSourceId: null }] };
+    expect(() => database.releaseLists.importSeed("loop", "oriso", loop)).toThrow("invalid_parent");
+    const self = { ...seed, features: [{ ...seed.features[0], parentSourceId: "Rec1", crossReferenceIds: [] }] };
+    expect(() => database.releaseLists.importSeed("self", "oriso", self)).toThrow("invalid_parent");
+    expect(database.releaseLists.lists()).toEqual([]);
   });
 });
 

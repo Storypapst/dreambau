@@ -45,6 +45,11 @@ async function main() {
       process.exitCode = 1;
       return;
     }
+    if (error instanceof ReleaseListError && error.code === "invalid_parent") {
+      process.stderr.write("The seed nests a sub-item under another sub-item or in a loop. Only one level is allowed. Nothing was imported.\n");
+      process.exitCode = 1;
+      return;
+    }
     throw error;
   } finally {
     sqlite.close();
