@@ -38,6 +38,24 @@ function oneOf<T extends string>(allowed: readonly T[], value: string | null | u
   return value !== null && value !== undefined && (allowed as readonly string[]).includes(value) ? value as T : fallback;
 }
 
+/** The domain filter holds one or more domains, comma separated; "all" means no restriction. */
+export function domainList(domain: string): string[] {
+  return domain === "all" ? [] : domain.split(LIST_SEPARATOR).filter(Boolean);
+}
+
+function normalizeDomains(value: string | null | undefined): string {
+  const picked = new Set((value ?? "").split(LIST_SEPARATOR).map((item) => item.trim()));
+  const ordered = domainValues.filter((item) => item !== "all" && picked.has(item));
+  return ordered.length ? ordered.join(LIST_SEPARATOR) : "all";
+}
+
+/** Adds or removes one domain; picking "all" (or emptying the selection) clears the restriction. */
+export function toggleDomain(current: string, value: string): string {
+  if (value === "all") return "all";
+  const selected = domainList(current);
+  return normalizeDomains((selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]).join(LIST_SEPARATOR));
+}
+
 function list(value: string | null | undefined): string[] {
   if (!value) return [];
   return [...new Set(value.split(LIST_SEPARATOR).map((item) => item.trim()).filter(Boolean))];
@@ -47,7 +65,7 @@ function list(value: string | null | undefined): string[] {
 export function parseFilters(params: URLSearchParams): FilterState {
   return {
     query: params.get(PARAM.query) ?? "",
-    domain: oneOf(domainValues, params.get(PARAM.domain), "all"),
+    domain: normalizeDomains(params.get(PARAM.domain)),
     status: oneOf(lifecycleValues, params.get(PARAM.status), "all"),
     quality: oneOf(fixtureValues, params.get(PARAM.quality), "all"),
     project: oneOf(projectValues, params.get(PARAM.project), "all"),

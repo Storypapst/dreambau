@@ -171,13 +171,13 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
     } catch (error) { next(error); }
   });
 
-  // Per-user preferences (currently: saved filter presets). Any user-bound
+  // Per-user preferences (saved filter presets and favorite accounts). Any user-bound
   // session may read and write its own; the value is validated per key so the
   // table never becomes a dumping ground.
-  const preferenceKeySchema = z.enum(["filter-presets"]);
+  const preferenceKeySchema = z.enum(["filter-presets", "favorite-accounts"]);
   const filterStateSchema = z.object({
     query: z.string().max(200).default(""),
-    domain: z.string().max(60).default("all"),
+    domain: z.string().max(200).default("all"),
     status: z.string().max(40).default("all"),
     quality: z.string().max(40).default("all"),
     project: z.string().max(40).default("all"),
@@ -187,7 +187,8 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
     conversations: z.array(z.string().max(80)).max(50).default([])
   });
   const preferenceValueSchemas: Record<z.infer<typeof preferenceKeySchema>, z.ZodTypeAny> = {
-    "filter-presets": z.array(z.object({ id: z.string().min(1).max(64), name: z.string().trim().min(1).max(60), filters: filterStateSchema })).max(50)
+    "filter-presets": z.array(z.object({ id: z.string().min(1).max(64), name: z.string().trim().min(1).max(60), filters: filterStateSchema })).max(50),
+    "favorite-accounts": z.array(z.string().trim().min(3).max(200)).max(300).transform((emails) => [...new Set(emails)])
   };
   const preferenceOwner = (res: any): string | null => {
     const principal = res.locals.session as SessionPrincipal;
