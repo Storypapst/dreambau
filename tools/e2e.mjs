@@ -148,6 +148,7 @@ if (!a._[0] || a._[0] === 'all') {
   for (let i = 0; i < N; i++) {
     const ctx = await browser.newContext({ viewport: { width: 320, height: 180 } });
     const page = await ctx.newPage();
+    await page.route('**/p/*.js', r => r.abort());          // only the choice matters here, not the show
     await page.goto(pageUrl({ q: .3 }));
     const id = await page.waitForFunction(() => window.Dream && window.Dream.state.id, null, { timeout: 20000 }).then(h => h.jsonValue());
     count[id] = (count[id] || 0) + 1;
@@ -158,6 +159,7 @@ if (!a._[0] || a._[0] === 'all') {
   for (const id of IDS) {
     const ctx = await browser.newContext({ viewport: { width: 320, height: 180 } });
     const page = await ctx.newPage();
+    await page.route('**/p/*.js', r => r.abort());
     await page.goto(pageUrl({ anim: id, q: .3 }));
     const got = await page.waitForFunction(() => window.Dream && window.Dream.state.id, null, { timeout: 20000 }).then(h => h.jsonValue());
     check(`?anim=${id} forces that production`, got === id, got);
