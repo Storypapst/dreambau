@@ -1,0 +1,65 @@
+{
+ "id": "4k",
+ "checks": [
+  {
+   "name": "timeline dur 60 fin 53 cta 54.5",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "first frame mean luminance 0.04 %",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "phases 0.085 0.131 0.165 0.055",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "continuous change: min 3 s difference 0.0054 at t=50",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "flash safety: max 66 ms step 6.93 %, reversals/s 2",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "reactivity (luminance vs bass energy, 15 Hz) 0.450",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "reveal order 41.5 -> 45.5 -> 49.25",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "no console errors or warnings",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "final 16:9: contrast 16.7 / 15.9 / 16.4, bottom 0.01 % (at dur+5: 0.01 %)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "final 21:9: contrast 16.7 / 16.2 / 16.4, bottom 0.01 % (at dur+5: 0.01 %)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "final 4:3: contrast 17.0 / 16.2 / 16.5, bottom 0.00 % (at dur+5: 0.00 %)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "final portrait: contrast 17.0 / 16.8 / 16.9, bottom 0.00 % (at dur+5: 0.00 %)",
+   "ok": true,
+   "detail": ""
+  }
+ ]
+}
