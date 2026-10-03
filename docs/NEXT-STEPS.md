@@ -39,6 +39,22 @@ ist nichts veröffentlicht.
    GitHub-Pfad und Ordnernamen (Vorschlag `apps/landing`, `apps/work`, `apps/blog`). Empfehlung: privat anlegen, weil dort
    die Programmliste und die Server-Skripte liegen sollen.
 
+**Nachtrag (später am 2026-10-03, nach dem Merge):** Der Nutzer wies auf das Projekt `dreambau.com/bildungshaus` hin, in dem
+„das Formbricks-Ding" online ist. Die Cloud-Sitzung hat dazu das öffentliche Repo `Storypapst/bildungshaus` gelesen.
+dreambau.com selbst ist aus der Cloud nicht erreichbar, deshalb ist nichts davon live geprüft. Daraus folgen vier offene
+Punkte (und die Korrektur von Abschnitt 4.5):
+
+10. ○ Bildungshaus (Abschnitt 3, D): Das Projekt kam in der bisherigen Planung nicht vor. Soll die Landing (Fußzeile) oder
+    der Work-Bereich auf `/bildungshaus/` verweisen?
+11. ◐ Formbricks (Abschnitt 9): Die Formulare im Fußbereich von Bildungshaus liegen auf `umfrage.dreambau.com`. In der
+    Programmliste vom 2026-10-03 stand diese Adresse mit 502 („Container gestoppt"). Wenn beides stimmt, zeigt der Rahmen
+    im Bildungshaus-Fußbereich gerade einen Fehler. Ob das so ist, wurde nicht geprüft.
+12. ○ Wer ist Anbieter? (Abschnitt 11): Die Bildungshaus-Doku nennt für die Datenverwaltung der Befragung „Greyt.IT UG
+    (haftungsbeschränkt)", die Landing nennt die GS DESIGN GmbH. Vor Impressum und Datenschutz klären, welche Firma für
+    welchen Teil der Domain Diensteanbieter ist.
+13. ○ Monorepo (Abschnitt 2): Ein Repo `Storypapst/dreambau` gibt es schon. Es ist öffentlich und enthält die
+    Testmails-Registry (`/testmails`). Ist es das gemeinte Monorepo, oder entsteht ein neues?
+
 ### Weitere Entscheidungen und Wünsche aus dem Chat
 
 - **Grundanforderung (ursprünglich):** Bei jedem Laden startet zufällig eine von drei Animationen, mit dem Text „Jeht
@@ -75,6 +91,7 @@ ist nichts veröffentlicht.
 | Welche Sprachen? | Die 40 meistgenutzten |
 | Soll Abschnitt 0 in „grilling"-Fragerunden durchgegangen werden? | keine Antwort; geplant ist Wayfinder lokal |
 | Angebot: einen Problem-Issue nachträglich anlegen, wenn Issues im Fork eingeschaltet werden | keine Antwort |
+| (Hinweis des Nutzers, keine Frage) Das Projekt `dreambau.com/bildungshaus` mit dem Formbricks-Formular ist wichtig | aufgenommen: Abschnitt 3 (D), Punkte 10 bis 13 offen |
 
 ## 1. Wo wir stehen
 
@@ -96,6 +113,13 @@ der Landing-Ordner wird dort als Unterordner eingehängt, mit Historie. Vorschla
 `apps/work`, `apps/blog`. Das Monorepo sollte privat sein: Die Programmliste des Work-Bereichs und die Server-Skripte
 (Abschnitt 8) gehören nicht in ein öffentliches Repo.
 
+**Namensgleichheit prüfen:** `Storypapst/dreambau` gibt es schon (öffentlich, zuletzt 2026-09-29). Es ist die „Dreambau
+Testmails Registry" (`/testmails`) mit ihrer Anwendung im Wurzelordner, den Kubernetes-Manifesten in `k8s/` und der
+Auslieferung in `ops/`. Wäre das das gemeinte Monorepo, stünde `apps/landing` neben einer Anwendung im Wurzelordner, und das
+Repo ist öffentlich, die Empfehlung aus Abschnitt 8 (keine Programmliste in ein öffentliches Repo) gälte dort also erst
+recht. Ein neues, privates Repo unter anderem Namen (zum Beispiel `dreambau-platform`) hielte beides auseinander. Die
+Entscheidung ist offen (Punkt 13).
+
 ```sh
 # 1) im Klon des Forks: nur den Landing-Ordner mit seiner Historie herauslösen
 cd morphdemo-benchmark
@@ -112,18 +136,25 @@ Danach ändern sich nur die Pfade in dieser Datei (`dreambau-landing/…` wird `
 Workspaces (npm, pnpm) nutzt, den Landing-Ordner dort eintragen. Neue Änderungen aus dem Fork lassen sich später mit
 `git subtree pull` nachziehen.
 
-## 3. Drei große Vorhaben
+## 3. Vier große Vorhaben
 
 - **A. Landing mit zufälligen Animationen** und eine Pipeline für weitere Animationen (Abschnitte 4, 5, 6, 7, 9).
 - **B. Work-Bereich:** Einstieg zu den internen Programmen, dazu Impressum und Datenschutz (Abschnitte 8, 11).
 - **C. Blog:** kurze Beiträge mit einem Formular „Warum lesenswert" (Abschnitt 10).
+- **D. Bildungshaus (besteht schon, öffentlich unter https://dreambau.com/bildungshaus/):** interaktive Präsentation „Bildungshaus
+  weWeit" mit Fragebögen für fünf Rollen (Eltern, Fachkräfte, Geschäftsführung, Elternvorstand, Kinder-Perspektive), bisher
+  nur Pretests mit Testdaten. Eigenes Repo `Storypapst/bildungshaus` (öffentlich; React, TypeScript, Vite; Auslieferung
+  mit `ops/deploy.py`). Für diesen Plan zählen drei Berührungspunkte: Die Auslieferung der neuen Startseite darf
+  `/bildungshaus/` nicht beschädigen (Abschnitt 4.5), die Rechtstexte müssen zusammenpassen (Abschnitt 11), und die
+  Formulare hängen am selben Formbricks wie die geplante Pipeline (Abschnitt 9).
 
-Empfehlung: für jedes Vorhaben zuerst eine Spezifikation, dann bauen. Als Planungswerkzeug nennst du den Skill
+Empfehlung: für jedes neue Vorhaben (A bis C) zuerst eine Spezifikation, dann bauen. Als Planungswerkzeug nennst du den Skill
 „Wayfinder" von Matt Pocock; nach den Beschreibungen, die ich gefunden habe, zerlegt er große Vorhaben in
 Entscheidungs-Tickets im Issue-Tracker, bevor Code entsteht (nicht selbst installiert oder geprüft, Beschreibung:
-https://pasqualepillitteri.it/en/news/12137/wayfinder-claude-code-skill-plan-big-projects). Das passt zu diesen drei
+https://pasqualepillitteri.it/en/news/12137/wayfinder-claude-code-skill-plan-big-projects). Das passt zu diesen
 Vorhaben. In der Cloud-Sitzung hier gibt es stattdessen den Skill „grilling" (Fragerunden mit Empfehlungen).
-Reihenfolge-Empfehlung: A bis zum Livegang (Abschnitt 4), dann B, dann die Pipeline, dann C.
+Reihenfolge-Empfehlung: A bis zum Livegang (Abschnitt 4), dann B, dann die Pipeline, dann C. D läuft bereits und wird nur
+berührt.
 
 ## 4. Landing bis zum Livegang
 
@@ -207,13 +238,47 @@ Auftrag.
 
 ### 4.5 Veröffentlichen auf dreambau.com
 
-- Den Inhalt von `site/` (`index.html`, `shell.js`, Ordner `p/`, plus die neuen Seiten) ins Webverzeichnis kopieren, per
-  HTTPS ausliefern. Empfohlen: die Sicherheitsrichtlinie `CSP` aus `tools/serve.mjs` als HTTP-Header setzen.
-- **Vorsicht: `/testmails` und alles andere im Webroot darf nicht überschrieben oder gelöscht werden.** Nicht mit
-  `rsync --delete` ins Webroot synchronisieren, vorher den Ist-Stand sichern, nach dem Upload `/testmails` aufrufen.
-- Zugang: kein Root nötig. Besser ein eigener Deploy-Benutzer, der nur in das Webverzeichnis schreiben darf, mit einem
-  eigenen SSH-Schlüssel dafür. Beispiel mit Platzhaltern:
-  `rsync -av --exclude 'testmails' site/ DEPLOYUSER@SERVER:/pfad/zum/webroot/`
+**Korrektur (2026-10-03):** Die erste Fassung dieses Abschnitts ging von einem normalen Webverzeichnis aus und empfahl
+`rsync`. Das trifft nicht zu. Das Repo `Storypapst/bildungshaus` (Ordner `ops/`, vor allem `README.md` und `nginx.conf`,
+Stand 2026-09-07) beschreibt die tatsächliche Auslieferung. Sie ist hier zusammengefasst, aber nicht gegen den Server
+geprüft.
+
+- **Wie die Startseite heute ausgeliefert wird:** Ein nginx-Pod (`dreambau-homepage`) im Kubernetes-Cluster liefert die
+  Startseite aus einer ConfigMap (`/site`). Er beantwortet nur `/` (die `index.html`), `/homepage-assets/` (dasselbe
+  Verzeichnis), `/health` und `/bildungshaus/…`; alles andere ergibt 404. Matrix-Discovery und `/testmails` laufen über
+  andere Routen und Dienste. nginx sendet außerdem `Cache-Control: no-store`, die Seite wird also bei jedem Besuch neu
+  geladen (bei 20 bis 28 KB komprimiert vertretbar).
+- **Strengere Sicherheitsrichtlinie als in `tools/serve.mjs`:** Für die Startseite gilt
+  `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'`,
+  also **keine Inline-Stile** (die Richtlinie in `tools/serve.mjs` erlaubt sie).
+- **Getestet:** ein kleiner Server in Node mit genau diesen Routen und diesem Header, dazu Headless-Chromium (das Skript lag
+  nur im Arbeitsverzeichnis der Cloud-Sitzung, nicht im Repo; bei Bedarf als `tools/apex-check.mjs` nachbauen).
+  - *`site/` unverändert:* `/shell.js` ergibt 404, der Inline-Stil wird verweigert, es erscheint ungestalteter Text ohne
+    Animation (Schriftzug, Knöpfe und Schlusszeile in Standardschrift).
+  - *Mit drei kleinen Änderungen* läuft es: alle drei Animationen laden und starten, keine Fehlermeldung.
+    1. Den Stilblock in `index.html` und den im `<noscript>` in zwei Dateien (`style.css`, `noscript.css`) auslagern und
+       per `<link>` einbinden.
+    2. Dateien unter `/homepage-assets/` ansprechen (`/homepage-assets/shell.js`, `/homepage-assets/style.css`), weil
+       `/shell.js` und `/p/…` nicht ausgeliefert werden.
+    3. In `shell.js` die Animationen relativ zum eigenen Skript laden statt relativ zur Seite: am Anfang
+       `const BASE = document.currentScript.src.replace(/[^/]*$/, '')`, in `loadProduction` dann
+       ``s.src = `${BASE}p/${id}.js` ``. Sonst sucht die Seite `/p/4k.js` und bekommt 404.
+  - Der Einzeldatei-Bau (`dist/index.html` mit Inline-Skript und -Stil) ist für die Startseite nicht geeignet.
+- **Beispiel mit der Prüfung vorab:** Das Prüfskript meldet in wenigen Minuten „404 /shell.js" und „Inline-Stil verweigert",
+  man behebt beides am Schreibtisch. **Ohne sie:** Die Seite geht live, Besucher sehen auf dreambau.com ungestalteten Text
+  ohne Animation, und man sucht unter Zeitdruck den Grund und rollt zurück.
+- **Vorgehen beim Veröffentlichen:** nicht per `rsync` (es gibt kein Webverzeichnis), sondern nach dem Muster in
+  `Storypapst/bildungshaus/ops/` (`deploy.py`, `rollback.py`): Release mit Prüfsummen, Sicherung des laufenden Zustands,
+  Trockenlauf gegen den Cluster, erst dann `--apply`, jederzeit zurückrollbar. Die Landing ist klein (36 bis 74 KB roh); ob
+  sie in die ConfigMap `/site` passt (Grenze etwa 1 MiB) oder wie beim Bildungshaus als Release-Verzeichnis eingebunden
+  wird, entscheidet die lokale Sitzung, die den Cluster sieht. Die heutige Startseite (`ops/README.md` nennt sie „apex
+  phrase sequence") vorher sichern.
+- **Abnahme** (aus `ops/README.md`, ergänzt): Startseite öffnen, eine Animation sehen und hören; `/bildungshaus/`
+  unverändert; Matrix-Discovery Byte für Byte unverändert; `/testmails`-Login 200 und die geschützte API 401; eine fehlende
+  Datei ergibt 404 (kein HTML mit 200); `/bildungshaus` leitet auf `https://dreambau.com/bildungshaus/` ohne Port 8080 weiter.
+- **Neue Pfade** (`/impressum`, `/datenschutz`, `/work`) brauchen je eine Route in nginx (heute endet alles andere in
+  `location / { return 404; }`) und gegebenenfalls eine Ingress-Regel; das gehört in dieselbe Änderung.
+- Zugang: Die Cloud-Sitzung hat keinen Zugriff, die Schlüssel liegen lokal. Veröffentlicht wird erst nach deiner Freigabe.
 - Nach dem Livegang auf echten Geräten ansehen und anhören (iPhone/Safari, Android/Chrome, Firefox, ein älteres
   Notebook).
 
@@ -351,6 +416,13 @@ normaler Text. Eine 24-KB-Animation sind rund 24.000 Zeichen, die man wirklich a
   Container-, Mail- und Speicherverwaltung, Server-Panel) mit `admin: true` markieren und nicht öffentlich verlinken, sondern
   erst nach einem gemeinsamen Login zeigen (später möglich). Im Alltag ändert das wenig, weil Kollegen diese Adressen ohnehin
   als Lesezeichen haben.
+- **Warum die dynamische Anzeige zur Lage passt:** Die Bildungshaus-Doku (2026-09-07) hält fest, dass Cap und Novu bewusst
+  gestoppt sind und die Speichergrenzen des Servers bestehen bleiben. Programme werden also zeitweise absichtlich
+  abgeschaltet; ein gestopptes Programm soll dann verschwinden, statt als Fehler zu erscheinen. Dieselbe Prüfdatei kann
+  auch den Fragebogen-Rahmen im Bildungshaus ersetzen, wenn Formbricks aus ist (Abschnitt 9): statt eines Rahmens mit „502"
+  ein Satz wie „Die Fragebögen sind gerade nicht erreichbar, bitte später noch einmal versuchen".
+- **Bildungshaus in der Liste?** `/bildungshaus/` steht nicht in der gelieferten Liste. Ob es als eigener Eintrag oder in
+  einer Gruppe „Projekte" erscheinen soll, ist offen (Punkt 10).
 - **Offen:** Farbwünsche; öffentliche Liste oder nach Login; ob 502, Zeitüberschreitung und „Verbindung abgelehnt" wie 503
   ausgeblendet werden (Empfehlung: ja).
 
@@ -378,9 +450,12 @@ normaler Text. Eine 24-KB-Animation sind rund 24.000 Zeichen, die man wirklich a
   Antworten einen Webhook auslösen (Ereignisse `responseCreated`, `responseUpdated`, `responseFinished`; nicht selbst
   getestet). Ein kleiner Vermittler (n8n, falls vorhanden, oder ein kurzes Skript auf deinem Server) nimmt den Webhook
   entgegen und legt daraus ein GitHub-Issue an, die Antworten werden in den Prompt eingesetzt. Damit entfällt ein eigenes
-  Formular. Stand der Programmliste vom 2026-10-03: Formbricks und n8n waren nicht erreichbar (bei Formbricks war der
-  Container gestoppt). Das ist vor der Pipeline-Arbeit zu klären, und solange n8n nicht stabil läuft, ist ein kurzes
-  Skript als Vermittler robuster. Quellen: https://formbricks.com/docs/surveys/best-practices/headless-surveys und
+  Formular. Formbricks läuft nach der Bildungshaus-Doku auf `umfrage.dreambau.com` (am 2026-09-07 mit fünf
+  Test-Fragebögen geprüft; die Bildungshaus-Seite bettet die Formulare dort ein). In der Programmliste vom 2026-10-03
+  stand es mit 502 („Container gestoppt"), n8n ebenfalls mit 502. Vor der Pipeline-Arbeit klären: Muss Formbricks dauerhaft
+  laufen (dann Speicher einplanen) oder reicht es bei Bedarf? Solange n8n nicht stabil läuft, ist ein kurzes Skript als
+  Vermittler robuster. Ist Formbricks aus, zeigt der Rahmen im Bildungshaus-Fußbereich einen Fehler; Abschnitt 8 beschreibt,
+  wie man dort stattdessen einen Hinweis zeigt. Quellen: https://formbricks.com/docs/surveys/best-practices/headless-surveys und
   https://themenonlab.blog/blog/formbricks-open-source-typeform-qualtrics-alternative
 - **Trennung der Rechte:** Der Bau-Agent sieht keine Zugangsdaten. Das Veröffentlichen macht ein GitHub-Workflow mit einem
   eigenen, eingeschränkten Deploy-Schlüssel als Secret, ohne `--delete` und ohne `/testmails` anzufassen. Das ist der
@@ -418,6 +493,15 @@ neben info@dreambau.com (Telefon oder ein Kontaktformular, zum Beispiel über Fo
 (falls zutreffend). Steuernummer, zuständiges Finanzamt und Gründungsdatum werden für das Impressum nicht verlangt und
 gehören nicht in diese Datei oder das öffentliche Repo; sie wurden im Chat genannt und bewusst nicht übernommen. Beim Bau
 der Seite fehlende Angaben als sichtbare Platzhalter eintragen, nichts erfinden.
+
+**Zweite Firma im Bildungshaus (Punkt 12):** `docs/SURVEY-FOOTER.md` im Repo `Storypapst/bildungshaus` nennt für die technische
+Datenverwaltung und den Datenschutz der Befragung „Greyt.IT UG (haftungsbeschränkt)" mit Ansprechpartner Frank Gerhardt und
+der Kontaktadresse fg@greyt.me. Dort steht auch: Geschäftsanschrift, datenschutzrechtliche Rolle und Aufbewahrung seien für
+die echte Befragung noch abzugleichen (vorbereitete Fristen: 30 Tage für Teilantworten, 90 Tage für Rohdaten, noch nicht
+bestätigt). Die Landing nennt die GS DESIGN GmbH. Zu klären: Wer ist Diensteanbieter von `/bildungshaus/`, wer der
+Startseite, und wer ist Verantwortlicher für die Befragungsdaten? Ein gemeinsames Impressum für die ganze Domain geht nur,
+wenn es für alle Teile stimmt. In den Quelldateien von `Storypapst/bildungshaus` habe ich weder „Impressum" noch einen Link
+darauf gefunden; ob die Live-Seite eines hat, wurde nicht geprüft. Keine Rechtsberatung.
 
 **Sichtbarkeit (meine Einschätzung, keine Rechtsberatung):** § 5 DDG verlangt, dass das Impressum „leicht erkennbar,
 unmittelbar erreichbar und ständig verfügbar" ist. Üblich ist die Zwei-Klick-Regel, und der Link muss seiner Bezeichnung
@@ -467,6 +551,9 @@ PAGE=dist/index.html node tools/e2e.mjs all    # dasselbe gegen die Einzeldatei 
 ## 14. Bekannte Grenzen
 
 - Nur in Headless-Chromium mit Software-Rendering geprüft. Echte Geräte stehen aus.
+- Die Startseite von dreambau.com hat eine strengere Sicherheitsrichtlinie und andere Routen (Abschnitt 4.5): ohne die drei
+  dort genannten Änderungen läuft die Landing nicht. Getestet nur gegen einen Nachbau dieser Regeln nach den Dateien im
+  Bildungshaus-Repo (Stand 2026-09-07), nicht gegen den echten Server.
 - Skyline: im Software-Rendering entstehen vereinzelt nicht-endliche Pixel (ein bis drei pro Bild, etwa jedes
   16. Bild). Sie werden vor dem Leuchteffekt auf Schwarz gesetzt. Die genaue Ursache ist offen (`docs/PRODUCTIONS.md`).
 - Der Schriftzug erscheint je nach Animation zwischen Sekunde 41 und 51. Ton beginnt in den meisten Browsern erst nach
@@ -480,7 +567,10 @@ frage mich nur die offenen Punkte ab. Setze dann Abschnitt 4 um (Fußzeile mit I
 Tastenhinweise als dezente Pillen, Absicherung für ältere Geräte); die Schrift verbessere ich selbst. Arbeite auf einem
 neuen Branch: im Fork von main aus (PR #1 ist gemerged, der alte Branch wird nicht wiederverwendet), im Monorepo ab
 feat/landing-import. Fehlende Impressumsangaben (Abschnitt 11) als sichtbare Platzhalter eintragen, nichts erfinden.
-Halte npm run build und npm run verify ein. Schreibe keine Steuernummer und keine Programmliste mit Adressen in ein
-öffentliches Repo. Veröffentliche nichts auf dem Server ohne meine Freigabe. Für die Abschnitte 5 bis 10 zuerst eine
-Spezifikation und Mockups, noch kein Code.
+Halte npm run build und npm run verify ein. Lies vor jeder Auslieferung Abschnitt 4.5: Die Startseite kommt aus einem
+Kubernetes-Pod mit strenger Sicherheitsrichtlinie, nicht aus einem Webverzeichnis; ausgeliefert wird nach dem Muster in
+Storypapst/bildungshaus/ops, nicht per rsync, und /bildungshaus/, /testmails und die Matrix-Discovery müssen unverändert
+weiterlaufen. Schreibe keine Steuernummer und keine Programmliste mit Adressen in ein öffentliches Repo. Veröffentliche
+nichts auf dem Server ohne meine Freigabe. Für die Abschnitte 5 bis 10 zuerst eine Spezifikation und Mockups, noch kein
+Code.
 ```
