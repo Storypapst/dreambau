@@ -5,6 +5,7 @@ import type { Taxonomies } from "./taxonomies.js";
 import * as schema from "./schema.js";
 import { topicKeys } from "./catalog.js";
 import { TestRunStore } from "./test-run-store.js";
+import { ReleaseListStore } from "./release-list-store.js";
 import {
   accountAccessEventInputSchema,
   type AccountAccessEvent,
@@ -24,6 +25,7 @@ const seeds = {
 
 export interface RegistryDatabase {
   testRuns: TestRunStore;
+  releaseLists: ReleaseListStore;
   tableNames(): string[]; getMetadata(email: string): AccountMetadata; getAllMetadata(): AccountMetadata[];
   upsertMetadata(email: string, patch: MetadataPatch): AccountMetadata; bulkStatus(emails: string[], status: string): number;
   recordMachineIdentityUse(identityId: string, usedAt?: string): void;
@@ -145,6 +147,7 @@ export function createDatabase(path: string): RegistryDatabase {
   });
   const api: RegistryDatabase = {
     testRuns: new TestRunStore(sqlite),
+    releaseLists: new ReleaseListStore(sqlite),
     tableNames: () => (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((row) => row.name),
     getMetadata(email) { const row = sqlite.prepare("SELECT * FROM account_metadata WHERE email=?").get(email); return row ? rowToMetadata(row) : emptyMetadata(email); },
     getAllMetadata: () => (sqlite.prepare("SELECT * FROM account_metadata ORDER BY email").all() as any[]).map(rowToMetadata),
