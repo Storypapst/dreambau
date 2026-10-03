@@ -145,7 +145,60 @@ PAGE=dist/index.html node tools/e2e.mjs all    # dasselbe gegen die Einzeldatei 
 - Der Schriftzug erscheint je nach Animation zwischen Sekunde 41 und 51. Ton beginnt in den meisten Browsern erst nach
   dem ersten Tippen oder Klick.
 
-## 7. Prompt für Claude Code lokal
+## 7. Weitere Ideen (nach den Schritten 1 bis 4)
+
+### Läuft das auch auf älteren Geräten?
+
+- **Stand:** Die Auflösung sinkt automatisch (unter 40 Bildern pro Sekunde in Schritten von 20 %, bis auf die Hälfte je Achse).
+  Ohne WebGL2 (zum Beispiel iPhones vor iOS 15) erscheint die statische Seite, im Hintergrund-Tab pausiert alles.
+  Gemessen wurde nur im Software-Rendering ohne Grafikchip (640x360, Mittelwert pro Bild): Rohbau 66 ms, Traumhaus 127 ms,
+  Skyline 98 ms.
+- **Lücke:** Bleibt es auch bei halber Auflösung ruckelig, passiert nichts weiter. Idee: nach einigen Sekunden unter
+  24 Bildern bei Minimalauflösung zu Rohbau wechseln oder das Schlussbild zeigen; wird ein Software-Renderer erkannt
+  (`WEBGL_debug_renderer_info`: SwiftShader, llvmpipe), gleich nur Rohbau spielen.
+- Vor dem Livegang auf einem alten Laptop und einem alten Handy ansehen.
+
+### Fun-Fact-Knopf „Wie klein ist das?"
+
+- Kleiner Link oder „i" in der Fußzeile öffnet ein Fenster. Esc schließt zuerst das Fenster und überspringt nicht die
+  Animation.
+- Inhalt mit echten, beim Build gemessenen Zahlen: Größe der gespielten Animation und der ganzen Seite (heute 54 bis
+  74 KB, komprimiert 20 bis 28 KB; mit minimiertem `shell.js` 36 bis 57 KB), Vergleiche (Handyfoto etwa 3 MB, übliche
+  Webseite etwa 2 MB, das Vorschauvideo derselben Animation 4 bis 7 MB bei niedriger Qualität), Ladezeit bei 1 Mbit/s
+  (Seite unter einer Sekunde, Video rund eine Minute) und der Satz „Bild und Musik entstehen live auf deinem Gerät".
+- Ehrlich bleiben: Die Zahlen 4, 16 und 64 KB gelten für die Animation allein, die gemeinsame Laufzeit (`shell.js`) kommt
+  dazu. Das Fenster nennt die ganze Seite.
+
+### Pipeline für weitere Animationen
+
+- **Heute:** Eine neue Animation bedeutet vier Stellen von Hand: `src/p/<id>.js`, `tools/budget.mjs`, `D.ids` in
+  `site/shell.js`, README und Dokumentation.
+- **Ziel:** Eine Animation ist eine Datei plus Kurzbeschreibung. Der Build liest `src/p/*.js` (mit `id`, Titel,
+  Größenklasse, `enabled`, Gewicht), erzeugt daraus die Liste für die Zufallswahl, das Größenbudget und die
+  README-Tabelle. Abschalten ohne Löschen über `enabled: false`.
+- **Ablauf:** Idee als GitHub-Issue (Formular: Thema, Stimmung und Farben, Tempo und Musikstil, Größenklasse) →
+  Claude baut `src/p/<id>.js` nach `docs/briefs/common.md` und `docs/CONTRACT.md` und öffnet einen PR → CI führt
+  `npm run verify` für diese Animation aus und hängt Vorschauvideo und Kontaktbogen an → du schaust das Video und
+  gibst frei (Merge) → ein Workflow veröffentlicht `site/` automatisch, die neue Animation ist im Pool.
+- **Trennung der Rechte:** Der Bau-Agent sieht keine Zugangsdaten. Das Veröffentlichen macht ein GitHub-Workflow mit einem
+  eigenen, eingeschränkten Deploy-Schlüssel als Secret, ohne `--delete` und ohne `/testmails` anzufassen.
+- Aufwand: Gerüst etwa ein halber bis ein Tag. Pro Animation in diesem Lauf: Rohbau und Traumhaus je rund eine Stunde, die
+  Skyline gut 75 Minuten Agentenzeit plus Prüfung. Geschmack prüft keine Automatik: die Freigabe bleibt bei dir.
+
+### Mehrsprachigkeit
+
+- Der Schriftzug wird zur Laufzeit gezeichnet und die Musik hat keinen Text. Eine Sprachwahl ist daher ein kleiner
+  Eingriff: Wörterbuch für `data-lines` und die Beschriftungen (Ton, überspringen, Schlusszeile), Auswahl über
+  `navigator.languages` mit `?lang=` als Überschreibung, `<html lang>` und `hreflang` setzen. Kein neues Video pro Sprache.
+- Zu klären: „Jeht nich… jibs nich…" ist Berliner Dialekt. Entweder den Sinn übersetzen („Can't be done? Doesn't
+  exist.") oder das Original behalten und eine kleine Übersetzung darunter setzen.
+- Schrift: Die eingebettete Teilmenge muss die Zeichen der Sprache enthalten (Latein mit Umlauten ist klein, Kyrillisch
+  und Griechisch vergrößern sie, Arabisch und Chinesisch brauchen Systemschriften, Arabisch zusätzlich ein
+  Rechts-nach-links-Layout). Impressum und Datenschutz bleiben deutsch, eine englische Fassung ist optional.
+- Aufwand: Deutsch und Englisch etwa ein bis zwei Stunden, jede weitere Sprache in lateinischer Schrift danach nur noch
+  die Texte.
+
+## 8. Prompt für Claude Code lokal
 
 ```
 Lies dreambau-landing/docs/NEXT-STEPS.md. Arbeite auf dem Branch claude/dreambau-landing-animations-d2r0pj (PR #1)
