@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-03T00:44:23.933Z",
+ "generated": "2026-10-03T01:26:56.502Z",
  "productions": {
   "4k": {
    "checks": [
@@ -82,7 +82,7 @@
      "warn": false
     },
     {
-     "name": "picture cost in software GL at 640x360: mean 66.6 ms, worst 79.3 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "name": "picture cost in software GL at 640x360: mean 65.9 ms, worst 74.8 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
      "ok": true,
      "detail": "informational",
      "warn": false
@@ -141,8 +141,8 @@
     49.5
    ],
    "benchMs": {
-    "mean": 66.6,
-    "worst": 79.3
+    "mean": 65.9,
+    "worst": 74.8
    },
    "audio": [
     "loudness/s    ▁▂▂▃▄▄▅▅▆▇▇█▇▇▇█████████████████████████▇▇▇▇▇▇▇█▇▇▇▇▆▆▅▄▁    ",
@@ -231,7 +231,7 @@
      "warn": false
     },
     {
-     "name": "picture cost in software GL at 640x360: mean 126.2 ms, worst 153.7 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "name": "picture cost in software GL at 640x360: mean 127.4 ms, worst 163.5 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
      "ok": true,
      "detail": "informational",
      "warn": true
@@ -290,12 +290,161 @@
     51
    ],
    "benchMs": {
-    "mean": 126.2,
-    "worst": 153.7
+    "mean": 127.4,
+    "worst": 163.5
    },
    "audio": [
     "loudness/s     ▃▃▅▅▅▅▆▆▆▇▇▇▇▇▇▇▇▇▇▇▆▇▇▇▇▇▆▇███████████▇▇█▇▇▇█▇▇████▇▆▄▂    ",
     "peak -3.3 dBFS  rms -21.2 dBFS  stereo corr 0.53  est. tempo 99 BPM  clipped 0",
+    "audio checks OK"
+   ]
+  },
+  "64k": {
+   "checks": [
+    {
+     "name": "size budget: 24364 of 65536 bytes (gzip 10878)",
+     "ok": true,
+     "detail": "37 %",
+     "warn": false
+    },
+    {
+     "name": "static scan: no network, media or asset APIs in the shipped files",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "timeline: dur 60 s, fin 53 s, cta 54.5 s",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "first frame is nearly black (mean luminance 0.0 %)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "three or more distinct phases (differences between snapshots: 0.14 0.09 0.13 0.02)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "continuous change: no still period of 3 s or more before fin",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "flash safety: largest 66 ms step 10.0 % luminance, 1 large reversals per second at most",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "picture follows the music: bass energy vs brightness r=0.25 (lag 0 ms), vs activity r=0.37 (lag 0 ms)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "tagline revealed line by line, in order: 43 s → 47 s → 51 s",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 16:9: text contrast 10.5 / 10.0 / 8.0, bottom band 3.9 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 21:9: text contrast 10.5 / 10.0 / 8.1, bottom band 3.5 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 4:3: text contrast 10.5 / 10.1 / 8.1, bottom band 3.9 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition portrait 9:16: text contrast 9.3 / 8.5 / 7.1, bottom band 5.4 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "picture cost in software GL at 640x360: mean 98.1 ms, worst 137 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "ok": true,
+     "detail": "informational",
+     "warn": false
+    },
+    {
+     "name": "music: loudness, silent start, fade-out, no clipping, progression",
+     "ok": true,
+     "detail": "peak -1.4 dBFS  rms -20.2 dBFS  stereo corr 0.93  est. tempo 185 BPM  clipped 0",
+     "warn": false
+    },
+    {
+     "name": "real-time behaviour: autoplay allowed/blocked, mute, Esc, reduced motion, no WebGL, no network",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "contact sheet written (verification/64k/frames/sheet.png)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    }
+   ],
+   "bytes": 24364,
+   "gzip": 10878,
+   "budget": 65536,
+   "def": {
+    "id": "64k",
+    "dur": 60,
+    "fin": 53,
+    "cta": 54.5
+   },
+   "phaseDiffs": [
+    0.139,
+    0.093,
+    0.13,
+    0.021
+   ],
+   "flash": {
+    "maxStep": 0.1,
+    "maxReversalsPerSecond": 1
+   },
+   "sync": {
+    "brightness": {
+     "r": 0.25,
+     "lagMs": 0
+    },
+    "activity": {
+     "r": 0.37,
+     "lagMs": 0
+    }
+   },
+   "reveal": [
+    43,
+    47,
+    51
+   ],
+   "benchMs": {
+    "mean": 98.1,
+    "worst": 137
+   },
+   "audio": [
+    "loudness/s     ▁▁▃▄▄▅▅▅▆▆▇▇▇█▇▇▇▇██▇▇▇▇██████████████▇██▇███▇▇█████▇▆▃     ",
+    "peak -1.4 dBFS  rms -20.2 dBFS  stereo corr 0.93  est. tempo 185 BPM  clipped 0",
     "audio checks OK"
    ]
   }
