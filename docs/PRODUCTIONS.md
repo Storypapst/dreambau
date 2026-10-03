@@ -59,7 +59,9 @@ D major**, bar = 2.667 s. One beat grid drives picture and music.
 | 50.7 s (bar 19) | **"dreambau.com"** | bell F#6 with the final D major chord |
 | 53 s and later | final composition: the skyline in low morning sun under a deep blue sky, slow cloud drift and camera breathing | rings out, faded by 59 s |
 
-Known limits of the 64k: the final skyline is a low band because the hero tower has to stay below the centred tagline. In one
-frame (57.5 s at 960x540, software GL) a single non-finite pixel in the scene pass was smeared by the bloom into a grey box. The
-cause was not found. The scene pass now replaces any non-finite pixel by black before the bloom, and `pow` is only called with
-non-negative bases (undefined in GLSL otherwise). All checks ran in software GL; a run on real GPUs is still outstanding.
+Known limits of the 64k: the final skyline is a low band because the hero tower has to stay below the centred tagline. In
+software GL the scene pass produces a few non-finite pixels (one to three per frame, in about one frame of sixteen at 960x540,
+mostly where the crane is drawn). Their exact source was not pinned down, and which pixels are affected changes with small
+changes of the shader code. Unchecked, the bloom smears such a pixel into a grey box, as happened once at 57.5 s. The scene pass
+therefore replaces any non-finite pixel by black before the bloom, and `pow` is only called with non-negative bases (undefined
+in GLSL otherwise). All checks ran in software GL; a run on real GPUs is still outstanding.

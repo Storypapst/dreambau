@@ -177,7 +177,9 @@ for (const id of ids) {
   }
 }
 // runtime clock with a light production: the picture runs at full speed, so the sync must be tight
-if (mode === 'all' || mode === 'clock') {
+const singleFile = !process.env.BASE_URL && !!process.env.PAGE && !/(^|\/)site\/index\.html$/.test(process.env.PAGE);
+if ((mode === 'all' || mode === 'clock') && singleFile) console.log('\n== runtime clock ==\n  SKIP  needs the test production (site/p/test.js), which the single-file build does not contain');
+else if (mode === 'all' || mode === 'clock') {
   console.log('\n== runtime clock (light test production) ==');
   const { spawnSync } = await import('node:child_process');
   spawnSync('node', ['tools/build.mjs', 'test', '--dev'], { cwd: new URL('..', import.meta.url).pathname });

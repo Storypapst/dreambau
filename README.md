@@ -77,6 +77,7 @@ einen schnellen Upload oder eine Vorschau.
 npm run verify          # alles, rund 10 bis 20 Minuten (Software-WebGL)
 node tools/verify.mjs 4k --quick   # eine Animation ohne Musik- und Verhaltenstest
 node tools/e2e.mjs all  # Verhalten der echten Seite: Ton erlaubt/gesperrt, Mute, Esc, reduzierte Bewegung, kein WebGL, kein Netz
+PAGE=dist/index.html node tools/e2e.mjs all   # dasselbe gegen die Einzeldatei (der Uhr-Test braucht die Testanimation und entfällt)
 ```
 
 `verify` baut, prüft die Größen und schreibt `verification/SUMMARY.md` und `verification/report.json`: Dauer 50 bis 70 s, erstes
