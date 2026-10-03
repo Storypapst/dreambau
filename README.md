@@ -81,7 +81,7 @@ PAGE=dist/index.html node tools/e2e.mjs all   # dasselbe gegen die Einzeldatei (
 ```
 
 `verify` baut, prüft die Größen und schreibt `verification/SUMMARY.md` und `verification/report.json`: Dauer 50 bis 70 s, erstes
-Bild dunkel, mindestens drei verschiedene Phasen, keine Standbild-Phase, Blitzsicherheit, Schriftzug Zeile für Zeile und lesbar
+Bild dunkel, mindestens drei verschiedene Phasen, keine Standbild-Phase, Bild unabhängig von vorher gezeichneten Bildern (keine veralteten Zwischenpuffer), Blitzsicherheit, Schriftzug Zeile für Zeile und lesbar
 (Kontrast), ruhiger dunkler unterer Rand bei 16:9, 21:9, 4:3 und Hochformat, Musik (Pegel, stiller Anfang, Ausblenden, kein
 Übersteuern), Verhalten der Seite, keine Netzwerkzugriffe. Die Bilder (`verification/<id>/frames/sheet.png`) und die
 Spektrogramme (`verification/<id>/audio/spectrogram.png`) liegen daneben.

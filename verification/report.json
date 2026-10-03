@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-03T01:26:56.502Z",
+ "generated": "2026-10-03T09:04:51.947Z",
  "productions": {
   "4k": {
    "checks": [
@@ -35,6 +35,12 @@
     },
     {
      "name": "continuous change: no still period of 3 s or more before fin",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "order independence: the picture at 53.3 s is the same after a full run as on a fresh page (difference 0.0000)",
      "ok": true,
      "detail": "",
      "warn": false
@@ -82,7 +88,7 @@
      "warn": false
     },
     {
-     "name": "picture cost in software GL at 640x360: mean 65.9 ms, worst 74.8 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "name": "picture cost in software GL at 640x360: mean 54.7 ms, worst 63.4 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
      "ok": true,
      "detail": "informational",
      "warn": false
@@ -121,6 +127,7 @@
     0.165,
     0.055
    ],
+   "orderDiff": 0,
    "flash": {
     "maxStep": 0.069,
     "maxReversalsPerSecond": 2
@@ -141,8 +148,8 @@
     49.5
    ],
    "benchMs": {
-    "mean": 65.9,
-    "worst": 74.8
+    "mean": 54.7,
+    "worst": 63.4
    },
    "audio": [
     "loudness/s    ▁▂▂▃▄▄▅▅▆▇▇█▇▇▇█████████████████████████▇▇▇▇▇▇▇█▇▇▇▇▆▆▅▄▁    ",
@@ -184,6 +191,12 @@
     },
     {
      "name": "continuous change: no still period of 3 s or more before fin",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "order independence: the picture at 53.3 s is the same after a full run as on a fresh page (difference 0.0000)",
      "ok": true,
      "detail": "",
      "warn": false
@@ -231,10 +244,10 @@
      "warn": false
     },
     {
-     "name": "picture cost in software GL at 640x360: mean 127.4 ms, worst 163.5 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "name": "picture cost in software GL at 640x360: mean 128.5 ms, worst 149.9 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
      "ok": true,
      "detail": "informational",
-     "warn": true
+     "warn": false
     },
     {
      "name": "music: loudness, silent start, fade-out, no clipping, progression",
@@ -270,6 +283,7 @@
     0.091,
     0.107
    ],
+   "orderDiff": 0,
    "flash": {
     "maxStep": 0.015,
     "maxReversalsPerSecond": 1
@@ -290,8 +304,8 @@
     51
    ],
    "benchMs": {
-    "mean": 127.4,
-    "worst": 163.5
+    "mean": 128.5,
+    "worst": 149.9
    },
    "audio": [
     "loudness/s     ▃▃▅▅▅▅▆▆▆▇▇▇▇▇▇▇▇▇▇▇▆▇▇▇▇▇▆▇███████████▇▇█▇▇▇█▇▇████▇▆▄▂    ",
@@ -302,7 +316,7 @@
   "64k": {
    "checks": [
     {
-     "name": "size budget: 24364 of 65536 bytes (gzip 10878)",
+     "name": "size budget: 24415 of 65536 bytes (gzip 10911)",
      "ok": true,
      "detail": "37 %",
      "warn": false
@@ -338,7 +352,13 @@
      "warn": false
     },
     {
-     "name": "flash safety: largest 66 ms step 10.0 % luminance, 1 large reversals per second at most",
+     "name": "order independence: the picture at 53.3 s is the same after a full run as on a fresh page (difference 0.0000)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "flash safety: largest 66 ms step 4.1 % luminance, 1 large reversals per second at most",
      "ok": true,
      "detail": "",
      "warn": false
@@ -380,7 +400,7 @@
      "warn": false
     },
     {
-     "name": "picture cost in software GL at 640x360: mean 98.1 ms, worst 137 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "name": "picture cost in software GL at 640x360: mean 77.6 ms, worst 94 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
      "ok": true,
      "detail": "informational",
      "warn": false
@@ -404,8 +424,8 @@
      "warn": false
     }
    ],
-   "bytes": 24364,
-   "gzip": 10878,
+   "bytes": 24415,
+   "gzip": 10911,
    "budget": 65536,
    "def": {
     "id": "64k",
@@ -419,8 +439,9 @@
     0.13,
     0.021
    ],
+   "orderDiff": 0,
    "flash": {
-    "maxStep": 0.1,
+    "maxStep": 0.041,
     "maxReversalsPerSecond": 1
    },
    "sync": {
@@ -439,8 +460,8 @@
     51
    ],
    "benchMs": {
-    "mean": 98.1,
-    "worst": 137
+    "mean": 77.6,
+    "worst": 94
    },
    "audio": [
     "loudness/s     ▁▁▃▄▄▅▅▅▆▆▇▇▇█▇▇▇▇██▇▇▇▇██████████████▇██▇███▇▇█████▇▆▃     ",

@@ -4,7 +4,7 @@
 //   node tools/verify.mjs [4k|16k|64k ...] [--quick] [--env]
 //
 // per production: build + size budget · static scan (no network/asset APIs) · timeline (dur 50-70 s, fin, cta) ·
-// first frame dark · three or more distinct phases · no dead period · flash safety · tagline revealed in order,
+// first frame dark · three or more distinct phases · no dead period · order independence (no stale render targets) · flash safety · tagline revealed in order,
 // legible (contrast) and complete at fin · calm dark bottom band at 16:9, 21:9, 4:3 and portrait · music (audio.mjs) ·
 // real-time behaviour (e2e.mjs) · picture cost (software GL, informational)
 // --quick skips music, e2e and the contact sheet. --env also (re)writes ENVIRONMENT.json.
@@ -82,6 +82,18 @@ try {
     const thumbs = []; for (let t = 0; t <= def.fin; t++) thumbs.push(await page.evaluate(t => window.Dream.test.thumb(t), t));
     let dead = []; for (let t = 0; t + 3 < thumbs.length; t++) if (diff(thumbs[t], thumbs[t + 3]) < .004) dead.push(t);
     row(r, 'continuous change: no still period of 3 s or more before fin', dead.length === 0, dead.length ? `still around t=${dead.slice(0, 8).join(', ')} s` : '');
+
+    // order independence: the final picture must not depend on the frames drawn before it (a render target that a skipped pass leaves stale shows up here)
+    {
+      const tf = def.fin + .3;
+      const after = await page.evaluate(t => window.Dream.test.thumb(t), tf);
+      const { page: pf } = await openProduction(browser, id, { w: 160, h: 90, q: 1, params: { px: 160 * 90 } });
+      const fresh = await pf.evaluate(t => window.Dream.test.thumb(t), tf);
+      await pf.close();
+      const od = diff(after, fresh);
+      r.orderDiff = +od.toFixed(5);
+      row(r, `order independence: the picture at ${tf.toFixed(1)} s is the same after a full run as on a fresh page (difference ${od.toFixed(4)})`, od < .002);
+    }
 
     // flash safety (heuristic on whole-frame mean luminance at 15 Hz)
     const ser = []; for (let t = 0; t <= def.dur; t += 1 / 15) ser.push((await page.evaluate(t => window.Dream.test.lum(t), t)).mean);
