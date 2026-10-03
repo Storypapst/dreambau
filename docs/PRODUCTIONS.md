@@ -41,4 +41,25 @@ C# minor to E major**, bar = 2.4 s. One beat grid drives picture and music.
 
 ## 64k, "Skyline" (construction site at blue hour becomes a skyline at sunrise)
 
-See the section added by the production itself at the end of this file once it is finished.
+Custom GL: clouds at quarter resolution, one raymarched scene pass (a grid walk over 4×4-unit cells with analytic boxes per
+cell, a stepped hero tower and a climbing tower crane; rendered as a checkerboard and rebuilt in the composite), sparks, dust,
+lamps and traffic as GL points and lines, bloom, god rays at dawn, filmic tone mapping, film grain. **90 BPM, D minor to
+D major**, bar = 2.667 s. One beat grid drives picture and music.
+
+| time | picture | sound |
+|---|---|---|
+| 0 to 13.3 s (bars 0-5) | night on the empty site, nearly black at first: heavy grain, floodlights in the fog with dust in their beams, the tower crane's silhouette, the old city's windows on the horizon; the foundation grid blinks with every clang | rumble swelling from silence, low D drone, ten distant metal clangs on the grid, faint ticks |
+| 13.3 s (bar 5) | the foundation grid lights up from the centre, ring by ring on the half beats; the hero tower starts to rise | taiko drums enter, low strings (Dm) |
+| 13.3 to 26.7 s (bars 5-10) | ring r starts at bar 5+r, every building adds one storey on every beat inside a scaffold with a work light; welding sparks on each big drum hit; the camera climbs around the hero tower (crane move) | strings Dm Bb F C with bass, string ostinato from bar 7, sidechain pump |
+| 26.7 to 34.7 s (bars 10-13) | rise, high aerial view: buildings top out, scaffolds vanish, glass facades and lit windows fade in, traffic moves in the old city, fog lifts, grain recedes | brass swells, toms, shaker, the bell motif in minor (A D F) |
+| 34.7 to 40 s (bars 13-15) | the eastern sky glows copper, the camera pulls back and turns into the final frame | riser, snare roll |
+| 40.0 s (bar 15) | sunrise hit: the hero tower tops out (spire), the crane is lowered; the first sunlight hits the tower tops and sweeps down the city | boom, cymbal, D major tutti |
+| 42.7 s (bar 16) | **"Jeht nich…"** condenses out of grain into sunlit letters | bell A5 over Bm |
+| 46.7 s (bar 17.5, beat 3 of bar 17: between bar lines on purpose, 1.5 bars after word 1) | **"jibs nich…"** | bell D6 over Bb |
+| 50.7 s (bar 19) | **"dreambau.com"** | bell F#6 with the final D major chord |
+| 53 s and later | final composition: the skyline in low morning sun under a deep blue sky, slow cloud drift and camera breathing | rings out, faded by 59 s |
+
+Known limits of the 64k: the final skyline is a low band because the hero tower has to stay below the centred tagline. In one
+frame (57.5 s at 960x540, software GL) a single non-finite pixel in the scene pass was smeared by the bloom into a grey box. The
+cause was not found. The scene pass now replaces any non-finite pixel by black before the bloom, and `pow` is only called with
+non-negative bases (undefined in GLSL otherwise). All checks ran in software GL; a run on real GPUs is still outstanding.
