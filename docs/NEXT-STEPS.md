@@ -4,17 +4,70 @@ Stand: 2026-10-03. Diese Datei sagt, wo das Projekt steht, womit man lokal weite
 geschrieben, dass man sie auch einem lokalen Claude-Code-Lauf geben kann (Prompt am Ende). Es wurde nichts davon gebaut,
 außer was in Abschnitt 1 steht: der Rest ist Planung.
 
-## 0. Offene Entscheidungen (zum Abhaken)
+## 0. Entscheidungsstand (zum Abhaken)
 
-1. PR #1 in `main` des Forks mergen?
-2. „Jeht nich…" am Anfang groß (jetzt) oder klein schreiben (eine Zeile in `site/index.html`, Attribut `data-lines`)?
-3. Schrift: Jost, Fraunces oder Inter (Abschnitt 4.3), und die ruhigere Wirkung der Skyline?
-4. „Esc" und „M" nur auf Geräten mit Tastatur zeigen (Empfehlung) oder überall?
-5. Beschriftung des Login-Links: „Work" (Wunsch), siehe Hinweis in Abschnitt 8.
-6. Welche Sprachen zuerst (Abschnitt 7)?
-7. Angaben für das Impressum (Abschnitt 11).
-8. Liste der Programme und Domains für den Work-Bereich (Abschnitt 8).
-9. Name des Monorepos und Ordnernamen darin (Abschnitt 2).
+Stand nach dem Chat vom 2026-10-03. ✔ entschieden, ◐ teilweise, ○ offen. Es hat keine „grilling"-Fragerunde und keine
+Wayfinder-Runde stattgefunden. Die Rückfragen aus dem Chat stehen unten mit den Antworten, damit die erste Runde sie nicht
+wiederholt. Nichts ist veröffentlicht und nichts gemerged.
+
+1. ○ PR #1 in `main` des Forks mergen? Keine Antwort. („Den Fork lassen wir da" betrifft nur die Rolle des Forks.)
+2. ○ „Jeht nich…" am Anfang groß (jetzt) oder klein schreiben (eine Zeile in `site/index.html`, Attribut `data-lines`)?
+   Keine Antwort.
+3. ◐ Schrift (Abschnitt 4.3): Entschieden ist, dass die heutige Schrift samt Wirkung nicht gefällt („Cheesy") und eine
+   andere kommt; der Stil soll sich als Fallback (ähnliche Systemschrift) herunterbrechen lassen. Screenshots von Jost,
+   Fraunces und Inter (heutige und ruhigere Wirkung) wurden gewünscht und gezeigt, neue Videos sind nicht nötig. Offen:
+   welche Schrift, und ob die Wirkung ruhiger wird. Empfehlung: Jost mit ruhiger Wirkung.
+4. ◐ „Esc" und „M" (Abschnitt 4.2): gewünscht ist, beide dezent zu beschriften (Überspringen-Knopf, Ton-Knopf). Offen: nur
+   mit Tastatur zeigen (Empfehlung) oder überall.
+5. ✔ Beschriftung des Login-Links: „Work" (Wunsch des Nutzers); im Work-Bereich gibt es kein Esc. Der Hinweis, dass „Work"
+   als „Referenzen" gelesen werden kann (Abschnitt 8), ist unbeantwortet.
+6. ◐ Sprachen (Abschnitt 7): Mechanismus entschieden: sinngemäße Übersetzung der Redewendung für die häufigsten Sprachen,
+   Auswahl nach Browsersprache, Rückfall Deutsch wie jetzt. Welche Sprachen genau: offen.
+7. ◐ Impressum (Abschnitt 11): genannt sind die Geschäftsführer Frank Gerhardt und Valery Suslov. Steuernummer, Finanzamt
+   und Gründungsdatum werden nicht verlangt und stehen nicht im Repo. Es fehlen: Firmenname mit Rechtsform, Anschrift, zweite
+   Kontaktmöglichkeit, Handelsregister mit Nummer, USt-IdNr., gegebenenfalls Kammer oder Aufsicht, Hoster. Sichtbarkeit offen:
+   Der Nutzer tendiert dazu, das Impressum nur in der Zeichen-Ansicht zu zeigen; die Empfehlung ist zusätzlich eine winzige,
+   sichtbare Zeile.
+8. ○ Liste der Programme und Domains für den Work-Bereich (Abschnitt 8): keine Liste. Bekannt: ein Invoice-Bereich und
+   viele weitere Programme auf dem Server, mehrere Domains, jedes mit eigenem Login.
+9. ◐ Monorepo (Abschnitt 2): heißt „Dreambau" und enthält alle anderen Sachen; der Fork bleibt bestehen. Offen: genauer
+   GitHub-Pfad und Ordnernamen (Vorschlag `apps/landing`, `apps/work`, `apps/blog`).
+
+### Weitere Entscheidungen und Wünsche aus dem Chat
+
+- **Grundanforderung (ursprünglich):** Bei jedem Laden startet zufällig eine von drei Animationen, mit dem Text „Jeht
+  nich… jibs nich… dreambau.com", am Ende klein „info@dreambau.com (nich warten, quatschen)", Start mit Ton und mit
+  Ton-aus-Knopf.
+- **Weiterarbeit lokal:** Die SSH-Schlüssel liegen lokal; die Cloud-Sitzung hat keinen Zugriff darauf (geprüft: kein
+  Schlüssel, kein Agent). Veröffentlicht wurde noch nichts.
+- **Drei große Vorhaben:** Blog, Pipeline für die Landing-Animationen, Work-Bereich mit Impressum. Zuerst eine
+  Spezifikation, geplant mit dem Skill „Wayfinder" von Matt Pocock (lokal).
+- **Pipeline:** Idee kurz einsprechen oder eintippen, Claude baut, Freigabe mit „ja, mach", danach automatisch im Pool.
+  Das Eingabeformular ist das selbst gehostete Formbricks. Claim und visuelle Geschichten sollen sich über das Briefing
+  ändern lassen; eine kurze Rückfragerunde zum Schärfen vor dem Bauen ist erwünscht.
+- **Blog:** kurze Beiträge, Abschnitt „Warum lesenswert" über ein Formbricks-Formular.
+- **Zeichen-Ansicht (Abschnitt 5):** gewünscht, mit Größe, gemessener Ladezeit, Vergleichen als Quadrate (zum Beispiel
+  „1 Sekunde Video", „durchschnittliches iPhone-Foto"), ruhigem Ende und als Fallback ohne WebGL2. Einzelheiten offen.
+- **Work-Bereich (Abschnitt 8):** Matrix-artiger, mutierender Zeichenstil, aber bunt statt grün, jede Zone mit eigener
+  Farbe; zuerst Mockups.
+- **Barrierefreiheit (Abschnitt 12):** Beschreibung für blinde Menschen, mehrsprachig, als Zusatz im Briefing.
+- **Beantwortet, ohne Entscheidung:** Verhalten auf älteren Geräten (Abschnitt 4.4), Hochformat und Drehen
+  (Abschnitt 6; ein „fest verankertes Bild" wird nicht empfohlen).
+
+### Bisherige Fragen und Antworten
+
+| Frage der Cloud-Sitzung | Antwort des Nutzers |
+|---|---|
+| PR #1 in `main` mergen? | keine Antwort |
+| „Jeht nich…" groß oder klein? | keine Antwort |
+| „Esc" und „M" auch auf dem Handy oder nur mit Tastatur? | keine Antwort |
+| Ist der Login-Link „Intranet-Login" gemeint? | Er soll „Work" heißen |
+| Soll vorab ein Bild der drei Schriften gezeigt werden? | Ja, Screenshots genügen, keine neuen Videos |
+| Angaben für das Impressum? | teilweise (siehe Punkt 7) |
+| Wer hostet dreambau.com? | keine Antwort |
+| Liste der Programme und Domains für „Work"? | keine Antwort |
+| Soll Abschnitt 0 in „grilling"-Fragerunden durchgegangen werden? | keine Antwort; geplant ist Wayfinder lokal |
+| Angebot: einen Problem-Issue nachträglich anlegen, wenn Issues im Fork eingeschaltet werden | keine Antwort |
 
 ## 1. Wo wir stehen
 
