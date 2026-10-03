@@ -1,7 +1,7 @@
 /*! dreambau.com landing page – runtime ("shell").
  *
  * Hand-written, no dependencies, no network access. It plays exactly one of the productions in
- * ./p/ (picked at random on every load; force one with ?anim=4k|16k). A production is a
+ * ./p/ (picked at random on every load; force one with ?anim=4k|16k|64k). A production is a
  * real-time WebGL2 picture plus music that is synthesised in the browser (WebAudio, no samples).
  * The runtime provides the rest: the tagline as a signed-distance texture, the audio clock, the
  * sound switch, Esc/skip, the closing line and the fallbacks. The API is documented in docs/CONTRACT.md.
@@ -13,7 +13,7 @@ const doc = document, $ = id => doc.getElementById(id), root = doc.documentEleme
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');                       // headless test mode: no autoplay, no adaptive scaling, manual clock
 const D = (window.Dream = window.Dream || {});
-D.ids = ['4k', '16k'];                           // '64k' joins when its production is added
+D.ids = ['4k', '16k', '64k'];
 D.prods = D.prods || {};                          // a single-file build registers the productions before the runtime runs
 D.add = def => { D.prods[def.id] = def; };
 D.state = { id: null, T: 0, audio: 'idle', muted: false, mode: 'boot', error: null, scale: 1, fps: 0 };

@@ -1,7 +1,5 @@
 # dreambau.com – Landing Page mit drei Animationen
 
-> **Stand dieses Zweigs:** Rohbau (4k) und Traumhaus (16k) sind enthalten, die Skyline (64k) folgt in diesem Pull Request.
-
 Bei jedem Aufruf von dreambau.com startet **eine von drei Animationen, zufällig gewählt**. Jede dauert rund eine Minute,
 hat eigene Bilder und eigene Musik (beides wird erst im Browser erzeugt, es gibt keine Bild-, Video- oder Audiodateien),
 und endet auf einem ruhigen Schlussbild:
@@ -25,7 +23,7 @@ Webseite. Die vollständige, übertragene Anforderung steht in [`SPEC.md`](SPEC.
 |---|---|---|---|---|
 | `p/4k.js` | höchstens 4 KB | **Rohbau** | Aus Fernsehrauschen wächst eine isometrische Stadt: erst Raster, dann Geschosse im Takt, dann leuchten die Fenster. | Minimal Techno, 122 BPM, a-Moll |
 | `p/16k.js` | höchstens 16 KB | **Traumhaus** | Eine Wolke aus Lichtpunkten baut ein Haus, das Haus löst sich in den Schriftzug auf. | Dream-Pop, 100 BPM, cis-Moll nach E-Dur |
-| `p/64k.js` (folgt) | höchstens 64 KB | **Skyline** | Eine Baustelle in der blauen Stunde wird bei Sonnenaufgang zur Skyline (3D, Licht, Nebel). | Filmmusik, 90 BPM, d-Moll nach D-Dur |
+| `p/64k.js` | höchstens 64 KB | **Skyline** | Eine Baustelle in der blauen Stunde wird bei Sonnenaufgang zur Skyline (3D, Licht, Nebel). | Filmmusik, 90 BPM, d-Moll nach D-Dur |
 
 Die Größenklassen sind Obergrenzen für die fertige (minifizierte) Datei einer Animation inklusive Shader und Musik.
 Geladen wird nur die gewählte Animation, nicht alle drei.
@@ -50,7 +48,7 @@ Der Inhalt von **`site/`** ist die ganze Seite: statische Dateien, keine Serverl
 3. Optional, aber empfohlen: die Sicherheitsrichtlinie aus `tools/serve.mjs` (Variable `CSP`) als HTTP-Header setzen. Die Seite
    funktioniert mit dieser strengen Richtlinie (geprüft) und kann damit gar nichts nachladen.
 
-Alternativ: `npm run bundle` erzeugt **eine einzige Datei** `dist/index.html` (alles eingebettet, rund 100 KB), praktisch für
+Alternativ: `npm run bundle` erzeugt **eine einzige Datei** `dist/index.html` (alles eingebettet, rund 90 KB), praktisch für
 einen schnellen Upload oder eine Vorschau.
 
 ## Texte und Aussehen ändern
@@ -76,7 +74,7 @@ einen schnellen Upload oder eine Vorschau.
 ## Prüfen
 
 ```sh
-npm run verify          # alles, rund 15 bis 25 Minuten (Software-WebGL)
+npm run verify          # alles, rund 10 bis 20 Minuten (Software-WebGL)
 node tools/verify.mjs 4k --quick   # eine Animation ohne Musik- und Verhaltenstest
 node tools/e2e.mjs all  # Verhalten der echten Seite: Ton erlaubt/gesperrt, Mute, Esc, reduzierte Bewegung, kein WebGL, kein Netz
 ```
