@@ -77,7 +77,8 @@ try {
     for (const id of ids) {
       const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
       const problems = [];
-      page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') problems.push(`console.${m.type()}: ${m.text().slice(0, 160)}`); });
+      // the graphics driver reports a forced read-back once per fresh browser ('GPU stall due to ReadPixels'); same filter as in lib.mjs
+      page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !/GPU stall|GL Driver Message/.test(m.text())) problems.push(`console.${m.type()}: ${m.text().slice(0, 160)}`); });
       page.on('pageerror', e => problems.push('pageerror: ' + String(e.message).slice(0, 160)));
       page.on('requestfailed', r => problems.push(`request failed: ${r.url()}`));
       page.on('response', r => { if (r.status() >= 400) problems.push(`HTTP ${r.status()} ${new URL(r.url()).pathname}`); });
