@@ -35,7 +35,7 @@ C# minor to E major**, bar = 2.4 s. One beat grid drives picture and music.
 | 28.8 s (bar 12) | walls fill with warm light | pads open up |
 | 31.2 s (bar 13) | the house floats, the orbit widens, bricks levitate | melody, soft snare, kick on every beat |
 | 40.8 s (bar 17) | wave 1 of particles flies into **"Jeht nich…"** | bell G#4 |
-| 44.4 s (bar 18.5) | wave 2 flies into **"jibs nich…"** | bell C#5 |
+| 44.4 s (bar 18.5, beat 3 of bar 18: between bar lines on purpose, 1.5 bars after word 1) | wave 2 flies into **"jibs nich…"** | bell C#5 |
 | 48 s (bar 20) | wave 3, everything left, flies into **"dreambau.com"**; the camera settles frontal | bell E5 and the E major chord |
 | 52.8 s (bar 22) | final composition complete | last glass ping, ringing out |
 

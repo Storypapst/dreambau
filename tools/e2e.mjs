@@ -204,6 +204,26 @@ if (mode === 'all' || mode === 'clock') {
   const fpsLow = (after.frames - before.frames) / wall;
   check(`free-running clock keeps real time at a low frame rate (${fpsLow.toFixed(1)} fps: T advanced ${(after.T - before.T).toFixed(1)} s in ${wall.toFixed(1)} s)`, fpsLow < 12 && after.T - before.T > wall * .8 && after.T - before.T < wall * 1.25, `${fpsLow.toFixed(1)} fps`);
   await c2.close(); await b2.close();
+
+  // idle stop: after the end plus ?idlestop seconds the loop stops for good (no more frame requests); a resize still redraws
+  const b3 = await launch({ autoplay: false });
+  const c3 = await b3.newContext({ viewport: { width: 640, height: 360 } });
+  const p3 = await c3.newPage();
+  await p3.goto(pageUrl({ anim: 'test', dev: 1, q: .5, idlestop: 2 }));
+  await p3.evaluate(() => {
+    window.__raf = 0; window.__draws = 0;
+    const o = window.requestAnimationFrame.bind(window); window.requestAnimationFrame = f => (window.__raf++, o(f));
+    const gp = WebGL2RenderingContext.prototype, dr = gp.drawArrays; gp.drawArrays = function (...x) { window.__draws++; return dr.apply(this, x); };
+  });
+  await sleep(1500); await p3.keyboard.press('Escape');                      // jump to the final composition (T = fin + 0.3)
+  let st;
+  for (let i = 0; i < 80; i++) { await sleep(500); st = await dbg(p3); if (!st.running) break; }
+  const r0 = await p3.evaluate(() => window.__raf); await sleep(1500); const r1 = await p3.evaluate(() => window.__raf);
+  check('idle stop: the frame loop stops for good after the limit (no further frame requests)', !st.running && r1 === r0, `running=${st.running}, frame requests ${r0} → ${r1}`);
+  const dw0 = await p3.evaluate(() => window.__draws); await p3.setViewportSize({ width: 700, height: 500 }); await sleep(600);
+  const dw1 = await p3.evaluate(() => window.__draws);
+  check('idle stop: a resize still redraws the final frame', dw1 > dw0, `draw calls ${dw0} → ${dw1}`);
+  await c3.close(); await b3.close();
 }
 
 // random choice: many loads without ?anim, every production must come up, none may dominate; ?anim forces one

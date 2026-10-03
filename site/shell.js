@@ -22,6 +22,7 @@ const ER = 100;                                   // audio-energy envelope rate 
 const SR = 44100;                                 // sample rate of the generated music
 const TAIL = 2.5;                                 // seconds of reverb tail rendered after the production
 const AUDIO_PREF = 'dreambau.sound';
+const IDLE_STOP = +Q.get('idlestop') || 240;      // seconds after the end at which the loop stops for good (battery); ?idlestop=N is for tests
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -573,7 +574,7 @@ function frame(now) {
   let dt = Math.min(2, Math.max(0, (now - last) / 1000)); last = now;   // wall-clock time; the cap only guards against a long stall (sleep)
   // idle mode after the show: 30 fps, and stop completely after a few minutes (battery)
   const overT = T - def.dur;
-  if (overT > 240) return;
+  if (overT > IDLE_STOP) { cancelAnimationFrame(raf); running = false; return; }   // the final frame stays; a resize redraws it
   if (overT > 3) { accum += dt; if (accum < 1 / 30 - .004) return; dt = accum; accum = 0; }
   // clock: free-running, gently pulled towards the audio position when sound is playing
   const a = audioNow();
@@ -793,7 +794,7 @@ function makeTestApi(audioP) {
   };
 }
 
-D.dbg = () => ({ playing: A.playing, ctx: A.ctx && A.ctx.state, ready: A.ready, failed: A.failed, T, muted: A.muted, gain: A.gain ? A.gain.gain.value : null, audioT: audioNow(), skipping, ctaShown, frames, fin: def && def.fin, dur: def && def.dur });
+D.dbg = () => ({ playing: A.playing, ctx: A.ctx && A.ctx.state, ready: A.ready, failed: A.failed, T, muted: A.muted, gain: A.gain ? A.gain.gain.value : null, audioT: audioNow(), skipping, ctaShown, frames, fin: def && def.fin, dur: def && def.dur, running });
 
 boot();
 })();
