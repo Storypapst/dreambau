@@ -109,7 +109,9 @@ verification/        Ergebnisse der Prüfungen
   den Ton, den Ton-Knopf, Esc und die Schlusszeile und liefert den Schriftzug als Distanzfeld-Textur.
 * **Eine Animation** ist eine Funktion der Zeit: ein Fragment-Shader (oder ein eigenes Zeichenprogramm) für das Bild und eine
   Funktion, die die Musik mit WebAudio „ins Reine“ schreibt.
-* **Musik** wird einmal im Voraus offline berechnet (rund 1 bis 3 s im Hintergrund), auf einen angenehmen Pegel gebracht und als
-  Aufnahme abgespielt. Aus der fertigen Aufnahme misst die Laufzeit Pegel für Bass, Mitten und Höhen; das Bild liest sie. So
-  bleiben Bild und Ton im Takt, auch wenn das Gerät eine Ausgabeverzögerung hat.
+* **Musik** wird einmal im Voraus offline berechnet (wenige Sekunden im Hintergrund, auf bis zu vier Threads verteilt, während
+  das Bild schon läuft), auf einen angenehmen Pegel gebracht und als Aufnahme abgespielt. Aus der fertigen Aufnahme misst die
+  Laufzeit Pegel für Bass, Mitten und Höhen; das Bild liest sie. So bleiben Bild und Ton im Takt, auch wenn das Gerät eine
+  Ausgabeverzögerung hat. Der Anfang jeder Musik ist fast still, damit ein späterer Einstieg (Ton erst nach dem ersten Klick)
+  nicht als Schnitt auffällt.
 * **Uhr:** läuft frei und wird sanft an die Ausgabeposition des Tons angepasst, sobald Ton läuft.

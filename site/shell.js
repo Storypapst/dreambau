@@ -448,19 +448,18 @@ function envAt(t) {
 }
 
 function setSnd(state) {
+  if (A.failed) state = 'na';                     // no usable sound: the switch stays hidden, whatever happens next
   const b = ui.snd;
   b.dataset.state = state; D.state.audio = state;
   const on = state === 'on' || state === 'wait';
-  b.setAttribute('aria-label', on ? 'Ton aus' : 'Ton an');
+  b.setAttribute('aria-checked', on ? 'true' : 'false');          // role="switch" named "Ton": on = the sound is (or is about to be) on
   b.title = on ? 'Ton aus (M)' : 'Ton an (M)';
-  b.setAttribute('aria-pressed', on ? 'false' : 'true');
   b.hidden = state === 'na';
 }
 
 function audioReady() {
-  if (A.failed) return setSnd('na');
-  A.ctx = A.ctx || makeCtx();
-  if (!A.ctx) return setSnd('na');
+  if (!A.failed) A.ctx = A.ctx || makeCtx();
+  if (A.failed || !A.ctx) { A.failed = true; return setSnd('na'); }
   maybeStart();
 }
 
@@ -560,16 +559,18 @@ function fail(e) {
   console.error('[dreambau] ' + (e && e.stack || e));
   D.state.error = String(e && e.message || e);
   cancelAnimationFrame(raf); running = false;
+  A.failed = true; A.ready = false;               // the static page stays silent, also after the tab was hidden and shown again
   stopAudio(.1);
+  setTimeout(() => { const c = A.ctx; A.ctx = null; try { if (c) c.close(); } catch (err) { /* already closed */ } }, 250);
   root.classList.add('static', 'done'); root.classList.remove('ready');
   ui.cta.classList.add('on');
 }
 
-let frames = 0, slow = 0, accum = 0, lastAdapt = 0, fpsT = 0, fpsN = 0;
+let frames = 0, accum = 0, lastAdapt = 0, fpsT = 0, fpsN = 0;
 function frame(now) {
   raf = requestAnimationFrame(frame);
   if (hidden) { last = now; return; }
-  let dt = Math.min(.1, Math.max(0, (now - last) / 1000)); last = now;
+  let dt = Math.min(2, Math.max(0, (now - last) / 1000)); last = now;   // wall-clock time; the cap only guards against a long stall (sleep)
   // idle mode after the show: 30 fps, and stop completely after a few minutes (battery)
   const overT = T - def.dur;
   if (overT > 240) return;
@@ -646,20 +647,22 @@ function wire() {
   });
   ui.skip.addEventListener('click', skip);
   ui.play.addEventListener('click', () => { if (gl && !running) { go(); unlock(); } });
+  const onButton = e => e.target instanceof Element && !!e.target.closest('button');
   addEventListener('keydown', e => {
     if (e.key === 'Escape') skip();
     else if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) setMuted(!A.muted);
-    else if (!A.muted && A.ctx && A.ctx.state !== 'running') unlock();
+    else if (!A.muted && A.ctx && A.ctx.state !== 'running' && !onButton(e)) unlock();   // Enter/Space on a button is its click
   });
-  // any real gesture may unlock the audio (browsers refuse to start sound before that)
-  const g = () => { if (A.ctx && A.ctx.state !== 'running' && !A.muted) unlock(); };
+  // any real gesture may unlock the audio (browsers refuse to start sound before that); the sound button itself is
+  // left out: its click handler decides between "switch on" and "switch off"
+  const g = e => { if (A.ctx && A.ctx.state !== 'running' && !A.muted && !(e.target instanceof Element && ui.snd.contains(e.target))) unlock(); };
   for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click']) addEventListener(ev, g, { capture: true, passive: true });
   doc.addEventListener('visibilitychange', () => {
     hidden = doc.hidden;
     if (A.ctx) { if (hidden) A.ctx.suspend(); else if (A.playing || (!A.muted && A.ctx.state !== 'running')) A.ctx.resume().catch(() => {}); }
     last = performance.now();
   });
-  addEventListener('resize', () => { if (gl) { layout(); if (!running) guard(draw); } });
+  addEventListener('resize', () => { if (gl && !D.state.error) { layout(); guard(draw); } });   // resizing clears the canvas: always redraw
   canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); fail(new Error('webgl context lost')); });
 }
 
@@ -790,7 +793,7 @@ function makeTestApi(audioP) {
   };
 }
 
-D.dbg = () => ({ playing: A.playing, ctx: A.ctx && A.ctx.state, ready: A.ready, failed: A.failed, T, muted: A.muted, gain: A.gain ? A.gain.gain.value : null, audioT: audioNow(), skipping, ctaShown, frames });
+D.dbg = () => ({ playing: A.playing, ctx: A.ctx && A.ctx.state, ready: A.ready, failed: A.failed, T, muted: A.muted, gain: A.gain ? A.gain.gain.value : null, audioT: audioNow(), skipping, ctaShown, frames, fin: def && def.fin, dur: def && def.dur });
 
 boot();
 })();

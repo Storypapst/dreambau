@@ -31,5 +31,5 @@ try {
   fs.writeFileSync(wav, Buffer.concat([wavHeader(pcm.length / 4, info.sr), pcm]));
   console.log(`${id}: audio ${info.dur.toFixed(2)} s @ ${info.sr} Hz rendered in ${audioMs} ms → ${wav}`);
   const r = spawnSync('python3', [path.join(ROOT, 'tools', 'audioreport.py'), wav, out, String(def.dur), String(def.fin)], { stdio: 'inherit' });
-  if (r.status) process.exitCode = r.status;
+  if (r.status !== 0) { if (r.error) console.error('audioreport.py could not run: ' + r.error.message); process.exitCode = r.status ?? 1; }
 } finally { await browser.close(); }

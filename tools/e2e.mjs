@@ -5,18 +5,23 @@
 //   Esc skips to the final composition and shows the closing line
 //   prefers-reduced-motion → still final frame, no sound, "Animation abspielen"
 //   no WebGL → static fallback with tagline and closing line
+//   a failure → the page stays silent; no audio support → no sound button; low frame rate → the clock keeps real time
 //   no request leaves the page
 //
-//   node tools/e2e.mjs <id|all> [--dev]
+//   node tools/e2e.mjs <id|all|clock|random> [--dev]      (clock: runtime clock checks with the light test production; random: choice)
 import { launch, pageUrl, parseArgs, playwright } from './lib.mjs';
 import { IDS } from './budget.mjs';
 
 const a = parseArgs(process.argv.slice(2));
-const ids = a._[0] && a._[0] !== 'all' ? [a._[0]] : IDS;
+const mode = a._[0] || 'all';                     // all | clock | random | <production id>
+const ids = mode === 'all' ? IDS : (mode === 'clock' || mode === 'random') ? [] : [mode];
 const extra = a.dev ? { dev: 1 } : {};
 let fails = 0;
 const check = (name, ok, detail = '') => { if (!ok) fails++; console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  (' + detail + ')' : ''}`); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// a request is the page's own when it is a local file/data/blob URL or has exactly the origin of BASE_URL
+const baseOrigin = process.env.BASE_URL ? new URL(process.env.BASE_URL).origin : null;
+const ownRequest = u => { try { const x = new URL(u); return ['file:', 'data:', 'blob:'].includes(x.protocol) || (!!baseOrigin && x.origin === baseOrigin); } catch (e) { return false; } };
 const dbg = page => page.evaluate(() => ({ ...window.Dream.dbg(), state: window.Dream.state }));
 
 async function newPage(browser, id, params = {}, opts = {}) {
@@ -55,17 +60,17 @@ for (const id of ids) {
     await page.keyboard.press('Escape'); await sleep(1200);
     const d5 = await dbg(page);
     const cta = await page.evaluate(() => ({ on: document.getElementById('cta').classList.contains('on'), done: document.documentElement.classList.contains('done') }));
-    check('Esc jumps to the final composition and shows the closing line', cta.on && cta.done && d5.T >= (await page.evaluate(() => window.Dream.dbg().T)) - 1, `T=${d5.T.toFixed(1)}`);
+    check('Esc jumps to the final composition and shows the closing line', cta.on && cta.done && d5.T >= d5.fin && !d5.playing, `T=${d5.T.toFixed(1)}, fin=${d5.fin}`);
     const a11y = await page.evaluate(() => ({
       h1: document.querySelector('h1')?.textContent.trim(),
-      snd: document.getElementById('snd').getAttribute('aria-label'),
+      snd: document.getElementById('snd').getAttribute('aria-label'), role: document.getElementById('snd').getAttribute('role'), checked: document.getElementById('snd').getAttribute('aria-checked'),
       skip: document.getElementById('skip').textContent.trim(),
       mail: document.querySelector('#cta a')?.getAttribute('href'),
       lang: document.documentElement.lang,
     }));
-    check('accessible: tagline as heading, labelled buttons, mailto link, lang=de', /Jeht nich….*jibs nich….*dreambau\.com/.test(a11y.h1) && /^Ton (an|aus)$/.test(a11y.snd) && /überspringen/.test(a11y.skip) && a11y.mail === 'mailto:info@dreambau.com' && a11y.lang === 'de', JSON.stringify(a11y));
+    check('accessible: tagline as heading, sound switch (role, state), skip button, mailto link, lang=de', /Jeht nich….*jibs nich….*dreambau\.com/.test(a11y.h1) && a11y.snd === 'Ton' && a11y.role === 'switch' && a11y.checked === 'true' && /überspringen/.test(a11y.skip) && a11y.mail === 'mailto:info@dreambau.com' && a11y.lang === 'de', JSON.stringify(a11y));
     check('no console errors', !logs.some(l => /^\[(error|pageerror)\]/.test(l)), logs.filter(l => /^\[(error|pageerror)\]/.test(l)).join(' | '));
-    const offsite = reqs.filter(u => !/^file:|^data:|^blob:/.test(u) && !u.startsWith('http://127.0.0.1') && !u.startsWith('http://localhost'));
+    const offsite = reqs.filter(u => !ownRequest(u));
     check('no network request leaves the page', offsite.length === 0, offsite.join(', '));
     await ctx.close(); await browser.close();
   }
@@ -87,6 +92,53 @@ for (const id of ids) {
     const f0 = d.frames; await sleep(2500); d = await dbg(page);
     const fps = Math.max(.5, (d.frames - f0) / 2.5), tol = Math.max(.3, 2.5 / fps);      // a frame-bound clock cannot be closer than a few frames
     check('music joins in sync', d.audioT != null && Math.abs(d.T - d.audioT) < tol, `T=${d.T.toFixed(2)} audioT=${d.audioT && d.audioT.toFixed(2)}, ${fps.toFixed(1)} fps in software GL, tolerance ${tol.toFixed(2)} s`);
+    await ctx.close(); await browser.close();
+  }
+
+  // 2b. blocked autoplay, the visitor taps the sound button itself: that must switch the sound ON and leave it on
+  {
+    const browser = await launch({ autoplay: false });
+    const { page, ctx } = await newPage(browser, id);
+    let d;
+    for (let i = 0; i < 20; i++) { await sleep(300); d = await dbg(page); if (d.state.audio === 'blocked') break; }
+    for (let i = 0; i < 80 && !(await dbg(page)).ready; i++) await sleep(500);
+    await page.hover('#snd'); await page.mouse.down(); await sleep(900); await page.mouse.up();      // a press that is held for a moment
+    for (let i = 0; i < 20; i++) { await sleep(300); d = await dbg(page); if (d.playing) break; }
+    await sleep(600); d = await dbg(page);
+    check('blocked autoplay: pressing the sound button switches the sound on and keeps it on', d.playing && !d.muted && d.state.audio === 'on', `playing=${d.playing} muted=${d.muted} audio=${d.state.audio}`);
+    await ctx.close(); await browser.close();
+  }
+
+  // 2c. after a failure (lost WebGL context) the static page stays silent, also when the tab is hidden and shown again
+  {
+    const browser = await launch({ autoplay: true });
+    const { page, ctx } = await newPage(browser, id);
+    let d;
+    for (let i = 0; i < 60; i++) { await sleep(500); d = await dbg(page); if (d.playing) break; }
+    await page.evaluate(() => document.getElementById('c').dispatchEvent(new Event('webglcontextlost', { cancelable: true })));
+    await sleep(500);
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+    await sleep(300);
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+    await sleep(1500);
+    d = await dbg(page);
+    const st = await page.evaluate(() => document.documentElement.classList.contains('static'));
+    check('after a failure the static page stays silent (also after hiding and showing the tab)', st && !d.playing && (d.ctx == null || d.ctx === 'closed'), `static=${st} playing=${d.playing} ctx=${d.ctx}`);
+    await ctx.close(); await browser.close();
+  }
+
+  // 2d. no audio support: the sound button stays hidden, whatever the visitor presses
+  {
+    const browser = await launch({ autoplay: true });
+    const ctx = await browser.newContext({ viewport: { width: 960, height: 540 } });
+    const page = await ctx.newPage();
+    await page.addInitScript(() => { window.OfflineAudioContext = undefined; window.webkitOfflineAudioContext = undefined; });
+    await page.goto(pageUrl({ anim: id, q: .5, ...extra }));
+    await sleep(3000);
+    await page.mouse.click(300, 300); await page.keyboard.press('m'); await sleep(500);
+    const hid = await page.evaluate(() => ({ hidden: document.getElementById('snd').hidden, vis: getComputedStyle(document.getElementById('snd')).display }));
+    const dd = await dbg(page);
+    check('no audio support: no sound button, the show runs silently', hid.hidden && hid.vis === 'none' && !dd.playing && dd.T > 0, JSON.stringify(hid));
     await ctx.close(); await browser.close();
   }
 
@@ -125,7 +177,7 @@ for (const id of ids) {
   }
 }
 // runtime clock with a light production: the picture runs at full speed, so the sync must be tight
-if (!a._[0] || a._[0] === 'all') {
+if (mode === 'all' || mode === 'clock') {
   console.log('\n== runtime clock (light test production) ==');
   const { spawnSync } = await import('node:child_process');
   spawnSync('node', ['tools/build.mjs', 'test', '--dev'], { cwd: new URL('..', import.meta.url).pathname });
@@ -138,10 +190,24 @@ if (!a._[0] || a._[0] === 'all') {
   await sleep(3000); d = await dbg(page);
   check('clock follows the audio within 0.1 s at full frame rate', d.playing && d.audioT != null && Math.abs(d.T - d.audioT) < .1, `T=${d.T.toFixed(3)} audioT=${d.audioT && d.audioT.toFixed(3)}`);
   await ctx.close(); await browser.close();
+
+  // free-running clock (sound blocked) at a low frame rate: the show must still take its 60 s, not twice as long
+  const b2 = await launch({ autoplay: false });
+  const c2 = await b2.newContext({ viewport: { width: 960, height: 540 } });
+  const p2 = await c2.newPage();
+  await p2.goto(pageUrl({ anim: 'test', dev: 1, q: .5 }));
+  await sleep(1500);
+  await p2.evaluate(() => { const busy = () => { const t = performance.now(); while (performance.now() - t < 180); requestAnimationFrame(busy); }; busy(); });   // every frame costs 180 ms: about 5 fps
+  const before = await dbg(p2), w0 = Date.now();
+  await sleep(6000);
+  const after = await dbg(p2), wall = (Date.now() - w0) / 1000;
+  const fpsLow = (after.frames - before.frames) / wall;
+  check(`free-running clock keeps real time at a low frame rate (${fpsLow.toFixed(1)} fps: T advanced ${(after.T - before.T).toFixed(1)} s in ${wall.toFixed(1)} s)`, fpsLow < 12 && after.T - before.T > wall * .8 && after.T - before.T < wall * 1.25, `${fpsLow.toFixed(1)} fps`);
+  await c2.close(); await b2.close();
 }
 
 // random choice: many loads without ?anim, every production must come up, none may dominate; ?anim forces one
-if (!a._[0] || a._[0] === 'all') {
+if (mode === 'all' || mode === 'random') {
   console.log('\n== random choice ==');
   const browser = await launch({ autoplay: true });
   const count = {}, N = 60;

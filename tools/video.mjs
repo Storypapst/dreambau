@@ -39,6 +39,6 @@ try {
   }
   const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(tmp, 'f%05d.jpg'), '-i', path.join(tmp, 'a.wav'),
     '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '24', '-preset', 'medium', '-c:a', 'aac', '-b:a', '128k', '-shortest', '-movflags', '+faststart', out], { stdio: 'inherit' });
-  if (r.status) throw new Error('ffmpeg failed');
+  if (r.status !== 0) throw new Error('ffmpeg failed' + (r.error ? ': ' + r.error.message : ''));
   console.log(`${id}: ${out}  ${(fs.statSync(out).size / 1e6).toFixed(1)} MB, ${total} s at ${fps} fps, ${w}x${h}`);
 } finally { fs.rmSync(tmp, { recursive: true, force: true }); await browser.close(); }

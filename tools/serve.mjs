@@ -13,10 +13,11 @@ export const CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inl
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 
 http.createServer((req, res) => {
-  let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  let p;
+  try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch (e) { res.writeHead(400, { 'content-type': 'text/plain' }).end('bad request'); return; }
   if (p.endsWith('/')) p += 'index.html';
   const f = path.join(SITE, path.normalize(p));
-  if (!f.startsWith(SITE)) { res.writeHead(403).end('forbidden'); return; }
+  if (f !== SITE && !f.startsWith(SITE + path.sep)) { res.writeHead(403).end('forbidden'); return; }
   fs.readFile(f, (err, data) => {
     if (err) { res.writeHead(404, { 'content-type': 'text/plain' }).end('not found'); return; }
     const h = { 'content-type': types[path.extname(f)] || 'application/octet-stream', 'cache-control': 'no-cache' };

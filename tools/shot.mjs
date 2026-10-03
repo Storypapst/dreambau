@@ -31,6 +31,6 @@ try {
   if (bad.length) console.log(bad.join('\n'));
   if (a.sheet || a.every) {
     const r = spawnSync('python3', [path.join(ROOT, 'tools', 'sheet.py'), out, String(a.cols || 4)], { stdio: 'inherit' });
-    if (r.status) console.error('sheet.py failed');
+    if (r.status !== 0) { console.error('sheet.py failed' + (r.error ? ': ' + r.error.message : '')); process.exitCode = r.status ?? 1; }
   }
 } finally { await browser.close(); }
