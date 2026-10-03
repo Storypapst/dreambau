@@ -12,3 +12,6 @@ verification/**/review*/
 verification/**/*.wav
 verification/**/*.mp4
 verification/*/frames/t_*.png
+
+# built for the start page of dreambau.com (npm run build:apex) and its check output
+dist/
