@@ -57,6 +57,10 @@ Punkte (und die Korrektur von Abschnitt 4.5):
     die Testmails-Registry (`/testmails`) im Wurzelordner. Der Trockenlauf zeigte keine Hürde; die Landing ist als
     `apps/landing` importiert (siehe Abschnitt 2). Weil das Repo öffentlich ist, gilt Abschnitt 8 (keine Programmliste,
     keine Server-Skripte mit Zugangsdaten) dort ebenso.
+14. ◐ Livegang auf dreambau.com („merge und deploy", 2026-10-03): Der Import ist gemerged (PR #128). Veröffentlichen kann
+    nur ein lokaler Lauf mit SSH-Zugang; vorbereitet sind `npm run build:apex` und `npm run check:apex`, die Änderung am
+    Server und der Ablauf stehen in Abschnitt 4.5, der Prompt am Ende von Abschnitt 15. Offen: die Freigabe zum Anwenden und
+    ob Impressum und Datenschutz vorher fertig sein sollen oder als zweiter Release folgen (Abschnitt 11).
 
 ### Weitere Entscheidungen und Wünsche aus dem Chat
 
@@ -258,51 +262,80 @@ Auftrag.
 
 ### 4.5 Veröffentlichen auf dreambau.com
 
-**Korrektur (2026-10-03):** Die erste Fassung dieses Abschnitts ging von einem normalen Webverzeichnis aus und empfahl
-`rsync`. Das trifft nicht zu. Das Repo `Storypapst/bildungshaus` (Ordner `ops/`, vor allem `README.md` und `nginx.conf`,
-Stand 2026-09-07) beschreibt die tatsächliche Auslieferung. Sie ist hier zusammengefasst, aber nicht gegen den Server
-geprüft.
+**Stand (2026-10-03): vorbereitet und geprüft, aber nicht veröffentlicht.** Die Cloud-Sitzung hat keinen Zugriff auf den
+Server (keine SSH-Schlüssel, dreambau.com ist dort gesperrt). Der letzte Schritt ist ein lokaler Lauf mit deinem
+SSH-Zugang; der Prompt dafür steht am Ende von Abschnitt 15. Die erste Fassung dieses Abschnitts ging von einem normalen
+Webverzeichnis aus und empfahl `rsync`; das traf nicht zu.
 
-- **Wie die Startseite heute ausgeliefert wird:** Ein nginx-Pod (`dreambau-homepage`) im Kubernetes-Cluster liefert die
-  Startseite aus einer ConfigMap (`/site`). Er beantwortet nur `/` (die `index.html`), `/homepage-assets/` (dasselbe
-  Verzeichnis), `/health` und `/bildungshaus/…`; alles andere ergibt 404. Matrix-Discovery und `/testmails` laufen über
-  andere Routen und Dienste. nginx sendet außerdem `Cache-Control: no-store`, die Seite wird also bei jedem Besuch neu
-  geladen (bei 20 bis 28 KB komprimiert vertretbar).
-- **Strengere Sicherheitsrichtlinie als in `tools/serve.mjs`:** Für die Startseite gilt
+- **Wie die Startseite heute ausgeliefert wird** (nach `ops/README.md` und `ops/nginx.conf` im Repo
+  `Storypapst/bildungshaus`, Stand 2026-09-07; vor dem Bauen mit dem Server abgleichen): Ein nginx-Pod (`dreambau-homepage`)
+  im Kubernetes-Cluster liefert die Startseite aus einer ConfigMap (`/site`). Er beantwortet nur `/` (die `index.html`),
+  `/homepage-assets/` (dasselbe Verzeichnis), `/health` und `/bildungshaus/…`; alles andere ergibt 404. Matrix-Discovery und
+  `/testmails` laufen über andere Routen und Dienste. nginx sendet `Cache-Control: no-store`, die Seite wird also bei jedem
+  Besuch neu geladen (bei 20 bis 28 KB komprimiert vertretbar).
+- **Strengere Sicherheitsrichtlinie als in `tools/serve.mjs`:**
   `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'`,
-  also **keine Inline-Stile** (die Richtlinie in `tools/serve.mjs` erlaubt sie).
-- **Getestet:** ein kleiner Server in Node mit genau diesen Routen und diesem Header, dazu Headless-Chromium (das Skript lag
-  nur im Arbeitsverzeichnis der Cloud-Sitzung, nicht im Repo; bei Bedarf als `tools/apex-check.mjs` nachbauen).
-  - *`site/` unverändert:* `/shell.js` ergibt 404, der Inline-Stil wird verweigert, es erscheint ungestalteter Text ohne
-    Animation (Schriftzug, Knöpfe und Schlusszeile in Standardschrift).
-  - *Mit drei kleinen Änderungen* läuft es: alle drei Animationen laden und starten, keine Fehlermeldung.
-    1. Den Stilblock in `index.html` und den im `<noscript>` in zwei Dateien (`style.css`, `noscript.css`) auslagern und
-       per `<link>` einbinden.
-    2. Dateien unter `/homepage-assets/` ansprechen (`/homepage-assets/shell.js`, `/homepage-assets/style.css`), weil
-       `/shell.js` und `/p/…` nicht ausgeliefert werden.
-    3. In `shell.js` die Animationen relativ zum eigenen Skript laden statt relativ zur Seite: am Anfang
-       `const BASE = document.currentScript.src.replace(/[^/]*$/, '')`, in `loadProduction` dann
-       ``s.src = `${BASE}p/${id}.js` ``. Sonst sucht die Seite `/p/4k.js` und bekommt 404.
-  - Der Einzeldatei-Bau (`dist/index.html` mit Inline-Skript und -Stil) ist für die Startseite nicht geeignet.
-- **Beispiel mit der Prüfung vorab:** Das Prüfskript meldet in wenigen Minuten „404 /shell.js" und „Inline-Stil verweigert",
-  man behebt beides am Schreibtisch. **Ohne sie:** Die Seite geht live, Besucher sehen auf dreambau.com ungestalteten Text
-  ohne Animation, und man sucht unter Zeitdruck den Grund und rollt zurück.
-- **Vorgehen beim Veröffentlichen:** nicht per `rsync` (es gibt kein Webverzeichnis), sondern nach dem Muster in
-  `Storypapst/bildungshaus/ops/` (`deploy.py`, `rollback.py`). Ohne `--apply` prüft das Skript nur lokal (Dateien, Größe,
-  Prüfsumme der `index.html`) und verbindet sich nicht mit dem Server. Mit `--apply` sichert es den laufenden Zustand, lädt
-  das Release hoch, prüft die Prüfsummen und die nginx-Syntax, macht Trockenläufe gegen den Cluster und aktualisiert erst bei
-  Erfolg den Pod; zurückgerollt wird mit `rollback.py`. Die Landing ist klein (36 bis 74 KB roh); ob
-  sie in die ConfigMap `/site` passt (Grenze etwa 1 MiB) oder wie beim Bildungshaus als Release-Verzeichnis eingebunden
-  wird, entscheidet die lokale Sitzung, die den Cluster sieht. Die heutige Startseite (`ops/README.md` nennt sie „apex
-  phrase sequence") vorher sichern.
-- **Abnahme** (aus `ops/README.md`, ergänzt): Startseite öffnen, eine Animation sehen und hören; `/bildungshaus/`
-  unverändert; Matrix-Discovery Byte für Byte unverändert; `/testmails`-Login 200 und die geschützte API 401; eine fehlende
-  Datei ergibt 404 (kein HTML mit 200); `/bildungshaus` leitet auf `https://dreambau.com/bildungshaus/` ohne Port 8080 weiter.
+  also **keine Inline-Stile**. Die Landing wie in `site/` läuft damit nicht: `/shell.js` ergibt 404, der Inline-Stil wird
+  verweigert, es erscheint ungestalteter Text ohne Animation. Der Einzeldatei-Bau (`dist/index.html`, Inline-Skript und
+  -Stil) ist für die Startseite nicht geeignet.
+
+**Was dafür gebaut ist** (in `apps/landing`, Node 20 oder neuer):
+
+- `npm run build:apex` erzeugt `dist/apex/` (`index.html`, `style.css`, `noscript.css`, `shell.js`, `p/4k.js`, `p/16k.js`,
+  `p/64k.js`, zusammen 89 KB) und `dist/apex.json` (Präfix, Größe und sha256 jeder Datei). `site/` bleibt unverändert, das
+  Skript macht nur drei Dinge: die beiden Stilblöcke in Dateien auslagern, Stilblätter und Skript unter den Asset-Pfad
+  `/landing-assets/` stellen (`--assets` ändert ihn) und die Animationen relativ zum eigenen Skript laden statt relativ zur
+  Seite (sonst sucht die Seite `/p/4k.js` und bekommt 404). Gleicher Quelltext, gleiche Bytes. Es bricht ab, statt zu raten,
+  wenn `index.html` oder `shell.js` nicht mehr so aussehen, wie es erwartet.
+- `npm run check:apex` lädt den Build mit den Routen und der Richtlinie der Startseite in Chromium: jede Datei kommt
+  byte-gleich zurück, eine fehlende Datei ergibt 404, jede der drei Animationen erreicht „ready" ohne Konsolenfehler, ohne
+  fehlgeschlagene Anfrage, ohne Richtlinienverstoß und ohne statischen Notbehelf. Mit `BASE_URL=https://dreambau.com` läuft
+  dieselbe Prüfung gegen die echte Seite, das ist die **Abnahme nach dem Livegang**.
+- **Geprüft** (Cloud-Sitzung, Node 20, Headless-Chromium): `check:apex` gegen den Nachbau im Skript und gegen **echtes
+  nginx** (1.24, mit der Konfiguration unten); `node tools/e2e.mjs` (Zufallswahl, Ton erlaubt und gesperrt, Stumm, Esc,
+  reduzierte Bewegung, kein WebGL, keine Netzwerkzugriffe nach außen) mit `BASE_URL` gegen dasselbe nginx. Gegenprobe: Ein
+  Build mit wieder eingebettetem Stil fällt in `check:apex` durch (Stil nicht angewendet, Richtlinienverstoß).
+- **Beispiel mit dieser Prüfung:** `check:apex` meldet vor dem Livegang in 30 Sekunden „404" oder „Inline-Stil verweigert",
+  man behebt es am Schreibtisch. **Ohne sie:** Die Seite geht live, Besucher sehen auf dreambau.com ungestalteten Text ohne
+  Animation, und man sucht unter Zeitdruck den Grund und rollt zurück.
+
+**Die Änderung am Server:** zwei Zeilen in der nginx.conf und ein Mount.
+
+```diff
+-    location = / { root /site; try_files /index.html =404; }
++    location = / { root /landing; try_files /index.html =404; }
++    location /landing-assets/ { alias /landing/; }
+```
+
+`/homepage-assets/`, `/health` und die Bildungshaus-Routen bleiben, wie sie sind. `/landing` ist ein neuer Nur-Lese-Mount
+mit dem Inhalt von `dist/apex/`: entweder ein Release-Verzeichnis wie beim Bildungshaus (hostPath, zum Beispiel
+`/root/releases/landing/<release>/site`) oder eine ConfigMap (die Landing ist klein; `p/` als Unterordner über
+`items`/`path`). Ausgangspunkt ist die **live** gemountete nginx.conf, nicht die Kopie im Bildungshaus-Repo; gegen diese
+Kopie ist es genau diese eine geänderte und eine neue Zeile (mit `nginx -t` und im Betrieb mit echtem nginx geprüft).
+
+**Ablauf (lokal, mit SSH-Zugang; nichts davon ist gegen den Cluster getestet):**
+
+1. `git pull`, dann `cd apps/landing && npm ci && npm run build && npm run build:apex && npm run check:apex`.
+2. Live-Zustand ansehen und sichern, nach dem Muster von `ops/deploy.py`: Deployment, die gemountete nginx.conf, die heutige
+   Startseite (ConfigMap `/site`). Abweichungen zur Kopie im Bildungshaus-Repo zuerst anschauen.
+3. Release anlegen (Dateien aus `dist/apex/`, auf dem Server gegen die Prüfsummen aus `dist/apex.json` prüfen), nginx.conf
+   ändern, `nginx -t` im laufenden Pod, Trockenlauf gegen den Cluster (`--dry-run=server`), erst dann anwenden und
+   `rollout status` abwarten. Ohne `--apply` prüft `deploy.py` nur lokal; das Muster beibehalten.
+4. **Rückweg vorher festlegen** (`rollback.py`-Muster: gesicherte Deployment-Vorlage und ConfigMap zurück) und trocken
+   prüfen, bevor angewendet wird.
+5. Abnahme: `BASE_URL=https://dreambau.com npm run check:apex`; `/bildungshaus/` unverändert; Matrix-Discovery Byte für Byte
+   unverändert; `/testmails`-Login 200 und die geschützte API 401; eine fehlende Datei ergibt 404 (kein HTML mit 200);
+   `/bildungshaus` leitet auf `https://dreambau.com/bildungshaus/` ohne Port 8080 weiter. Die Startseite im Browser
+   ansehen und anhören.
+
 - **Neue Pfade** (`/impressum.html` und `/datenschutz.html` wie in Abschnitt 4.1, dazu `/work`) brauchen je eine Route in
   nginx, die auf die Dateien in `site/` abbildet; heute endet alles andere in `location / { return 404; }`, gegebenenfalls
-  braucht es auch eine Ingress-Regel. Ohne neue Route ginge es nur über `/homepage-assets/impressum.html` (dieses Verzeichnis
-  liefert nginx schon aus), aber für Rechtstexte ist eine eigene Adresse besser. Die Fußzeilen-Links und die Routen müssen
-  zusammenpassen, sonst enden sie im 404. Das gehört in dieselbe Änderung.
+  braucht es auch eine Ingress-Regel. Ohne neue Route ginge es nur über `/landing-assets/impressum.html` (dieses
+  Verzeichnis liefert nginx dann aus), aber für Rechtstexte ist eine eigene Adresse besser. Die Fußzeilen-Links und die
+  Routen müssen zusammenpassen, sonst enden sie im 404. Das gehört in dieselbe Änderung.
+- **Rechtstexte vor dem Livegang:** Impressum und Datenschutzerklärung fehlen noch (Abschnitt 11). Die heutige Startseite
+  hat womöglich auch keine; ein geschäftlicher Auftritt braucht sie (keine Rechtsberatung). Ein zweiter Release, der sie
+  nachliefert, ist mit diesem Ablauf jederzeit möglich.
 - Zugang: Die Cloud-Sitzung hat keinen Zugriff, die Schlüssel liegen lokal. Veröffentlicht wird erst nach deiner Freigabe.
 - Nach dem Livegang auf echten Geräten ansehen und anhören (iPhone/Safari, Android/Chrome, Firefox, ein älteres
   Notebook).
@@ -598,4 +631,19 @@ Storypapst/bildungshaus/ops, nicht per rsync, und /bildungshaus/, /testmails und
 weiterlaufen. Schreibe keine Steuernummer und keine Programmliste mit Adressen in ein öffentliches Repo. Veröffentliche
 nichts auf dem Server ohne meine Freigabe. Für die Abschnitte 5 bis 10 zuerst eine Spezifikation und Mockups, noch kein
 Code.
+```
+
+**Prompt: Startseite veröffentlichen (lokal, mit SSH-Zugang)**
+
+```
+Veröffentliche die Startseite dreambau.com aus apps/landing. Lies zuerst apps/landing/docs/NEXT-STEPS.md, Abschnitt 4.5, und im
+Repo Storypapst/bildungshaus den Ordner ops (README.md, deploy.py, rollback.py, nginx.conf). Baue und prüfe: cd apps/landing &&
+npm ci && npm run build && npm run build:apex && npm run check:apex. Sieh dir dann den echten Zustand an (Deployment
+dreambau-homepage, die live gemountete nginx.conf, die heutige Startseite) und zeig mir die Abweichungen zur Kopie im
+Bildungshaus-Repo, bevor du etwas änderst. Schreibe ein Veröffentlichungs-Skript nach dem Muster von ops/deploy.py: ohne --apply
+nur lokale Prüfung, mit --apply Sicherung des laufenden Zustands, Prüfsummen auf dem Server, nginx -t im Pod, Trockenlauf gegen
+den Cluster, danach erst anwenden; dazu ein Rückgängig-Skript, das du vorher trocken prüfst. Ändere die nginx.conf nur um die zwei
+Zeilen aus 4.5 und füge den Mount /landing hinzu. Wende erst an, wenn ich „ja, anwenden" sage. Danach Abnahme: BASE_URL=https://dreambau.com
+npm run check:apex, /bildungshaus/ unverändert, Matrix-Discovery Byte für Byte unverändert, /testmails-Login 200, geschützte API 401,
+fehlende Datei 404. Schreibe keine Zugangsdaten und keine Server-Skripte mit Geheimnissen in das öffentliche Repo.
 ```
