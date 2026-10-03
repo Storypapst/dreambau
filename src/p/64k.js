@@ -562,7 +562,10 @@ Dream.add({
     gl.viewport(0, 0, q, r);
     gl.bindFramebuffer(FB, B.fb); D.bind(PB); gl.uniform1i(LOC(PB, 'X'), 2); gl.uniform3f(LOC(PB, 'M'), h / 540 / q, 0, 2); D.tri();
     gl.bindFramebuffer(FB, C2.fb); gl.uniform1i(LOC(PB, 'X'), 3); gl.uniform3f(LOC(PB, 'M'), 0, h / 540 / r, 0); D.tri();
-    if (U[58] > 0 && U[54] + U[68] > 0) { gl.bindFramebuffer(FB, G.fb); set(PR); D.tri(); }
+    // the composite always adds this target: when the rays pass is skipped it has to be cleared, or the last rays frame stays
+    gl.bindFramebuffer(FB, G.fb);
+    if (U[58] > 0 && U[54] + U[68] > 0) { set(PR); D.tri(); }
+    else { gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); }
     // composite
     gl.bindFramebuffer(FB, null); gl.viewport(0, 0, w, h);
     set(PC); D.tri();
