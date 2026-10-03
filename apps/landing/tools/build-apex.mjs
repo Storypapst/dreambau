@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Builds the variant of the page that the start page of dreambau.com can serve.
 //
-// The start page is delivered by an nginx pod that answers only "/" and one asset prefix, under a policy without inline
+// The start page is delivered by an nginx container that answers only "/" and one asset prefix, under a policy without inline
 // styles (docs/NEXT-STEPS.md, section 4.5). The source in site/ stays as it is; this script
 //   - moves the two inline <style> blocks of index.html into files (style.css, noscript.css),
 //   - points the stylesheets and the script at the asset prefix,
 //   - lets the runtime load the productions from where it was loaded itself instead of relative to the page.
 // It fails instead of guessing when index.html or shell.js no longer look the way it expects.
 //
-//   node tools/build-apex.mjs [--assets /landing-assets/] [--out dist/apex]
+//   node tools/build-apex.mjs [--assets /homepage-assets/] [--out dist/apex]
 //
 // Output: <out>/ (what the server serves: index.html, style.css, noscript.css, shell.js, p/<id>.js) and <out>.json
 // (prefix, productions, size and sha256 of every file; the deploy checks the files on the server against it).
@@ -20,7 +20,7 @@ import { ROOT, SITE, parseArgs } from './lib.mjs';
 
 const fail = msg => { console.error('build-apex: ' + msg); process.exit(1); };
 const a = parseArgs(process.argv.slice(2));
-const prefix = typeof a.assets === 'string' ? a.assets : '/landing-assets/';
+const prefix = typeof a.assets === 'string' ? a.assets : '/homepage-assets/';
 if (!/^\/[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*\/$/.test(prefix)) fail(`--assets must look like /name/ (got ${JSON.stringify(prefix)})`);
 const distRoot = path.join(ROOT, 'dist');
 const out = path.resolve(ROOT, typeof a.out === 'string' ? a.out : 'dist/apex');

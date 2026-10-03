@@ -46,17 +46,19 @@ Eine bestimmte Animation erzwingen: `http://localhost:8080/?anim=4k`, `?anim=16k
 
 ## Auf dreambau.com veröffentlichen
 
-Die Startseite von dreambau.com kommt nicht aus einem normalen Webverzeichnis, sondern aus einem nginx-Pod im
-Kubernetes-Cluster, mit strenger Sicherheitsrichtlinie (keine Inline-Stile) und nur wenigen Routen. **`site/` so, wie es
-ist, und `dist/index.html` lassen sich dort nicht hochladen.** Dafür gibt es zwei Befehle:
+Die Startseite von dreambau.com kommt nicht aus einem normalen Webverzeichnis, sondern aus einem nginx-Container (Docker
+Compose), mit strenger Sicherheitsrichtlinie (keine Inline-Stile) und nur wenigen Routen. **`site/` so, wie es ist, und
+`dist/index.html` lassen sich dort nicht hochladen.** Dafür gibt es zwei Befehle:
 
 ```sh
-npm run build:apex    # dist/apex/ + dist/apex.json: die Seite mit ausgelagerten Stilen, unter /landing-assets/, ladefertig für die Startseite
+npm run build:apex    # dist/apex/ + dist/apex.json: die Seite mit ausgelagerten Stilen, unter /homepage-assets/, ladefertig für die Startseite
 npm run check:apex    # lädt den Build mit den Routen und der Richtlinie der Startseite; mit BASE_URL=https://dreambau.com die Abnahme danach
 ```
 
-Die Änderung am Server, der Ablauf und die Abnahme stehen in
-[`docs/NEXT-STEPS.md`, Abschnitt 4.5](docs/NEXT-STEPS.md#45-veröffentlichen-auf-dreambaucom).
+Der Stand, der Ablauf und die Abnahme stehen in
+[`docs/NEXT-STEPS.md`, Abschnitt 4.5](docs/NEXT-STEPS.md#45-veröffentlichen-auf-dreambaucom). Die Veröffentlichung selbst
+(Sicherung, Prüfsummen, Austausch der Dateien, Rückweg) beschreibt ein Runbook im privaten Repo `Storypapst/dreambau-docs`;
+die Skripte enthalten Serverpfade und gehören nicht in dieses öffentliche Repo.
 
 Für eine Vorschau oder einen anderen Webserver ohne diese Regeln (nicht dreambau.com) gilt: Der Inhalt von **`site/`** (also
 `index.html`, `shell.js` und der Ordner `p/`) ist die ganze Seite, statische Dateien ohne Serverlogik. Über **HTTPS**

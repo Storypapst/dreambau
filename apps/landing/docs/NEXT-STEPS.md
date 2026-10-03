@@ -8,9 +8,10 @@ unter `apps/landing/docs/`; geschrieben wurde sie im Fork `Storypapst/morphdemo-
 ## 0. Entscheidungsstand (zum Abhaken)
 
 Stand nach dem Chat vom 2026-10-03 (zweite Runde, Antworten des Nutzers eingearbeitet). ✔ entschieden, ◐ teilweise,
-○ offen. Es hat keine „grilling"-Fragerunde und keine Wayfinder-Runde stattgefunden. Die Rückfragen aus dem Chat stehen
-unten mit den Antworten, damit die erste lokale Runde sie nicht wiederholt. PR #1 ist gemerged (Punkt 1); auf dem Server
-ist nichts veröffentlicht.
+○ offen. In diesem Chat hat keine „grilling"-Fragerunde und keine Wayfinder-Runde stattgefunden; die Wayfinder-Runde läuft
+seitdem im privaten Repo `Storypapst/dreambau-docs`, dort werden die Entscheidungen zu den Abschnitten 5 bis 10 als Tickets
+geführt. Die Rückfragen aus dem Chat stehen unten mit den Antworten, damit die erste lokale Runde sie nicht wiederholt.
+PR #1 ist gemerged (Punkt 1); die neue Startseite ist seit 2026-10-03 live (Punkt 14, Abschnitt 4.5).
 
 1. ✔ PR #1 wird in `main` des Forks gemerged („ja mergen", 2026-10-03). Zusammengeführt wird mit einem Merge-Commit, damit
    die Einzelcommits bestehen bleiben, die `git subtree split` (Abschnitt 2) später mitnimmt.
@@ -57,10 +58,10 @@ Punkte (und die Korrektur von Abschnitt 4.5):
     die Testmails-Registry (`/testmails`) im Wurzelordner. Der Trockenlauf zeigte keine Hürde; die Landing ist als
     `apps/landing` importiert (siehe Abschnitt 2). Weil das Repo öffentlich ist, gilt Abschnitt 8 (keine Programmliste,
     keine Server-Skripte mit Zugangsdaten) dort ebenso.
-14. ◐ Livegang auf dreambau.com („merge und deploy", 2026-10-03): Der Import ist gemerged (PR #128). Veröffentlichen kann
-    nur ein lokaler Lauf mit SSH-Zugang; vorbereitet sind `npm run build:apex` und `npm run check:apex`, die Änderung am
-    Server und der Ablauf stehen in Abschnitt 4.5, der Prompt am Ende von Abschnitt 15. Offen: die Freigabe zum Anwenden und
-    ob Impressum und Datenschutz vorher fertig sein sollen oder als zweiter Release folgen (Abschnitt 11).
+14. ✔ Livegang auf dreambau.com („merge und deploy", 2026-10-03): Der Import ist gemerged (PR #128). Veröffentlicht wurde
+    am selben Tag in einem lokalen Lauf mit SSH-Zugang, nur durch Austausch von Dateien (Abschnitt 4.5, Prompt für spätere
+    Releases am Ende von Abschnitt 15). Die Startseite ist seitdem live, ohne Impressum und Datenschutz; die Texte fehlen
+    noch und würden als zweiter Release folgen (Abschnitt 11).
 
 ### Weitere Entscheidungen und Wünsche aus dem Chat
 
@@ -68,7 +69,7 @@ Punkte (und die Korrektur von Abschnitt 4.5):
   nich… jibs nich… dreambau.com", am Ende klein „info@dreambau.com (nich warten, quatschen)", Start mit Ton und mit
   Ton-aus-Knopf.
 - **Weiterarbeit lokal:** Die SSH-Schlüssel liegen lokal; die Cloud-Sitzung hat keinen Zugriff darauf (geprüft: kein
-  Schlüssel, kein Agent). Veröffentlicht wurde noch nichts.
+  Schlüssel, kein Agent). Veröffentlicht wurde deshalb erst in einem lokalen Lauf am 2026-10-03 (Abschnitt 4.5).
 - **Drei große Vorhaben:** Blog, Pipeline für die Landing-Animationen, Work-Bereich mit Impressum. Zuerst eine
   Spezifikation, geplant mit dem Skill „Wayfinder" von Matt Pocock (lokal).
 - **Pipeline:** Idee kurz einsprechen oder eintippen, Claude baut, Freigabe mit „ja, mach", danach automatisch im Pool.
@@ -119,7 +120,8 @@ Punkte (und die Korrektur von Abschnitt 4.5):
 
 Gearbeitet wird künftig im Monorepo **`Storypapst/dreambau`** (vom Nutzer bestätigt, öffentlich); der Fork bleibt als
 Archiv. Die Landing liegt als `apps/landing`, später kämen `apps/work` und `apps/blog` dazu. Im Wurzelordner liegt die
-„Dreambau Testmails Registry" (`/testmails`), dazu `k8s/` und `ops/`. Das Repo ist öffentlich: Die Programmliste des
+„Dreambau Testmails Registry" (`/testmails`), dazu `k8s/` (Kubernetes-Manifeste der Testmails-App; der Server läuft
+inzwischen mit Docker Compose, siehe Abschnitt 4.5) und `ops/`. Das Repo ist öffentlich: Die Programmliste des
 Work-Bereichs und Server-Skripte mit Zugangsdaten (Abschnitt 8) gehören nicht hinein; die Alternative wäre, das Repo privat
 zu stellen.
 
@@ -165,12 +167,14 @@ Die Hashes der Einzelcommits im Monorepo weichen von denen im Fork ab (die Histo
 - **A. Landing mit zufälligen Animationen** und eine Pipeline für weitere Animationen (Abschnitte 4, 5, 6, 7, 9).
 - **B. Work-Bereich:** Einstieg zu den internen Programmen, dazu Impressum und Datenschutz (Abschnitte 8, 11).
 - **C. Blog:** kurze Beiträge mit einem Formular „Warum lesenswert" (Abschnitt 10).
-- **D. Bildungshaus (besteht schon, öffentlich unter https://dreambau.com/bildungshaus/):** interaktive Präsentation „Bildungshaus
-  weWeit" mit Fragebögen für fünf Rollen (Eltern, Fachkräfte, Geschäftsführung, Elternvorstand, Kinder-Perspektive), bisher
-  nur Pretests mit Testdaten. Eigenes Repo `Storypapst/bildungshaus` (öffentlich; React, TypeScript, Vite; Auslieferung
-  mit `ops/deploy.py`). Für diesen Plan zählen drei Berührungspunkte: Die Auslieferung der neuen Startseite darf
-  `/bildungshaus/` nicht beschädigen (Abschnitt 4.5), die Rechtstexte müssen zusammenpassen (Abschnitt 11), und die
-  Formulare hängen am selben Formbricks wie die geplante Pipeline (Abschnitt 9).
+- **D. Bildungshaus (besteht schon, öffentlich unter https://dreambau.com/bildungshaus/):** interaktive Präsentation
+  „Bildungshaus weWeit" mit Fragebögen für fünf Rollen (Eltern, Fachkräfte, Geschäftsführung, Elternvorstand,
+  Kinder-Perspektive), bisher nur Pretests mit Testdaten. Eigenes Repo `Storypapst/bildungshaus` (öffentlich; React,
+  TypeScript, Vite; Auslieferung bisher mit `ops/deploy.py`, das `kubectl` aufruft, obwohl Kubernetes auf dem Server
+  abgeschaltet ist; seine `ops/nginx.conf` ist dagegen byte-gleich mit der laufenden Konfiguration, SHA-256 verglichen am
+  2026-10-03). Für diesen Plan zählen drei Berührungspunkte: Die Auslieferung der neuen Startseite darf `/bildungshaus/` nicht
+  beschädigen (Abschnitt 4.5), die Rechtstexte müssen zusammenpassen (Abschnitt 11), und die Formulare hängen am selben
+  Formbricks wie die geplante Pipeline (Abschnitt 9).
 
 Empfehlung: für jedes neue Vorhaben (A bis C) zuerst eine Spezifikation, dann bauen. Als Planungswerkzeug nennst du den Skill
 „Wayfinder" von Matt Pocock; nach den Beschreibungen, die ich gefunden habe, zerlegt er große Vorhaben in
@@ -262,17 +266,21 @@ Auftrag.
 
 ### 4.5 Veröffentlichen auf dreambau.com
 
-**Stand (2026-10-03): vorbereitet und geprüft, aber nicht veröffentlicht.** Die Cloud-Sitzung hat keinen Zugriff auf den
-Server (keine SSH-Schlüssel, dreambau.com ist dort gesperrt). Der letzte Schritt ist ein lokaler Lauf mit deinem
-SSH-Zugang; der Prompt dafür steht am Ende von Abschnitt 15. Die erste Fassung dieses Abschnitts ging von einem normalen
-Webverzeichnis aus und empfahl `rsync`; das traf nicht zu.
+**Stand (2026-10-03): veröffentlicht.** Die neue Startseite läuft seit dem 2026-10-03 auf dreambau.com (Release
+`20261003-163112`, noch ohne Impressum und Datenschutz, siehe Abschnitt 11). Veröffentlicht wurde in einem lokalen Lauf mit
+SSH-Zugang, nur durch Austausch von Dateien: nginx wurde weder neu gestartet noch umgestellt. Abnahme: 15 von 15
+Nachprüfungen des Veröffentlichungs-Skripts, danach `BASE_URL=https://dreambau.com npm run check:apex` mit 18 von 18
+Prüfungen. Die erste Fassung dieses Abschnitts ging von einem Kubernetes-Pod mit ConfigMap und geänderter nginx.conf aus;
+diesen Weg gibt es nicht mehr, denn der Server läuft mit Docker Compose und Kubernetes ist abgeschaltet.
 
-- **Wie die Startseite heute ausgeliefert wird** (nach `ops/README.md` und `ops/nginx.conf` im Repo
-  `Storypapst/bildungshaus`, Stand 2026-09-07; vor dem Bauen mit dem Server abgleichen): Ein nginx-Pod (`dreambau-homepage`)
-  im Kubernetes-Cluster liefert die Startseite aus einer ConfigMap (`/site`). Er beantwortet nur `/` (die `index.html`),
-  `/homepage-assets/` (dasselbe Verzeichnis), `/health` und `/bildungshaus/…`; alles andere ergibt 404. Matrix-Discovery und
-  `/testmails` laufen über andere Routen und Dienste. nginx sendet `Cache-Control: no-store`, die Seite wird also bei jedem
-  Besuch neu geladen (bei 20 bis 28 KB komprimiert vertretbar).
+- **Wie die Startseite ausgeliefert wird** (gemessen am 2026-10-03): Ein nginx-Container (Docker Compose, hinter einem
+  Reverse-Proxy) liefert die Startseite aus einem nur lesbar eingehängten Verzeichnis. Er beantwortet nur `/` (die
+  `index.html`), `/homepage-assets/` (dasselbe Verzeichnis), `/health` und `/bildungshaus/…`; im Container ergibt alles
+  andere 404. Von außen bekommt ein Pfad, den kein Dienst beansprucht, ein 301 auf denselben Pfad unter `www.dreambau.com`
+  (gemessen für `/health`, `/impressum.html` und `/work`). Matrix-Discovery und `/testmails` laufen über andere Routen und
+  Dienste. nginx sendet `Cache-Control: no-store`, die Seite wird also bei jedem Besuch neu geladen (bei 20 bis 28 KB
+  komprimiert vertretbar). Die `ops/nginx.conf` im Repo `Storypapst/bildungshaus` ist byte-gleich mit der laufenden
+  Konfiguration (SHA-256 verglichen am 2026-10-03).
 - **Strengere Sicherheitsrichtlinie als in `tools/serve.mjs`:**
   `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'`,
   also **keine Inline-Stile**. Die Landing wie in `site/` läuft damit nicht: `/shell.js` ergibt 404, der Inline-Stil wird
@@ -284,58 +292,54 @@ Webverzeichnis aus und empfahl `rsync`; das traf nicht zu.
 - `npm run build:apex` erzeugt `dist/apex/` (`index.html`, `style.css`, `noscript.css`, `shell.js`, `p/4k.js`, `p/16k.js`,
   `p/64k.js`, zusammen 89 KB) und `dist/apex.json` (Präfix, Größe und sha256 jeder Datei). `site/` bleibt unverändert, das
   Skript macht nur drei Dinge: die beiden Stilblöcke in Dateien auslagern, Stilblätter und Skript unter den Asset-Pfad
-  `/landing-assets/` stellen (`--assets` ändert ihn) und die Animationen relativ zum eigenen Skript laden statt relativ zur
-  Seite (sonst sucht die Seite `/p/4k.js` und bekommt 404). Gleicher Quelltext, gleiche Bytes. Es bricht ab, statt zu raten,
-  wenn `index.html` oder `shell.js` nicht mehr so aussehen, wie es erwartet.
+  `/homepage-assets/` stellen (`--assets` ändert ihn; es ist der Pfad, den der Server ausliefert) und die Animationen
+  relativ zum eigenen Skript laden statt relativ zur Seite (sonst sucht die Seite `/p/4k.js` und bekommt 404). Gleicher
+  Quelltext, gleiche Bytes. Es bricht ab, statt zu raten, wenn `index.html` oder `shell.js` nicht mehr so aussehen, wie es
+  erwartet.
 - `npm run check:apex` lädt den Build mit den Routen und der Richtlinie der Startseite in Chromium: jede Datei kommt
   byte-gleich zurück, eine fehlende Datei ergibt 404, jede der drei Animationen erreicht „ready" ohne Konsolenfehler, ohne
   fehlgeschlagene Anfrage, ohne Richtlinienverstoß und ohne statischen Notbehelf. Mit `BASE_URL=https://dreambau.com` läuft
   dieselbe Prüfung gegen die echte Seite, das ist die **Abnahme nach dem Livegang**.
-- **Geprüft** (Cloud-Sitzung, Node 20, Headless-Chromium): `check:apex` gegen den Nachbau im Skript und gegen **echtes
-  nginx** (1.24, mit der Konfiguration unten); `node tools/e2e.mjs` (Zufallswahl, Ton erlaubt und gesperrt, Stumm, Esc,
-  reduzierte Bewegung, kein WebGL, keine Netzwerkzugriffe nach außen) mit `BASE_URL` gegen dasselbe nginx. Gegenprobe: Ein
-  Build mit wieder eingebettetem Stil fällt in `check:apex` durch (Stil nicht angewendet, Richtlinienverstoß).
+- **Geprüft vor dem Livegang** (Cloud-Sitzung, Node 20, Headless-Chromium): `check:apex` gegen den Nachbau im Skript und
+  gegen **echtes nginx** (1.24, mit einer Testkonfiguration nach dem Bildungshaus-Repo); `node tools/e2e.mjs`
+  (Zufallswahl, Ton erlaubt und gesperrt, Stumm, Esc, reduzierte Bewegung, kein WebGL, keine Netzwerkzugriffe nach außen)
+  mit `BASE_URL` gegen dasselbe nginx. Gegenprobe: Ein Build mit wieder eingebettetem Stil fällt in `check:apex` durch
+  (Stil nicht angewendet, Richtlinienverstoß).
+- **Geprüft nach dem Livegang** (lokaler Lauf, 2026-10-03): `BASE_URL=https://dreambau.com npm run check:apex` bestand 18 von
+  18 Prüfungen (jede Datei byte-gleich, eine fehlende Datei ergibt 404, jede der drei Animationen erreicht „ready").
 - **Beispiel mit dieser Prüfung:** `check:apex` meldet vor dem Livegang in 30 Sekunden „404" oder „Inline-Stil verweigert",
   man behebt es am Schreibtisch. **Ohne sie:** Die Seite geht live, Besucher sehen auf dreambau.com ungestalteten Text ohne
   Animation, und man sucht unter Zeitdruck den Grund und rollt zurück.
 
-**Die Änderung am Server:** zwei Zeilen in der nginx.conf und ein Mount.
-
-```diff
--    location = / { root /site; try_files /index.html =404; }
-+    location = / { root /landing; try_files /index.html =404; }
-+    location /landing-assets/ { alias /landing/; }
-```
-
-`/homepage-assets/`, `/health` und die Bildungshaus-Routen bleiben, wie sie sind. `/landing` ist ein neuer Nur-Lese-Mount
-mit dem Inhalt von `dist/apex/`: entweder ein Release-Verzeichnis wie beim Bildungshaus (hostPath, zum Beispiel
-`/root/releases/landing/<release>/site`) oder eine ConfigMap (die Landing ist klein; `p/` als Unterordner über
-`items`/`path`). Ausgangspunkt ist die **live** gemountete nginx.conf, nicht die Kopie im Bildungshaus-Repo; gegen diese
-Kopie ist es genau diese eine geänderte und eine neue Zeile (mit `nginx -t` und im Betrieb mit echtem nginx geprüft).
-
-**Ablauf (lokal, mit SSH-Zugang; nichts davon ist gegen den Cluster getestet):**
+**Ablauf (lokal, mit SSH-Zugang; Befehle, Pfade und Rückweg stehen im privaten Runbook, siehe unten):**
 
 1. `git pull`, dann `cd apps/landing && npm ci && npm run build && npm run build:apex && npm run check:apex`.
-2. Live-Zustand ansehen und sichern, nach dem Muster von `ops/deploy.py`: Deployment, die gemountete nginx.conf, die heutige
-   Startseite (ConfigMap `/site`). Abweichungen zur Kopie im Bildungshaus-Repo zuerst anschauen.
-3. Release anlegen (Dateien aus `dist/apex/`, auf dem Server gegen die Prüfsummen aus `dist/apex.json` prüfen), nginx.conf
-   ändern, `nginx -t` im laufenden Pod, Trockenlauf gegen den Cluster (`--dry-run=server`), erst dann anwenden und
-   `rollout status` abwarten. Ohne `--apply` prüft `deploy.py` nur lokal; das Muster beibehalten.
-4. **Rückweg vorher festlegen** (`rollback.py`-Muster: gesicherte Deployment-Vorlage und ConfigMap zurück) und trocken
-   prüfen, bevor angewendet wird.
+2. Den Stand des Websiteverzeichnisses auf dem Server sichern (eigener Release-Ordner mit Prüfsummen) und die neuen Dateien
+   dort gegen die Prüfsummen aus `dist/apex.json` prüfen, bevor etwas ausgetauscht wird.
+3. Die neuen Dateien zuerst einspielen und die `index.html` zuletzt, mit einem atomaren Umbenennen; danach die öffentlichen
+   Adressen prüfen. Fällt eine Prüfung durch, stellt das Skript den gesicherten Stand selbst wieder her. nginx, Routen und
+   Container bleiben unberührt, es wird nichts neu gestartet.
+4. **Rückweg vorher festlegen** und trocken prüfen: die `index.html` aus der Sicherung zurück, die neu hinzugekommenen Dateien
+   löschen. Ein Trockenlauf des Rückgängig-Skripts listet auf, was es zurückstellen würde, und ändert nichts.
 5. Abnahme: `BASE_URL=https://dreambau.com npm run check:apex`; `/bildungshaus/` unverändert; Matrix-Discovery Byte für Byte
    unverändert; `/testmails`-Login 200 und die geschützte API 401; eine fehlende Datei ergibt 404 (kein HTML mit 200);
-   `/bildungshaus` leitet auf `https://dreambau.com/bildungshaus/` ohne Port 8080 weiter. Die Startseite im Browser
+   `/bildungshaus` leitet mit 308 auf `https://dreambau.com/bildungshaus/` weiter, ohne Port 8080. Die Startseite im Browser
    ansehen und anhören.
 
-- **Neue Pfade** (`/impressum.html` und `/datenschutz.html` wie in Abschnitt 4.1, dazu `/work`) brauchen je eine Route in
-  nginx, die auf die Dateien in `site/` abbildet; heute endet alles andere in `location / { return 404; }`, gegebenenfalls
-  braucht es auch eine Ingress-Regel. Ohne neue Route ginge es nur über `/landing-assets/impressum.html` (dieses
-  Verzeichnis liefert nginx dann aus), aber für Rechtstexte ist eine eigene Adresse besser. Die Fußzeilen-Links und die
-  Routen müssen zusammenpassen, sonst enden sie im 404. Das gehört in dieselbe Änderung.
-- **Rechtstexte vor dem Livegang:** Impressum und Datenschutzerklärung fehlen noch (Abschnitt 11). Die heutige Startseite
-  hat womöglich auch keine; ein geschäftlicher Auftritt braucht sie (keine Rechtsberatung). Ein zweiter Release, der sie
-  nachliefert, ist mit diesem Ablauf jederzeit möglich.
+- **Runbook und Skripte** liegen im privaten Repo `Storypapst/dreambau-docs` (`docs/runbooks/start-page-publish.md` und
+  `tools/start-page-publish/`), weil sie Serverpfade enthalten; in dieses öffentliche Repo gehören sie nicht (Abschnitt 8).
+  Die Skripte tragen den Zustand der alten Seite bisher fest in sich und taugen nur für die erste Veröffentlichung; sie für
+  spätere Releases zu verallgemeinern ist offen (Hygiene-Ticket im selben privaten Repo).
+- **Neue Pfade** (`/impressum.html` und `/datenschutz.html` wie in Abschnitt 4.1, dazu `/work`) brauchen je eine Route in der
+  nginx-Konfiguration, die auf die Dateien in `site/` abbildet, und eine Regel im Reverse-Proxy; heute bekommt jeder Pfad, den
+  kein Dienst beansprucht, den 301 auf `www.dreambau.com` (gemessen für `/impressum.html` und `/work`). Ohne neue Route ginge
+  es nur über `/homepage-assets/impressum.html` (dieses Verzeichnis liefert nginx aus), aber für Rechtstexte ist eine eigene
+  Adresse besser. Die Fußzeilen-Links und die Routen müssen zusammenpassen, sonst führen die Links auf die andere Domain. Das
+  gehört in dieselbe Änderung; anders als der Austausch von Dateien berührt sie nginx und Reverse-Proxy und braucht einen
+  eigenen Rückweg.
+- **Rechtstexte:** Impressum und Datenschutzerklärung fehlen noch (Abschnitt 11); die Startseite ging ohne sie live. Ein
+  geschäftlicher Auftritt braucht sie (keine Rechtsberatung). Ein zweiter Release, der sie nachliefert, ist nach diesem Ablauf
+  möglich, sobald die Skripte spätere Releases können.
 - Zugang: Die Cloud-Sitzung hat keinen Zugriff, die Schlüssel liegen lokal. Veröffentlicht wird erst nach deiner Freigabe.
 - Nach dem Livegang auf echten Geräten ansehen und anhören (iPhone/Safari, Android/Chrome, Firefox, ein älteres
   Notebook).
@@ -610,8 +614,9 @@ PAGE=dist/index.html node tools/e2e.mjs all    # dasselbe gegen die Einzeldatei 
 
 - Nur in Headless-Chromium mit Software-Rendering geprüft. Echte Geräte stehen aus.
 - Die Startseite von dreambau.com hat eine strengere Sicherheitsrichtlinie und andere Routen (Abschnitt 4.5): ohne die drei
-  dort genannten Änderungen läuft die Landing nicht. Getestet nur gegen einen Nachbau dieser Regeln nach den Dateien im
-  Bildungshaus-Repo (Stand 2026-09-07), nicht gegen den echten Server.
+  dort genannten Änderungen läuft die Landing nicht. Vor dem Livegang getestet nur gegen einen Nachbau dieser Regeln
+  nach den Dateien im Bildungshaus-Repo und gegen echtes nginx; seit dem Livegang (2026-10-03) zusätzlich mit `check:apex`
+  gegen die echte Seite.
 - Skyline: im Software-Rendering entstehen vereinzelt nicht-endliche Pixel (ein bis drei pro Bild, etwa jedes
   16. Bild). Sie werden vor dem Leuchteffekt auf Schwarz gesetzt. Die genaue Ursache ist offen (`docs/PRODUCTIONS.md`).
 - Der Schriftzug erscheint je nach Animation zwischen Sekunde 41 und 51. Ton beginnt in den meisten Browsern erst nach
@@ -620,30 +625,30 @@ PAGE=dist/index.html node tools/e2e.mjs all    # dasselbe gegen die Einzeldatei 
 ## 15. Prompt für Claude Code lokal
 
 ```
-Lies apps/landing/docs/NEXT-STEPS.md. Fange mit Abschnitt 0 an und
-frage mich nur die offenen Punkte ab. Setze dann Abschnitt 4 um (Fußzeile mit Impressum, Datenschutz und Work,
-Tastenhinweise als dezente Pillen, Absicherung für ältere Geräte); die Schrift verbessere ich selbst. Arbeite im
-Monorepo Storypapst/dreambau auf einem neuen Branch von main (der Fork ist Archiv). Fehlende Impressumsangaben
-(Abschnitt 11) als sichtbare Platzhalter eintragen, nichts erfinden. Halte in apps/landing npm run build und npm run
-verify ein, im Wurzelordner npm run lint, npm test und npm run build. Lies vor jeder Auslieferung Abschnitt 4.5: Die Startseite kommt aus einem
-Kubernetes-Pod mit strenger Sicherheitsrichtlinie, nicht aus einem Webverzeichnis; ausgeliefert wird nach dem Muster in
-Storypapst/bildungshaus/ops, nicht per rsync, und /bildungshaus/, /testmails und die Matrix-Discovery müssen unverändert
-weiterlaufen. Schreibe keine Steuernummer und keine Programmliste mit Adressen in ein öffentliches Repo. Veröffentliche
-nichts auf dem Server ohne meine Freigabe. Für die Abschnitte 5 bis 10 zuerst eine Spezifikation und Mockups, noch kein
-Code.
+Lies apps/landing/docs/NEXT-STEPS.md. Fange mit Abschnitt 0 an und frage mich nur die offenen Punkte ab. Setze dann
+Abschnitt 4 um (Fußzeile mit Impressum, Datenschutz und Work, Tastenhinweise als dezente Pillen, Absicherung für ältere
+Geräte); die Schrift verbessere ich selbst. Arbeite im Monorepo Storypapst/dreambau auf einem neuen Branch von main (der
+Fork ist Archiv). Fehlende Impressumsangaben (Abschnitt 11) als sichtbare Platzhalter eintragen, nichts erfinden. Halte in
+apps/landing npm run build und npm run verify ein, im Wurzelordner npm run lint, npm test und npm run build. Lies vor jeder
+Auslieferung Abschnitt 4.5 und das Runbook im privaten Repo Storypapst/dreambau-docs (docs/runbooks/start-page-publish.md):
+Die Startseite kommt aus einem nginx-Container (Docker Compose) mit strenger Sicherheitsrichtlinie, nicht aus einem
+Webverzeichnis; veröffentlicht wird nur durch Austausch von Dateien nach dem Runbook, nicht per rsync, und /bildungshaus/,
+/testmails und die Matrix-Discovery müssen unverändert weiterlaufen. Schreibe keine Steuernummer und keine Programmliste mit
+Adressen in ein öffentliches Repo. Veröffentliche nichts auf dem Server ohne meine Freigabe. Für die Abschnitte 5 bis 10
+zuerst eine Spezifikation und Mockups, noch kein Code.
 ```
 
 **Prompt: Startseite veröffentlichen (lokal, mit SSH-Zugang)**
 
 ```
-Veröffentliche die Startseite dreambau.com aus apps/landing. Lies zuerst apps/landing/docs/NEXT-STEPS.md, Abschnitt 4.5, und im
-Repo Storypapst/bildungshaus den Ordner ops (README.md, deploy.py, rollback.py, nginx.conf). Baue und prüfe: cd apps/landing &&
-npm ci && npm run build && npm run build:apex && npm run check:apex. Sieh dir dann den echten Zustand an (Deployment
-dreambau-homepage, die live gemountete nginx.conf, die heutige Startseite) und zeig mir die Abweichungen zur Kopie im
-Bildungshaus-Repo, bevor du etwas änderst. Schreibe ein Veröffentlichungs-Skript nach dem Muster von ops/deploy.py: ohne --apply
-nur lokale Prüfung, mit --apply Sicherung des laufenden Zustands, Prüfsummen auf dem Server, nginx -t im Pod, Trockenlauf gegen
-den Cluster, danach erst anwenden; dazu ein Rückgängig-Skript, das du vorher trocken prüfst. Ändere die nginx.conf nur um die zwei
-Zeilen aus 4.5 und füge den Mount /landing hinzu. Wende erst an, wenn ich „ja, anwenden" sage. Danach Abnahme: BASE_URL=https://dreambau.com
-npm run check:apex, /bildungshaus/ unverändert, Matrix-Discovery Byte für Byte unverändert, /testmails-Login 200, geschützte API 401,
-fehlende Datei 404. Schreibe keine Zugangsdaten und keine Server-Skripte mit Geheimnissen in das öffentliche Repo.
+Veröffentliche eine neue Fassung der Startseite dreambau.com aus apps/landing. Lies zuerst apps/landing/docs/NEXT-STEPS.md,
+Abschnitt 4.5, und im privaten Repo Storypapst/dreambau-docs das Runbook docs/runbooks/start-page-publish.md. Baue und prüfe:
+cd apps/landing && npm ci && npm run build && npm run build:apex && npm run check:apex. Sieh dir dann den echten Zustand an (das
+Websiteverzeichnis, die live geladene nginx.conf, die heutige Startseite) und zeig mir die Abweichungen zum Runbook, bevor du
+etwas änderst. Veröffentliche nur durch Austausch von Dateien (Sicherung, Prüfsummen, neue Dateien zuerst, index.html zuletzt);
+ändere nginx.conf und Routen nur, wenn ich es für diesen Release ausdrücklich verlange, und starte nichts neu. Die Skripte im
+Runbook sind bisher nur für eine erste Veröffentlichung gebaut: Prüfe, ob sie für diesen Release taugen, und sag mir sonst, was
+fehlt, statt sie zu umgehen. Wende erst an, wenn ich „ja, anwenden" sage. Danach Abnahme: BASE_URL=https://dreambau.com npm run
+check:apex, /bildungshaus/ unverändert, Matrix-Discovery Byte für Byte unverändert, /testmails-Login 200, geschützte API 401,
+fehlende Datei 404. Schreibe keine Zugangsdaten und keine Server-Skripte in das öffentliche Repo.
 ```
