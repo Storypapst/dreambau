@@ -2,7 +2,8 @@
 
 Stand: 2026-10-03. Diese Datei sagt, wo das Projekt steht, womit man lokal weiterarbeitet und was geplant ist. Sie ist so
 geschrieben, dass man sie auch einem lokalen Claude-Code-Lauf geben kann (Prompt am Ende). Es wurde nichts davon gebaut,
-außer was in Abschnitt 1 steht: der Rest ist Planung.
+außer was in Abschnitt 1 steht: der Rest ist Planung. Seit dem Import liegt die Datei im Monorepo `Storypapst/dreambau`
+unter `apps/landing/docs/`; geschrieben wurde sie im Fork `Storypapst/morphdemo-benchmark` (Ordner `dreambau-landing/`).
 
 ## 0. Entscheidungsstand (zum Abhaken)
 
@@ -35,9 +36,9 @@ ist nichts veröffentlicht.
    selbst zurück. Ich behandle 502, Zeitüberschreitung und „Verbindung abgelehnt" genauso, weil ein Link auf eine tote
    Adresse niemandem hilft; bitte bestätigen. Die Liste selbst steht bewusst nicht in diesem öffentlichen Repo (Abschnitt 8).
    Offen: ob die Liste öffentlich oder erst nach einem Login erscheint.
-9. ✔ Monorepo (Abschnitt 2): heißt „Dreambau" und enthält alle anderen Sachen; der Fork bleibt bestehen. Der Pfad ist
-   `Storypapst/dreambau` (vom Nutzer bestätigt, siehe Punkt 13). Offen: Ordnernamen (Vorschlag `apps/landing`,
-   `apps/work`, `apps/blog`).
+9. ✔ Monorepo (Abschnitt 2): heißt „Dreambau" und enthält alle anderen Sachen; der Fork bleibt als Archiv bestehen. Der
+   Pfad ist `Storypapst/dreambau` (vom Nutzer bestätigt, siehe Punkt 13). Die Landing liegt als `apps/landing`; offen
+   sind die Ordnernamen für später (Vorschlag `apps/work`, `apps/blog`).
 
 **Nachtrag (später am 2026-10-03, nach dem Merge):** Der Nutzer wies auf das Projekt `dreambau.com/bildungshaus` hin, in dem
 „das Formbricks-Ding" online ist. Die Cloud-Sitzung hat dazu das öffentliche Repo `Storypapst/bildungshaus` gelesen.
@@ -52,10 +53,10 @@ Punkte (und die Korrektur von Abschnitt 4.5):
 12. ○ Wer ist Anbieter? (Abschnitt 11): Die Bildungshaus-Doku nennt für die Datenverwaltung der Befragung „Greyt.IT UG
     (haftungsbeschränkt)", die Landing nennt die GS DESIGN GmbH. Vor Impressum und Datenschutz klären, welche Firma für
     welchen Teil der Domain Diensteanbieter ist.
-13. ◐ Monorepo (Abschnitt 2): Der Nutzer bestätigt: `Storypapst/dreambau` ist das Monorepo. Es ist öffentlich und enthält
-    die Testmails-Registry (`/testmails`) im Wurzelordner. Offen: ob die Landing dort hineinkommt (die Cloud-Sitzung prüft
-    das im Trockenlauf) oder vorerst im Fork bleibt; der Nutzer ist mit beidem einverstanden. Weil das Repo öffentlich ist,
-    gilt Abschnitt 8 (keine Programmliste, keine Server-Skripte mit Zugangsdaten) dort ebenso.
+13. ✔ Monorepo (Abschnitt 2): Der Nutzer bestätigt: `Storypapst/dreambau` ist das Monorepo. Es ist öffentlich und enthält
+    die Testmails-Registry (`/testmails`) im Wurzelordner. Der Trockenlauf zeigte keine Hürde; die Landing ist als
+    `apps/landing` importiert (siehe Abschnitt 2). Weil das Repo öffentlich ist, gilt Abschnitt 8 (keine Programmliste,
+    keine Server-Skripte mit Zugangsdaten) dort ebenso.
 
 ### Weitere Entscheidungen und Wünsche aus dem Chat
 
@@ -98,45 +99,62 @@ Punkte (und die Korrektur von Abschnitt 4.5):
 
 ## 1. Wo wir stehen
 
-- **Repo:** https://github.com/Storypapst/morphdemo-benchmark (Fork, öffentlich), **Branch**
-  `claude/dreambau-landing-animations-d2r0pj`, **Ordner** `dreambau-landing/`.
-- **Pull Request:** https://github.com/Storypapst/morphdemo-benchmark/pull/1 gegen `main`, am 2026-10-03 freigegeben
-  und mit einem Merge-Commit gemerged. Keine Konflikte, alle Review-Hinweise von Augment und CodeRabbit bearbeitet. Ab
-  jetzt ist `main` der Stand; der Branch `claude/dreambau-landing-animations-d2r0pj` wird für Neues nicht mehr gebraucht.
+- **Repo:** `Storypapst/dreambau` (Monorepo, öffentlich), **Ordner** `apps/landing/`. Herkunft: der Fork
+  https://github.com/Storypapst/morphdemo-benchmark (Ordner `dreambau-landing/`, Stand `2cff8f6`); dort bleiben die
+  vollständige Historie und die Besprechung der Pull Requests.
+- **Pull Requests im Fork:** https://github.com/Storypapst/morphdemo-benchmark/pull/1 (die Landing) und
+  https://github.com/Storypapst/morphdemo-benchmark/pull/2 (Korrektur der Übergabe), beide am 2026-10-03 freigegeben und
+  mit einem Merge-Commit gemerged. Alle Review-Hinweise von Augment und CodeRabbit bearbeitet.
 - **Inhalt:** die Seite (`site/`) mit drei Animationen, die bei jedem Laden zufällig gewählt werden: Rohbau (4k),
   Traumhaus (16k), Skyline (64k), dazu Laufzeit, Prüfwerkzeuge und Dokumentation. Alle Prüfungen sind bestanden
   (`verification/SUMMARY.md`). Geprüft wurde nur in Headless-Chromium mit Software-Rendering, nicht auf echten Geräten.
 - **Zuletzt behoben:** In der Skyline blieb nach etwa 37 s ein Zwischenbild des Sonnen-Effekts stehen (Schleier am oberen
   Rand). Dazu gibt es jetzt eine Prüfung „order independence" in `tools/verify.mjs`.
 
-## 2. Repo-Plan: Monorepo `dreambau`
+## 2. Monorepo `dreambau`
 
-Der Fork bleibt, wie er ist (PR #1 ist gemerged, `main` enthält den Landing-Ordner). Gearbeitet wird künftig im Monorepo;
-der Landing-Ordner wird dort als Unterordner eingehängt, mit Historie. Vorschlag für die Ordner: `apps/landing`, später
-`apps/work`, `apps/blog`. Solange das Monorepo öffentlich ist, gehören die Programmliste des Work-Bereichs und
-Server-Skripte mit Zugangsdaten (Abschnitt 8) nicht hinein; die Alternative wäre, das Repo privat zu stellen.
+Gearbeitet wird künftig im Monorepo **`Storypapst/dreambau`** (vom Nutzer bestätigt, öffentlich); der Fork bleibt als
+Archiv. Die Landing liegt als `apps/landing`, später kämen `apps/work` und `apps/blog` dazu. Im Wurzelordner liegt die
+„Dreambau Testmails Registry" (`/testmails`), dazu `k8s/` und `ops/`. Das Repo ist öffentlich: Die Programmliste des
+Work-Bereichs und Server-Skripte mit Zugangsdaten (Abschnitt 8) gehören nicht hinein; die Alternative wäre, das Repo privat
+zu stellen.
 
-**Bestätigt (2026-10-03): Das Monorepo ist `Storypapst/dreambau`** (öffentlich, zuletzt 2026-09-29). Es ist die „Dreambau
-Testmails Registry" (`/testmails`) mit ihrer Anwendung im Wurzelordner, den Kubernetes-Manifesten in `k8s/` und der
-Auslieferung in `ops/`. `apps/landing` stünde also neben einer Anwendung im Wurzelordner; deren Lint, Tests, Build und
-Docker-Bau dürfen den neuen Ordner nicht miteinbeziehen oder stören. Ob und wie das gelingt, zeigt der Trockenlauf (Punkt 13);
-bis dahin bleibt die Landing im Fork.
+**Was der Trockenlauf gezeigt hat** (Kopie des Monorepos, Node 20 wie in `.nvmrc`):
+
+- `npm run lint` (drei `tsc`-Läufe mit festen `include`-Listen) und `npm run build` laufen mit dem neuen Ordner unverändert.
+  `vitest` findet dieselben 102 Testdateien, keine aus `apps/landing` (auch nicht nach `npm ci` im Ordner).
+- Das Dockerfile kopiert nur benannte Ordner (`src`, `tests`, `k8s`, `ops`, …); `apps/landing` gelangt nicht ins Abbild, nur
+  der Build-Kontext wächst. `.dockerignore` ignoriert jetzt `**/node_modules`, damit auch ein lokales `npm ci` in
+  `apps/landing` nicht in den Kontext geht.
+- Die Landing baut an der neuen Stelle mit denselben Größen (4k 3791, 16k 10191, 64k 24415 Byte, alle im Budget), unter
+  Node 20 und 22.
+- Gewicht: Die drei Kontaktbögen (`verification/<id>/frames/sheet.png`, je rund 4 MB) sind im Monorepo weggelassen; sie
+  liegen im Fork. Mit ihnen wüchse das öffentliche Repo um rund 18 MB statt um rund 6 MB, und Git behält sie für immer. Die
+  Verweise darauf (`verification/SUMMARY.md`, `report.json`, README) sind Ausgabe der Prüfläufe und bleiben unverändert; ein
+  neuer `npm run verify` erzeugt die Bilder wieder.
+- Die CI des Monorepos läuft für jeden Pull Request vollständig (Lint, Tests, Build); der Import ändert daran nichts. Eine
+  eigene Prüfung für `apps/landing` (zum Beispiel `npm run build` für die Größenbudgets, nur bei Änderungen dort) wäre ein
+  kleiner nächster Schritt.
+
+**So wurde importiert** (zur Wiederholung):
 
 ```sh
-# 1) im Klon des Forks: nur den Landing-Ordner mit seiner Historie herauslösen
-cd morphdemo-benchmark
-git checkout main && git pull
+# 1) im Klon des Forks: nur den Landing-Ordner mit seiner Historie herauslösen, die Kontaktbögen aus der Historie nehmen
+cd morphdemo-benchmark && git checkout main && git pull
 git subtree split -P dreambau-landing -b dreambau-only
-# 2) im Monorepo: als Unterordner einhängen (--squash, wenn die Einzelcommits nicht mit hinein sollen)
-cd ../dreambau
-git checkout -b feat/landing-import
-git subtree add --prefix=apps/landing ../morphdemo-benchmark dreambau-only
-cd apps/landing && npm ci && npx playwright install chromium && npm run build
+git branch dreambau-import dreambau-only
+FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --index-filter \
+  'git rm -q --cached --ignore-unmatch verification/4k/frames/sheet.png verification/16k/frames/sheet.png verification/64k/frames/sheet.png' \
+  -- dreambau-import
+# 2) im Monorepo: als Unterordner einhängen
+cd ../dreambau && git checkout -b <branch> origin/main
+git subtree add --prefix=apps/landing ../morphdemo-benchmark dreambau-import
+cd apps/landing && npm ci && npm run build
 ```
 
-Danach ändern sich nur die Pfade in dieser Datei (`dreambau-landing/…` wird `apps/landing/…`). Wenn das Monorepo
-Workspaces (npm, pnpm) nutzt, den Landing-Ordner dort eintragen. Neue Änderungen aus dem Fork lassen sich später mit
-`git subtree pull` nachziehen.
+Die Hashes der Einzelcommits im Monorepo weichen von denen im Fork ab (die Historie wurde dabei neu geschrieben); der Hash
+`2cff8f6` in Abschnitt 1 bezieht sich auf den Fork. Neue Änderungen aus dem Fork lassen sich nicht mehr mit
+`git subtree pull` nachziehen; gearbeitet wird im Monorepo.
 
 ## 3. Vier große Vorhaben
 
@@ -569,12 +587,12 @@ PAGE=dist/index.html node tools/e2e.mjs all    # dasselbe gegen die Einzeldatei 
 ## 15. Prompt für Claude Code lokal
 
 ```
-Lies dreambau-landing/docs/NEXT-STEPS.md (im Monorepo: apps/landing/docs/NEXT-STEPS.md). Fange mit Abschnitt 0 an und
+Lies apps/landing/docs/NEXT-STEPS.md. Fange mit Abschnitt 0 an und
 frage mich nur die offenen Punkte ab. Setze dann Abschnitt 4 um (Fußzeile mit Impressum, Datenschutz und Work,
-Tastenhinweise als dezente Pillen, Absicherung für ältere Geräte); die Schrift verbessere ich selbst. Arbeite auf einem
-neuen Branch: im Fork von main aus (PR #1 ist gemerged, der alte Branch wird nicht wiederverwendet), im Monorepo ab
-feat/landing-import. Fehlende Impressumsangaben (Abschnitt 11) als sichtbare Platzhalter eintragen, nichts erfinden.
-Halte npm run build und npm run verify ein. Lies vor jeder Auslieferung Abschnitt 4.5: Die Startseite kommt aus einem
+Tastenhinweise als dezente Pillen, Absicherung für ältere Geräte); die Schrift verbessere ich selbst. Arbeite im
+Monorepo Storypapst/dreambau auf einem neuen Branch von main (der Fork ist Archiv). Fehlende Impressumsangaben
+(Abschnitt 11) als sichtbare Platzhalter eintragen, nichts erfinden. Halte in apps/landing npm run build und npm run
+verify ein, im Wurzelordner npm run lint, npm test und npm run build. Lies vor jeder Auslieferung Abschnitt 4.5: Die Startseite kommt aus einem
 Kubernetes-Pod mit strenger Sicherheitsrichtlinie, nicht aus einem Webverzeichnis; ausgeliefert wird nach dem Muster in
 Storypapst/bildungshaus/ops, nicht per rsync, und /bildungshaus/, /testmails und die Matrix-Discovery müssen unverändert
 weiterlaufen. Schreibe keine Steuernummer und keine Programmliste mit Adressen in ein öffentliches Repo. Veröffentliche

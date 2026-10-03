@@ -1,5 +1,7 @@
 # Dreambau Testmails Registry
 
+> Weitere Projekte in diesem Repository: die Startseite dreambau.com liegt in [`apps/landing`](apps/landing/README.md) (eigenes `package.json`, eigener Build, unabhängig von der Anwendung hier im Wurzelordner).
+
 Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten kommen ausschließlich aus einem gemounteten Kubernetes Secret; editierbare Testmetadaten liegen in SQLite auf einem PVC.
 
 ## Betrieb

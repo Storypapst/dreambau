@@ -13,6 +13,11 @@ und endet auf einem ruhigen Schlussbild:
 Der Ton startet mit der Seite, sobald der Browser es erlaubt. Es gibt immer einen **Ton-aus-Knopf** (oben rechts, Taste **M**),
 und mit **Esc** oder „überspringen“ springt man direkt zum Schlussbild.
 
+**Ort:** Dieser Ordner (`apps/landing`) gehört zum Monorepo `Storypapst/dreambau` und hat sein eigenes `package.json`: Alle
+Befehle unten gelten im Ordner (`cd apps/landing && npm ci`), nicht im Wurzelordner, in dem die Testmails-Registry liegt.
+Entstanden ist er im Fork [Storypapst/morphdemo-benchmark](https://github.com/Storypapst/morphdemo-benchmark) (Ordner
+`dreambau-landing/`); dort liegen die vollständige Historie und die Besprechung der Pull Requests.
+
 Das Projekt überträgt die Anforderung des [MorphDemo-Benchmarks](https://github.com/TheMorpheus407/morphdemo-benchmark)
 (drei Programme in 4 KB, 16 KB und 64 KB, Thema „From Noise to Order“, Bild und Ton im Takt, rund eine Minute) auf eine
 Webseite. Die vollständige, übertragene Anforderung steht in [`SPEC.md`](SPEC.md) (englisch, im Aufbau des Originals).
@@ -85,8 +90,9 @@ PAGE=dist/index.html node tools/e2e.mjs all   # dasselbe gegen die Einzeldatei (
 `verify` baut, prüft die Größen und schreibt `verification/SUMMARY.md` und `verification/report.json`: Dauer 50 bis 70 s, erstes
 Bild dunkel, mindestens drei verschiedene Phasen, keine Standbild-Phase, Bild unabhängig von vorher gezeichneten Bildern (keine veralteten Zwischenpuffer), Blitzsicherheit, Schriftzug Zeile für Zeile und lesbar
 (Kontrast), ruhiger dunkler unterer Rand bei 16:9, 21:9, 4:3 und Hochformat, Musik (Pegel, stiller Anfang, Ausblenden, kein
-Übersteuern), Verhalten der Seite, keine Netzwerkzugriffe. Die Bilder (`verification/<id>/frames/sheet.png`) und die
-Spektrogramme (`verification/<id>/audio/spectrogram.png`) liegen daneben.
+Übersteuern), Verhalten der Seite, keine Netzwerkzugriffe. Die Spektrogramme (`verification/<id>/audio/spectrogram.png`)
+liegen daneben. Die Kontaktbögen (`verification/<id>/frames/sheet.png`, je rund 4 MB) fehlen im Monorepo, damit das
+öffentliche Repo klein bleibt; sie liegen im Fork, und `verify` erzeugt sie bei jedem Lauf neu.
 
 Wichtig: Alle Prüfungen laufen in einem Headless-Chromium mit Software-Rendering und ohne Soundkarte. Auf echten Geräten
 (iPhone/Safari, Android/Chrome, Firefox, ein älteres Notebook) sollte man die Seite vor dem Livegang einmal ansehen und anhören.
