@@ -35,9 +35,9 @@ ist nichts veröffentlicht.
    selbst zurück. Ich behandle 502, Zeitüberschreitung und „Verbindung abgelehnt" genauso, weil ein Link auf eine tote
    Adresse niemandem hilft; bitte bestätigen. Die Liste selbst steht bewusst nicht in diesem öffentlichen Repo (Abschnitt 8).
    Offen: ob die Liste öffentlich oder erst nach einem Login erscheint.
-9. ◐ Monorepo (Abschnitt 2): heißt „Dreambau" und enthält alle anderen Sachen; der Fork bleibt bestehen. Offen: genauer
-   GitHub-Pfad und Ordnernamen (Vorschlag `apps/landing`, `apps/work`, `apps/blog`). Empfehlung: privat anlegen, weil dort
-   die Programmliste und die Server-Skripte liegen sollen.
+9. ✔ Monorepo (Abschnitt 2): heißt „Dreambau" und enthält alle anderen Sachen; der Fork bleibt bestehen. Der Pfad ist
+   `Storypapst/dreambau` (vom Nutzer bestätigt, siehe Punkt 13). Offen: Ordnernamen (Vorschlag `apps/landing`,
+   `apps/work`, `apps/blog`).
 
 **Nachtrag (später am 2026-10-03, nach dem Merge):** Der Nutzer wies auf das Projekt `dreambau.com/bildungshaus` hin, in dem
 „das Formbricks-Ding" online ist. Die Cloud-Sitzung hat dazu das öffentliche Repo `Storypapst/bildungshaus` gelesen.
@@ -52,8 +52,10 @@ Punkte (und die Korrektur von Abschnitt 4.5):
 12. ○ Wer ist Anbieter? (Abschnitt 11): Die Bildungshaus-Doku nennt für die Datenverwaltung der Befragung „Greyt.IT UG
     (haftungsbeschränkt)", die Landing nennt die GS DESIGN GmbH. Vor Impressum und Datenschutz klären, welche Firma für
     welchen Teil der Domain Diensteanbieter ist.
-13. ○ Monorepo (Abschnitt 2): Ein Repo `Storypapst/dreambau` gibt es schon. Es ist öffentlich und enthält die
-    Testmails-Registry (`/testmails`). Ist es das gemeinte Monorepo, oder entsteht ein neues?
+13. ◐ Monorepo (Abschnitt 2): Der Nutzer bestätigt: `Storypapst/dreambau` ist das Monorepo. Es ist öffentlich und enthält
+    die Testmails-Registry (`/testmails`) im Wurzelordner. Offen: ob die Landing dort hineinkommt (die Cloud-Sitzung prüft
+    das im Trockenlauf) oder vorerst im Fork bleibt; der Nutzer ist mit beidem einverstanden. Weil das Repo öffentlich ist,
+    gilt Abschnitt 8 (keine Programmliste, keine Server-Skripte mit Zugangsdaten) dort ebenso.
 
 ### Weitere Entscheidungen und Wünsche aus dem Chat
 
@@ -92,6 +94,7 @@ Punkte (und die Korrektur von Abschnitt 4.5):
 | Soll Abschnitt 0 in „grilling"-Fragerunden durchgegangen werden? | keine Antwort; geplant ist Wayfinder lokal |
 | Angebot: einen Problem-Issue nachträglich anlegen, wenn Issues im Fork eingeschaltet werden | keine Antwort |
 | (Hinweis des Nutzers, keine Frage) Das Projekt `dreambau.com/bildungshaus` mit dem Formbricks-Formular ist wichtig | aufgenommen: Abschnitt 3 (D), Punkte 10 bis 13 offen |
+| PR #2 mergen? Ist `Storypapst/dreambau` das Monorepo? | Ja, mergen. Ja, das ist das Monorepo. Die Landing dort hineinlegen, wenn es nicht schwer ist, sonst alles im Fork lassen („auch cool mit mir") |
 
 ## 1. Wo wir stehen
 
@@ -110,15 +113,14 @@ Punkte (und die Korrektur von Abschnitt 4.5):
 
 Der Fork bleibt, wie er ist (PR #1 ist gemerged, `main` enthält den Landing-Ordner). Gearbeitet wird künftig im Monorepo;
 der Landing-Ordner wird dort als Unterordner eingehängt, mit Historie. Vorschlag für die Ordner: `apps/landing`, später
-`apps/work`, `apps/blog`. Das Monorepo sollte privat sein: Die Programmliste des Work-Bereichs und die Server-Skripte
-(Abschnitt 8) gehören nicht in ein öffentliches Repo.
+`apps/work`, `apps/blog`. Solange das Monorepo öffentlich ist, gehören die Programmliste des Work-Bereichs und
+Server-Skripte mit Zugangsdaten (Abschnitt 8) nicht hinein; die Alternative wäre, das Repo privat zu stellen.
 
-**Namensgleichheit prüfen:** `Storypapst/dreambau` gibt es schon (öffentlich, zuletzt 2026-09-29). Es ist die „Dreambau
+**Bestätigt (2026-10-03): Das Monorepo ist `Storypapst/dreambau`** (öffentlich, zuletzt 2026-09-29). Es ist die „Dreambau
 Testmails Registry" (`/testmails`) mit ihrer Anwendung im Wurzelordner, den Kubernetes-Manifesten in `k8s/` und der
-Auslieferung in `ops/`. Wäre das das gemeinte Monorepo, stünde `apps/landing` neben einer Anwendung im Wurzelordner, und das
-Repo ist öffentlich, die Empfehlung aus Abschnitt 8 (keine Programmliste in ein öffentliches Repo) gälte dort also erst
-recht. Ein neues, privates Repo unter anderem Namen (zum Beispiel `dreambau-platform`) hielte beides auseinander. Die
-Entscheidung ist offen (Punkt 13).
+Auslieferung in `ops/`. `apps/landing` stünde also neben einer Anwendung im Wurzelordner; deren Lint, Tests, Build und
+Docker-Bau dürfen den neuen Ordner nicht miteinbeziehen oder stören. Ob und wie das gelingt, zeigt der Trockenlauf (Punkt 13);
+bis dahin bleibt die Landing im Fork.
 
 ```sh
 # 1) im Klon des Forks: nur den Landing-Ordner mit seiner Historie herauslösen
@@ -268,16 +270,21 @@ geprüft.
   man behebt beides am Schreibtisch. **Ohne sie:** Die Seite geht live, Besucher sehen auf dreambau.com ungestalteten Text
   ohne Animation, und man sucht unter Zeitdruck den Grund und rollt zurück.
 - **Vorgehen beim Veröffentlichen:** nicht per `rsync` (es gibt kein Webverzeichnis), sondern nach dem Muster in
-  `Storypapst/bildungshaus/ops/` (`deploy.py`, `rollback.py`): Release mit Prüfsummen, Sicherung des laufenden Zustands,
-  Trockenlauf gegen den Cluster, erst dann `--apply`, jederzeit zurückrollbar. Die Landing ist klein (36 bis 74 KB roh); ob
+  `Storypapst/bildungshaus/ops/` (`deploy.py`, `rollback.py`). Ohne `--apply` prüft das Skript nur lokal (Dateien, Größe,
+  Prüfsumme der `index.html`) und verbindet sich nicht mit dem Server. Mit `--apply` sichert es den laufenden Zustand, lädt
+  das Release hoch, prüft die Prüfsummen und die nginx-Syntax, macht Trockenläufe gegen den Cluster und aktualisiert erst bei
+  Erfolg den Pod; zurückgerollt wird mit `rollback.py`. Die Landing ist klein (36 bis 74 KB roh); ob
   sie in die ConfigMap `/site` passt (Grenze etwa 1 MiB) oder wie beim Bildungshaus als Release-Verzeichnis eingebunden
   wird, entscheidet die lokale Sitzung, die den Cluster sieht. Die heutige Startseite (`ops/README.md` nennt sie „apex
   phrase sequence") vorher sichern.
 - **Abnahme** (aus `ops/README.md`, ergänzt): Startseite öffnen, eine Animation sehen und hören; `/bildungshaus/`
   unverändert; Matrix-Discovery Byte für Byte unverändert; `/testmails`-Login 200 und die geschützte API 401; eine fehlende
   Datei ergibt 404 (kein HTML mit 200); `/bildungshaus` leitet auf `https://dreambau.com/bildungshaus/` ohne Port 8080 weiter.
-- **Neue Pfade** (`/impressum`, `/datenschutz`, `/work`) brauchen je eine Route in nginx (heute endet alles andere in
-  `location / { return 404; }`) und gegebenenfalls eine Ingress-Regel; das gehört in dieselbe Änderung.
+- **Neue Pfade** (`/impressum.html` und `/datenschutz.html` wie in Abschnitt 4.1, dazu `/work`) brauchen je eine Route in
+  nginx, die auf die Dateien in `site/` abbildet; heute endet alles andere in `location / { return 404; }`, gegebenenfalls
+  braucht es auch eine Ingress-Regel. Ohne neue Route ginge es nur über `/homepage-assets/impressum.html` (dieses Verzeichnis
+  liefert nginx schon aus), aber für Rechtstexte ist eine eigene Adresse besser. Die Fußzeilen-Links und die Routen müssen
+  zusammenpassen, sonst enden sie im 404. Das gehört in dieselbe Änderung.
 - Zugang: Die Cloud-Sitzung hat keinen Zugriff, die Schlüssel liegen lokal. Veröffentlicht wird erst nach deiner Freigabe.
 - Nach dem Livegang auf echten Geräten ansehen und anhören (iPhone/Safari, Android/Chrome, Firefox, ein älteres
   Notebook).

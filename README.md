@@ -41,15 +41,17 @@ Eine bestimmte Animation erzwingen: `http://localhost:8080/?anim=4k`, `?anim=16k
 
 ## Auf dreambau.com veröffentlichen
 
-Der Inhalt von **`site/`** ist die ganze Seite: statische Dateien, keine Serverlogik, kein Build auf dem Server.
+Die Startseite von dreambau.com kommt nicht aus einem normalen Webverzeichnis, sondern aus einem nginx-Pod im
+Kubernetes-Cluster, mit strenger Sicherheitsrichtlinie (keine Inline-Stile) und nur wenigen Routen. **`site/` so, wie es
+ist, und `dist/index.html` lassen sich dort nicht hochladen:** Es fehlen drei kleine Änderungen, sonst erscheint
+ungestalteter Text ohne Animation. Die Schritte, die Änderungen und die Abnahme stehen in
+[`docs/NEXT-STEPS.md`, Abschnitt 4.5](docs/NEXT-STEPS.md#45-veröffentlichen-auf-dreambaucom).
 
-1. Den Inhalt von `site/` (also `index.html`, `shell.js` und den Ordner `p/`) in das Webverzeichnis kopieren.
-2. Über **HTTPS** ausliefern (Browser sind dort bei Ton und Autoplay am großzügigsten).
-3. Optional, aber empfohlen: die Sicherheitsrichtlinie aus `tools/serve.mjs` (Variable `CSP`) als HTTP-Header setzen. Die Seite
-   funktioniert mit dieser strengen Richtlinie (geprüft) und kann damit gar nichts nachladen.
-
-Alternativ: `npm run bundle` erzeugt **eine einzige Datei** `dist/index.html` (alles eingebettet, rund 90 KB), praktisch für
-einen schnellen Upload oder eine Vorschau.
+Für eine Vorschau oder einen anderen Webserver ohne diese Regeln (nicht dreambau.com) gilt: Der Inhalt von **`site/`** (also
+`index.html`, `shell.js` und der Ordner `p/`) ist die ganze Seite, statische Dateien ohne Serverlogik. Über **HTTPS**
+ausliefern (Browser sind dort bei Ton und Autoplay am großzügigsten); lokal: `npm run serve`. `npm run bundle` erzeugt
+**eine einzige Datei** `dist/index.html` (alles eingebettet, rund 90 KB), praktisch für eine Vorschau. Die Richtlinie in
+`tools/serve.mjs` (Variable `CSP`) ist weniger streng als die der Startseite: Sie erlaubt Inline-Stile.
 
 ## Texte und Aussehen ändern
 
