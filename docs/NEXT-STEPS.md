@@ -6,32 +6,38 @@ außer was in Abschnitt 1 steht: der Rest ist Planung.
 
 ## 0. Entscheidungsstand (zum Abhaken)
 
-Stand nach dem Chat vom 2026-10-03. ✔ entschieden, ◐ teilweise, ○ offen. Es hat keine „grilling"-Fragerunde und keine
-Wayfinder-Runde stattgefunden. Die Rückfragen aus dem Chat stehen unten mit den Antworten, damit die erste Runde sie nicht
-wiederholt. Nichts ist veröffentlicht und nichts gemerged.
+Stand nach dem Chat vom 2026-10-03 (zweite Runde, Antworten des Nutzers eingearbeitet). ✔ entschieden, ◐ teilweise,
+○ offen. Es hat keine „grilling"-Fragerunde und keine Wayfinder-Runde stattgefunden. Die Rückfragen aus dem Chat stehen
+unten mit den Antworten, damit die erste lokale Runde sie nicht wiederholt. PR #1 ist gemerged (Punkt 1); auf dem Server
+ist nichts veröffentlicht.
 
-1. ○ PR #1 in `main` des Forks mergen? Keine Antwort. („Den Fork lassen wir da" betrifft nur die Rolle des Forks.)
-2. ○ „Jeht nich…" am Anfang groß (jetzt) oder klein schreiben (eine Zeile in `site/index.html`, Attribut `data-lines`)?
-   Keine Antwort.
-3. ◐ Schrift (Abschnitt 4.3): Entschieden ist, dass die heutige Schrift samt Wirkung nicht gefällt („Cheesy") und eine
-   andere kommt; der Stil soll sich als Fallback (ähnliche Systemschrift) herunterbrechen lassen. Screenshots von Jost,
-   Fraunces und Inter (heutige und ruhigere Wirkung) wurden gewünscht und gezeigt, neue Videos sind nicht nötig. Offen:
-   welche Schrift, und ob die Wirkung ruhiger wird. Empfehlung: Jost mit ruhiger Wirkung.
-4. ◐ „Esc" und „M" (Abschnitt 4.2): gewünscht ist, beide dezent zu beschriften (Überspringen-Knopf, Ton-Knopf). Offen: nur
-   mit Tastatur zeigen (Empfehlung) oder überall.
-5. ✔ Beschriftung des Login-Links: „Work" (Wunsch des Nutzers); im Work-Bereich gibt es kein Esc. Der Hinweis, dass „Work"
-   als „Referenzen" gelesen werden kann (Abschnitt 8), ist unbeantwortet.
-6. ◐ Sprachen (Abschnitt 7): Mechanismus entschieden: sinngemäße Übersetzung der Redewendung für die häufigsten Sprachen,
-   Auswahl nach Browsersprache, Rückfall Deutsch wie jetzt. Welche Sprachen genau: offen.
-7. ◐ Impressum (Abschnitt 11): genannt sind die Geschäftsführer Frank Gerhardt und Valery Suslov. Steuernummer, Finanzamt
-   und Gründungsdatum werden nicht verlangt und stehen nicht im Repo. Es fehlen: Firmenname mit Rechtsform, Anschrift, zweite
-   Kontaktmöglichkeit, Handelsregister mit Nummer, USt-IdNr., gegebenenfalls Kammer oder Aufsicht, Hoster. Sichtbarkeit offen:
-   Der Nutzer tendiert dazu, das Impressum nur in der Zeichen-Ansicht zu zeigen; die Empfehlung ist zusätzlich eine winzige,
-   sichtbare Zeile.
-8. ○ Liste der Programme und Domains für den Work-Bereich (Abschnitt 8): keine Liste. Bekannt: ein Invoice-Bereich und
-   viele weitere Programme auf dem Server, mehrere Domains, jedes mit eigenem Login.
+1. ✔ PR #1 wird in `main` des Forks gemerged („ja mergen", 2026-10-03). Zusammengeführt wird mit einem Merge-Commit, damit
+   die Einzelcommits bestehen bleiben, die `git subtree split` (Abschnitt 2) später mitnimmt.
+2. ✔ „Jeht nich…" bleibt am Anfang groß („passt wie es ist").
+3. ✔ Schrift und Wirkung (Abschnitt 4.3) bleiben vorerst, wie sie sind: keine der gezeigten Alternativen gefiel besser. Der
+   Nutzer verbessert sie später in der lokalen Sitzung; Abschnitt 4.3 bleibt dafür als Material stehen.
+4. ✔ „Esc" und „M" (Abschnitt 4.2): Die Tastenbeschriftung erscheint nur, wo es eine Tastatur gibt, nicht auf Smartphones.
+   Die Knöpfe selbst (Überspringen, Ton) sind dezente Pillen: Rand 1 px, Radius 24 px. Das ist meine Lesart der Antwort;
+   sollte die Pille nur die Tastenhinweise meinen, ändert sich nur das Stylesheet.
+5. ✔ Login-Link „Work"; im Work-Bereich gibt es kein Esc, dort stehen alle Programme (Abschnitt 8). Der Hinweis, dass „Work"
+   als „Referenzen" gelesen werden kann, ist unbeantwortet.
+6. ✔ Sprachen (Abschnitt 7): sinngemäße Übersetzung, Auswahl nach Browsersprache, Rückfall Deutsch, Umfang: die 40
+   meistgenutzten Sprachen. Offen: nach welcher Liste gezählt wird und wer die Übersetzungen gegenliest.
+7. ◐ Impressum (Abschnitt 11): genannt sind GS DESIGN GmbH, Kreuzbergstr. 30d in Berlin, Handelsregister HRB 154085,
+   USt-IdNr. DE310952039, die Geschäftsführer Frank Gerhardt und Valery Suslov sowie Hetzner (Falkenstein) als Hoster. Den
+   Rest („kannst du online finden") konnte die Cloud-Sitzung nicht prüfen: dreambau.com und northdata.de sind dort gesperrt,
+   die Suche fand die Firma nicht. Zu prüfen bleiben Postleitzahl, Registergericht samt Nummer mit Zusatz und eine zweite
+   Kontaktmöglichkeit. Steuernummer, Finanzamt und Gründungsdatum wurden ebenfalls genannt, stehen aber bewusst nicht im
+   Repo (keine Pflichtangabe, öffentliches Repo). Sichtbarkeit offen: Der Nutzer tendiert dazu, das Impressum nur in der
+   Zeichen-Ansicht zu zeigen; die Empfehlung ist zusätzlich eine winzige, sichtbare Zeile.
+8. ◐ Work-Bereich (Abschnitt 8): Die Programmliste wurde geliefert (21 Programme, 22 Adressen, jeweils mit Stand).
+   Entschieden: Programme, die gerade mit 503 antworten, werden nicht angezeigt, und zwar dynamisch, sie kehren also von
+   selbst zurück. Ich behandle 502, Zeitüberschreitung und „Verbindung abgelehnt" genauso, weil ein Link auf eine tote
+   Adresse niemandem hilft; bitte bestätigen. Die Liste selbst steht bewusst nicht in diesem öffentlichen Repo (Abschnitt 8).
+   Offen: ob die Liste öffentlich oder erst nach einem Login erscheint.
 9. ◐ Monorepo (Abschnitt 2): heißt „Dreambau" und enthält alle anderen Sachen; der Fork bleibt bestehen. Offen: genauer
-   GitHub-Pfad und Ordnernamen (Vorschlag `apps/landing`, `apps/work`, `apps/blog`).
+   GitHub-Pfad und Ordnernamen (Vorschlag `apps/landing`, `apps/work`, `apps/blog`). Empfehlung: privat anlegen, weil dort
+   die Programmliste und die Server-Skripte liegen sollen.
 
 ### Weitere Entscheidungen und Wünsche aus dem Chat
 
@@ -49,7 +55,7 @@ wiederholt. Nichts ist veröffentlicht und nichts gemerged.
 - **Zeichen-Ansicht (Abschnitt 5):** gewünscht, mit Größe, gemessener Ladezeit, Vergleichen als Quadrate (zum Beispiel
   „1 Sekunde Video", „durchschnittliches iPhone-Foto"), ruhigem Ende und als Fallback ohne WebGL2. Einzelheiten offen.
 - **Work-Bereich (Abschnitt 8):** Matrix-artiger, mutierender Zeichenstil, aber bunt statt grün, jede Zone mit eigener
-  Farbe; zuerst Mockups.
+  Farbe; zuerst Mockups. Programme, die nicht antworten (503), werden dynamisch ausgeblendet.
 - **Barrierefreiheit (Abschnitt 12):** Beschreibung für blinde Menschen, mehrsprachig, als Zusatz im Briefing.
 - **Beantwortet, ohne Entscheidung:** Verhalten auf älteren Geräten (Abschnitt 4.4), Hochformat und Drehen
   (Abschnitt 6; ein „fest verankertes Bild" wird nicht empfohlen).
@@ -58,14 +64,15 @@ wiederholt. Nichts ist veröffentlicht und nichts gemerged.
 
 | Frage der Cloud-Sitzung | Antwort des Nutzers |
 |---|---|
-| PR #1 in `main` mergen? | keine Antwort |
-| „Jeht nich…" groß oder klein? | keine Antwort |
-| „Esc" und „M" auch auf dem Handy oder nur mit Tastatur? | keine Antwort |
-| Ist der Login-Link „Intranet-Login" gemeint? | Er soll „Work" heißen |
-| Soll vorab ein Bild der drei Schriften gezeigt werden? | Ja, Screenshots genügen, keine neuen Videos |
-| Angaben für das Impressum? | teilweise (siehe Punkt 7) |
-| Wer hostet dreambau.com? | keine Antwort |
-| Liste der Programme und Domains für „Work"? | keine Antwort |
+| PR #1 in `main` mergen? | Ja, mergen |
+| „Jeht nich…" groß oder klein? | „Passt wie es ist", also groß |
+| „Esc" und „M" auch auf dem Handy oder nur mit Tastatur? | Nur mit Tastatur; Knöpfe als dezente Pille (1 px Rand, 24 px Radius) |
+| Ist der Login-Link „Intranet-Login" gemeint? | Er soll „Work" heißen; dort kein Esc, alle Programme |
+| Soll vorab ein Bild der drei Schriften gezeigt werden? | Ja, Screenshots genügen, keine neuen Videos; danach: Schrift bleibt, der Nutzer verbessert sie lokal |
+| Angaben für das Impressum? | Firma, Anschrift ohne Postleitzahl, Handelsregisternummer, USt-IdNr.; „den Rest online finden" (siehe Punkt 7) |
+| Wer hostet dreambau.com? | Hetzner, Falkenstein |
+| Liste der Programme und Domains für „Work"? | Geliefert (21 Programme); die mit 503 nicht anzeigen |
+| Welche Sprachen? | Die 40 meistgenutzten |
 | Soll Abschnitt 0 in „grilling"-Fragerunden durchgegangen werden? | keine Antwort; geplant ist Wayfinder lokal |
 | Angebot: einen Problem-Issue nachträglich anlegen, wenn Issues im Fork eingeschaltet werden | keine Antwort |
 
@@ -73,8 +80,9 @@ wiederholt. Nichts ist veröffentlicht und nichts gemerged.
 
 - **Repo:** https://github.com/Storypapst/morphdemo-benchmark (Fork, öffentlich), **Branch**
   `claude/dreambau-landing-animations-d2r0pj`, **Ordner** `dreambau-landing/`.
-- **Pull Request:** https://github.com/Storypapst/morphdemo-benchmark/pull/1 gegen `main`. Offen, keine Konflikte, alle
-  Review-Hinweise von Augment und CodeRabbit bearbeitet. Nichts ist gemerged.
+- **Pull Request:** https://github.com/Storypapst/morphdemo-benchmark/pull/1 gegen `main`, am 2026-10-03 freigegeben
+  und mit einem Merge-Commit gemerged. Keine Konflikte, alle Review-Hinweise von Augment und CodeRabbit bearbeitet. Ab
+  jetzt ist `main` der Stand; der Branch `claude/dreambau-landing-animations-d2r0pj` wird für Neues nicht mehr gebraucht.
 - **Inhalt:** die Seite (`site/`) mit drei Animationen, die bei jedem Laden zufällig gewählt werden: Rohbau (4k),
   Traumhaus (16k), Skyline (64k), dazu Laufzeit, Prüfwerkzeuge und Dokumentation. Alle Prüfungen sind bestanden
   (`verification/SUMMARY.md`). Geprüft wurde nur in Headless-Chromium mit Software-Rendering, nicht auf echten Geräten.
@@ -83,13 +91,15 @@ wiederholt. Nichts ist veröffentlicht und nichts gemerged.
 
 ## 2. Repo-Plan: Monorepo `dreambau`
 
-Der Fork bleibt, wie er ist (PR #1, Branch). Gearbeitet wird künftig im Monorepo; der Landing-Ordner wird dort als
-Unterordner eingehängt, mit Historie. Vorschlag für die Ordner: `apps/landing`, später `apps/work`, `apps/blog`.
+Der Fork bleibt, wie er ist (PR #1 ist gemerged, `main` enthält den Landing-Ordner). Gearbeitet wird künftig im Monorepo;
+der Landing-Ordner wird dort als Unterordner eingehängt, mit Historie. Vorschlag für die Ordner: `apps/landing`, später
+`apps/work`, `apps/blog`. Das Monorepo sollte privat sein: Die Programmliste des Work-Bereichs und die Server-Skripte
+(Abschnitt 8) gehören nicht in ein öffentliches Repo.
 
 ```sh
 # 1) im Klon des Forks: nur den Landing-Ordner mit seiner Historie herauslösen
 cd morphdemo-benchmark
-git checkout claude/dreambau-landing-animations-d2r0pj
+git checkout main && git pull
 git subtree split -P dreambau-landing -b dreambau-only
 # 2) im Monorepo: als Unterordner einhängen (--squash, wenn die Einzelcommits nicht mit hinein sollen)
 cd ../dreambau
@@ -135,12 +145,22 @@ Reihenfolge-Empfehlung: A bis zum Livegang (Abschnitt 4), dann B, dann die Pipel
 - Heute ist „Esc" am Überspringen-Knopf auf Geräten ohne Hover (Handy, Tablet) ausgeblendet
   (`@media (hover: none) { #skip kbd { display: none; } }` in `site/index.html`). „M" gibt es nur als Tooltip (`title`)
   und als `aria-keyshortcuts`.
-- Umsetzung: neben dem Ton-Symbol ein `<kbd>M</kbd>`, gestaltet wie `#skip kbd`. Entscheidung offen: nur mit Tastatur
-  zeigen (`(hover: hover) and (pointer: fine)`, Empfehlung) oder überall.
+- **Entschieden (2026-10-03):** Die Tastenbeschriftung („Esc", „M") erscheint nur, wo es eine Tastatur gibt, nicht auf
+  Smartphones. Die Knöpfe selbst sind dezente Pillen: Rand 1 px, Radius 24 px (heute hat `#snd` keinen Rand und 22 px
+  Radius, `#skip` ist ein reiner Text ohne Rand).
+- Umsetzung: neben dem Ton-Symbol ein `<kbd>M</kbd>`, gestaltet wie `#skip kbd`. Ein Stylesheet kann eine Tastatur nicht
+  erkennen; ein guter Ersatz ist `@media (any-hover: hover) and (any-pointer: fine)` (Maus oder Trackpad vorhanden),
+  zusätzlich die Hinweise einblenden, sobald zum ersten Mal eine Taste gedrückt wird (`keydown`), damit auch ein Tablet mit
+  Tastatur sie bekommt. Ausgangswerte für die Pille: `height: 44px; padding: 0 16px; border: 1px solid rgba(var(--fg), .28);
+  border-radius: 24px;`. Das Aussehen entscheidest du lokal.
 - `aria-label="Ton"` bleibt konstant, der Zustand läuft über `aria-checked`; die vorhandenen e2e-Prüfungen für Name,
   Rolle und Zustand müssen weiter bestehen. Im Work-Bereich gibt es kein Esc und keinen Überspringen-Knopf.
 
 ### 4.3 Schrift und ruhigere Wirkung
+
+**Entschieden (2026-10-03):** Schrift und Wirkung bleiben vorerst, wie sie sind. Keine der gezeigten Alternativen gefiel
+besser; der Nutzer verbessert sie später in der lokalen Sitzung. Der Rest dieses Abschnitts ist Material dafür, kein
+Auftrag.
 
 - **Was „Systemschrift" heißt:** Die Seite lädt heute keine Schriftdatei, sondern zeichnet den Schriftzug mit der Schrift,
   die das Gerät des Besuchers schon mitbringt (iPhone: Helvetica Neue oder San Francisco, Windows: Segoe UI, Android:
@@ -155,7 +175,7 @@ Reihenfolge-Empfehlung: A bis zum Livegang (Abschnitt 4), dann B, dann die Pipel
   Fraunces (warme Serifenschrift), Inter (neutral), jeweils mit der heutigen Wirkung und mit ruhigerer Wirkung. Die
   heutige Wirkung (cremefarbene Füllung, dunkler Schatten und Hof um die Buchstaben, warmer Schein, durchlaufender Glanz)
   trägt viel zum „Cheesy"-Eindruck bei. Ruhiger heißt: Schatten stark verringern, warmen Schein und Glanz weglassen,
-  Füllung fast weiß. Meine Empfehlung: **Jost mit ruhiger Wirkung**.
+  Füllung fast weiß. Meine Empfehlung war **Jost mit ruhiger Wirkung**; sie wurde nicht übernommen.
 - **Fallback-Kette:** Die eingebettete Schrift steht vorn, danach eine ähnlich wirkende Systemschrift, damit es bei einem
   Ladefehler nicht auffällt. Für Jost (Futura-artig): `"DreamBau", "Futura", "Avenir Next", "Century Gothic", "Trebuchet MS",
   sans-serif`. Für Fraunces: `"DreamBau", "Georgia", serif`. Für Inter: `"DreamBau", system-ui, sans-serif`.
@@ -249,31 +269,90 @@ normaler Text. Eine 24-KB-Animation sind rund 24.000 Zeichen, die man wirklich a
 - **Übersetzen:** sinngemäß, nicht wörtlich: „Jeht nich… jibs nich…" ist Berliner Dialekt. Entweder den Sinn übersetzen
   („Can't be done? Doesn't exist.") oder das Original behalten und eine kleine Übersetzung darunter setzen. Entwürfe kann
   Claude schreiben, Muttersprachler sollten sie ansehen.
-- **Welche zuerst:** Vorschlag Englisch plus die Sprachen deiner Zielgruppe (zum Beispiel Türkisch, Russisch,
-  Ukrainisch, Polnisch). Arabisch braucht zusätzlich ein Rechts-nach-links-Layout.
-- **Schrift:** Die eingebettete Teilmenge muss die Zeichen der Sprache enthalten (Latein mit Umlauten klein, Kyrillisch und
-  Griechisch größer, Arabisch und Chinesisch nur über Systemschriften).
+- **Umfang (entschieden 2026-10-03):** die 40 meistgenutzten Sprachen. Offen ist, wonach gezählt wird. Vorschlag: nach der
+  weltweiten Sprecherzahl (Mutter- und Zweitsprache), zusammengefasst auf Schriftsprachen mit eigenem Browser-Sprachcode
+  (zum Beispiel zählt „Ägyptisches Arabisch" zu `ar`), sonst stünden Dialekte ohne eigene Schreibweise in der Liste. Welche
+  Sprachen die Besucher von dreambau.com tatsächlich sprechen, lässt sich ohne Tracking nicht messen; Türkisch, Russisch,
+  Ukrainisch und Polnisch kamen im Gespräch vor und sollten dabei sein, auch wenn eine davon nicht unter den ersten 40
+  steht.
+- **Ladezeit:** Jede Sprache liegt in einer eigenen kleinen Datei (`i18n/<code>.js`, geschätzt 1 bis 4 KB), als Skript
+  geladen wie `p/<id>.js`; dann bleibt die Sicherheitsrichtlinie (`connect-src 'none'`) unverändert. Geladen wird nur die
+  gewählte Sprache plus der deutsche Rückfall, die Seite wächst also nicht mit der Zahl der Sprachen.
+- **Schriftsysteme:** Die eingebettete Schrift (Abschnitt 4.3) deckt nur Latein mit Umlauten ab. Bei 40 Sprachen kommen
+  kyrillisch, griechisch, arabisch, Devanagari, bengalisch, tamilisch, Telugu, Kannada, Malayalam, Thai, koreanisch,
+  japanisch, chinesisch, äthiopisch und weitere dazu. Für jedes eine Teilmenge einzubetten ließe die Seite um Hunderte KB
+  wachsen. Stattdessen zeichnet die Zeichenfläche diese Sprachen mit den Systemschriften des Geräts (der Browser wählt je
+  Zeichen eine passende Schrift, die Liste `fam` bleibt unverändert). Folge: Der Schriftzug sieht dort je Gerät etwas
+  anders aus; `dreambau.com` bleibt in allen Sprachen lateinisch.
+- **Rechts-nach-links:** Arabisch, Urdu und Persisch brauchen `dir="rtl"` am `<html>`-Element; zu prüfen ist, ob die Zeile
+  mit dem lateinischen `dreambau.com` richtig steht (gemischte Schreibrichtung). Die Knöpfe dürfen an ihrem Platz
+  bleiben. Weil der Text als Ganzes in eine Textur gezeichnet wird, bleiben verbundene Schriften beim Zeichnen heil; zu
+  prüfen ist, dass kein Effekt Buchstaben einzeln auftauchen lässt.
+- **Gegenlesen:** Entwürfe schreibt Claude, aber eine Redewendung wie „Jeht nich… jibs nich…" kann in einer anderen Sprache
+  ungewollt anders klingen (zu förmlich, zu derb, unfreiwillig komisch). Deshalb pro Sprache ein Feld `reviewed` im
+  Wörterbuch; die Auswahl nach Browsersprache nimmt nur Sprachen, die ein Muttersprachler gelesen hat, alle anderen fallen
+  auf Deutsch zurück. So kann man alle 40 Entwürfe bereithalten und eine Sprache nach der anderen freischalten.
 - **Rechtstexte** bleiben deutsch, eine englische Fassung ist optional.
-- **Prüfung:** neue Prüfung in `verify.mjs`: jede Sprache hat alle Texte und passt in die Breite (Kontrast und Zeilenbruch).
-- Aufwand: Deutsch und Englisch etwa ein bis zwei Stunden, jede weitere Sprache in lateinischer Schrift danach nur noch
-  die Texte.
+- **Prüfung:** neue Prüfung in `verify.mjs`: jede Sprache hat alle Texte und passt in die Breite (Kontrast und Zeilenbruch,
+  auch im schmalen Hochformat). Im Render-Rechner der Cloud-Sitzung sind nur wenige Schriften installiert, die Schriftsysteme
+  lassen sich dort nicht beurteilen; lokal mit installierten Noto-Schriften oder auf echten Geräten ansehen.
+- Aufwand (geschätzt): der Mechanismus mit Deutsch und Englisch etwa ein bis zwei Stunden. Für 40 Sprachen kommen die
+  Entwürfe (in einem Durchgang), rechts-nach-links und die Schriftsysteme (etwa ein halber Tag) und das Gegenlesen hinzu;
+  Letzteres hängt an den Muttersprachlern, nicht an der Technik.
 
 ## 8. Work-Bereich
 
-- **Zweck:** Einstieg zu den internen Programmen (Invoice-Bereich und viele weitere auf dem Server), über mehrere Domains,
-  jeder Bereich mit eigenem Login. Der Link auf der Landing heißt „Work". Hinweis: „Work" kann in der Baubranche als
-  „unsere Arbeiten" (Referenzen) gelesen werden. Alternativen: „Team-Login" oder „Work · Login".
-- **Verhalten:** kein Esc und kein Überspringen, weil es keine Intro-Animation ist; man klickt hinein und sieht die
-  Bereiche.
+- **Zweck:** Einstieg zu den internen Programmen (Liste vom 2026-10-03: 21 Programme unter 22 Adressen auf mehreren
+  Domains, jedes mit eigenem Login). Der Link auf der Landing heißt „Work" (entschieden). Hinweis: „Work" kann in der
+  Baubranche als „unsere Arbeiten" (Referenzen) gelesen werden. Alternativen: „Team-Login" oder „Work · Login".
+- **Verhalten (entschieden):** kein Esc und kein Überspringen, weil es keine Intro-Animation ist; man klickt hinein und
+  sieht die Programme.
 - **Stil:** futuristisch, mutierende Zeichen (Matrix-artig), aber bunt statt grün, jede Zone mit eigener Farbe.
   Erst Mockups (statische Bilder), dann ein Prototyp mit Testdaten; die Zeichenwelt aus Abschnitt 5 lässt sich
   wiederverwenden.
-- **Daten:** Die Liste der Bereiche (Name, Domain, Farbe) liegt in einer Konfigurationsdatei, nicht im Code. Test: jede
-  Kachel zeigt auf eine erreichbare Adresse.
-- **Sicherheit:** Eine öffentlich sichtbare Liste verrät die Namen der internen Programme und ihre Domains. Entscheidung:
-  nur Namen und Links (ausreichend, wenn jedes Programm sein eigenes Login hat) oder die Liste erst nach einem gemeinsamen
-  Login zeigen (später möglich).
-- **Offen:** Liste der Programme und Domains, Farbwünsche.
+- **Nicht erreichbare Programme ausblenden (entschieden: 503 nicht anzeigen, dynamisch).**
+  *Problem:* Als die Liste geliefert wurde, antworteten mehrere der 21 Programme nicht (503, 502, Verbindung abgelehnt).
+  Eine feste Kachel pro Programm führt dann auf eine Fehlerseite, und wer sie anklickt, hält es für einen Fehler der
+  Work-Seite.
+  *Warum nicht im Browser:* Eine Seite kann den Statuscode einer fremden Adresse nicht lesen (Browser-Regel CORS), und die
+  Sicherheitsrichtlinie der Startseite (`connect-src 'none'`) verbietet Abfragen ohnehin. Deshalb prüft der Server:
+  1. Ein kleines Skript auf dem Server (Shell oder Node, bewusst ohne n8n, damit es nicht von den Programmen abhängt, die es
+     prüft) liest die private Liste `programs.json`, ruft jede Adresse mit Zeitlimit ab
+     (`curl -s -o /dev/null -m 5 -w '%{http_code}' URL`) und läuft jede Minute (systemd-Timer oder Cron).
+  2. „Erreichbar" heißt: irgendeine HTTP-Antwort unter 500, also auch 301, 302, 401 und 403. Viele Programme antworten ohne
+     Login mit einer Weiterleitung oder 401; wer nur 200 gelten ließe, blendete fast alle aus. Als „nicht erreichbar"
+     gelten 5xx (503 wie gewünscht, ebenso 502 und 504), Zeitüberschreitung und Verbindungsfehler (die beiden letzten und
+     502 nach Bestätigung).
+  3. Das Skript schreibt `work/list.json` ins Webverzeichnis, **nur mit den erreichbaren Programmen** (Name, Adresse, Farbe).
+     Ausgefallene Programme stehen gar nicht in der öffentlichen Datei, sie verrät also auch nicht, was gerade ausgefallen
+     ist.
+  4. Die Work-Seite lädt `list.json` (gleiche Herkunft; `connect-src 'self'` nur für diese Seite) und zeichnet die Kacheln.
+  5. Gegen Flackern: erst nach zwei Fehlschlägen hintereinander ausblenden, ein Erfolg blendet sofort wieder ein.
+  6. Fehlt `list.json` oder ist sie älter als etwa 15 Minuten (das Skript ist ausgefallen): lieber alle Programme ohne
+     Status zeigen als eine leere Seite, mit kleinem Hinweis „Status unbekannt".
+
+  *Beispiel mit diesem Ansatz:* Montag 9:02 öffnet jemand „Work"; die Datei ist 40 Sekunden alt und enthält nur die
+  Programme, die gerade antworten. Um 9:10 startet jemand einen gestoppten Container neu, ab der nächsten Minute steht
+  dessen Kachel wieder da, ohne dass jemand die Work-Seite anfasst. *Ohne ihn:* Die Kacheln stehen fest im Code oder in
+  einer Konfiguration. Bei jedem Ausfall und jeder Rückkehr müsste jemand die Liste von Hand ändern und neu
+  veröffentlichen, sonst führen Kacheln ins Leere oder fehlen, obwohl das Programm längst läuft.
+- **Test:** `list.json` aus einer Testliste mit einer Adresse erzeugen, die 503 liefert, und prüfen, dass genau diese fehlt
+  und nach der Reparatur wieder da ist; die Work-Seite ohne `list.json` zeigt den Hinweis statt einer leeren Seite.
+- **Die Programmliste steht nicht in diesem öffentlichen Repo.** `programs.json` (Felder: `id`, `name`, `url`, `color`,
+  `zone`, optional `probe` für eine andere Prüfadresse und `admin: true` für Verwaltungsoberflächen) liegt im privaten
+  Monorepo oder nur auf dem Server; hier gehört nur eine `programs.example.json` mit erfundenen Einträgen hin. Grund: Eine
+  vollständige Liste mit Adressen und Zweck (darunter Oberflächen für Passwörter und Secrets, Container, Mailserver und
+  Speicher) ist für einen Angreifer eine fertige Zielliste, und in einem öffentlichen Repo bleibt sie in der
+  Git-Historie, auch wenn man sie später löscht. Die Tabelle vom 2026-10-03 hat der Nutzer; sie wird lokal in die private
+  Datei übernommen.
+- **Öffentlich oder nach Login (offen):** Eine öffentlich sichtbare Liste verrät die Namen der internen Programme und ihre
+  Domains. „Nur Namen und Links" genügt, wenn jedes Programm sein eigenes Login hat; die Domains lassen sich oft ohnehin
+  über öffentliche Zertifikatsverzeichnisse finden. Empfehlung: Verwaltungsoberflächen (Passwort- und Secret-Tresor,
+  Container-, Mail- und Speicherverwaltung, Server-Panel) mit `admin: true` markieren und nicht öffentlich verlinken, sondern
+  erst nach einem gemeinsamen Login zeigen (später möglich). Im Alltag ändert das wenig, weil Kollegen diese Adressen ohnehin
+  als Lesezeichen haben.
+- **Offen:** Farbwünsche; öffentliche Liste oder nach Login; ob 502, Zeitüberschreitung und „Verbindung abgelehnt" wie 503
+  ausgeblendet werden (Empfehlung: ja).
 
 ## 9. Pipeline für weitere Animationen
 
@@ -299,7 +378,9 @@ normaler Text. Eine 24-KB-Animation sind rund 24.000 Zeichen, die man wirklich a
   Antworten einen Webhook auslösen (Ereignisse `responseCreated`, `responseUpdated`, `responseFinished`; nicht selbst
   getestet). Ein kleiner Vermittler (n8n, falls vorhanden, oder ein kurzes Skript auf deinem Server) nimmt den Webhook
   entgegen und legt daraus ein GitHub-Issue an, die Antworten werden in den Prompt eingesetzt. Damit entfällt ein eigenes
-  Formular. Quellen: https://formbricks.com/docs/surveys/best-practices/headless-surveys und
+  Formular. Stand der Programmliste vom 2026-10-03: Formbricks und n8n waren nicht erreichbar (bei Formbricks war der
+  Container gestoppt). Das ist vor der Pipeline-Arbeit zu klären, und solange n8n nicht stabil läuft, ist ein kurzes
+  Skript als Vermittler robuster. Quellen: https://formbricks.com/docs/surveys/best-practices/headless-surveys und
   https://themenonlab.blog/blog/formbricks-open-source-typeform-qualtrics-alternative
 - **Trennung der Rechte:** Der Bau-Agent sieht keine Zugangsdaten. Das Veröffentlichen macht ein GitHub-Workflow mit einem
   eigenen, eingeschränkten Deploy-Schlüssel als Secret, ohne `--delete` und ohne `/testmails` anzufassen. Das ist der
@@ -320,15 +401,23 @@ normaler Text. Eine 24-KB-Animation sind rund 24.000 Zeichen, die man wirklich a
   automatische Veröffentlichung.
 - Zu klären in der Spezifikation: Sprachen, Technik (statischer Generator wie Astro oder Eleventy im Monorepo), Aussehen,
   Felder des Formulars, Umgang mit Quellen (Videolinks, Zitate).
+- Rechtlich: Bei redaktionellen Beiträgen kann zusätzlich ein „Verantwortlicher" mit Name und Anschrift im Impressum nötig
+  werden (§ 18 Abs. 2 Medienstaatsvertrag, gilt für journalistisch-redaktionelle Angebote; ob ein Firmenblog darunter fällt,
+  ist Auslegungssache). Keine Rechtsberatung; vor dem ersten Beitrag bei IHK oder Anwalt klären.
 
 ## 11. Impressum und Datenschutz
 
-**Genannt:** Geschäftsführer Frank Gerhardt und Valery Suslov.
+**Genannt (Stand 2026-10-03):** GS DESIGN GmbH, Kreuzbergstr. 30d, Berlin; Handelsregister HRB 154085; USt-IdNr.
+DE310952039; Geschäftsführer Frank Gerhardt und Valery Suslov; Hoster Hetzner, Rechenzentrum Falkenstein. Diese Angaben
+müssen ohnehin im Impressum stehen (§ 5 DDG), sind also kein Geheimnis.
 
-**Noch nötig für das Impressum:** genauer Firmenname mit Rechtsform, Anschrift, eine zweite schnelle Kontaktmöglichkeit
-neben info@dreambau.com (zum Beispiel Telefon), Handelsregister mit Gericht und Nummer, USt-IdNr. (falls vorhanden),
-Kammer oder Aufsichtsbehörde (falls zutreffend). Steuernummer, zuständiges Finanzamt und Gründungsdatum werden dafür
-nicht verlangt und gehören nicht in diese Datei oder das öffentliche Repo.
+**Noch zu prüfen und zu ergänzen (aus der Cloud-Sitzung nicht überprüfbar, bitte mit dem Handelsregisterauszug
+abgleichen):** Postleitzahl; Registergericht und Nummer in der Schreibweise des Auszugs (für Berlin üblicherweise Amtsgericht
+Charlottenburg, die Nummer trägt dort häufig den Zusatz „B", also „HRB 154085 B"); eine zweite schnelle Kontaktmöglichkeit
+neben info@dreambau.com (Telefon oder ein Kontaktformular, zum Beispiel über Formbricks); Kammer oder Aufsichtsbehörde
+(falls zutreffend). Steuernummer, zuständiges Finanzamt und Gründungsdatum werden für das Impressum nicht verlangt und
+gehören nicht in diese Datei oder das öffentliche Repo; sie wurden im Chat genannt und bewusst nicht übernommen. Beim Bau
+der Seite fehlende Angaben als sichtbare Platzhalter eintragen, nichts erfinden.
 
 **Sichtbarkeit (meine Einschätzung, keine Rechtsberatung):** § 5 DDG verlangt, dass das Impressum „leicht erkennbar,
 unmittelbar erreichbar und ständig verfügbar" ist. Üblich ist die Zwei-Klick-Regel, und der Link muss seiner Bezeichnung
@@ -346,9 +435,13 @@ Entscheidung bleibt bei dir; im Zweifel eine kurze Auskunft bei der IHK oder ein
 - Keine Cookies, kein Tracking, keine externen Anfragen (die e2e-Prüfung „no network request leaves the page" belegt das).
 - Ein Eintrag `dreambau.sound` im `localStorage` merkt sich „Ton aus". Er bleibt im Browser des Besuchers und wird nicht
   übertragen.
-- Der Server des Hosters protokolliert in der Regel IP-Adresse, Zeit und aufgerufene Datei. Dazu fehlen noch: Name des
-  Hosters, ob ein CDN oder Cloudflare davor sitzt, Speicherdauer der Protokolle.
-- Kontakt per E-Mail (`mailto:`): Daten entstehen erst, wenn jemand schreibt.
+- Hoster ist Hetzner (Rechenzentrum Falkenstein; Hetzner Online GmbH, Industriestr. 25, 91710 Gunzenhausen, nach
+  https://www.hetzner.com/de/legal/impressum/). Der Webserver protokolliert in der Regel IP-Adresse, Zeit und aufgerufene
+  Datei. Hetzner bietet im Kundenkonto einen Auftragsverarbeitungsvertrag an
+  (https://www.hetzner.com/de/legal/data-processing); üblicherweise schließt man ihn ab, bitte prüfen, ob das schon
+  geschehen ist. Noch offen: ob ein CDN oder Cloudflare davor sitzt, Speicherdauer der Protokolle.
+- Kontakt per E-Mail (`mailto:`): Daten entstehen erst, wenn jemand schreibt; die Mails liegen dann auf dem eigenen
+  Mailserver bei Hetzner. In der Erklärung Zweck, Speicherdauer und Rechtsgrundlage nennen.
 - Der Work-Bereich ist ein eigener Bereich. Die Verarbeitung von Mitarbeiterdaten dort gehört in dessen eigene
   Datenschutzhinweise.
 
@@ -383,8 +476,11 @@ PAGE=dist/index.html node tools/e2e.mjs all    # dasselbe gegen die Einzeldatei 
 
 ```
 Lies dreambau-landing/docs/NEXT-STEPS.md (im Monorepo: apps/landing/docs/NEXT-STEPS.md). Fange mit Abschnitt 0 an und
-frage mich die offenen Entscheidungen ab. Setze dann Abschnitt 4 um (Fußzeile, Tastenhinweise, Schrift, Absicherung für
-ältere Geräte) auf dem Branch claude/dreambau-landing-animations-d2r0pj. Halte npm run build und npm run verify ein. Schreibe
-keine Steuernummer ins Repo. Veröffentliche nichts auf dem Server ohne meine Freigabe. Für die Abschnitte 5 bis 10 zuerst
-eine Spezifikation und Mockups, noch kein Code.
+frage mich nur die offenen Punkte ab. Setze dann Abschnitt 4 um (Fußzeile mit Impressum, Datenschutz und Work,
+Tastenhinweise als dezente Pillen, Absicherung für ältere Geräte); die Schrift verbessere ich selbst. Arbeite auf einem
+neuen Branch: im Fork von main aus (PR #1 ist gemerged, der alte Branch wird nicht wiederverwendet), im Monorepo ab
+feat/landing-import. Fehlende Impressumsangaben (Abschnitt 11) als sichtbare Platzhalter eintragen, nichts erfinden.
+Halte npm run build und npm run verify ein. Schreibe keine Steuernummer und keine Programmliste mit Adressen in ein
+öffentliches Repo. Veröffentliche nichts auf dem Server ohne meine Freigabe. Für die Abschnitte 5 bis 10 zuerst eine
+Spezifikation und Mockups, noch kein Code.
 ```
