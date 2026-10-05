@@ -16,6 +16,13 @@ events. The three lines are provided by the runtime as distance fields (`tdist`)
 `docs/CONTRACT.md`. Afterwards the page itself adds the small closing line `info@dreambau.com (nich warten, quatschen)` at the
 bottom: keep the bottom 12 % of the final composition calm and dark.
 
+**Translations.** The page will be offered in many languages, not only German. The three lines and the closing line come from the
+runtime, not from the production. If your production shows or says anything else, list each such text in `REPORT.md` under
+"Texts". Every new text, and the blind description of the animation (`docs/NEXT-STEPS.md` §12), must exist as a draft in every
+language of the language list (§7) before the production is released. Translations live in their own language files and do
+not count against the size budget of the production. A language goes live one at a time, after a native speaker has read it;
+until then visitors get German.
+
 **Tone.** Confident, warm, a little humorous, never kitschy. This is a company's front door, not a tech demo reel: no plasma,
 no rotozoomers, no lens-flare spam, no stock "matrix" rain. Real craft in the details: timing, easing, restraint, colour.
 
@@ -37,6 +44,7 @@ each on a musical event; the final composition is stable and legible from `fin`,
 - [ ] `node tools/bench.mjs <id>`: worst frame ≤ ~150 ms at 640x360 in software GL.
 - [ ] `node tools/e2e.mjs <id>` passes.
 - [ ] No console errors or warnings from the page.
+- [ ] `REPORT.md` has a "Texts" section: every text the production shows or says beyond the three lines and the closing line (or "none"), so that it can be translated.
 - [ ] `verification/<id>/REPORT.md` written: what you built (2-3 sentences), timeline table (time, picture, sound), the sync points, measured size/budget, bench numbers, known weaknesses.
 
 Edit **only** `src/p/<id>.js` and write only below `verification/<id>/`. Never run `node tools/build.mjs` without an id.
