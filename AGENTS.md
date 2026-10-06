@@ -43,3 +43,9 @@ npm run build
 Run live E2E only with credentials sourced from the operator Keychain. In
 particular, resolve `TESTMAILS_E2E_PASSWORD` at runtime rather than placing its
 value in a command literal, file, log or chat.
+
+## Website work under apps/
+
+Before changing any file under `apps/`, read `apps/AGENTS.md` and
+`docs/website/HANDOVER.md`. The website mockups and specifications set the
+design; do not introduce independent styling or invented content.
