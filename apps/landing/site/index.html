@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -22,6 +22,8 @@ body { font: 400 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helveti
 
 /* The tagline lives in the canvas; this copy is for screen readers, search engines and the no-WebGL fallback. */
 .sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* #blind: hidden like .sr, but no .sr (the static page enlarges that) */
+.blind { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 button:focus-visible, a:focus-visible { outline: 2px solid rgba(var(--fg), .9); outline-offset: 3px; border-radius: 4px; }
@@ -106,22 +108,32 @@ html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06
 <div id="dip"></div>
 
 <!-- data-lines: the three beats drawn in the animation, separated by | -->
-<h1 class="sr" id="tag" data-lines="Jeht nich…|jibs nich…|dreambau.com"><span>Jeht nich…</span> <span>jibs nich…</span> <span>dreambau.com</span></h1>
+<h1 class="sr" id="tag" data-lines="Jeht nich…|jibs nich…|dreambau.com" aria-describedby="blind"><span>Jeht nich…</span> <span>jibs nich…</span> <span>dreambau.com</span></h1>
+<p id="blind" class="blind" data-i18n="blind.{anim}"></p>
 
-<button id="snd" type="button" role="switch" aria-checked="true" data-state="wait" aria-label="Ton" aria-keyshortcuts="M" title="Ton aus (M)">
+<button id="snd" type="button" role="switch" aria-checked="true" data-state="wait" aria-label="Ton" data-i18n-attr="aria-label:snd.aria" aria-keyshortcuts="M" title="Ton aus (M)">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M4 9.5v5h3.6L12.5 19V5L7.6 9.5z" fill="currentColor" stroke="none"/>
     <path class="w" d="M15.8 9.2a4 4 0 0 1 0 5.6"/>
     <path class="w" d="M18.4 6.6a7.7 7.7 0 0 1 0 10.8"/>
     <path class="x" d="M16 9.6l5 4.8M21 9.6l-5 4.8"/>
   </svg>
-  <span class="lbl" aria-hidden="true">Ton an</span>
+  <span class="lbl" aria-hidden="true" data-i18n="snd.on_label">Ton an</span>
 </button>
-<button id="skip" type="button" aria-keyshortcuts="Escape"><kbd aria-hidden="true">Esc</kbd><span>überspringen</span></button>
-<button id="play" type="button">Animation abspielen</button>
+<button id="skip" type="button" aria-keyshortcuts="Escape"><kbd aria-hidden="true">Esc</kbd><span data-i18n="skip.label">überspringen</span></button>
+<button id="play" type="button" data-i18n="play.label">Animation abspielen</button>
 
-<p id="cta"><a href="mailto:info@dreambau.com">info@dreambau.com</a> <span>(nich warten, quatschen)</span></p>
+<p id="cta"><a href="mailto:info@dreambau.com" dir="ltr">info@dreambau.com</a> <span class="words" data-i18n="cta.words">(nich warten, quatschen)</span>
+  <span class="sw" hidden>
+    <span class="dot" aria-hidden="true">·</span>
+    <button id="lang" type="button" aria-haspopup="dialog" aria-expanded="false" data-i18n-attr="aria-label:lang.aria" aria-label="DE: Sprache wählen (aktuell: Deutsch)">
+      <span class="code">DE</span><i class="tri" aria-hidden="true"></i>
+    </button>
+  </span>
+</p>
 
+<script src="i18n.js"></script>
+<script src="i18n/index.js"></script>
 <script src="shell.js"></script>
 </body>
 </html>

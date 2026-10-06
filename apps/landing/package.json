@@ -12,7 +12,9 @@
     "bundle": "node tools/bundle.mjs",
     "build:apex": "node tools/build-apex.mjs",
     "check:apex": "node tools/apex-check.mjs",
-    "e2e": "node tools/e2e.mjs all"
+    "e2e": "node tools/e2e.mjs all",
+    "e2e:lang": "node tools/e2e-lang.mjs",
+    "test:languages": "node --test tools/lang-tests/*.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
