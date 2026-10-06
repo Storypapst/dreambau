@@ -43,3 +43,8 @@ npm run build
 Run live E2E only with credentials sourced from the operator Keychain. In
 particular, resolve `TESTMAILS_E2E_PASSWORD` at runtime rather than placing its
 value in a command literal, file, log or chat.
+
+## GitHub issue tracking
+
+Use `Storypapst/dreambau` for Dreambau issues. Always apply the `Testmails`
+label to issues and pull requests about Testmails accounts, access, or daily use.
