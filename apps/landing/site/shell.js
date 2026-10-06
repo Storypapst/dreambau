@@ -16,7 +16,7 @@ const D = (window.Dream = window.Dream || {});
 D.ids = ['4k', '16k', '64k'];
 D.prods = D.prods || {};                          // a single-file build registers the productions before the runtime runs
 D.add = def => { D.prods[def.id] = def; };
-D.state = { id: null, T: 0, audio: 'idle', muted: false, mode: 'boot', error: null, scale: 1, fps: 0 };
+D.state = Object.assign(D.state || {}, { id: null, T: 0, audio: 'idle', muted: false, mode: 'boot', error: null, scale: 1, fps: 0, lang: 'de', langSource: 'fallback', langFallback: '', ...D.state });   // the object that i18n.js writes into stays
 
 const ER = 100;                                   // audio-energy envelope rate (values per second)
 const SR = 44100;                                 // sample rate of the generated music
@@ -707,6 +707,7 @@ async function boot() {
     def = await loadProduction(id);
     def.fin = def.fin || def.dur - 6; def.cta = def.cta || def.fin + 1.5;
     if (!reduced) startAudioJob();                // renders on other threads while the picture is set up
+    await (D.i18n && D.i18n.ready);               // the first tagline is drawn in the page's language (at most 3 s)
     maxPx = def.px || 2.4e6;
     if (Q.has('px')) maxPx = +Q.get('px');
     if (Q.has('q')) scale = clamp(+Q.get('q') || 1, .1, 1);

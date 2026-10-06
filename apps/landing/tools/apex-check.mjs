@@ -11,13 +11,11 @@
 // Checks: "/" and every file of the build come back with the bytes of dist/apex.json; a file that does not exist is a 404 and
 // not the start page with a 200; each production reaches "ready" without a console error, a failed request, a policy violation or the
 // static fallback. Screenshots go to dist/apex-check/ for a look with your own eyes.
-import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ROOT, launch, parseArgs, mkdir } from './lib.mjs';
+import { ROOT, launch, parseArgs, mkdir, serveBuild } from './lib.mjs';
 
-const APEX_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'";
 const a = parseArgs(process.argv.slice(2));
 const dir = path.resolve(ROOT, typeof a.dir === 'string' ? a.dir : 'dist/apex');
 const manifestFile = dir + '.json';
@@ -30,29 +28,8 @@ const sha = buf => crypto.createHash('sha256').update(buf).digest('hex');
 let failed = 0;
 const check = (name, ok, detail = '') => { if (!ok) failed++; console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name}${!ok && detail ? '  (' + detail + ')' : ''}`); };
 
-// --- a stand-in for the start page
-function serve() {
-  const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
-  const send = (res, code, body, type = 'text/plain') => res.writeHead(code, {
-    'content-type': type, 'content-security-policy': APEX_CSP, 'x-content-type-options': 'nosniff', 'cache-control': 'no-store',
-  }).end(body);
-  const server = http.createServer((req, res) => {
-    let p;
-    try { p = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch (e) { return send(res, 400, 'bad request'); }
-    if (p === '/health') return send(res, 200, 'ok');
-    let file = null;
-    if (p === '/') file = path.join(dir, 'index.html');
-    else if (p.startsWith(prefix)) file = path.join(dir, p.slice(prefix.length));
-    if (!file) return send(res, 404, 'not found');
-    const rel = path.relative(dir, file);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) return send(res, 404, 'not found');
-    fs.readFile(file, (err, data) => err ? send(res, 404, 'not found') : send(res, 200, data, types[path.extname(file)] || 'application/octet-stream'));
-  });
-  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve({ server, base: `http://127.0.0.1:${server.address().port}` })));
-}
-
 const external = !!process.env.BASE_URL;
-const local = external ? null : await serve();
+const local = external ? null : await serveBuild({ dir, prefix });      // the stand-in for the start page (tools/lib.mjs): the live headers and types
 const base = external ? process.env.BASE_URL.replace(/\/$/, '') : local.base;
 console.log(`apex-check: ${base}  assets ${prefix}  productions ${ids.join(', ')}${external ? '' : '  (local stand-in for the start page)'}`);
 
