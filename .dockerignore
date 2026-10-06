@@ -1,5 +1,5 @@
 .git
-node_modules
+**/node_modules
 dist
 # `tests` is intentionally not ignored: the verify stage copies it. The shipped
 # runtime image never does, so this only widens the build context.

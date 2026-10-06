@@ -1,0 +1,17 @@
+node_modules/
+.DS_Store
+*.log
+
+# build helper for the runtime tests, not shipped
+site/p/test.js
+
+# verification: keep the readable evidence (reports, contact sheets, spectrograms, final frames), not the bulk
+verification/test/
+verification/**/tmp/
+verification/**/review*/
+verification/**/*.wav
+verification/**/*.mp4
+verification/*/frames/t_*.png
+
+# built for the start page of dreambau.com (npm run build:apex) and its check output
+dist/

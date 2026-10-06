@@ -1,0 +1,474 @@
+{
+ "generated": "2026-10-03T09:04:51.947Z",
+ "productions": {
+  "4k": {
+   "checks": [
+    {
+     "name": "size budget: 3791 of 4096 bytes (gzip 2050)",
+     "ok": true,
+     "detail": "93 %",
+     "warn": false
+    },
+    {
+     "name": "static scan: no network, media or asset APIs in the shipped files",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "timeline: dur 60 s, fin 53 s, cta 54.5 s",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "first frame is nearly black (mean luminance 0.0 %)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "three or more distinct phases (differences between snapshots: 0.08 0.13 0.17 0.06)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "continuous change: no still period of 3 s or more before fin",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "order independence: the picture at 53.3 s is the same after a full run as on a fresh page (difference 0.0000)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "flash safety: largest 66 ms step 6.9 % luminance, 2 large reversals per second at most",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "picture follows the music: bass energy vs brightness r=0.52 (lag 0 ms), vs activity r=0.39 (lag 0 ms)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "tagline revealed line by line, in order: 41.5 s → 45.5 s → 49.5 s",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 16:9: text contrast 16.7 / 15.9 / 16.4, bottom band 0.0 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 21:9: text contrast 16.7 / 16.2 / 16.4, bottom band 0.0 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 4:3: text contrast 17.0 / 16.2 / 16.5, bottom band 0.0 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition portrait 9:16: text contrast 17.0 / 16.8 / 16.9, bottom band 0.0 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "picture cost in software GL at 640x360: mean 54.7 ms, worst 63.4 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "ok": true,
+     "detail": "informational",
+     "warn": false
+    },
+    {
+     "name": "music: loudness, silent start, fade-out, no clipping, progression",
+     "ok": true,
+     "detail": "peak -2.2 dBFS  rms -20.1 dBFS  stereo corr 0.94  est. tempo 123 BPM  clipped 0",
+     "warn": false
+    },
+    {
+     "name": "real-time behaviour: autoplay allowed/blocked, mute, Esc, reduced motion, no WebGL, no network",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "contact sheet written (verification/4k/frames/sheet.png)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    }
+   ],
+   "bytes": 3791,
+   "gzip": 2050,
+   "budget": 4096,
+   "def": {
+    "id": "4k",
+    "dur": 60,
+    "fin": 53,
+    "cta": 54.5
+   },
+   "phaseDiffs": [
+    0.081,
+    0.131,
+    0.165,
+    0.055
+   ],
+   "orderDiff": 0,
+   "flash": {
+    "maxStep": 0.069,
+    "maxReversalsPerSecond": 2
+   },
+   "sync": {
+    "brightness": {
+     "r": 0.52,
+     "lagMs": 0
+    },
+    "activity": {
+     "r": 0.39,
+     "lagMs": 0
+    }
+   },
+   "reveal": [
+    41.5,
+    45.5,
+    49.5
+   ],
+   "benchMs": {
+    "mean": 54.7,
+    "worst": 63.4
+   },
+   "audio": [
+    "loudness/s    ▁▂▂▃▄▄▅▅▆▇▇█▇▇▇█████████████████████████▇▇▇▇▇▇▇█▇▇▇▇▆▆▅▄▁    ",
+    "peak -2.2 dBFS  rms -20.1 dBFS  stereo corr 0.94  est. tempo 123 BPM  clipped 0",
+    "audio checks OK"
+   ]
+  },
+  "16k": {
+   "checks": [
+    {
+     "name": "size budget: 10191 of 16384 bytes (gzip 4911)",
+     "ok": true,
+     "detail": "62 %",
+     "warn": false
+    },
+    {
+     "name": "static scan: no network, media or asset APIs in the shipped files",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "timeline: dur 60 s, fin 53 s, cta 54.5 s",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "first frame is nearly black (mean luminance 0.0 %)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "three or more distinct phases (differences between snapshots: 0.19 0.07 0.09 0.11)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "continuous change: no still period of 3 s or more before fin",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "order independence: the picture at 53.3 s is the same after a full run as on a fresh page (difference 0.0000)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "flash safety: largest 66 ms step 1.5 % luminance, 1 large reversals per second at most",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "picture follows the music: bass energy vs brightness r=0.44 (lag -33 ms), vs activity r=0.41 (lag -33 ms)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "tagline revealed line by line, in order: 43.5 s → 47 s → 51 s",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 16:9: text contrast 13.8 / 13.9 / 12.5, bottom band 0.0 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 21:9: text contrast 13.7 / 13.6 / 12.5, bottom band 0.0 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 4:3: text contrast 13.9 / 14.1 / 12.6, bottom band 0.0 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition portrait 9:16: text contrast 15.0 / 14.8 / 13.8, bottom band 0.0 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "picture cost in software GL at 640x360: mean 128.5 ms, worst 149.9 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "ok": true,
+     "detail": "informational",
+     "warn": false
+    },
+    {
+     "name": "music: loudness, silent start, fade-out, no clipping, progression",
+     "ok": true,
+     "detail": "peak -3.3 dBFS  rms -21.2 dBFS  stereo corr 0.53  est. tempo 99 BPM  clipped 0",
+     "warn": false
+    },
+    {
+     "name": "real-time behaviour: autoplay allowed/blocked, mute, Esc, reduced motion, no WebGL, no network",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "contact sheet written (verification/16k/frames/sheet.png)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    }
+   ],
+   "bytes": 10191,
+   "gzip": 4911,
+   "budget": 16384,
+   "def": {
+    "id": "16k",
+    "dur": 60,
+    "fin": 53,
+    "cta": 54.5
+   },
+   "phaseDiffs": [
+    0.193,
+    0.073,
+    0.091,
+    0.107
+   ],
+   "orderDiff": 0,
+   "flash": {
+    "maxStep": 0.015,
+    "maxReversalsPerSecond": 1
+   },
+   "sync": {
+    "brightness": {
+     "r": 0.44,
+     "lagMs": -33
+    },
+    "activity": {
+     "r": 0.41,
+     "lagMs": -33
+    }
+   },
+   "reveal": [
+    43.5,
+    47,
+    51
+   ],
+   "benchMs": {
+    "mean": 128.5,
+    "worst": 149.9
+   },
+   "audio": [
+    "loudness/s     ▃▃▅▅▅▅▆▆▆▇▇▇▇▇▇▇▇▇▇▇▆▇▇▇▇▇▆▇███████████▇▇█▇▇▇█▇▇████▇▆▄▂    ",
+    "peak -3.3 dBFS  rms -21.2 dBFS  stereo corr 0.53  est. tempo 99 BPM  clipped 0",
+    "audio checks OK"
+   ]
+  },
+  "64k": {
+   "checks": [
+    {
+     "name": "size budget: 24415 of 65536 bytes (gzip 10911)",
+     "ok": true,
+     "detail": "37 %",
+     "warn": false
+    },
+    {
+     "name": "static scan: no network, media or asset APIs in the shipped files",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "timeline: dur 60 s, fin 53 s, cta 54.5 s",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "first frame is nearly black (mean luminance 0.0 %)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "three or more distinct phases (differences between snapshots: 0.14 0.09 0.13 0.02)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "continuous change: no still period of 3 s or more before fin",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "order independence: the picture at 53.3 s is the same after a full run as on a fresh page (difference 0.0000)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "flash safety: largest 66 ms step 4.1 % luminance, 1 large reversals per second at most",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "picture follows the music: bass energy vs brightness r=0.25 (lag 0 ms), vs activity r=0.37 (lag 0 ms)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "tagline revealed line by line, in order: 43 s → 47 s → 51 s",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 16:9: text contrast 10.5 / 10.0 / 8.0, bottom band 3.9 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 21:9: text contrast 10.5 / 10.0 / 8.1, bottom band 3.5 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition 4:3: text contrast 10.5 / 10.1 / 8.1, bottom band 3.9 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "final composition portrait 9:16: text contrast 9.3 / 8.5 / 7.1, bottom band 5.4 % luminance",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "picture cost in software GL at 640x360: mean 77.6 ms, worst 94 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "ok": true,
+     "detail": "informational",
+     "warn": false
+    },
+    {
+     "name": "music: loudness, silent start, fade-out, no clipping, progression",
+     "ok": true,
+     "detail": "peak -1.4 dBFS  rms -20.2 dBFS  stereo corr 0.93  est. tempo 185 BPM  clipped 0",
+     "warn": false
+    },
+    {
+     "name": "real-time behaviour: autoplay allowed/blocked, mute, Esc, reduced motion, no WebGL, no network",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    },
+    {
+     "name": "contact sheet written (verification/64k/frames/sheet.png)",
+     "ok": true,
+     "detail": "",
+     "warn": false
+    }
+   ],
+   "bytes": 24415,
+   "gzip": 10911,
+   "budget": 65536,
+   "def": {
+    "id": "64k",
+    "dur": 60,
+    "fin": 53,
+    "cta": 54.5
+   },
+   "phaseDiffs": [
+    0.139,
+    0.093,
+    0.13,
+    0.021
+   ],
+   "orderDiff": 0,
+   "flash": {
+    "maxStep": 0.041,
+    "maxReversalsPerSecond": 1
+   },
+   "sync": {
+    "brightness": {
+     "r": 0.25,
+     "lagMs": 0
+    },
+    "activity": {
+     "r": 0.37,
+     "lagMs": 0
+    }
+   },
+   "reveal": [
+    43,
+    47,
+    51
+   ],
+   "benchMs": {
+    "mean": 77.6,
+    "worst": 94
+   },
+   "audio": [
+    "loudness/s     ▁▁▃▄▄▅▅▅▆▆▇▇▇█▇▇▇▇██▇▇▇▇██████████████▇██▇███▇▇█████▇▆▃     ",
+    "peak -1.4 dBFS  rms -20.2 dBFS  stereo corr 0.93  est. tempo 185 BPM  clipped 0",
+    "audio checks OK"
+   ]
+  }
+ },
+ "failures": 0
+}
