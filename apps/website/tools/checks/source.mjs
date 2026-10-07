@@ -42,4 +42,19 @@ export async function run({browser,base,artifact,ok,dist}) {
  for(const id of ['16k','64k']){const context=await browser.newContext({viewport:{width:320,height:740},reducedMotion:'reduce',permissions:['clipboard-read','clipboard-write']}),page=await context.newPage();try{
  await page.goto(base+'/?lang=de&anim='+id);await page.locator('#source-entry').waitFor({state:'visible'});await page.locator('#source-entry').click();await page.locator('.code-view[open]').waitFor();const shipped=fs.readFileSync(path.join(dist,'p/'+id+'.js'),'utf8');await page.getByRole('button',{name:'Kopieren',exact:true}).click();ok(id+' clipboard remains byte-exact on 320px screen',await page.evaluate(()=>navigator.clipboard.readText())===shipped);ok(id+' no horizontal page or source overflow',await page.locator('.code-view').evaluate(e=>e.scrollWidth<=e.clientWidth+1)&&await page.locator('.cv-code').evaluate(e=>e.scrollWidth<=e.clientWidth+1));
  }finally{await context.close();}}
+ // Transient lazy-asset failures are public network-boundary fixtures.
+ for(const asset of ['source-view.js','source-view.css','source-facts.js']){
+  const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'}),page=await context.newPage();let failed=false;const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  try{
+   await page.route('**/'+asset,route=>{if(!failed){failed=true;return route.fulfill({status:404,body:'missing fixture asset'});}return route.continue();});
+   await page.goto(base+'/?lang=en&anim=4k');await page.locator('#source-entry').click();
+   await page.getByRole('button',{name:/Erneut versuchen/}).waitFor({state:'visible',timeout:3000});
+   ok(asset+' load failure exposes a visible retry action and accessible status',await page.getByRole('button',{name:/Erneut versuchen/}).isVisible()&&(await page.getByRole('status').innerText()).includes('Quelltext konnte nicht geladen werden'));
+   await page.getByRole('button',{name:/Erneut versuchen/}).click();await page.locator('.code-view[open]').waitFor();
+   await page.keyboard.press('Escape');
+   ok(asset+' successful retry restores the exact language label and clears stale failure',await page.getByRole('button',{name:/Source code/}).isVisible()&&await page.getByRole('status').innerText()===''&&!await page.locator('#source-entry').getAttribute('title'));
+   ok(asset+' retry remains free of application errors',errors.length===0);
+  }finally{await context.close();}
+ }
+
 }

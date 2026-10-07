@@ -54,7 +54,7 @@ const mq = matchMedia('(prefers-reduced-motion: reduce)');
 const S = { q: Q.get('q') || '', sec: 'all', tags: new Set(), open: null, vis: [], visSet: new Set() };
 const RM = () => mq.matches;
 const RM_T = 4.6;
-let V = null, app = null, last = 0, lastArt = 0, raf = 0, resizeObs = null;
+let V = null, app = null, last = 0, lastArt = 0, raf = 0, resizeObs = null, closing = false;
 const t0 = performance.now();
 const nowT = () => Math.min(RM_T, (performance.now() - t0) / 1000);
 const isPhone = () => !!app && app.clientWidth < 900;
@@ -249,6 +249,7 @@ function modalHide(el, restore) {
 const baseUrl = () => location.href.split('#')[0];
 const entryFromHash = () => { let id = ''; try { id = decodeURIComponent(location.hash.slice(1)); } catch (_) { /* */ } const e = byId[id]; return e && e.openable ? e : null; };
 function sync(initial) {
+  closing = false;
   const e = entryFromHash(), prev = S.open;
   if (e && !S.visSet.has(e.id)) { S.q = ''; S.sec = 'all'; S.tags.clear(); refresh(); }
   S.open = e ? e.id : null;
@@ -256,8 +257,8 @@ function sync(initial) {
 }
 function openEntry(id) { if (S.open === id) return; if (S.open) { history.replaceState({ m: 1 }, '', baseUrl() + '#' + id); sync(); } else { history.pushState({ m: 1 }, '', baseUrl() + '#' + id); sync(); } }
 function closeEntry() {
-  if (!S.open) return;
-  if (history.state && history.state.m) history.back();
+  if (!S.open || closing) return;
+  if (history.state && history.state.m) { closing = true; history.back(); }
   else { history.replaceState(null, '', baseUrl()); sync(); }
 }
 

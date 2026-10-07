@@ -1,5 +1,6 @@
 import path from 'node:path';
-export async function run({browser,base,artifact,ok}) {
+import fs from 'node:fs';
+export async function run({browser,base,artifact,ok,root}) {
  const context=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'}), page=await context.newPage(); const errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  try {await page.goto(base+'/referenzen/'); await page.waitForTimeout(250);
@@ -56,6 +57,14 @@ export async function run({browser,base,artifact,ok}) {
  await page.goto(base+'/referenzen/?lang=ar#getme');await page.waitForTimeout(200);ok('A11: RTL surroundings keep the English original in its own direction',await page.locator('.pv-title').last().evaluate(n=>n.dir==='ltr'&&document.documentElement.dir==='rtl'));
  await page.screenshot({path:path.join(artifact,'references-phone-rtl.png')});
  } finally {await context.close();}
+ const fast=await browser.newContext({viewport:{width:820,height:1180},reducedMotion:'reduce'}), burst=await fast.newPage();
+ try{
+  await burst.goto(base+'/');await burst.locator('#site-menu summary').click();await burst.locator('#site-menu a[href="/referenzen/"]').click();await burst.locator('.nd[data-id="oriso"]').click();
+  // Several keyboard close events arrive before asynchronous history traversal completes.
+  await burst.evaluate(()=>{for(let n=0;n<8;n++)document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});await burst.waitForTimeout(350);
+  ok('A05: rapid keyboard closes traverse history once and keep the references page',new URL(burst.url()).pathname==='/referenzen/'&&new URL(burst.url()).hash==='');
+  ok('A05: rapid close restores the project opener focus',await burst.locator('.nd[data-id="oriso"]').evaluate(n=>n===document.activeElement));
+ }finally{await fast.close();}
  const moving=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'no-preference'}), motion=await moving.newPage();
  try{
   await motion.goto(base+'/referenzen/#oriso');
@@ -72,5 +81,9 @@ export async function run({browser,base,artifact,ok}) {
   ok('A11: opening and resizing after the end retain still background and artwork',JSON.stringify(resized)===JSON.stringify(await visibleCanvases()));
  }finally{await moving.close();}
  const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}}), fallback=await nojs.newPage();
- try {await fallback.goto(base+'/referenzen/');ok('A01: without JavaScript every genuine entry remains readable',await fallback.locator('article').count()===12);ok('A02: English original content remains readable without JavaScript',(await fallback.locator('article#eeloy').textContent()).includes('Redesign the 8 Years old Direct Mailing solution'));}finally{await nojs.close();}
+ try {await fallback.goto(base+'/referenzen/');
+ const catalogue=JSON.parse(fs.readFileSync(path.join(root,'content.json'),'utf8')).references;
+ for(const project of [...catalogue.current_projects,...catalogue.older_references]){const labels=project.links?.map(l=>l.label)||project.displayed_original_addresses;const article=fallback.locator('article[id="'+project.id+'"]');for(const label of labels)ok('A04: no-JS reference retains offered address '+label,(await article.innerText()).includes(label));for(const link of project.links||[])ok('A04: no-JS unverified addresses stay inert: '+link.label,link.reachability_verified||(await article.getByRole('link',{name:link.label,exact:true}).count())===0);}
+ ok('A22: no-JS footer retains honest pending legal text',(await fallback.locator('.foot').innerText()).includes('Impressum · Angaben noch offen')&&(await fallback.locator('.foot').innerText()).includes('Datenschutz · Freigabe noch offen'));
+ ok('A01: without JavaScript every genuine entry remains readable',await fallback.locator('article').count()===12);ok('A02: English original content remains readable without JavaScript',(await fallback.locator('article#eeloy').textContent()).includes('Redesign the 8 Years old Direct Mailing solution'));}finally{await nojs.close();}
 }
