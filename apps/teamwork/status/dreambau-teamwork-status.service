@@ -1,0 +1,17 @@
+# Portable source template. The private operator replaces @...@ before install.
+[Unit]
+Description=Check and publish Teamwork program availability
+
+[Service]
+Type=oneshot
+User=teamwork
+TimeoutStartSec=300
+ExecStart=@PYTHON@ @SCRIPT@ --list @LIST@ --out @OUT@ --history @HISTORY@
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=@OUT@ @HISTORY@
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
