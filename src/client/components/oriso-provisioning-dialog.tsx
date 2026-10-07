@@ -461,6 +461,7 @@ export function OrisoProvisioningDialog({
         {staleRoleConflict && <Button
           type="button"
           variant="destructive"
+          className="h-auto min-h-11 whitespace-normal"
           onClick={() => provision(staleRoleConflict.requestedRole, undefined, true)}
           disabled={busy}
         >
