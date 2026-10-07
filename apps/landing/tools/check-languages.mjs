@@ -45,7 +45,7 @@ export function checkLanguages(root=ROOT,{release=false,complete=false,buildDir=
    check('R5',!m.dev&&JSON.stringify(m.langs.map(l=>l.c))===JSON.stringify(codes)&&JSON.stringify(fs.readdirSync(path.join(built,'i18n')).sort())===JSON.stringify(expected),'dist/apex','published set differs; rebuild apex');
    check('C12',scriptOrder(fs.readFileSync(path.join(built,'index.html'),'utf8')),'dist/apex/index.html','classic script order');
   }else notes.push('SKIP R5 (no dist/apex)');
-  check('R6',rows.filter(r=>r.offered).every(r=>{try{return ['blind.4k','blind.16k','blind.64k'].every(k=>typeof parseLangFile(fs.readFileSync(path.join(dir,r.code+'.js'),'utf8')).texts[k]==='string');}catch{return false;}}),'languages','complete animation descriptions required, not reader flags');
+  check('R6',rows.filter(r=>r.offered).every(r=>{try{const texts=parseLangFile(fs.readFileSync(path.join(dir,r.code+'.js'),'utf8')).texts;return animations.every(id=>typeof texts['blind.'+id]==='string'&&texts['blind.'+id].trim().length>0);}catch{return false;}}),'languages','complete animation descriptions required, not reader flags');
  }
  return {problems,notes,pass:[...pass]};
 }
