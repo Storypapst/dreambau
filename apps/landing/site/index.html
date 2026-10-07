@@ -69,11 +69,9 @@ html.done #skip { display: none; }
 
 /* headless tests: no transitions, so screenshots show the settled state */
 html.test *, html.test *::before { transition: none !important; animation: none !important; }
-
 /* cross-fade used when skipping */
 #dip { position: fixed; inset: 0; z-index: 1; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .25s ease; }
 #dip.on { opacity: 1; }
-
 /* replay hint for reduced-motion visitors */
 #play{position:fixed;z-index:3;left:50%;transform:translateX(-50%);top:max(14px, env(safe-area-inset-top));font-size:12px;letter-spacing:.05em;color:rgba(var(--fg), .6);padding:12px 8px;display:none}
 html.still #play { display: block; }
@@ -93,6 +91,8 @@ html.static #cta { opacity: 1; }
 @media(max-width:600px),(pointer:coarse) and (max-height:520px){.lang-sheet{top:auto;bottom:0;width:100%;max-height:70vh;max-height:70dvh;border-radius:24px 24px 0 0;padding-inline:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}.lang-close{position:static;min-height:52px;width:100%;flex-shrink:0}}@media(max-height:520px) and (max-width:600px),(max-height:520px) and (pointer:coarse){.lang-sheet{max-height:86vh;max-height:86dvh}.lang-close{min-height:44px}.lang-sheet{padding-bottom:calc(8px + env(safe-area-inset-bottom))}}
 
 #langback{position:fixed;inset:0;z-index:29;background:transparent}#langback[hidden]{display:none}@media(max-width:600px),(pointer:coarse) and (max-height:520px){#langback{background:#0006}}@media(prefers-reduced-motion:no-preference){.lang-sheet{animation:langshow .26s ease}@keyframes langshow{from{opacity:0}to{opacity:1}}}@media(prefers-reduced-motion:no-preference) and (max-width:600px),(prefers-reduced-motion:no-preference) and (pointer:coarse) and (max-height:520px){.lang-sheet{animation-name:langslide}@keyframes langslide{from{opacity:0;transform:translate(-50%,24px)}to{opacity:1;transform:translate(-50%,0)}}
+
+}
 </style>
 <noscript><style>
 html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06080d 70%); }
@@ -101,8 +101,14 @@ html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06
 .sr span { display: block; }
 #cta { opacity: 1; }
 </style></noscript>
+<link rel="stylesheet" href="navigation.css">
 </head>
 <body>
+<details class="site-menu" id="site-menu" lang="de" dir="ltr"><summary>Menü</summary>
+<nav aria-label="Website"><a href="/">Startseite</a><a href="/referenzen/">Referenzen</a><a href="/teamwork/">Teamwork</a><a href="/glossar/">Glossar</a><a href="/bildungshaus/">Bildungshaus</a><a href="mailto:info@dreambau.com">Kontakt</a>
+<span class="pending">Blog · Themen folgen</span><span class="pending">Impressum · Angaben noch offen</span><span class="pending">Datenschutz · Freigabe noch offen</span>
+<button type="button" class="site-pill menu-close" hidden>Schließen</button></nav></details>
+<button class="site-pill" id="source-entry" type="button" aria-haspopup="dialog" lang="de" dir="ltr" hidden>Quelltext</button>
 <canvas id="c" aria-hidden="true"></canvas>
 <div id="dip"></div>
 
@@ -136,5 +142,6 @@ html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06
 <script src="i18n.js"></script>
 <script src="i18n/index.js"></script>
 <script src="shell.js"></script>
+<script src="navigation.js"></script>
 </body>
 </html>

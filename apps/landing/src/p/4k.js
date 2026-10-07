@@ -82,7 +82,7 @@ void main(){
   // on its note each line grows from the stroke spine to full weight within a 16th, with an amber flare
   // that settles to a soft glow, and a dark ring keeps the city away from the glyph edges
   vec3 D=tdist(p)/TT.z,x=a-vec3(84,92,100),b=clamp(x*4.,0.,1.);
-  col=mix(col*(1.-.9*dot(b,clamp((.027-D)*50.,0.,1.)))+A*.25*dot(b+3.*b*exp(-abs(x)),exp(-max(D,0.)*150.)),vec3(1.,.92,.8),min(1.,dot(clamp(.5-(D+.02*(1.-b))*TT.z*R.y*.5,0.,1.),vec3(1))));
+  col=mix(col*(1.-.9*dot(b,clamp((.027-D)*50.,0.,1.)))+A*.25*dot(b+3.*b*exp(-abs(x)),exp(-max(D,0.)*150.)),vec3(1.,.92,.8),min(1.,dot(b*clamp(.5-(D+.02*(1.-b))*TT.z*R.y*.5,0.,1.),vec3(1))));
   // calm dark bottom band for the closing line, soft vignette
   col*=smoothstep(-1.15,-.6,p.y)*(1.-.06*dot(p,p));
   O=vec4(col+(h2(gl_FragCoord.xy)-.5)/128.,1);

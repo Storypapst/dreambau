@@ -564,6 +564,9 @@ function layout() {
   D.state.scale = scale;
 }
 
+const drawListeners = new Set();
+D.onDraw = fn => { drawListeners.add(fn); return () => drawListeners.delete(fn); };
+D.redraw = () => { if (gl && def) guard(draw); };
 function draw() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0, 0, W, H);
@@ -572,6 +575,7 @@ function draw() {
   envAt(T);
   if (drawProg) { D.bind(drawProg); D.tri(); }
   else def.draw(gl, T, D);
+  for (const listener of drawListeners) { try { listener(T); } catch (error) { console.warn("[dreambau] source preview:", error); } }
 }
 
 function guard(fn) {
