@@ -78,7 +78,7 @@ button{font:inherit;color:inherit;cursor:pointer}button:focus-visible{outline:3p
 /* ==== region: phone ==== */
 /* Slice 7 fills this region: the cluster layout of a phone, with the bar at the bottom edge. */
 
-.page{position:relative;max-width:none;padding:10px 24px 40px}.navigation{display:none}.body{display:block}.map{position:relative;isolation:isolate}.map>.hub,.map>.zones,.map>.loading,.map>.message,.map>noscript{z-index:1}.hub,.zones{position:relative}
+.page{position:relative;max-width:none;padding:10px 24px 40px}.page[data-layout="cluster"]{max-width:900px}.navigation{display:none}.body{display:block}.map{position:relative;isolation:isolate}.map>.hub,.map>.zones,.map>.loading,.map>.message,.map>noscript{z-index:1}.hub,.zones{position:relative}
 [data-layout="cluster"] .map{min-height:220px}[data-layout="cluster"] #lines{display:none}
 [data-layout="cluster"] .navigation{position:fixed;display:flex;justify-content:space-between;align-items:center;z-index:10;bottom:0;left:0;right:0;min-height:64px;padding:8px 16px calc(8px + env(safe-area-inset-bottom));background:rgba(6,8,13,.97);border-top:1px solid rgba(var(--fg),.2)}
 [data-layout="cluster"] #back,[data-layout="cluster"] #privacy{position:fixed;z-index:11;bottom:calc(8px + env(safe-area-inset-bottom));margin:0;background:#06080d}[data-layout="cluster"] #back{left:16px}[data-layout="cluster"] #privacy{right:16px;padding:0 14px}[data-layout="cluster"]{padding-bottom:calc(96px + env(safe-area-inset-bottom))}

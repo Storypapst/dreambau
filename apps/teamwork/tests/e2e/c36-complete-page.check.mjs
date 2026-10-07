@@ -16,6 +16,67 @@ const screenshot = async (page, name) => {
   await page.setViewportSize(previous); await new Promise((r)=>setTimeout(r,180));
 };
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const desktopSizes = [[1920,1080],[1440,900],[1280,720]];
+const outerPrograms = publicList.programs.filter((program) => program.zone !== 'verwaltung');
+const innerZone = publicList.zones.find((zone) => zone.ring === 'inner');
+const shapedLists = [
+  { name:'one-outer-twelve', zones:[publicList.zones[0]], programs:publicList.programs.slice(0,12).map((program)=>({...program,zone:publicList.zones[0].id})) },
+  { name:'six-outer-two-each', zones:['cyan','amber','pink','violet','lime','slate'].map((color,index)=>({id:'shape-zone-'+index,name:'Prüfzone '+(index+1),color})), programs:publicList.programs.slice(0,12).map((program,index)=>({...program,zone:'shape-zone-'+Math.floor(index/2)})) },
+  { name:'inner-six', zones:publicList.zones, programs:[...outerPrograms,...Array.from({length:6},(_,index)=>({id:'shape-inner-'+index,name:'Prüfung '+(index+1),purpose:'Erfundenes Verwaltungsprogramm',url:'https://shape-inner.example.test/'+index,zone:innerZone.id}))] },
+  { name:'inner-zero', zones:publicList.zones, programs:outerPrograms },
+  { name:'one-outer-one', zones:[publicList.zones[0]], programs:[publicList.programs[0]] },
+].map((shape)=>({...shape,format:1}));
+const boxGap = (a,b) => Math.hypot(Math.max(a.left-b.right,b.left-a.right,0),Math.max(a.top-b.bottom,b.top-a.bottom,0));
+const cross = (a,b,c) => (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+function convexHull(points) {
+  const sorted = [...points].sort((a,b)=>a.x-b.x||a.y-b.y);
+  if (sorted.length < 3) return sorted;
+  const half = (values) => { const hull=[];for(const point of values){while(hull.length>1&&cross(hull.at(-2),hull.at(-1),point)<=0)hull.pop();hull.push(point);}return hull; };
+  const lower=half(sorted),upper=half([...sorted].reverse());return [...lower.slice(0,-1),...upper.slice(0,-1)];
+}
+function hullsIntersect(a,b) {
+  if (!a.length || !b.length) return false;
+  const onSegment = (point,start,end) => Math.abs(cross(start,end,point))<.001&&point.x>=Math.min(start.x,end.x)-.001&&point.x<=Math.max(start.x,end.x)+.001&&point.y>=Math.min(start.y,end.y)-.001&&point.y<=Math.max(start.y,end.y)+.001;
+  const contains = (hull,point) => hull.length===1?Math.hypot(hull[0].x-point.x,hull[0].y-point.y)<.001:hull.length===2?onSegment(point,...hull):hull.every((start,index)=>cross(start,hull[(index+1)%hull.length],point)>=-.001);
+  if (a.some((point)=>contains(b,point))||b.some((point)=>contains(a,point))) return true;
+  for(const [i,start] of a.entries())for(const [j,other] of b.entries()){
+    const end=a[(i+1)%a.length],otherEnd=b[(j+1)%b.length];
+    if(cross(start,end,other)*cross(start,end,otherEnd)<0&&cross(other,otherEnd,start)*cross(other,otherEnd,end)<0)return true;
+  }
+  return false;
+}
+const measureLayout = (page) => page.evaluate(() => {
+  const rect = (node) => { const r=node.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}; };
+  const map=document.getElementById('map');
+  return {layout:document.getElementById('page').dataset.layout,viewportWidth:innerWidth,map:rect(map),hub:rect(document.querySelector('.hub')),side:rect(document.getElementById('side')),overflow:document.documentElement.scrollWidth>innerWidth,mapOverflow:getComputedStyle(map).overflow,
+    tiles:[...document.querySelectorAll('.tile')].map((tile)=>({id:tile.dataset.id,zone:tile.closest('[data-zone]').dataset.zone,...rect(tile),orb:rect(tile.querySelector('.orb'))})),
+    grids:[...document.querySelectorAll('.zone ul')].map((grid)=>getComputedStyle(grid).gridTemplateColumns.split(' ').length)};
+});
+function checkShapedLayout(label,shape,geometry) {
+  const {tiles,map,hub,layout}=geometry;
+  check('C36 '+label+' renders every shaped-list program without horizontal overflow',tiles.length===shape.programs.length&&!geometry.overflow);
+  check('C36 M5b '+label+' contains every tile inside the map',tiles.every((tile)=>tile.left>=map.left-.01&&tile.right<=map.right+.01&&tile.top>=map.top-.01&&tile.bottom<=map.bottom+.01));
+  check('C36 M5f '+label+' retains 44px targets',tiles.every((tile)=>tile.width>=44&&tile.height>=44));
+  check('C36 '+label+' has no intersecting tile boxes',tiles.every((tile,index)=>tiles.slice(index+1).every((other)=>boxGap(tile,other)>0)));
+  if(layout==='cluster'){
+    check('C36 P2 '+label+' has 58px tiles and three columns',tiles.every((tile)=>tile.height>=58)&&geometry.grids.every((columns)=>columns===3));
+    check('C36 M8 '+label+' keeps the fallback centered and at most 900px wide',map.width<=900&&Math.abs(map.left+map.width/2-geometry.viewportWidth/2)<1,JSON.stringify({mapWidth:map.width,centre:map.left+map.width/2,viewportWidth:geometry.viewportWidth}));
+    return;
+  }
+  same('C36 '+label+' uses the permitted constellation mode',layout,'constellation');
+  check('C36 M3 M4 '+label+' has the right-hand 296px side and an unnested map at least 470px high',Math.abs(geometry.side.width-296)<.1&&geometry.side.left>=map.right+17.9&&map.height>=470&&!['auto','scroll'].includes(geometry.mapOverflow));
+  check('C36 M5a '+label+' clears other tile boxes by 2px',tiles.every((tile,index)=>tiles.slice(index+1).every((other)=>boxGap(tile,other)>=1.95)));
+  const centre={x:hub.left+hub.width/2,y:hub.top+hub.height/2};
+  const orbCentre=(tile)=>({x:tile.orb.left+tile.orb.width/2,y:tile.orb.top+tile.orb.height/2});
+  check('C36 M5c '+label+' keeps every orb 12px from the hub',tiles.every((tile)=>{const point=orbCentre(tile);return Math.hypot(point.x-centre.x,point.y-centre.y)-tile.orb.width/2-hub.width/2>=11.95;}));
+  const outerHulls=shape.zones.filter((zone)=>zone.ring!=='inner').map((zone)=>convexHull(tiles.filter((tile)=>tile.zone===zone.id).map(orbCentre)));
+  check('C36 M5d '+label+' keeps outer zone convex hulls separate',outerHulls.every((hull,index)=>outerHulls.slice(index+1).every((other)=>!hullsIntersect(hull,other))));
+  const clockwise=shape.zones.every((zone)=>{
+    const angles=shape.programs.filter((program)=>program.zone===zone.id).map((program)=>{const point=orbCentre(tiles.find((tile)=>tile.id===program.id));return Math.atan2((point.y-centre.y)/(map.height/2),(point.x-centre.x)/(map.width/2));});
+    return angles.slice(1).every((angle,index)=>{let delta=angle-angles[index];if(delta < -Math.PI)delta+=2*Math.PI;if(delta > Math.PI)delta-=2*Math.PI;return delta>=-2*Math.PI/180;});
+  });
+  check('C36 M5e '+label+' advances clockwise in file order within 2 degrees',clockwise);
+}
 let browser, server;
 try {
   await run(async () => {
@@ -42,11 +103,27 @@ try {
       if(width===1280)await screenshot(page,'normal');
       check('C36 C38 C46 viewport '+width+'x'+height+' has visible 44px targets and no horizontal overflow', !geometry.overflow && geometry.tiles.length===21 && geometry.tiles.every((r)=>r.width>=44&&r.height>=44));
       if ([1280,1440,1920].includes(width)) same('C36 M9 required desktop remains constellation '+width,geometry.layout,'constellation');
+      if ([1280,1440,1920].includes(width)) checkShapedLayout('example '+width+'x'+height,publicList,await measureLayout(page));
       if (geometry.layout==='constellation') {
         check('C36 tile boxes remain within map '+width,geometry.tiles.every((r)=>r.left>=geometry.map.left-.1&&r.right<=geometry.map.right+.1&&r.top>=geometry.map.top-.1&&r.bottom<=geometry.map.bottom+.1));
         check('C36 independently measured tile boxes clear each other by 2px '+width,geometry.tiles.every((r,i)=>geometry.tiles.slice(i+1).every((q)=>Math.hypot(Math.max(r.left-q.right,q.left-r.right,0),Math.max(r.top-q.bottom,q.top-r.bottom,0))>=1.95)));
       }
     }
+    for (const shape of shapedLists) {
+      await replaceFile('data/programs.json',publicJson({format:shape.format,zones:shape.zones,programs:shape.programs}));
+      await replaceFile('data/status.json',publicJson(publicStatus(shape.programs.map((program)=>program.id),nowUtc())));
+      for(const [width,height] of desktopSizes){
+        const label=shape.name+' '+width+'x'+height;
+        await page.setViewportSize({width,height});await page.reload();await page.locator('.tile').first().waitFor();await pause(180);
+        const geometry=await measureLayout(page);checkShapedLayout(label,shape,geometry);
+        await page.reload();await page.locator('.tile').first().waitFor();await pause(180);
+        same('C36 M6 '+label+' repeats measured positions on a fresh load',(await measureLayout(page)).tiles,geometry.tiles);
+        same('C36 '+label+' has no console errors',seen.console.filter((message)=>message.type==='error'),[]);
+        same('C36 '+label+' has no uncaught page errors',seen.pageErrors,[]);
+      }
+    }
+    await replaceFile('data/programs.json',publicJson(publicList));await replaceFile('data/status.json',publicJson(publicStatus(list.programs.map((program)=>program.id),nowUtc())));
+    await page.reload();await page.locator('.tile').first().waitFor();await pause(180);
     await page.setViewportSize({width:1280,height:720}); await pause(180);
     await page.locator('.tile').first().focus(); const focused = await page.locator('.tile').first().getAttribute('data-id');
     await page.setViewportSize({width:390,height:844}); await pause(200);
