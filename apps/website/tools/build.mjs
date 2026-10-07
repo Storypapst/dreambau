@@ -12,13 +12,17 @@ function entry(e,i){const image=e.images?.[0],src=image?'/website-assets/portfol
 const years=['2017','2018','//','2023','2024','Jetzt'];
 const timeline=`<section class="timeline" aria-label="Zeitstrahl"><div class="c-band">${years.map(y=>`<span class="seg ${y==='Jetzt'?'now':''}">${y}</span>`).join('')}</div><ol class="c-nodes">${entries.map((e,i)=>`<li class="node ${i%2?'lower':''} ${e.current?'cur':''} node-${i}"><a class="nd" href="#project-${e.id}"><span class="orb"><span class="ex">${String(i+1).padStart(2,'0')}</span></span><span class="node-year">${esc(e.year)}</span><span class="lb">${esc(e.title)}</span></a></li>`).join('')}</ol></section>`;
 const search='<div class="search"><label for="search">Suchen</label><input id="search" type="search" placeholder="Projekt, Wort oder Frage"><p id="results" role="status"></p></div>';
-const refs=page('Referenzen','Was gebaut wurde und für wen.',search+timeline+'<main class="projects">'+entries.map(entry).join('')+'</main>','references');
+let refs=page('Referenzen','Was gebaut wurde und für wen.',search+timeline+'<main class="projects">'+entries.map(entry).join('')+'</main>','references');
 const glossary=data.glossary,terms=glossary.terms, questions=glossary.questions;
 const asks='<section class="ask"><h2>Ich will …</h2><div class="cols">'+glossary.groups.map(g=>`<section class="grp"><h3>${esc(g.name)}</h3><ul class="rows">${questions.filter(q=>q.group===g.id).map(q=>`<li><a class="opt" href="#question-${q.id}">${esc(q.text)}</a></li>`).join('')}</ul></section>`).join('')+'</div></section>';
 function action(q){const [label,href]=q.answer.btn||[];return href&&(/^(?:\/(?!\/)|#)/.test(href)||/^https:\/\/dreambau\.com(?:\/|$)/.test(href))?`<a class="pill" href="${esc(href)}">${esc(label)}</a>`:'';}
 const answers='<section class="answers" aria-label="Antworten">'+questions.map(q=>`<article class="answer term" id="question-${q.id}"><h3>Ich will ${esc(q.text)}</h3><p>${esc(q.answer.what)}</p><p>${esc(q.answer.where)}</p>${q.answer.whatFor?`<p>${esc(q.answer.whatFor)}</p>`:''}${action(q)}<a class="lk" href="#term-${q.word}">${esc(terms.find(t=>t.id===q.word).name)}</a></article>`).join('')+'</section>';
 const words='<section id="woerter" class="words" aria-label="Wörter A bis Z"><h2>A–Z · '+terms.length+' Wörter</h2>'+terms.slice().sort((a,b)=>a.name.localeCompare(b.name,'de')).map(t=>`<article id="term-${t.id}" class="term"><h3>${esc(t.name)} ${t.english_alias?`<span class="tag">${esc(t.english_alias)}</span>`:''}</h3><p>${esc(t.definition)}</p><p class="related">${t.related.filter(id=>terms.some(r=>r.id===id)).map(id=>`<a href="#term-${id}">${esc(terms.find(r=>r.id===id).name)}</a>`).join(' · ')}</p></article>`).join('')+'</section>';
-const gloss=page('Glossar','Ich will …',search+'<main class="mainc">'+asks+'<div>'+answers+words+'</div>'+'</main>','glossary');
+let gloss=page('Glossar','Ich will …',search+'<main class="mainc">'+asks+'<div>'+answers+words+'</div>'+'</main>','glossary');
+for (const [name, exportName] of [['references','buildReferences'],['glossary','buildGlossary']]) {
+ const file=path.join(root,'tools',name+'-page.mjs');
+ if(fs.existsSync(file)){const module=await import(file);const html=module[exportName](data);if(name==='references')refs=html;else gloss=html;}
+}
 fs.mkdirSync(path.join(root,'site/referenzen'),{recursive:true});fs.mkdirSync(path.join(root,'site/glossar'),{recursive:true});fs.writeFileSync(path.join(root,'site/referenzen/index.html'),refs);fs.writeFileSync(path.join(root,'site/glossar/index.html'),gloss);
 fs.writeFileSync(path.join(root,'site/website-assets/glossary-suggestions.js'),'window.glossarySuggestions='+JSON.stringify(glossary.avoid)+';\n');
 const dist=path.join(root,'dist');fs.rmSync(dist,{recursive:true,force:true});fs.cpSync(path.join(root,'site'),dist,{recursive:true});
