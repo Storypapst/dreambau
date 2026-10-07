@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/api";
 
 const PREFERENCE_PATH = "/auth/me/preferences/favorite-accounts";
+// A reopened directory must read after a dispatched write has settled.
+let dispatchedWrite: Promise<void> = Promise.resolve();
 
 /** Normalises the server value of the `favorite-accounts` preference into a list of e-mail addresses. */
 export function coerceFavorites(input: unknown): string[] {
@@ -34,8 +36,10 @@ export function useFavorites() {
   useEffect(() => {
     let active = true;
     live.current = true;
-    api<{ value: unknown }>(PREFERENCE_PATH)
-      .then((result) => {
+    dispatchedWrite
+      .then(async () => {
+        if (!active) return;
+        const result = await api<{ value: unknown }>(PREFERENCE_PATH);
         if (!active) return;
         latest.current = confirmed.current = coerceFavorites(result.value);
         loaded.current = true;
@@ -54,8 +58,12 @@ export function useFavorites() {
     latest.current = next;
     setFavorites(next); setError(false);
     pending.current = pending.current.then(async () => {
+      // The cookie may belong to another employee after logout. Cancel old intent.
+      if (!live.current) return;
       try {
-        const result = await api<{ value: unknown }>(PREFERENCE_PATH, { method: "PUT", body: JSON.stringify({ value: next }) });
+        const request = api<{ value: unknown }>(PREFERENCE_PATH, { method: "PUT", body: JSON.stringify({ value: next }) });
+        dispatchedWrite = request.then(() => {}, () => {});
+        const result = await request;
         confirmed.current = coerceFavorites(result.value);
         if (live.current && currentRevision === revision.current) {
           latest.current = confirmed.current;
