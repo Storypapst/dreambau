@@ -74,7 +74,7 @@ function notify(){applied=true;for(const fn of listeners)fn({lang:S.lang,dir:roo
 D.onLang=fn=>{listeners.push(fn);if(applied)fn({lang:S.lang,dir:root.dir});};
 async function startup(){
  if(booted||!manifest)return;booted=true;
- const chosen=I.choose({offered:offered().map(l=>l.c),query:Q.get('lang'),languages:Array.isArray(navigator.languages)?navigator.languages:[navigator.language]});
+ const chosen=I.choose({offered:offered().map(l=>l.c),query:Q.get('lang'),languages:Array.isArray(navigator.languages)&&navigator.languages.length?navigator.languages:[navigator.language]});
  let rejectBoot;const failed=new Promise(r=>{rejectBoot=r;});bootFailure=why=>rejectBoot({failure:why});
  const result=await Promise.race([Promise.all([load('de'),chosen.code==='de'?Promise.resolve(true):load(chosen.code)]).then(loaded=>({loaded})),failed]);bootFailure=null;
  let code=chosen.code;const words=reg[code];
