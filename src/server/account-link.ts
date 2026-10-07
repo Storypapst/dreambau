@@ -56,6 +56,7 @@ export interface AccountAccessSummary {
 }
 
 export interface LinkedTestAccount {
+  deleted?: boolean;
   id: string;
   project: TestAccessRecord["project"];
   environment: TestAccessRecord["environment"];
