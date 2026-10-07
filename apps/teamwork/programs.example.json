@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "zones": [
+    {"id": "nord", "name": "Zone Nord", "color": "cyan"},
+    {"id": "ost", "name": "Zone Ost", "color": "pink"},
+    {"id": "sued", "name": "Zone Süd", "color": "amber"},
+    {"id": "west", "name": "Zone West", "color": "violet"},
+    {"id": "verwaltung", "name": "Verwaltung", "color": "lime", "ring": "inner"}
+  ],
+  "programs": [
+    {"id": "aurora", "name": "Aurora", "purpose": "Zeigt Beispielzahlen", "url": "https://aurora.example.test/", "zone": "nord", "probe": "https://aurora.example.test/health"},
+    {"id": "basalt", "name": "Basalt", "purpose": "Sammelt Beispieldaten", "url": "https://basalt.example.test/", "zone": "nord"},
+    {"id": "cobalt", "name": "Cobalt", "purpose": "Plant Beispielaufgaben", "url": "https://cobalt.example.test/", "zone": "nord"},
+    {"id": "dune", "name": "Dune", "purpose": "Speichert Beispieltexte", "url": "https://dune.example.test/", "zone": "nord"},
+    {"id": "ember", "name": "Ember", "purpose": "Meldet Beispielereignisse", "url": "https://ember.example.test/", "zone": "nord"},
+    {"id": "flint", "name": "Flint", "purpose": "Verteilt Beispielnachrichten", "url": "https://flint.example.test/", "zone": "ost"},
+    {"id": "garnet", "name": "Garnet", "purpose": "Sortiert Beispielunterlagen", "url": "https://garnet.example.test/", "zone": "ost"},
+    {"id": "hazel", "name": "Hazel", "purpose": "Zeichnet Beispielkurven", "url": "https://hazel.example.test/", "zone": "ost", "probe": "http://127.0.0.1:18081/"},
+    {"id": "indigo", "name": "Indigo", "purpose": "Prüft Beispielregeln", "url": "https://indigo.example.test/", "zone": "ost"},
+    {"id": "jade", "name": "Jade", "purpose": "Übersetzt Beispielwörter", "url": "https://jade.example.test/", "zone": "ost"},
+    {"id": "kestrel", "name": "Kestrel", "purpose": "Beobachtet Beispielwerte", "url": "https://kestrel.example.test/", "zone": "sued"},
+    {"id": "lumen", "name": "Lumen", "purpose": "Rechnet Beispielposten", "url": "https://lumen.example.test/", "zone": "sued"},
+    {"id": "marl", "name": "Marl", "purpose": "Verwaltet Beispielkontakte", "url": "https://marl.example.test/", "zone": "sued", "color": "slate"},
+    {"id": "nacre", "name": "Nacre", "purpose": "Sammelt Beispielantworten", "url": "https://nacre.example.test/", "zone": "sued"},
+    {"id": "oriel", "name": "Oriel", "purpose": "Archiviert Beispieldateien", "url": "https://oriel.example.test/", "zone": "west"},
+    {"id": "pyrite", "name": "Pyrite", "purpose": "Mischt Beispielklänge", "url": "https://pyrite.example.test/", "zone": "west"},
+    {"id": "quartz", "name": "Quartz", "purpose": "Formt Beispielbilder", "url": "https://quartz.example.test/", "zone": "west"},
+    {"id": "rutile", "name": "Rutile", "purpose": "Bündelt Beispielfilme", "url": "https://rutile.example.test/", "zone": "west"},
+    {"id": "internal", "name": "internal", "purpose": "Beispiel für einen Link in die Verwaltung", "url": "https://internal.example.test/", "zone": "verwaltung", "newTab": true},
+    {"id": "sable", "name": "Sable", "purpose": "Beispiel für ein Verwaltungsprogramm", "url": "https://sable.example.test/", "zone": "verwaltung"},
+    {"id": "tarn", "name": "Tarn", "purpose": "Beispiel für ein Verwaltungsprogramm", "url": "https://tarn.example.test/", "zone": "verwaltung"}
+  ]
+}

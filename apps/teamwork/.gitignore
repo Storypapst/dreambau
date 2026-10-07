@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+*.log
+
+# Playwright's own output folders, in case a tool writes them here
+test-results/
+playwright-report/
+__pycache__/

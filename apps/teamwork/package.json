@@ -1,0 +1,15 @@
+{
+  "name": "dreambau-teamwork",
+  "version": "1.0.0",
+  "private": true,
+  "description": "dreambau.com Teamwork: the public directory of the team's programs (page, status check, server text and the checks that prove them)",
+  "type": "module",
+  "scripts": {
+    "check": "node tests/run.mjs",
+    "serve": "node tests/serve.mjs",
+    "verify": "node tests/run.mjs --evidence"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

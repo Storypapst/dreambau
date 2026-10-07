@@ -1,0 +1,141 @@
+/* The Teamwork page: one style sheet in banner-delimited regions (one or more per slice). A slice edits its own
+   regions only and never a banner line. System fonts, no web font, no image, no @import: the policy allows 'self' only. */
+
+/* ==== region: tokens ==== */
+/* Slice 1: colours, type and the palette keys of spec 7.5 as the zone colour --zc (r,g,b); later slices only read them. */
+:root{color-scheme:dark;--bg:#06080d;--fg:233,237,245;--cream:255,238,210;--unknown:255,216,107;--zc:200,208,224;
+--mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans Mono CJK JP",monospace;
+--sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+[data-color="cyan"]{--zc:56,214,255}
+[data-color="amber"]{--zc:255,178,62}
+[data-color="pink"]{--zc:255,94,200}
+[data-color="violet"]{--zc:169,139,255}
+[data-color="lime"]{--zc:198,242,58}
+[data-color="slate"]{--zc:200,208,224}
+
+/* ==== end region: tokens ==== */
+
+/* ==== region: page ==== */
+/* Slice 1: the page shell, the hub and the plain list of Zone panels. Slice 7 adds the phone bar, slice 9 the constellation. */
+*{box-sizing:border-box}
+html{background:var(--bg);-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;background:radial-gradient(120% 90% at 50% 0%,#121a2b 0%,rgba(6,8,13,0) 70%);color:rgb(var(--fg));font:400 14px/1.5 var(--sans);-webkit-tap-highlight-color:transparent}
+h1,h2,p,ul{margin:0}
+ul{padding:0;list-style:none}
+a{color:inherit;text-decoration:none}
+[hidden]{display:none!important}
+a:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.page{max-width:960px;margin:0 auto;padding:10px 14px 40px}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;min-height:56px}
+.pill{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;border:1px solid rgba(var(--fg),.34);border-radius:24px;background:rgba(6,8,13,.55);color:rgba(var(--fg),.9);font-size:13px;letter-spacing:.03em;white-space:nowrap}
+.pill:hover{background:rgba(var(--fg),.1);border-color:rgba(var(--fg),.7);color:#fff}
+.pill svg{flex:none}
+.kicker{flex:1 1 220px;min-width:0;font-size:13px;color:rgba(var(--fg),.78)}
+.meta{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font:500 12px/1.2 var(--mono);color:rgba(var(--fg),.84)}
+.hub{display:flex;flex-direction:column;align-items:center;justify-content:center;width:104px;height:104px;margin:14px auto 0;text-align:center;border-radius:50%;background:radial-gradient(circle,rgba(6,8,13,.94) 58%,rgba(6,8,13,0) 74%)}
+.hub h1{max-width:96px;font:800 24px/1.05 var(--sans);letter-spacing:-.01em;color:rgb(var(--cream))}
+.hubn{margin-top:4px;font:600 10px/1.2 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:rgba(var(--fg),.82)}
+.hubn span{display:block}
+.hubn .inner{color:rgb(var(--zc))}
+.loading,.noscript{margin:26px 0;text-align:center;color:rgba(var(--fg),.84)}
+.zones{display:flex;flex-direction:column;gap:30px;margin-top:26px}
+.zone{padding:10px;border:1px solid rgba(var(--zc),.45);border-radius:22px;background:radial-gradient(120% 140% at 0% 0%,rgba(var(--zc),.2),rgba(7,10,17,.7) 62%)}
+.zl{display:flex;align-items:center;gap:8px;margin:0 0 8px 4px;font:700 11.5px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:rgb(var(--zc))}
+.zl h2{font:inherit;letter-spacing:inherit}
+.zl::before{content:'';flex:none;width:9px;height:9px;border-radius:50%;background:rgb(var(--zc));box-shadow:0 0 12px rgba(var(--zc),.9)}
+.legend,.detail{display:none}
+.side{margin-top:22px}
+.foot{display:flex;flex-direction:column;gap:3px;font-size:12px;line-height:1.4;color:rgba(var(--fg),.8)}
+.foot .rmn{font-weight:600;color:rgb(var(--unknown))}
+.privacy{display:inline-flex;align-items:center;min-height:44px;margin-top:6px;padding:0 10px 0 0;font-size:12px;letter-spacing:.04em;color:rgba(var(--fg),.8)}
+.privacy:hover{color:#fff;text-decoration:underline;text-underline-offset:4px}
+
+/* ==== end region: page ==== */
+
+/* ==== region: tiles ==== */
+/* Slice 1: the Kachel, two columns and three from 600 px (spec P2). Slice 7 refines the cluster layout. */
+.zone ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (min-width:600px){.zone ul{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.tile{display:flex;align-items:center;gap:9px;min-height:58px;height:100%;padding:7px 10px 7px 7px;border:1px solid rgba(var(--zc),.32);border-radius:18px;background:rgba(6,8,13,.62)}
+.orb{flex:none;width:38px;height:38px;border-radius:50%;border:1.5px solid rgba(var(--zc),.7);background:rgba(6,8,13,.55);box-shadow:0 0 18px rgba(var(--zc),.3),inset 0 0 12px rgba(var(--zc),.2)}
+.lb{display:flex;flex-direction:column;min-width:0}
+.nm{font:700 15px/1.2 var(--sans);hyphens:auto;overflow-wrap:break-word}
+.ds{font:400 12.5px/1.3 var(--sans);color:rgba(var(--fg),.8);hyphens:auto;overflow-wrap:break-word}
+
+/* ==== end region: tiles ==== */
+
+/* ==== region: states ==== */
+/* Slice 6 fills this region: the banner, the marker of an unknown status, the resting zone, the messages. */
+
+.banner{margin:14px 0;padding:12px 16px;border:1px solid rgba(var(--unknown),.6);border-radius:12px;color:rgb(var(--unknown));background:#10121b}
+.message{position:relative;z-index:2;margin:24px auto;text-align:center}.message p{margin-bottom:12px}.message:has(#retry[hidden]) p:nth-child(2){display:none}
+button{font:inherit;color:inherit;cursor:pointer}button:focus-visible{outline:3px solid white;outline-offset:3px}
+.unknown-text{font:11px/1.4 var(--mono);color:rgb(var(--unknown))}.unknown{color:rgb(var(--unknown));font:bold 15px var(--mono);margin-left:auto}.zc{margin-left:auto;letter-spacing:0}.resting{font:12px/1.7 var(--mono);color:rgba(var(--fg),.8);margin-left:4px}
+.tile{color:rgb(var(--zc))}.ds{color:rgb(var(--fg))}
+
+/* ==== end region: states ==== */
+
+/* ==== region: phone ==== */
+/* Slice 7 fills this region: the cluster layout of a phone, with the bar at the bottom edge. */
+
+.page{position:relative;max-width:none;padding:10px 24px 40px}.navigation{display:none}.body{display:block}.map{position:relative;isolation:isolate}.map>.hub,.map>.zones,.map>.loading,.map>.message,.map>noscript{z-index:1}.hub,.zones{position:relative}
+[data-layout="cluster"] .map{min-height:220px}[data-layout="cluster"] #lines{display:none}
+[data-layout="cluster"] .navigation{position:fixed;display:flex;justify-content:space-between;align-items:center;z-index:10;bottom:0;left:0;right:0;min-height:64px;padding:8px 16px calc(8px + env(safe-area-inset-bottom));background:rgba(6,8,13,.97);border-top:1px solid rgba(var(--fg),.2)}
+[data-layout="cluster"] #back,[data-layout="cluster"] #privacy{position:fixed;z-index:11;bottom:calc(8px + env(safe-area-inset-bottom));margin:0;background:#06080d}[data-layout="cluster"] #back{left:16px}[data-layout="cluster"] #privacy{right:16px;padding:0 14px}[data-layout="cluster"]{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+[data-layout="cluster"] .top{min-height:40px}.tile .lb{max-width:100%}.nm,.ds{overflow:hidden;overflow-wrap:anywhere}.tile{min-width:0}
+@media (max-width:500px){.page{padding-left:14px;padding-right:14px}.tile{padding:7px 5px;gap:6px}.orb{width:32px;height:32px}.nm{font-size:14px}.ds{font-size:12px}}
+@media (max-height:499px){[data-layout="cluster"] .navigation{position:static;margin-top:24px}[data-layout="cluster"]{padding-bottom:24px}[data-layout="cluster"] #back,[data-layout="cluster"] #privacy{position:absolute;bottom:24px}}
+
+/* ==== end region: phone ==== */
+
+/* ==== region: constellation ==== */
+/* Slice 9 fills this region: the constellation for a container width of 900 px or more. */
+
+[data-layout="constellation"] .map{height:max(470px,calc(100vh - 180px))}[data-layout="constellation"] .hub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:112px;height:112px;margin:0;z-index:3}
+[data-layout="constellation"] .zones{position:static;margin:0;display:block}[data-layout="constellation"] .zone{position:static;padding:0;border:0;background:none}
+[data-layout="constellation"] .zone ul{display:block}[data-layout="constellation"] .tile{position:absolute;width:120px;height:46px;min-height:44px;gap:8px;padding:0;border:0;background:none;border-radius:23px;font-size:13px}
+[data-layout="constellation"] .tile .orb{width:44px;height:44px}[data-layout="constellation"] .tile .lb{width:68px}[data-layout="constellation"] .tile .nm{font-size:13px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}[data-layout="constellation"] .tile .ds,[data-layout="constellation"] .unknown-text{display:none}
+[data-layout="constellation"] .tile.left-label{flex-direction:row-reverse;text-align:right}[data-layout="constellation"] .tile .unknown{position:absolute;left:14px;top:12px;background:#06080d;z-index:2}
+[data-layout="constellation"] .zl{position:absolute;width:160px;text-align:center;justify-content:center;margin:0;font-size:11.5px;z-index:2}[data-layout="constellation"] .zl .zc{margin-left:0}[data-layout="constellation"] .zl::before{display:none}[data-layout="constellation"] .resting{position:absolute;width:158px;padding:10px;text-align:center;transform:translate(-50%,-50%);border:1px dashed rgba(var(--zc),.4);border-radius:12px;background:#06080d;font-size:11px;margin:0}[data-layout="constellation"] .resting b{color:rgb(var(--zc))}
+[data-layout="constellation"] [data-ring="inner"] .resting{left:50%;top:calc(50% + 145px)}[data-layout="constellation"] [data-ring="inner"] .zl{left:50%;top:calc(50% + 90px);transform:translateX(-50%)}
+[data-layout="constellation"] .legend{display:block;margin-bottom:24px}.legend li{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(var(--zc),.25);color:rgb(var(--zc));font:12px var(--mono)}
+[data-layout="constellation"] .detail{display:block;min-height:160px;padding:18px 0;border-top:1px solid rgba(var(--zc),.3);margin-bottom:24px}.detail h2{font-size:20px;color:rgb(var(--zc));margin:8px 0}.detail p{margin:8px 0}.detail-zone{font:11.5px var(--mono);text-transform:uppercase;color:rgb(var(--zc))}.address{font:12px var(--mono);overflow-wrap:anywhere}.hint{color:rgba(var(--fg),.8)}
+@media (min-width:1180px){[data-layout="constellation"] .body{display:grid;grid-template-columns:minmax(0,1fr) 296px;gap:18px}[data-layout="constellation"] .side{margin-top:34px}}
+#lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}.orbit{fill:none;stroke:rgba(var(--fg),.13);stroke-width:1;stroke-dasharray:2 7}.spoke{stroke:rgba(var(--zc),.4);stroke-width:1;stroke-dasharray:2 6}
+
+/* ==== end region: constellation ==== */
+
+/* ==== region: canvas ==== */
+/* Slice 10 fills this region: the character field behind the map. */
+
+#characters{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+
+/* ==== end region: canvas ==== */
+
+/* ==== region: motion ==== */
+/* Slice 10 fills this region: what moves, and what stays still with reduced motion. */
+
+.reduced *, .reduced *::before{animation:none!important;transition:none!important}
+
+/* ==== end region: motion ==== */
+
+/* ==== region: interact ==== */
+/* Slice 11 fills this region: pointer, focus and keyboard looks. */
+
+.tile:hover,.tile.hot{background:rgba(var(--zc),.1)}.tile:focus-visible{outline:3px solid #fff;outline-offset:4px;background:rgba(var(--zc),.17)}.hot-zone .zl{color:white}.spoke.hot-line{stroke:rgb(var(--zc));stroke-width:1.5}.tile.hot .orb{border-color:rgb(var(--zc));box-shadow:0 0 24px rgba(var(--zc),.55)}
+
+/* ==== end region: interact ==== */
+
+/* ==== region: refresh ==== */
+/* Slice 12 fills this region: the fade-in of a program that comes back. */
+
+.returning{animation:returning .55s ease-out}@keyframes returning{from{opacity:0}to{opacity:1}}
+
+/* ==== end region: refresh ==== */
+
+/* ==== region: notice ==== */
+/* Slice 13 fills this region: the look of the privacy notice page. */
+
+.notice{max-width:760px;padding-bottom:48px}.notice main{margin-top:28px}.notice h1{font-size:30px}.notice section{margin-top:28px}.notice h2{font-size:19px;margin-bottom:10px}.notice p{margin:10px 0;overflow-wrap:anywhere}.notice .review{color:rgb(var(--unknown))}
+
+/* ==== end region: notice ==== */
