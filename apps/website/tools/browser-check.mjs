@@ -31,7 +31,7 @@ try{
   assert(ready,'nginx serves the built candidate');
   browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--autoplay-policy=no-user-gesture-required']});
   const modules=process.argv.slice(2);
-  for(const name of modules.length?modules:['glossary','references','source','raster']){
+  for(const name of modules.length?modules:['regressions','glossary','references','source','source-languages','raster']){
     assert(/^[a-z-]+$/.test(name),'bounded check module');
     const {run}=await import('./checks/'+name+'.mjs');
     await run({browser,base,artifact,ok,root,dist,policy});

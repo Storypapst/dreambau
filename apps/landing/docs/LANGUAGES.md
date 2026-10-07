@@ -44,3 +44,7 @@ Classic `i18n.js`, `i18n/index.js`, then `shell.js` preserve the existing CSP. O
 `Dream.setLang(code)` returns a Promise of success. It checks visible glyphs, swaps Tagline textures with allocation/error checks, deletes replaced textures, updates text/direction and URL, and notifies `Dream.onLang`. Failed raster or texture work retains the old language and resources. It never changes the animation clock or audio state. The picker and its backdrop never unlock sound. Reduced motion performs a direct swap; otherwise the existing cross-fade hides it.
 
 The German canvas stays detached. Japanese and Chinese canvases carry their language hint while temporarily attached, and are removed even after raster errors. Device fonts remain the honest limit: glyph detection cannot certify natural wording, Nastaliq shape, Devanagari marks or real Safari/screen-reader behavior.
+
+## Selected Raster A restoration
+
+The design correction restores the previously selected Raster A rather than the simplified pills. The change adds 1,762 source CSS bytes to the previous fully used 3,072-byte allowance. The bounded source-style allowance is now 5,120 bytes; the runtime, manifest, shell and gzip limits remain separately enforced. This is a source-footprint proxy, not a claim about measured server transfer. See Storypapst/dreambau#147 and Storypapst/dreambau-docs#97.
