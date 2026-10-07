@@ -10,7 +10,7 @@
     "verify": "node tools/verify.mjs",
     "serve": "node tools/serve.mjs",
     "bundle": "node tools/bundle.mjs",
-    "build:apex": "node tools/build-apex.mjs",
+    "build:apex": "npm run build --prefix ../website && node tools/build-apex.mjs",
     "check:apex": "node tools/apex-check.mjs",
     "e2e": "node tools/e2e.mjs all",
     "e2e:lang": "node tools/e2e-lang.mjs",
@@ -19,7 +19,8 @@
     "build:languages": "node tools/build-languages.mjs",
     "check:languages": "node tools/check-languages.mjs",
     "sheet:languages": "node tools/lang-sheet.mjs",
-    "check:nginx": "node tools/nginx-check.mjs"
+    "check:nginx": "node tools/nginx-check.mjs",
+    "check:website": "npm run check --prefix ../website"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

@@ -1,0 +1,45 @@
+{
+  "files": [
+    {
+      "path": "glossar/index.html",
+      "bytes": 12415,
+      "sha256": "edbe8b79ae0a2b0cae216b8c166ccf00cc1982775a957e2b454b7559107fa5e5"
+    },
+    {
+      "path": "referenzen/index.html",
+      "bytes": 13235,
+      "sha256": "d44d89fd2c31dd486431c2c05bb174fb9c2157bcc662aab64195884fc63a51bc"
+    },
+    {
+      "path": "website-assets/portfolio/planung übersicht.webp",
+      "bytes": 67276,
+      "sha256": "6ab1cadffb9cbc58a49e4348a1cfb72cdb61f121938430737dd8e62cc77c6190"
+    },
+    {
+      "path": "website-assets/portfolio/prüfdienst hu3.webp",
+      "bytes": 40102,
+      "sha256": "9fe758fd0f2ca330183c10dc27642f4c83e360f129fd9b87d877cd272b86ffe9"
+    },
+    {
+      "path": "website-assets/portfolio/quick questions.webp",
+      "bytes": 58270,
+      "sha256": "e7c65037fdb1afb409ffa14e331430b4477dd4ac22b707aea835f4f85821b1f2"
+    },
+    {
+      "path": "website-assets/portfolio/sunflower-care subscription.webp",
+      "bytes": 34488,
+      "sha256": "91f3906a037856f18672eb45b2990b3acd37c9751d5168476c8963330a471d7b"
+    },
+    {
+      "path": "website-assets/website.css",
+      "bytes": 15774,
+      "sha256": "53628e10055a30cadf6aaedce815e01465ac59a2cb0506a1d24172586ddf752c"
+    },
+    {
+      "path": "website-assets/website.js",
+      "bytes": 796,
+      "sha256": "2457cabdb901176b906890d84459443a9d9de59e11892ecd7efaf31f7b949751"
+    }
+  ],
+  "totalBytes": 242356
+}

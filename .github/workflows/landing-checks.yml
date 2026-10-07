@@ -1,10 +1,10 @@
 name: Landing checks
 on:
   pull_request:
-    paths: ['apps/landing/**', '.github/workflows/landing-checks.yml', 'apps/AGENTS.md']
+    paths: ['apps/landing/**', 'apps/website/**', '.github/workflows/landing-checks.yml', 'apps/AGENTS.md']
   push:
     branches: [main]
-    paths: ['apps/landing/**', '.github/workflows/landing-checks.yml', 'apps/AGENTS.md']
+    paths: ['apps/landing/**', 'apps/website/**', '.github/workflows/landing-checks.yml', 'apps/AGENTS.md']
 permissions:
   contents: read
 jobs:

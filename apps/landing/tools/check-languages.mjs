@@ -33,7 +33,7 @@ export function checkLanguages(root=ROOT,{release=false,complete=false,buildDir=
   check('C10',decode(value||'')===expected,'index.html','German attribute binding differs: '+m[2]);
  }
  const literal=s=>/fam\s*=\s*'([^']+)'/.exec(s)?.[1];check('C11',!!literal(runtime)&&literal(runtime)===literal(shell),'i18n.js','font lists differ');
- const scriptOrder=h=>{const tags=[...h.matchAll(/<script([^>]+)>/g)].filter(m=>/src=/.test(m[1])).map(m=>m[1]);return tags.length===3&&tags[0].includes('i18n.js')&&tags[1].includes('i18n/index.js')&&tags[2].includes('shell.js')&&tags.every(t=>!/\b(async|defer|type)\b/.test(t));};check('C12',scriptOrder(html),'index.html','classic script order');
+ const scriptOrder=h=>{const tags=[...h.matchAll(/<script([^>]+)>/g)].filter(m=>/src=/.test(m[1])).map(m=>m[1]);return tags.length===4&&tags[3].includes('navigation.js')&&tags[0].includes('i18n.js')&&tags[1].includes('i18n/index.js')&&tags[2].includes('shell.js')&&tags.every(t=>!/\b(async|defer|type)\b/.test(t));};check('C12',scriptOrder(html),'index.html','classic script order');
  if(complete){for(const r of rows)check('K1',fs.existsSync(path.join(dir,r.code+'.js')),r.code,'missing complete file');}
  if(release){
   check('R1',rows.every(r=>r.offered===true&&typeof r.reviewed==='boolean'),'languages.json','approved47 availability; reviewed informational');
