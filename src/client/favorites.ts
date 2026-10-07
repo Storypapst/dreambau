@@ -22,28 +22,47 @@ export function toggleFavorite(favorites: string[], email: string): string[] {
 export function useFavorites() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const latest = useRef<string[]>([]);
-  latest.current = favorites;
+  const loaded = useRef(false);
+  const writing = useRef(false);
 
   useEffect(() => {
     let live = true;
     api<{ value: unknown }>(PREFERENCE_PATH)
-      .then((result) => { if (live) setFavorites(coerceFavorites(result.value)); })
-      .catch(() => { if (live) setError(true); })
-      .finally(() => { if (live) setReady(true); });
-    return () => { live = false; };
+      .then((result) => {
+        if (!live) return;
+        latest.current = coerceFavorites(result.value);
+        loaded.current = true;
+        setFavorites(latest.current);
+        setReady(true);
+      })
+      .catch(() => { if (live) setError(true); });
+    return () => { live = false; loaded.current = false; };
   }, []);
 
   const toggle = useCallback(async (email: string) => {
+    // Refs block calls in the same event before React can render disabled stars.
+    if (!loaded.current || writing.current) return;
+    writing.current = true;
+    setSaving(true);
     const before = latest.current;
     const next = toggleFavorite(before, email);
+    latest.current = next;
     setFavorites(next); setError(false);
     try {
       const result = await api<{ value: unknown }>(PREFERENCE_PATH, { method: "PUT", body: JSON.stringify({ value: next }) });
-      setFavorites(coerceFavorites(result.value));
-    } catch { setFavorites(before); setError(true); }
+      latest.current = coerceFavorites(result.value);
+      setFavorites(latest.current);
+    } catch {
+      latest.current = before;
+      setFavorites(before); setError(true);
+    } finally {
+      writing.current = false;
+      setSaving(false);
+    }
   }, []);
 
-  return { favorites, ready, error, toggle };
+  return { favorites, ready, saving, error, toggle };
 }
