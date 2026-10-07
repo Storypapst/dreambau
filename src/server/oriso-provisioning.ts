@@ -509,28 +509,26 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     });
   }
 
+  async function retryCredentialProbe(probeCredential: () => ReturnType<typeof managedCredentialToken>) {
+    let probe = await probeCredential();
+    for (const delay of provisioningRetryDelaysMs) {
+      if (probe.kind === "authenticated") return probe.token;
+      await sleep(delay);
+      probe = await probeCredential();
+    }
+    return probe.kind === "authenticated" ? probe.token : null;
+  }
+
   async function retryAuthenticatedToken(
     record: TestAccessRecord,
     totpSecret?: string,
     username = record.username
   ) {
-    let probe = await credentialToken(record, totpSecret, username);
-    for (const delay of provisioningRetryDelaysMs) {
-      if (probe.kind === "authenticated") return probe.token;
-      await sleep(delay);
-      probe = await credentialToken(record, totpSecret, username);
-    }
-    return probe.kind === "authenticated" ? probe.token : null;
+    return retryCredentialProbe(() => credentialToken(record, totpSecret, username));
   }
 
   async function retryManagedCredentialToken(record: TestAccessRecord, totpSecret: string) {
-    let probe = await managedCredentialToken(record, totpSecret);
-    for (const delay of provisioningRetryDelaysMs) {
-      if (probe.kind === "authenticated") return probe.token;
-      await sleep(delay);
-      probe = await managedCredentialToken(record, totpSecret);
-    }
-    return probe.kind === "authenticated" ? probe.token : null;
+    return retryCredentialProbe(() => managedCredentialToken(record, totpSecret));
   }
 
   async function activateTotpWithRetry(record: TestAccessRecord, initialToken: string, totpSecret: string) {
