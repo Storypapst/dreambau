@@ -69,11 +69,9 @@ html.done #skip { display: none; }
 
 /* headless tests: no transitions, so screenshots show the settled state */
 html.test *, html.test *::before { transition: none !important; animation: none !important; }
-
 /* cross-fade used when skipping */
 #dip { position: fixed; inset: 0; z-index: 1; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .25s ease; }
 #dip.on { opacity: 1; }
-
 /* replay hint for reduced-motion visitors */
 #play{position:fixed;z-index:3;left:50%;transform:translateX(-50%);top:max(14px, env(safe-area-inset-top));font-size:12px;letter-spacing:.05em;color:rgba(var(--fg), .6);padding:12px 8px;display:none}
 html.still #play { display: block; }
@@ -95,15 +93,6 @@ html.static #cta { opacity: 1; }
 #langback{position:fixed;inset:0;z-index:29;background:transparent}#langback[hidden]{display:none}@media(max-width:600px),(pointer:coarse) and (max-height:520px){#langback{background:#0006}}@media(prefers-reduced-motion:no-preference){.lang-sheet{animation:langshow .26s ease}@keyframes langshow{from{opacity:0}to{opacity:1}}}@media(prefers-reduced-motion:no-preference) and (max-width:600px),(prefers-reduced-motion:no-preference) and (pointer:coarse) and (max-height:520px){.lang-sheet{animation-name:langslide}@keyframes langslide{from{opacity:0;transform:translate(-50%,24px)}to{opacity:1;transform:translate(-50%,0)}}
 
 }
-/* Website navigation reuses the approved pill and list panel. It is available from the first frame. */
-.site-menu{position:fixed;z-index:5;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));font-size:13px}
-.site-menu summary,.site-pill{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border:1px solid rgba(var(--fg),.34);border-radius:24px;background:rgba(6,8,13,.55);color:rgba(var(--fg),.9);cursor:pointer;list-style:none;font:inherit}
-.site-menu summary::-webkit-details-marker{display:none}.site-menu summary:focus-visible{outline:3px solid #fff;outline-offset:3px}
-.site-menu nav{position:absolute;top:52px;left:0;width:min(340px,calc(100vw - 24px));max-height:calc(100dvh - 90px);overflow:auto;padding:16px;border:1px solid rgba(var(--fg),.34);border-radius:24px;background:#06080d}
-.site-menu nav a,.site-menu nav button,.site-menu nav .pending{display:flex;align-items:center;min-height:44px;width:100%;padding:10px 4px;border-bottom:1px solid rgba(var(--fg),.1);text-decoration:none;color:rgba(var(--fg),.9);text-align:start;font:inherit;white-space:normal}
-.site-menu nav .pending{color:rgba(var(--fg),.62);font-size:12px}.site-menu nav a:hover,.site-menu nav button:hover{color:rgb(var(--fg));background:rgba(var(--fg),.06)}
-.site-menu .menu-close{margin-top:12px}#source-entry{position:fixed;z-index:4;top:12px;left:112px;font-size:13px}#source-entry[hidden]{display:none}
-@media(max-width:600px){#source-entry{top:64px;left:12px}html.still #play{top:64px;left:auto;right:12px;transform:none;max-width:calc(100vw - 165px)}}
 </style>
 <noscript><style>
 html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06080d 70%); }
@@ -112,6 +101,7 @@ html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06
 .sr span { display: block; }
 #cta { opacity: 1; }
 </style></noscript>
+<link rel="stylesheet" href="navigation.css">
 </head>
 <body>
 <details class="site-menu" id="site-menu" lang="de" dir="ltr"><summary>Menü</summary>

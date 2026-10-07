@@ -8,7 +8,7 @@ function node(tag,text,className){const n=doc.createElement(tag);if(text!=null)n
 function makeView(base){
  const css=node('link');css.rel='stylesheet';css.href=base+'source-view.css';viewCssReady=new Promise((resolve,reject)=>{css.onload=resolve;css.onerror=()=>reject(new Error('Ansicht konnte nicht geladen werden.'));});doc.head.append(css);
  view=node('dialog',null,'code-view');view.lang='de';view.dir='ltr';view.setAttribute('aria-labelledby','cv-title');
- view.innerHTML='<header class="cv-head"><h2 id="cv-title">Quelltext</h2><button type="button" id="cv-close">Schließen <kbd>Esc</kbd></button></header><div class="cv-split"><section class="cv-source" aria-label="Quelltext der laufenden Animation"><div class="cv-file"><span id="cv-file"></span><button id="cv-follow" aria-pressed="true" type="button">Mitlesen</button></div><div class="cv-code" tabindex="0" aria-label="Quelltext"></div><progress class="cv-progress" max="1" value="0" aria-label="Fortschritt"></progress><div class="cv-actions"><button type="button" id="cv-copy">Kopieren</button><button type="button" id="cv-compare">Vergleich</button><button type="button" id="cv-picture">Bild</button></div><p class="cv-status" role="status"></p></section><aside class="cv-data" aria-label="Datenblatt"><dl><div><dt>Die Animation</dt><dd><button type="button" class="cv-size" id="cv-size"></button></dd></div><div><dt>Runtime (shell.js)</dt><dd id="cv-runtime"></dd></div><div><dt>Ladezeit dieser Animation</dt><dd id="cv-load"></dd></div></dl><canvas id="cv-preview" aria-hidden="true" width="640" height="360"></canvas><p class="cv-description"></p></aside></div>';
+ view.innerHTML='<header class="cv-head"><h2 id="cv-title">Quelltext</h2><button type="button" id="cv-close">Schließen <kbd>Esc</kbd></button></header><div class="cv-split"><section class="cv-source" aria-label="Quelltext der laufenden Animation"><div class="cv-file"><span id="cv-file"></span><button id="cv-follow" aria-pressed="true" type="button">Mitlesen</button></div><div class="cv-code" tabindex="0" aria-label="Quelltext"></div><progress class="cv-progress" max="1" value="0" aria-label="Fortschritt"></progress><div class="cv-actions"><button type="button" id="cv-copy">Kopieren</button><button type="button" id="cv-compare">Vergleich</button><button type="button" id="cv-picture">Bild</button></div><p class="cv-status" role="status"></p></section><aside class="cv-data" aria-label="Datenblatt"><dl><div><dt>Die Animation</dt><dd><button type="button" class="cv-size" id="cv-size"></button></dd></div><div><dt>Startseite + Animation</dt><dd id="cv-page-size"></dd></div><div><dt>Runtime (shell.js)</dt><dd id="cv-runtime"></dd></div><div><dt>Ladezeit dieser Animation</dt><dd id="cv-load"></dd></div></dl><canvas id="cv-preview" aria-hidden="true" width="640" height="360"></canvas><p class="cv-description"></p></aside></div>';
  doc.body.append(view);view.querySelector('#cv-close').onclick=()=>view.close();
  view.addEventListener('close',()=>{if(comparison?.open)comparison.close();stopDraw?.();stopDraw=null;entry.focus();});
  view.querySelector('#cv-copy').onclick=async()=>{try{await navigator.clipboard.writeText(source);view.querySelector('.cv-status').textContent='Quelltext kopiert.';}catch{view.querySelector('.cv-status').textContent='Kopieren nicht verfügbar. Quelltext markieren und kopieren.';}};
@@ -54,12 +54,16 @@ function openComparison(){
  comparison.showModal();
 }
 D.openSourceView=async base=>{
+ const visitResources=performance.getEntriesByType('resource').map(e=>e.name);
  const id=D.state.id;if(!id||!D.prods[id])throw new Error('Animation lädt noch.');
  if(!D.sourceTexts?.[id])await loadScript(base+'p/'+id+'.src.js');
  if(!D.sourceFacts)await loadScript(base+'source-facts.js');
  if(!D.codeComparisons)await loadScript(base+'comparisons.js');data=D.codeComparisons;
  source=D.sourceTexts[id];if(!view)makeView(base);await viewCssReady;
  view.querySelector('#cv-file').textContent='p/'+id+'.js';view.querySelector('#cv-size').textContent=fmt(bytes(source)/1000)+' KB';
+ const initial=new Set(visitResources.filter(url=>url.startsWith(base)).map(url=>url.slice(base.length)));
+ const pageBytes=D.sourceFacts.files['index.html']+[...initial].reduce((sum,name)=>sum+(D.sourceFacts.files[name]||0),0);
+ view.querySelector('#cv-page-size').textContent=fmt(pageBytes/1000)+' KB · unkomprimiert';
  view.querySelector('#cv-runtime').textContent=fmt(D.sourceFacts.runtimeBytes/1000)+' KB';
  const timing=performance.getEntriesByName(new URL('p/'+id+'.js',base).href).find(e=>e.entryType==='resource');view.querySelector('#cv-load').textContent=timing?fmt(timing.duration)+' ms':'nicht verfügbar';
  view.querySelector('.cv-description').textContent=doc.getElementById('blind').textContent;view.querySelector('.cv-status').textContent='';view.classList.remove('picture-mode');shown=0;lastFrame=0;following=true;

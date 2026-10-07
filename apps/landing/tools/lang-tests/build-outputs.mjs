@@ -38,7 +38,9 @@ before(() => {
 test('the apex build lists i18n.js, i18n/index.js and i18n/de.js: all approved languages', () => {
   const names = apex.files.map(f => f.path);
   for (const f of ['i18n.js', 'i18n/index.js', 'i18n/de.js']) assert.ok(names.includes(f), `${f} is not in apex.json`);
-  assert.equal(names.length, CODES.length+9, names.join(', '));
+  assert.equal(new Set(names).size,names.length,'no duplicate release files');
+  assert.deepEqual(names.filter(n=>n.startsWith('i18n/')&&n!=='i18n/index.js').sort(),CODES.map(c=>'i18n/'+c+'.js').sort());
+  for(const file of ['navigation.css','navigation.js','source-view.js','referenzen/index.html','glossar/index.html'])assert.ok(names.includes(file),file);
   assert.deepEqual(apex.languages, CODES);
   assert.ok(!('drafts' in apex));
 });
@@ -60,7 +62,7 @@ test('the published manifest of the apex build is, byte for byte, the approved p
 });
 
 test('the apex page loads i18n.js, i18n/index.js and shell.js in this order, under the asset prefix, as classic scripts (FIL-6)', () => {
-  assert.deepEqual(scripts(apexHtml), ['i18n.js', 'i18n/index.js', 'shell.js'].map(f => ({ attrs: `src="${PRE}${f}"`, body: '' })));
+  assert.deepEqual(scripts(apexHtml), ['i18n.js', 'i18n/index.js', 'shell.js', 'navigation.js'].map(f => ({ attrs: `src="${PRE}${f}"`, body: '' })));
 });
 
 test('the apex page has no inline style, no style attribute and no event handler attribute: the live policy refuses them', () => {
@@ -72,7 +74,7 @@ test('the apex page has no inline style, no style attribute and no event handler
 
 test('the source page: the same three scripts in the same order with no async, no defer and no type="module" (FIL-6), no hreflang and no alternate link (CHO-10)', () => {
   const html = fs.readFileSync(path.join(SITE, 'index.html'), 'utf8');
-  assert.deepEqual(scripts(html), ['i18n.js', 'i18n/index.js', 'shell.js'].map(f => ({ attrs: `src="${f}"`, body: '' })));
+  assert.deepEqual(scripts(html), ['i18n.js', 'i18n/index.js', 'shell.js', 'navigation.js'].map(f => ({ attrs: `src="${f}"`, body: '' })));
   assert.doesNotMatch(html, /hreflang|rel\s*=\s*["']alternate/i);
 });
 

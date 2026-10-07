@@ -27,6 +27,8 @@ const boot = '<script>window.Dream={prods:{},add:function(d){this.prods[d.id]=d}
 const prods = ids.map(id => script(read(`p/${id}.js`))).join('\n');
 const manifest = publishedManifest(parseManifest(read('i18n/index.js')));
 const langs = parseManifest(manifest).langs.map(l => script(read(`i18n/${l.c}.js`)));
+html=html.replace('<link rel="stylesheet" href="navigation.css">','<style>'+read('navigation.css')+'</style>');
+html=html.replace('<script src="navigation.js"></script>',script(read('navigation.js')));
 const tags = { runtime: '<script src="i18n.js"></script>', manifest: '<script src="i18n/index.js"></script>', shell: '<script src="shell.js"></script>' };
 for (const tag of Object.values(tags)) if (!html.includes(tag)) throw new Error(`index.html: ${tag} not found`);
 html = html.replace(tags.runtime, () => [boot, script(read('i18n.js')), ...langs].join('\n'))

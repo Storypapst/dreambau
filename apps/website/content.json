@@ -619,98 +619,252 @@
         "group": "start",
         "text": "eine Animation ansehen",
         "word": "animation",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Startseite",
+          "what": "Eines von drei Stücken, je etwa eine Minute. Pro Besuch läuft eines.",
+          "where": "auf der Startseite",
+          "whatFor": "Die Eingangstür der Firma.",
+          "btn": [
+            "Animation ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "film schauen"
       },
       {
         "id": "tagline-verstehen",
         "group": "start",
         "text": "wissen, was „Jeht nich…“ heißt",
         "word": "tagline",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Startseite, in der Animation",
+          "what": "„Jeht nich…“ ist Berlinerisch für „Geht nicht, gibt’s nicht“.",
+          "where": "drei Zeilen in jeder Animation",
+          "whatFor": "Das Versprechen: Unmögliches wird gebaut.",
+          "btn": [
+            "Animation ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "spruch berlinerisch bedeutung"
       },
       {
         "id": "groesse-verstehen",
         "group": "start",
         "text": "wissen, was 4k und 64k heißen",
         "word": "grossenklasse",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Quelltext-Ansicht",
+          "what": "Das Größenbudget einer Animation: 4k „Rohbau“, 16k „Traumhaus“, 64k „Skyline“.",
+          "where": "im Namen jeder Animation",
+          "whatFor": "Wie klein eine Animation bleiben muss.",
+          "btn": [
+            "Quelltext ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "groesse kilobyte budget"
       },
       {
         "id": "quelltext-lesen",
         "group": "start",
         "text": "den Quelltext lesen",
         "word": "quelltext-ansicht",
-        "required_feature": "source-view-restored"
+        "required_feature": "source-view-restored",
+        "answer": {
+          "place": "Startseite, dann Quelltext-Ansicht",
+          "what": "Zeigt den Quelltext der Animation neben dem Bild, dazu Größe und Ladezeit.",
+          "where": "wird auf der Startseite geöffnet",
+          "whatFor": "Zeigt: Ein Film passt in wenige Kilobyte.",
+          "btn": [
+            "Quelltext ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "code sehen"
       },
       {
         "id": "startseite-oeffnen",
         "group": "start",
         "text": "die Startseite öffnen",
         "word": "startseite",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Startseite",
+          "what": "Die öffentliche Seite: eine Animation pro Besuch, am Ende die Kontaktzeile.",
+          "where": "unter https://dreambau.com",
+          "whatFor": "Erster Eindruck und Kontakt.",
+          "btn": [
+            "Startseite öffnen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": ""
       },
       {
         "id": "sprache-wechseln",
         "group": "start",
         "text": "die Sprache wechseln",
         "word": "sprachumschalter",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Startseite, Schlussbild",
+          "what": "Der Schalter am Ende der Kontaktzeile („· DE ▾“). Er wechselt die Sprache.",
+          "where": "Startseite, Schlussbild",
+          "whatFor": "Die Sprache wechseln.",
+          "btn": [
+            "Sprache wählen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "umschalten"
       },
       {
         "id": "blind-verstehen",
         "group": "start",
         "text": "eine Animation ohne Bild verstehen",
         "word": "blindbeschreibung",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Startseite, bei der Animation",
+          "what": "Beschreibt eine Animation für Besucher, die nichts sehen; in jeder Sprache.",
+          "where": "zu jeder Animation",
+          "whatFor": "Damit auch blinde Besucher sie erleben.",
+          "btn": [
+            "Beschreibung lesen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "blind barrierefrei"
       },
       {
         "id": "gebaut-sehen",
         "group": "inhalte",
         "text": "sehen, was wir gebaut haben",
         "word": "referenzen",
-        "required_feature": "references-page-restored"
+        "required_feature": "references-page-restored",
+        "answer": {
+          "place": "Referenzen",
+          "what": "Zeigt, was wir gebaut haben und für wen. Oben: die Aktuellen Projekte.",
+          "where": "auf https://dreambau.com",
+          "whatFor": "Besuchern zeigen, was wir können.",
+          "btn": [
+            "Referenzen öffnen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "projekte portfolio"
       },
       {
         "id": "projekte-aktuell",
         "group": "inhalte",
         "text": "wissen, woran wir gerade arbeiten",
         "word": "aktuelle-projekte",
-        "required_feature": "references-page-restored"
+        "required_feature": "references-page-restored",
+        "answer": {
+          "place": "Referenzen, oben",
+          "what": "ORISO, WeCareRemote, ORI, Bildungshaus weWeit und trail.ist.",
+          "where": "oben auf Referenzen",
+          "whatFor": "Zeigen, woran wir gerade arbeiten.",
+          "btn": [
+            "Referenzen öffnen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "laufend"
       },
       {
         "id": "bildungshaus-besuchen",
         "group": "inhalte",
         "text": "das Bildungshaus besuchen",
         "word": "bildungshaus",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Bildungshaus",
+          "what": "Ein öffentliches Projekt des Teams. Seine Seiten liegen unter /bildungshaus/.",
+          "where": "auf Referenzen gelistet",
+          "whatFor": "Ein Bildungsprojekt öffentlich machen.",
+          "btn": [
+            "Bildungshaus öffnen",
+            "https://dreambau.com/bildungshaus/"
+          ]
+        },
+        "keywords": ""
       },
       {
         "id": "umfrage-finden",
         "group": "inhalte",
         "text": "die Bildungshaus-Umfrage finden",
         "word": "umfrage",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Teamwork",
+          "what": "Die Umfrage des Projekts Bildungshaus. Sie ist ein Programm in Teamwork.",
+          "where": "in Teamwork",
+          "whatFor": "Antworten für das Bildungshaus sammeln.",
+          "btn": [
+            "Umfrage öffnen",
+            "Teamwork, eigenes Login"
+          ]
+        },
+        "keywords": "fragebogen"
       },
       {
         "id": "wort-nachschlagen",
         "group": "inhalte",
         "text": "ein Wort nachschlagen",
         "word": "glossar",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Glossar",
+          "what": "Diese Seite: die Wörter, die wir benutzen, und wo jedes Ding wohnt.",
+          "where": "auf https://dreambau.com",
+          "whatFor": "Alle sagen dasselbe Wort für dasselbe Ding.",
+          "btn": [
+            "Alle Wörter von A bis Z",
+            null
+          ]
+        },
+        "keywords": "begriff bedeutung"
       },
       {
         "id": "programm-oeffnen",
         "group": "team",
         "text": "ein Programm öffnen",
         "word": "programm",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Teamwork",
+          "what": "Eine Anwendung in Teamwork: Name, ein Satz Zweck und die Adresse.",
+          "where": "in Teamwork",
+          "whatFor": "Das, was ein Teammitglied öffnet.",
+          "btn": [
+            "Teamwork öffnen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "anwendung starten"
       },
       {
         "id": "programme-sehen",
         "group": "team",
         "text": "alle Programme sehen",
         "word": "teamwork",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Teamwork",
+          "what": "Verzeichnis der Programme, ohne Login. Jedes Programm hat sein eigenes.",
+          "where": "auf https://dreambau.com",
+          "whatFor": "Teammitglieder finden ihr Programm schnell.",
+          "btn": [
+            "Teamwork öffnen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "verzeichnis"
       },
       {
         "id": "login-brauche",
@@ -721,77 +875,198 @@
         "what": "Teamwork selbst braucht kein Login. Jedes Programm dahinter hat sein eigenes.",
         "where": "in Teamwork und im Programm",
         "whatFor": "Die Seite ist offen, die Programme nicht.",
-        "place": "Teamwork, dann das Programm"
+        "place": "Teamwork, dann das Programm",
+        "answer": {
+          "place": "Teamwork, dann das Programm",
+          "what": "Teamwork selbst braucht kein Login. Jedes Programm dahinter hat sein eigenes.",
+          "where": "in Teamwork und im Programm",
+          "whatFor": "Die Seite ist offen, die Programme nicht.",
+          "btn": [
+            "Teamwork öffnen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "anmelden zugang"
       },
       {
         "id": "seite-aufbau",
         "group": "team",
         "text": "wissen, wie Teamwork aussieht",
         "word": "konstellation",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Teamwork",
+          "what": "Das Aussehen von Teamwork: Zonen als Sektoren, jedes Programm ein Orb.",
+          "where": "auf der Teamwork-Seite",
+          "whatFor": "Programme nach Zonen geordnet zeigen.",
+          "btn": [
+            "In Teamwork ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "look aufbau"
       },
       {
         "id": "gruppe-finden",
         "group": "team",
         "text": "die Gruppe eines Programms finden",
         "word": "zone",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Teamwork",
+          "what": "Eine benannte Gruppe zusammengehöriger Programme, mit eigener Farbe.",
+          "where": "in Teamwork",
+          "whatFor": "Orientierung: Wohin gehört ein Programm?",
+          "btn": [
+            "In Teamwork ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "farbe bereich"
       },
       {
         "id": "anklicken",
         "group": "team",
         "text": "wissen, was ich anklicken muss",
         "word": "kachel",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Teamwork",
+          "what": "Das anklickbare Gesicht eines Programms, in der Konstellation ein Orb.",
+          "where": "in Teamwork",
+          "whatFor": "Das Klickziel.",
+          "btn": [
+            "In Teamwork ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "klick"
       },
       {
         "id": "laeuft",
         "group": "team",
         "text": "wissen, ob ein Programm antwortet",
         "word": "erreichbar",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Teamwork",
+          "what": "Das Programm antwortet auf die Prüfung. Sonst blendet Teamwork es aus.",
+          "where": "in Teamwork",
+          "whatFor": "Keine toten Links; ist die Prüfung zu alt: „Status unbekannt“.",
+          "btn": [
+            "In Teamwork ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "laeuft status ausgeblendet erreichbar"
       },
       {
         "id": "verwaltung",
         "group": "team",
         "text": "die Verwaltung finden",
         "word": "internal",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Teamwork, Zone „Verwaltung“",
+          "what": "Die Kachel in der Zone „Verwaltung“: ein Link, nie ein Schalter.",
+          "where": "in Teamwork, Zone „Verwaltung“",
+          "whatFor": "Führt zur Verwaltung der Programme, mit eigenem Login.",
+          "btn": [
+            "In Teamwork ansehen",
+            "https://dreambau.com"
+          ]
+        },
+        "keywords": "verwaltung programme schalter link"
       },
       {
         "id": "frei-wann",
         "group": "frei",
         "text": "wissen, wann etwas freigegeben ist",
         "word": "freigabe",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "vor dem Veröffentlichen",
+          "what": "Franks ausdrückliches Ja. Ohne Freigabe wird nichts öffentlich.",
+          "where": "Ein zusammengeführter Pull Request ist die Freigabe.",
+          "whatFor": "Die Kontrolle darüber, was öffentlich ist.",
+          "btn": [
+            "Zum Pull Request",
+            "hinter einem Login"
+          ]
+        },
+        "keywords": "pull request zusammengefuehrt ok"
       },
       {
         "id": "live-schalten",
         "group": "frei",
         "text": "etwas live schalten",
         "word": "veroeffentlichen",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Server",
+          "what": "Freigegebene Dateien ersetzen die Live-Seite; daraus wird ein Release.",
+          "where": "auf dem Server",
+          "whatFor": "Freigegebenes live bringen.",
+          "btn": [
+            "Anleitung ansehen",
+            "hinter einem Login"
+          ]
+        },
+        "keywords": "veroeffentlichen"
       },
       {
         "id": "stand-live",
         "group": "frei",
         "text": "wissen, welcher Stand live ist",
         "word": "release",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Server",
+          "what": "Der nummerierte Stand der Live-Dateien, z. B. 20261003-163112.",
+          "where": "auf dem Server",
+          "whatFor": "Der Stand davor bleibt als Sicherung.",
+          "btn": [
+            "Anleitung ansehen",
+            "hinter einem Login"
+          ]
+        },
+        "keywords": "nummer aktuell"
       },
       {
         "id": "zuruecknehmen",
         "group": "frei",
         "text": "eine Veröffentlichung zurücknehmen",
         "word": "rollback",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Server",
+          "what": "Die Dateien des vorherigen Releases wieder einsetzen.",
+          "where": "auf dem Server",
+          "whatFor": "Eine Veröffentlichung rückgängig machen.",
+          "btn": [
+            "Anleitung ansehen",
+            "hinter einem Login"
+          ]
+        },
+        "keywords": "undo rueckgaengig fehler"
       },
       {
         "id": "programmliste-wo",
         "group": "plan",
         "text": "wissen, wo die Programmliste liegt",
         "word": "programmliste",
-        "required_feature": null
+        "required_feature": null,
+        "answer": {
+          "place": "Server",
+          "what": "Die Datei mit den echten Programmen; sie liegt in keinem Repository.",
+          "where": "nur auf dem Server",
+          "whatFor": "Die einzige Quelle für Teamwork.",
+          "btn": [
+            "Anleitung ansehen",
+            "hinter einem Login"
+          ]
+        },
+        "keywords": "server datei"
       },
       {
         "id": "server-repo",
@@ -802,7 +1077,18 @@
         "what": "Server: Live-Dateien und Programmliste. Repository: Texte, Tabellen und Pläne.",
         "where": "Server oder Repository",
         "whatFor": "Jede Sache hat genau einen Ort.",
-        "place": "Server und Repository"
+        "place": "Server und Repository",
+        "answer": {
+          "place": "Server und Repository",
+          "what": "Server: Live-Dateien und Programmliste. Repository: Texte, Tabellen und Pläne.",
+          "where": "Server oder Repository",
+          "whatFor": "Jede Sache hat genau einen Ort.",
+          "btn": [
+            "Anleitung ansehen",
+            "hinter einem Login"
+          ]
+        },
+        "keywords": "server repository ablage speicher"
       },
       {
         "id": "loeschen",
@@ -811,7 +1097,18 @@
         "word": "release",
         "required_feature": null,
         "what": "Löschen geht nur mit ausdrücklicher Zustimmung von Frank.",
-        "whatFor": "Jeder Stand bleibt als Sicherung erhalten."
+        "whatFor": "Jeder Stand bleibt als Sicherung erhalten.",
+        "answer": {
+          "place": "Server",
+          "what": "Löschen geht nur mit ausdrücklicher Zustimmung von Frank.",
+          "where": "auf dem Server",
+          "whatFor": "Jeder Stand bleibt als Sicherung erhalten.",
+          "btn": [
+            "Anleitung ansehen",
+            "hinter einem Login"
+          ]
+        },
+        "keywords": "loeschen sicherung zustimmung"
       }
     ],
     "excluded_terms": [
@@ -904,6 +1201,310 @@
       "arbeit-verfolgen",
       "entschieden",
       "offen-was"
+    ],
+    "avoid": [
+      {
+        "w": "Homepage",
+        "use": [
+          "startseite"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "index",
+        "use": [
+          "startseite"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Production",
+        "use": [
+          "animation"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "demo",
+        "use": [
+          "animation"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "intro",
+        "use": [
+          "animation"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Tier",
+        "use": [
+          "grossenklasse"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "level",
+        "use": [
+          "grossenklasse"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Slogan",
+        "use": [
+          "tagline"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "claim",
+        "use": [
+          "tagline"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Zeichen-Ansicht",
+        "use": [
+          "quelltext-ansicht"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "source view",
+        "use": [
+          "quelltext-ansicht"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Alt text",
+        "use": [
+          "blindbeschreibung"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "caption",
+        "use": [
+          "blindbeschreibung"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Projekte-Seite",
+        "use": [
+          "referenzen"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Projects page",
+        "use": [
+          "referenzen"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Card",
+        "use": [
+          "eintrag",
+          "kachel"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "item",
+        "use": [
+          "eintrag"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Work",
+        "use": [
+          "teamwork"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Work area",
+        "use": [
+          "teamwork"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Work-Bereich",
+        "use": [
+          "teamwork"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Team-Login",
+        "use": [
+          "teamwork"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Tool",
+        "use": [
+          "programm"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "app",
+        "use": [
+          "programm"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "service",
+        "use": [
+          "programm"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Category",
+        "use": [
+          "zone"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "section",
+        "use": [
+          "zone"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Button",
+        "use": [
+          "kachel"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Star chart",
+        "use": [
+          "konstellation"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Graph view",
+        "use": [
+          "konstellation"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Online",
+        "use": [
+          "erreichbar"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "up",
+        "use": [
+          "erreichbar"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "available",
+        "use": [
+          "erreichbar"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Registry",
+        "use": [
+          "programmliste"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "config",
+        "use": [
+          "programmliste"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "admin panel",
+        "use": [
+          "internal"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Locale",
+        "use": [
+          "sprache"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Approval",
+        "use": [
+          "freigabe"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Language picker",
+        "use": [
+          "sprachumschalter"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Review",
+        "use": [
+          "freigabe"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "sign-off",
+        "use": [
+          "freigabe"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Deploy",
+        "use": [
+          "veroeffentlichen"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "Version",
+        "use": [
+          "release"
+        ],
+        "msg": ""
+      },
+      {
+        "w": "build",
+        "use": [
+          "release"
+        ],
+        "msg": ""
+      }
     ]
   }
 }

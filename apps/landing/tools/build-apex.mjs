@@ -50,6 +50,7 @@ const noscriptCss = takeBlock(/<noscript><style>([\s\S]*?)<\/style><\/noscript>/
 html = html.replace('\u0000', () => `<noscript><link rel="stylesheet" href="${prefix}noscript.css"></noscript>`);
 const styleCss = takeBlock(/<style>([\s\S]*?)<\/style>/g, '<style> block');
 html = html.replace('\u0000', () => `<link rel="stylesheet" href="${prefix}style.css">`);
+html=html.replace('href="navigation.css"','href="'+prefix+'navigation.css"');
 for (const src of ['i18n.js', 'i18n/index.js', 'shell.js', 'navigation.js']) {
   once(html, `<script src="${src}"></script>`, `index.html: the script tag of ${src}`);
   html = html.replace(`<script src="${src}"></script>`, () => `<script src="${prefix}${src}"></script>`);
@@ -89,8 +90,7 @@ if (!drafts) {
 }
 // --- write
 const files = new Map([['index.html', html], ['style.css', styleCss], ['noscript.css', noscriptCss], ['shell.js', shell], ['i18n.js', read('i18n.js')], ['i18n/index.js', manifestText]]);
-for (const f of ['navigation.js','source-view.js','source-view.css','comparisons.js']) files.set(f, read(f));
-files.set('source-facts.js','window.Dream.sourceFacts='+JSON.stringify({runtimeBytes:Buffer.byteLength(shell)})+';\n');
+for (const f of ['navigation.css','navigation.js','source-view.js','source-view.css','comparisons.js']) files.set(f, read(f));
 for (const f of langFiles) files.set('i18n/' + f, read('i18n/' + f));
 for (const id of productions) {
   const f = path.join(SITE, 'p', id + '.js');
@@ -102,6 +102,8 @@ for (const id of productions) {
 const website=path.resolve(ROOT,'../website/dist'), websiteManifest=website+'.json';
 if(!fs.existsSync(websiteManifest)) fail('run npm run build in apps/website before this build');
 for(const file of JSON.parse(fs.readFileSync(websiteManifest,'utf8')).files){const buf=fs.readFileSync(path.join(website,file.path));if(sha(buf)!==file.sha256)fail('website manifest mismatch: '+file.path);files.set(file.path,buf);}
+const initialFiles=Object.fromEntries([...files].filter(([name])=>name==='style.css'||name==='navigation.css'||name==='index.html'||name==='shell.js'||name==='navigation.js'||name==='i18n.js'||name.startsWith('i18n/')||/^p\/[^/]+\.js$/.test(name)&&!name.endsWith('.src.js')).map(([name,text])=>[name,Buffer.byteLength(text)]));
+files.set('source-facts.js','window.Dream.sourceFacts='+JSON.stringify({runtimeBytes:Buffer.byteLength(shell),files:initialFiles})+';\n');
 fs.rmSync(out, { recursive: true, force: true });
 const manifest = [];
 for (const [rel, text] of [...files].sort(([x], [y]) => x < y ? -1 : 1)) {
