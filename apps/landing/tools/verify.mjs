@@ -7,12 +7,14 @@
 // first frame dark · three or more distinct phases · no dead period · order independence (no stale render targets) · flash safety · tagline revealed in order,
 // legible (contrast) and complete at fin · calm dark bottom band at 16:9, 21:9, 4:3 and portrait · music (audio.mjs) ·
 // real-time behaviour (e2e.mjs) · picture cost (software GL, informational)
-// --quick skips music, e2e and the contact sheet. --env also (re)writes ENVIRONMENT.json.
+// and once for the whole page, the section "languages": e2e:lang --quick (tools/e2e-lang.mjs), the end-to-end checks of the language mechanism
+// --quick skips music, e2e and the contact sheet (and runs e2e:lang --quick, as it always does here). --env also (re)writes ENVIRONMENT.json.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT, SITE, launch, openProduction, parseArgs, mkdir, playwright } from './lib.mjs';
 import { BUDGET, IDS } from './budget.mjs';
+import { scanSite } from './scan-rules.mjs';
 
 const a = parseArgs(process.argv.slice(2));
 const ids = a._.length ? a._ : IDS;
@@ -31,19 +33,31 @@ function row(r, name, ok, detail = '', warn = false) {
 const diff = (x, y) => { let s = 0; for (let i = 0; i < x.length; i++) s += Math.abs(x[i] - y[i]); return s / x.length; };
 
 // ---- static scan of the shipped files -------------------------------------------------------
+// the page, its scripts, the language runtime, the manifest and every language file; the rules are in tools/scan-rules.mjs (a node test applies them to strings)
 function staticScan(r) {
-  const files = ['index.html', 'shell.js', ...ids.map(id => `p/${id}.js`)].map(f => path.join(SITE, f)).filter(f => fs.existsSync(f));
-  const bad = [];
-  const rules = [
-    [/https?:\/\//i, 'absolute http(s) URL'], [/\bfetch\s*\(/, 'fetch()'], [/XMLHttpRequest/, 'XMLHttpRequest'], [/WebSocket/, 'WebSocket'],
-    [/\bnew\s+Image\b/, 'Image()'], [/<img\b/i, '<img>'], [/<iframe\b/i, '<iframe>'], [/<video\b/i, '<video>'], [/<audio\b/i, '<audio>'],
-    [/\bimport\s*\(/, 'dynamic import()'], [/sendBeacon/, 'sendBeacon'], [/document\.cookie/, 'cookies'],
-  ];
-  for (const f of files) {
-    const src = fs.readFileSync(f, 'utf8');
-    for (const [re, what] of rules) if (re.test(src)) bad.push(`${path.basename(f)}: ${what}`);
-  }
-  row(r, 'static scan: no network, media or asset APIs in the shipped files', bad.length === 0, bad.join('; '));
+  const bad = scanSite(SITE, ids);
+  row(r, 'static scan: no network, media or asset APIs, no eval or new Function, in the shipped files', bad.length === 0, bad.join('; '));
+}
+
+// ---- the languages: the end-to-end checks of the language mechanism ----------------------------
+// one row for each module of tools/e2e-lang/ (the runner prints "PASS|FAIL  <module>  <rows>  <seconds> s" and the reason below a FAIL)
+function languagesSection() {
+  const r = report.languages = { checks: [] };
+  log('\n== languages ==');
+  const checked = run(process.execPath, ['tools/check-languages.mjs', '--release', '--complete']);
+  row(r, 'check:languages release/complete', checked.status === 0, checked.status ? (checked.stdout + checked.stderr).slice(-1500) : 'all source and pinned release checks passed');
+  const e = run(process.execPath, ['tools/e2e-lang.mjs', '--quick'], { timeout: 900000 });
+  const out = (e.stdout || '') + (e.stderr || '');
+  const lines = out.split('\n');
+  let n = 0;
+  lines.forEach((l, i) => {
+    const m = /^(PASS|FAIL)\s+(\S+)\s+(.*?)\s+([\d.]+) s$/.exec(l);
+    if (!m) return;
+    n++;
+    const why = []; for (let j = i + 1; j < lines.length && /^\s{6}/.test(lines[j]); j++) why.push(lines[j].trim());
+    row(r, `e2e:lang --quick: ${m[2]} (${m[3]}), ${m[4]} s`, m[1] === 'PASS', why.join(' | ').slice(0, 600));
+  });
+  if (e.status !== 0 || !n) row(r, 'e2e:lang --quick: the run itself', e.status === 0 && n > 0, `exit ${e.status}${n ? '' : ', no module ran: ' + out.trim().slice(0, 300)}`);
 }
 
 // ---- main per production --------------------------------------------------------------------
@@ -170,6 +184,8 @@ try {
     }
   }
 
+  languagesSection();
+
   if (a.env || !fs.existsSync(path.join(ROOT, 'ENVIRONMENT.json'))) {
     const p = await browser.newPage();
     await p.goto('file://' + path.join(SITE, 'index.html') + '?test=1&anim=' + ids[0]);
@@ -202,6 +218,7 @@ let md = `# Verification summary\n\nGenerated ${report.generated}. ${failures ? 
 for (const [id, r] of Object.entries(report.productions)) {
   md += `\n## ${id}\n\n| check | result | detail |\n|---|---|---|\n` + r.checks.map(c => `| ${c.name.replace(/\|/g, '/')} | ${c.ok ? 'pass' : c.warn ? 'warn' : '**FAIL**'} | ${(c.detail || '').replace(/\|/g, '/').replace(/\n/g, ' ')} |`).join('\n') + '\n';
 }
+if (report.languages) md += `\n## languages\n\n| check | result | detail |\n|---|---|---|\n` + report.languages.checks.map(c => `| ${c.name.replace(/\|/g, '/')} | ${c.ok ? 'pass' : '**FAIL**'} | ${(c.detail || '').replace(/\|/g, '/').replace(/\n/g, ' ')} |`).join('\n') + '\n';
 fs.writeFileSync(path.join(ROOT, 'verification', 'SUMMARY.md'), md);
 log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

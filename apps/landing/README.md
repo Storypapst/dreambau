@@ -130,3 +130,9 @@ verification/        Ergebnisse der Prüfungen
   Ausgabeverzögerung hat. Der Anfang jeder Musik ist fast still, damit ein späterer Einstieg (Ton erst nach dem ersten Klick)
   nicht als Schnitt auffällt.
 * **Uhr:** läuft frei und wird sanft an die Ausgabeposition des Tons angepasst, sobald Ton läuft.
+
+## Sprachen der Startseite
+
+Alle 47 Sprachen der vorhandenen Liste sind angeboten, wie am 2026-10-07 bestätigt. Übersetzungen sind Entwürfe;
+der Leserstatus behauptet keine Prüfung. Der Umschalter steht in der Schlusszeile und speichert keine Sprache.
+[LANGUAGES.md](docs/LANGUAGES.md) beschreibt Prüfungen, Vergleichsbögen und die Übergabe neuer Texte.

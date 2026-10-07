@@ -138,9 +138,8 @@ zu stellen.
   liegen im Fork. Mit ihnen wüchse das öffentliche Repo um rund 18 MB statt um rund 6 MB, und Git behält sie für immer. Die
   Verweise darauf (`verification/SUMMARY.md`, `report.json`, README) sind Ausgabe der Prüfläufe und bleiben unverändert; ein
   neuer `npm run verify` erzeugt die Bilder wieder.
-- Die CI des Monorepos läuft für jeden Pull Request vollständig (Lint, Tests, Build); der Import ändert daran nichts. Eine
-  eigene Prüfung für `apps/landing` (zum Beispiel `npm run build` für die Größenbudgets, nur bei Änderungen dort) wäre ein
-  kleiner nächster Schritt.
+- Die CI des Monorepos bleibt für die Hauptanwendung erhalten. `landing-checks.yml` prüft Änderungen unter
+  `apps/landing/` zusätzlich separat mit Node 20, Sprachdateien, echtem nginx und Chromium.
 
 **So wurde importiert** (zur Wiederholung):
 
@@ -389,43 +388,18 @@ normaler Text. Eine 24-KB-Animation sind rund 24.000 Zeichen, die man wirklich a
 
 ## 7. Mehrsprachigkeit
 
-- **Prinzip:** Der Schriftzug wird zur Laufzeit gezeichnet, die Musik hat keinen Text. Keine Videos pro Sprache.
-  Auswahl über `navigator.languages` (erste passende), `?lang=` zum Überschreiben, **Rückfall ist Deutsch** (wie jetzt),
-  wenn die Sprache fehlt. Wörterbuch für `data-lines` (die drei Zeilen), Schlusszeile, Beschriftungen („Ton", „überspringen"),
-  Zeichen-Ansicht und Beschreibung für Blinde; `<html lang>` setzen; Hinweis auf Sprachvarianten für Suchmaschinen.
-- **Übersetzen:** sinngemäß, nicht wörtlich: „Jeht nich… jibs nich…" ist Berliner Dialekt. Entweder den Sinn übersetzen
-  („Can't be done? Doesn't exist.") oder das Original behalten und eine kleine Übersetzung darunter setzen. Entwürfe kann
-  Claude schreiben, Muttersprachler sollten sie ansehen.
-- **Umfang (entschieden 2026-10-03):** die 40 meistgenutzten Sprachen. Offen ist, wonach gezählt wird. Vorschlag: nach der
-  weltweiten Sprecherzahl (Mutter- und Zweitsprache), zusammengefasst auf Schriftsprachen mit eigenem Browser-Sprachcode
-  (zum Beispiel zählt „Ägyptisches Arabisch" zu `ar`), sonst stünden Dialekte ohne eigene Schreibweise in der Liste. Welche
-  Sprachen die Besucher von dreambau.com tatsächlich sprechen, lässt sich ohne Tracking nicht messen; Türkisch, Russisch,
-  Ukrainisch und Polnisch kamen im Gespräch vor und sollten dabei sein, auch wenn eine davon nicht unter den ersten 40
-  steht.
-- **Ladezeit:** Jede Sprache liegt in einer eigenen kleinen Datei (`i18n/<code>.js`, geschätzt 1 bis 4 KB), als Skript
-  geladen wie `p/<id>.js`; dann bleibt die Sicherheitsrichtlinie (`connect-src 'none'`) unverändert. Geladen wird nur die
-  gewählte Sprache plus der deutsche Rückfall, die Seite wächst also nicht mit der Zahl der Sprachen.
-- **Schriftsysteme:** Die eingebettete Schrift (Abschnitt 4.3) deckt nur Latein mit Umlauten ab. Bei 40 Sprachen kommen
-  kyrillisch, griechisch, arabisch, Devanagari, bengalisch, tamilisch, Telugu, Kannada, Malayalam, Thai, koreanisch,
-  japanisch, chinesisch, äthiopisch und weitere dazu. Für jedes eine Teilmenge einzubetten ließe die Seite um Hunderte KB
-  wachsen. Stattdessen zeichnet die Zeichenfläche diese Sprachen mit den Systemschriften des Geräts (der Browser wählt je
-  Zeichen eine passende Schrift, die Liste `fam` bleibt unverändert). Folge: Der Schriftzug sieht dort je Gerät etwas
-  anders aus; `dreambau.com` bleibt in allen Sprachen lateinisch.
-- **Rechts-nach-links:** Arabisch, Urdu und Persisch brauchen `dir="rtl"` am `<html>`-Element; zu prüfen ist, ob die Zeile
-  mit dem lateinischen `dreambau.com` richtig steht (gemischte Schreibrichtung). Die Knöpfe dürfen an ihrem Platz
-  bleiben. Weil der Text als Ganzes in eine Textur gezeichnet wird, bleiben verbundene Schriften beim Zeichnen heil; zu
-  prüfen ist, dass kein Effekt Buchstaben einzeln auftauchen lässt.
-- **Gegenlesen:** Entwürfe schreibt Claude, aber eine Redewendung wie „Jeht nich… jibs nich…" kann in einer anderen Sprache
-  ungewollt anders klingen (zu förmlich, zu derb, unfreiwillig komisch). Deshalb pro Sprache ein Feld `reviewed` im
-  Wörterbuch; die Auswahl nach Browsersprache nimmt nur Sprachen, die ein Muttersprachler gelesen hat, alle anderen fallen
-  auf Deutsch zurück. So kann man alle 40 Entwürfe bereithalten und eine Sprache nach der anderen freischalten.
-- **Rechtstexte** bleiben deutsch, eine englische Fassung ist optional.
-- **Prüfung:** neue Prüfung in `verify.mjs`: jede Sprache hat alle Texte und passt in die Breite (Kontrast und Zeilenbruch,
-  auch im schmalen Hochformat). Im Render-Rechner der Cloud-Sitzung sind nur wenige Schriften installiert, die Schriftsysteme
-  lassen sich dort nicht beurteilen; lokal mit installierten Noto-Schriften oder auf echten Geräten ansehen.
-- Aufwand (geschätzt): der Mechanismus mit Deutsch und Englisch etwa ein bis zwei Stunden. Für 40 Sprachen kommen die
-  Entwürfe (in einem Durchgang), rechts-nach-links und die Schriftsysteme (etwa ein halber Tag) und das Gegenlesen hinzu;
-  Letzteres hängt an den Muttersprachlern, nicht an der Technik.
+Die Startseite enthält alle 47 Sprachen der vorhandenen Liste. Frank hat am 2026-10-07 ausdrücklich bestätigt,
+alle 47 beizubehalten und ohne Leser-Freigabeschranke anzubieten. Der Leserstatus ist weiter sichtbar in den
+Quelldaten; er behauptet keine erfolgte Prüfung. Die frühere Auswahl nur freigegebener Sprachen ist damit ersetzt.
+
+Die 16 deutschen Schlüssel und alle drei Blindbeschreibungen stehen vollständig in jeder Sprachdatei. Die Sprache
+kommt aus der URL oder der Browserliste; ein Gerät, das sichtbare Zeichen nicht darstellen kann, erhält Deutsch.
+Der Sprachumschalter steht in der Schlusszeile, verwendet die entschiedene Raster-Variante und speichert keine Sprache.
+
+Befehle, technische Grenzen, Vergleichsbögen und die Übergaben für neue Texte stehen in [LANGUAGES.md](LANGUAGES.md).
+Die Schrift kommt vom Gerät. Die Bögen zeigen die Darstellung, ersetzen jedoch keine Prüfung durch Muttersprachler,
+auf echten Telefonen oder mit einem Screenreader. Diese Prüfungen bleiben Teil des Benutzertests, nicht der
+aufgehobenen Leser-Freigabeschranke. Rechtstexte bleiben Deutsch; fehlende Rechtstexte werden nicht erfunden.
 
 ## 8. Work-Bereich
 
