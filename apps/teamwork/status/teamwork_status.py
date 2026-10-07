@@ -18,11 +18,17 @@ import socket
 import ssl
 import sys
 import tempfile
+import threading
 import time
 from urllib.parse import urlsplit
 
 PALETTE = ("cyan", "amber", "pink", "violet", "lime", "slate")
 IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
+
+# multiprocessing.start() polls the shared child registry. Keep it from reaping
+# another probe's child concurrently with that probe's join()/close(). Network
+# waits stay outside this lock, so the configured probe parallelism is unchanged.
+PROCESS_LIFECYCLE = threading.Lock()
 
 
 def compact_json(value):
@@ -198,7 +204,8 @@ def probe(program, args, deadline, attempt):
     child = context.Process(target=probe_child, args=(program.get("probe", program["url"]), args.connect_timeout, args.timeout, writer))
     result = {"code": None, "reason": "timeout"}
     try:
-        child.start()
+        with PROCESS_LIFECYCLE:
+            child.start()
         writer.close()
         connect_limit = min(args.connect_timeout, cap) - (time.monotonic() - started)
         if reader.poll(max(0, connect_limit)):
@@ -212,11 +219,12 @@ def probe(program, args, deadline, attempt):
     finally:
         reader.close()
         writer.close()
-        if child.pid is not None:
-            if child.is_alive():
-                child.terminate()
-            child.join()
-            child.close()
+        with PROCESS_LIFECYCLE:
+            if child.pid is not None:
+                if child.is_alive():
+                    child.terminate()
+                child.join()
+                child.close()
     finished = time.monotonic()
     if finished >= deadline:
         raise RunLimit()
