@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountDirectory } from "../src/client/components/account-directory.js";
 import type { AccountView, Taxonomies } from "../src/client/types.js";
 
+const favoriteState = { favorites: [] as string[] };
+vi.mock("@/favorites", () => ({ useFavorites: () => ({ favorites: favoriteState.favorites, ready: true, error: false, toggle: vi.fn() }) }));
 vi.mock("@/api", () => ({ api: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
 // The table, cards and dialogs are covered elsewhere; here only the filter row matters.
 vi.mock("../src/client/components/account-table.js", () => ({ AccountTable: ({ accounts }: { accounts: unknown[] }) => <div data-testid="table">rows:{accounts.length}</div> }));
@@ -40,6 +42,7 @@ describe("AccountDirectory filter state", () => {
 
   beforeEach(() => {
     localStorage.clear();
+    favoriteState.favorites = [];
     window.history.replaceState(null, "", "/testmails/");
     if (!("ResizeObserver" in globalThis)) (globalThis as any).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
     container = document.createElement("div");
@@ -111,5 +114,72 @@ describe("AccountDirectory filter state", () => {
     window.history.replaceState(null, "", "/testmails/");
     await act(async () => { window.dispatchEvent(new PopStateEvent("popstate")); });
     expect(rows()).toBe("rows:3");
+  });
+  it("lets several domains be picked at once and \"Alle\" clears them", async () => {
+    await render();
+    const chip = (label: string) => Array.from(container.querySelectorAll("button[aria-pressed]")).find((item) => item.textContent === label) as HTMLButtonElement;
+    await act(async () => chip("oriso.org").dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(rows()).toBe("rows:2");
+    await act(async () => chip("dreambau.com").dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(rows()).toBe("rows:3");
+    expect(window.location.search).toBe("?domain=dreambau.com%2Coriso.org");
+    await act(async () => chip("oriso.org").dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(rows()).toBe("rows:1");
+    expect(window.location.search).toBe("?domain=dreambau.com");
+    await act(async () => chip("Alle").dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(rows()).toBe("rows:3");
+    expect(window.location.search).toBe("");
+  });
+
+  it("restores several domains from the URL", async () => {
+    window.history.replaceState(null, "", "/testmails/?domain=dreambau.com,oriso.org");
+    await render();
+    expect(rows()).toBe("rows:3");
+  });
+
+  it("resets favorites together with URL filters and restores every account", async () => {
+    favoriteState.favorites = ["lisa.simpson@oriso.org"];
+    window.history.replaceState(null, "", "/testmails/?q=lisa&domain=oriso.org");
+    await render();
+    const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
+    await act(async () => chip.click());
+    expect(rows()).toBe("rows:1");
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    const resetLabel = reset()?.textContent;
+
+    await act(async () => reset()?.click());
+
+    expect(rows()).toBe("rows:3");
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(reset()).toBeNull();
+    expect(window.location.search).toBe("");
+    expect(localStorage.getItem("testmails-filters")).toBeNull();
+    expect(resetLabel).toContain("Zurücksetzen (3)");
+  });
+
+  it("offers reset for favorites alone and restores every account", async () => {
+    favoriteState.favorites = ["lisa.simpson@oriso.org"];
+    await render();
+    const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
+    await act(async () => chip.click());
+    expect(rows()).toBe("rows:1");
+    expect(reset()?.textContent).toContain("Zurücksetzen (1)");
+
+    await act(async () => reset()?.click());
+
+    expect(rows()).toBe("rows:3");
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(reset()).toBeNull();
+    expect(window.location.search).toBe("");
+  });
+
+  it("shows only favorites when the favorites chip is on", async () => {
+    favoriteState.favorites = ["lisa.simpson@oriso.org"];
+    await render();
+    const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
+    expect(chip.textContent).toContain("(1)");
+    await act(async () => chip.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(rows()).toBe("rows:1");
+    expect(window.location.search).toBe("");
   });
 });
