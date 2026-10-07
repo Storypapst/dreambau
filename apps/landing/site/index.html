@@ -30,15 +30,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid rgba(var(--fg), .9); 
 
 /* sound toggle */
 #snd[hidden] { display: none; }
-#snd {
-  position: fixed; z-index: 3;
-  top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
-  min-width: 44px; height: 44px; padding: 0 12px; border-radius: 22px;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  background: rgba(6, 8, 13, .42); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  color: rgba(var(--fg), .78); transition: color .2s, background .2s, opacity .6s;
-  opacity: 0; pointer-events: none;
-}
+#snd{position:fixed;z-index:3;top:max(12px, env(safe-area-inset-top));right:max(12px, env(safe-area-inset-right));min-width:44px;height:44px;padding:0 12px;border-radius:22px;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(6, 8, 13, .42);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:rgba(var(--fg), .78);transition:color .2s, background .2s, opacity .6s;opacity:0;pointer-events:none}
 html.ready #snd { opacity: 1; pointer-events: auto; }
 #snd:hover { color: rgb(var(--fg)); background: rgba(6, 8, 13, .6); }
 #snd svg { width: 22px; height: 22px; flex: none; }
@@ -83,9 +75,10 @@ html.test *, html.test *::before { transition: none !important; animation: none 
 #dip.on { opacity: 1; }
 
 /* replay hint for reduced-motion visitors */
-#play { position: fixed; z-index: 3; left: 50%; transform: translateX(-50%); top: max(14px, env(safe-area-inset-top)); font-size: 12px; letter-spacing: .05em; color: rgba(var(--fg), .6); padding: 12px 8px; display: none; }
+#play{position:fixed;z-index:3;left:50%;transform:translateX(-50%);top:max(14px, env(safe-area-inset-top));font-size:12px;letter-spacing:.05em;color:rgba(var(--fg), .6);padding:12px 8px;display:none}
 html.still #play { display: block; }
 #play:hover { color: rgb(var(--fg)); }
+@media(max-width:600px){#play{top:max(64px,env(safe-area-inset-top) + 52px);min-height:44px}}
 
 /* static fallback: no WebGL, no JavaScript, or a broken production */
 html.static body, html.static #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06080d 70%); }
