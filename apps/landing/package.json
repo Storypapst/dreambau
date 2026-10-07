@@ -14,7 +14,12 @@
     "check:apex": "node tools/apex-check.mjs",
     "e2e": "node tools/e2e.mjs all",
     "e2e:lang": "node tools/e2e-lang.mjs",
-    "test:languages": "node --test tools/lang-tests/*.mjs"
+    "test:languages": "node --test tools/lang-tests/*.mjs",
+    "sync:languages": "node tools/sync-languages.mjs",
+    "build:languages": "node tools/build-languages.mjs",
+    "check:languages": "node tools/check-languages.mjs",
+    "sheet:languages": "node tools/lang-sheet.mjs",
+    "check:nginx": "node tools/nginx-check.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

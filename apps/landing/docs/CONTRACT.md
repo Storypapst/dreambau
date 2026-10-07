@@ -173,3 +173,7 @@ Requirements for the music:
 
 Look at the pictures: they are the feedback loop. Software rendering is slow for heavy shaders (seconds per frame at
 960x540) but exact. Console errors of the page (shader compile errors with source lines) are printed by `shot.mjs`.
+
+## Language contract
+
+The current owner-approved release offers all 47 existing language rows without a reader gate; review markers remain truthful. Every animation description exists in all 47 files, outside the animation's byte budget. See [LANGUAGES.md](LANGUAGES.md) for source, runtime, publication checks and rendering proof. A new animation or approved text adds its German keys and all translations together, before its id joins `Dream.ids`. `Dream.onLang` callbacks re-read derived Tagline values rather than retaining textures across switches.

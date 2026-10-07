@@ -38,7 +38,7 @@ function probes(spyLang) {
 // A page in its own context, with everything a "clean console" needs (spec 9, test setup): console errors and warnings, page errors,
 // failed requests, HTTP statuses of 400 and more, policy violations; plus the requests and responses it made.
 export async function openPage(browser, { w = 320, h = 180, javaScript = true, spyLang = false, contextOptions = {} } = {}) {
-  const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, javaScriptEnabled: javaScript, ...contextOptions });
+  const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, javaScriptEnabled: javaScript, locale: "de-DE", ...contextOptions });
   const page = await context.newPage();
   const seen = { console: [], pageErrors: [], failed: [], http: [], requests: [], responses: [] };
   page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !GL_NOISE.test(m.text())) seen.console.push({ text: m.text(), url: m.location().url || '' }); });

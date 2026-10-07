@@ -10,6 +10,8 @@ import vm from 'node:vm';
 import { SITE } from '../lib.mjs';
 import { manifestProblems, parseManifest } from '../lib-languages.mjs';
 
+const env = {URLSearchParams,location:{search:''},navigator:{languages:['de-DE']},clearTimeout(){},setTimeout:()=>0};
+const doc = (head) => ({currentScript:{src:'https://example.test/assets/i18n.js'},readyState:'loading',documentElement:{},head,createElement:()=>({addEventListener(){}}),addEventListener(){},querySelector(){return null},querySelectorAll(){return []}});
 const RUNTIME = fs.readFileSync(path.join(SITE, 'i18n.js'), 'utf8');
 const de = { c: 'de', n: 'Deutsch', d: 'ltr', s: 'DE' };
 const en = { c: 'en', n: 'English', d: 'ltr', s: 'EN' };
@@ -20,8 +22,7 @@ const src = (...langs) => ({ v: 1, dev: true, langs: langs.map((l, i) => ({ ...l
 // the page, as far as the runtime touches it: a head that takes scripts, a way to make one, and the folder of the script itself
 function load(manifest) {
   const inserted = [], sandbox = {
-    document: { currentScript: { src: 'https://example.test/assets/i18n.js' }, head: { appendChild: el => inserted.push(el) }, createElement: () => ({}), addEventListener() {} },
-    setTimeout: () => 0,
+    ...env,document: doc({appendChild:el=>inserted.push(el)}),
   };
   sandbox.window = sandbox;
   vm.runInNewContext(RUNTIME, sandbox);
@@ -63,7 +64,7 @@ for (const [name, m] of INVALID) test(`an invalid manifest is refused, and the b
 });
 
 test('a German file that is registered already is not requested again (FIL-11), and Dream.lang replaces a second call for the same code', () => {
-  const sandbox = { document: { currentScript: null, head: { appendChild: () => assert.fail('requested') }, createElement: () => ({}), addEventListener() {} }, setTimeout: () => 0 };
+  const sandbox = {...env,document:doc({appendChild:()=>assert.fail('requested')})};
   sandbox.window = sandbox;
   vm.runInNewContext(RUNTIME, sandbox);
   sandbox.Dream.lang('de', { 'tag.1': 'eins' });
@@ -73,7 +74,7 @@ test('a German file that is registered already is not requested again (FIL-11), 
 });
 
 test('the runtime keeps the object Dream.state that already exists, and creates Dream and Dream.state when they are missing (7.11)', () => {
-  const state = { id: 'x' }, sandbox = { Dream: { state, prods: {} }, document: { currentScript: null, head: {}, createElement: () => ({}), addEventListener() {} }, setTimeout: () => 0 };
+  const state = { id: 'x' }, sandbox = { ...env,Dream:{state,prods:{}},document:doc({}) };
   sandbox.window = sandbox;
   vm.runInNewContext(RUNTIME, sandbox);
   assert.equal(sandbox.Dream.state, state);

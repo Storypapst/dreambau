@@ -13,7 +13,10 @@ import path from 'node:path';
 import { ROOT, SITE, mkdir, parseArgs } from './lib.mjs';
 import { IDS } from './budget.mjs';
 import { parseManifest, publishedManifest } from './lib-languages.mjs';
+import { checkLanguages } from './check-languages.mjs';
 
+const checked = checkLanguages(ROOT, { release: true });
+if (checked.problems.some(p => !p.startsWith('FAIL R5 ') && !p.includes('dist/apex/index.html'))) throw new Error(checked.problems.join('\n'));
 const a = parseArgs(process.argv.slice(2));
 const out = path.resolve(ROOT, typeof a.out === 'string' ? a.out : 'dist/index.html');
 const read = rel => fs.readFileSync(path.join(SITE, rel), 'utf8');

@@ -60,13 +60,14 @@ if (typeof a.lang === 'string') {
   langs = a.lang.split(',').map(c => c.trim()).filter(Boolean);
   const missing = langs.filter(c => !haveFile.includes(c));
   if (missing.length) usage(`no language file and manifest row for: ${missing.join(', ')} (the languages with a file are: ${haveFile.join(', ')})`);
-}
+}else if(a.quick)langs=haveFile.filter(c=>['de','en','ar','ja'].includes(c));
 const sizes = (a.quick ? [[390, 844], [320, 568]] : [[1280, 720], [844, 390], [390, 844], [375, 667], [360, 640], [320, 568]]).map(([w, h]) => ({ w, h }));
 
 // ---- build, serve, run ----------------------------------------------------------------------------------------------------------
-const b = spawnSync(process.execPath, ['tools/build-apex.mjs', '--out', 'dist/apex-drafts', '--drafts', '--assets', PREFIX], { cwd: ROOT, encoding: 'utf8' });
+const runDir='dist/e2e-lang-'+process.pid;
+const b = spawnSync(process.execPath, ['tools/build-apex.mjs', '--out', runDir, '--drafts', '--assets', PREFIX], { cwd: ROOT, encoding: 'utf8' });
 if (b.status !== 0) { console.error('e2e-lang: the build of the drafts form failed (did you run `npm run build`?)\n' + (b.stdout || '') + (b.stderr || '')); process.exit(1); }
-const dir = path.join(ROOT, 'dist', 'apex-drafts');
+const dir = path.join(ROOT,runDir);
 const served = await serveBuild({ dir, prefix: PREFIX });
 let browser = null, failed = 0;
 const t0 = Date.now();
@@ -90,5 +91,6 @@ try {
 } finally {
   if (browser) await browser.close();
   await new Promise(res => served.server.close(res));
+  fs.rmSync(dir,{recursive:true,force:true});fs.rmSync(dir+'.json',{force:true});
 }
 process.exit(failed ? 1 : 0);

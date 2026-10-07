@@ -75,27 +75,30 @@ function edt(grid, w, h) {
   for (let y = 0; y < h; y++) edt1d(grid, y * w, 1, w, f, v, z);
 }
 
-function buildText() {
-  const lines = (ui.tag.dataset.lines || 'dreambau.com').split('|').slice(0, 3);
+function buildText(lines, lang = D.state.lang, dir = root.dir) {
   const SW = TX.W, SP = TX.SPREAD, INF = 1e20;
   const fam = '"Inter","SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,"Liberation Sans","DejaVu Sans",system-ui,sans-serif';
   const cv = doc.createElement('canvas'); cv.width = SW; cv.height = 8;
+  const attached = lang === 'ja' || lang === 'zh-Hans';
+  if (attached) { cv.hidden = true; cv.lang = lang; doc.body.appendChild(cv); }
+  try {
   const x = cv.getContext('2d', { willReadFrequently: true });
   const wght = 800, rel = lines.map((_, i) => i === lines.length - 1 ? 1 : .68);   // lead-in lines are smaller than the brand line
   let F = 200;
-  x.font = `${wght} ${F}px ${fam}`;
+  x.font = `${wght} ${F}px ${D.i18n ? D.i18n.fam : fam}`;
   F *= Math.min(1, .93 * SW / Math.max(...lines.map((l, i) => x.measureText(l).width * rel[i])));
   const bands = rel.map(r => Math.round(F * r * 1.32));
   const SH = Math.ceil((bands.reduce((a, b) => a + b, 0) + SP * 2) / 4) * 4;
-  TX.H = SH; cv.height = SH;
+  cv.height = SH;
   const N = SW * SH, data = new Uint8Array(N * 4).fill(0), mask = new Uint8Array(N);
   const outer = new Float64Array(N), inner = new Float64Array(N);
   let y0 = SP;
-  TX.lines = [];
+  const rasterLines = [];
   lines.forEach((txt, li) => {
     x.clearRect(0, 0, SW, SH);
     x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
-    x.font = `${wght} ${F * rel[li]}px ${fam}`;
+    x.font = `${wght} ${F * rel[li]}px ${D.i18n ? D.i18n.fam : fam}`;
+    x.direction = li === lines.length - 1 ? 'ltr' : dir || 'ltr';
     const m = x.measureText('x'), asc = m.actualBoundingBoxAscent || F * rel[li] * .5;
     x.fillText(txt, SW / 2, y0 + bands[li] * .5 + asc / 2);
     const px = x.getImageData(0, 0, SW, SH).data;
@@ -113,15 +116,34 @@ function buildText() {
         data[(dst + xx) * 4 + li] = clamp(Math.round((sd / (2 * SP) + .5) * 255), 0, 255);
       }
     }
-    TX.lines.push({ text: txt, y: y0, h: bands[li] });
+    rasterLines.push({ text: txt, y: y0, h: bands[li] });
     y0 += bands[li];
   });
   for (let i = 0; i < N; i++) data[i * 4 + 3] = 255;
-  TX.data = data; TX.mask = mask;
+  return { H: SH, F, data, mask, lines: rasterLines };
+  } finally { if (attached) cv.remove(); }
 }
 
+if (D.i18n) D.i18n.redraw = (lines, lang, dir) => {
+  if (!gl || root.classList.contains('static')) return true;
+  const old = { ...TX };
+  try {
+    const raster = buildText(lines, lang, dir);
+    Object.assign(TX, raster, { tex: null, ptsTex: null });
+    uploadText(); if (def.pts) uploadPoints(def.pts);
+    if (gl.getError() !== gl.NO_ERROR) throw new Error('Tagline upload failed');
+    layout(); draw();
+  } catch {
+    if (TX.tex && TX.tex !== old.tex) gl.deleteTexture(TX.tex);
+    if (TX.ptsTex && TX.ptsTex !== old.ptsTex) gl.deleteTexture(TX.ptsTex);
+    Object.assign(TX, old); return false;
+  }
+  if (old.tex) gl.deleteTexture(old.tex); if (old.ptsTex) gl.deleteTexture(old.ptsTex);
+  return true;
+};
+
 function uploadText() {
-  TX.tex = gl.createTexture();
+  TX.tex = gl.createTexture(); if (!TX.tex) throw new Error('Tagline texture unavailable');
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, TX.tex);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
@@ -147,7 +169,7 @@ function uploadPoints(n) {
     a[k * 4 + 3] = rnd();
     k++;
   }
-  TX.ptsTex = gl.createTexture();
+  TX.ptsTex = gl.createTexture(); if (!TX.ptsTex) throw new Error('Tagline points unavailable');
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, TX.ptsTex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, a);
@@ -454,7 +476,7 @@ function setSnd(state) {
   b.dataset.state = state; D.state.audio = state;
   const on = state === 'on' || state === 'wait';
   b.setAttribute('aria-checked', on ? 'true' : 'false');          // role="switch" named "Ton": on = the sound is (or is about to be) on
-  b.title = on ? 'Ton aus (M)' : 'Ton an (M)';
+  b.title = (D.t && D.t(on ? 'snd.hint_off' : 'snd.hint_on')) || (on ? 'Ton aus (M)' : 'Ton an (M)');
   b.hidden = state === 'na';
 }
 
@@ -650,13 +672,14 @@ function wire() {
   ui.play.addEventListener('click', () => { if (gl && !running) { go(); unlock(); } });
   const onButton = e => e.target instanceof Element && !!e.target.closest('button');
   addEventListener('keydown', e => {
+    if (e.target instanceof Element && e.target.closest('#lang, #langsheet')) return;
     if (e.key === 'Escape') skip();
     else if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) setMuted(!A.muted);
     else if (!A.muted && A.ctx && A.ctx.state !== 'running' && !onButton(e)) unlock();   // Enter/Space on a button is its click
   });
   // any real gesture may unlock the audio (browsers refuse to start sound before that); the sound button itself is
   // left out: its click handler decides between "switch on" and "switch off"
-  const g = e => { if (A.ctx && A.ctx.state !== 'running' && !A.muted && !(e.target instanceof Element && ui.snd.contains(e.target))) unlock(); };
+  const g = e => { if (A.ctx && A.ctx.state !== 'running' && !A.muted && !(e.target instanceof Element && e.target.closest('#snd, #lang, #langsheet, #langback'))) unlock(); };
   for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click']) addEventListener(ev, g, { capture: true, passive: true });
   doc.addEventListener('visibilitychange', () => {
     hidden = doc.hidden;
@@ -703,6 +726,7 @@ async function boot() {
   wire();
   const id = pickId();
   D.state.id = id; root.dataset.anim = id;
+  if (D.i18n) D.i18n.apply();
   try {
     def = await loadProduction(id);
     def.fin = def.fin || def.dur - 6; def.cta = def.cta || def.fin + 1.5;
@@ -713,7 +737,7 @@ async function boot() {
     if (Q.has('q')) scale = clamp(+Q.get('q') || 1, .1, 1);
     gl = getGL();
     if (!gl) throw new Error('WebGL2 is not available');
-    buildText(); uploadText(); layout();
+    Object.assign(TX, buildText((ui.tag.dataset.lines || 'dreambau.com').split('|').slice(0, 3))); uploadText(); layout();
     if (def.pts) uploadPoints(def.pts);
     if (def.frag) drawProg = D.prog(null, def.frag);
     if (def.init) def.init(gl, D);

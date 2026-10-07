@@ -44,6 +44,8 @@ function staticScan(r) {
 function languagesSection() {
   const r = report.languages = { checks: [] };
   log('\n== languages ==');
+  const checked = run(process.execPath, ['tools/check-languages.mjs', '--release', '--complete']);
+  row(r, 'check:languages release/complete', checked.status === 0, checked.status ? (checked.stdout + checked.stderr).slice(-1500) : 'all source and pinned release checks passed');
   const e = run(process.execPath, ['tools/e2e-lang.mjs', '--quick'], { timeout: 900000 });
   const out = (e.stdout || '') + (e.stderr || '');
   const lines = out.split('\n');

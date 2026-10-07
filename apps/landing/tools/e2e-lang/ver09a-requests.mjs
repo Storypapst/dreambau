@@ -33,6 +33,9 @@ export default async function ({ base, browser }) {
       check('FIL-4: German is registered and nothing else', same(s.registered, ['de']), JSON.stringify(s.registered));
       check('the page is German, plays, and shows no error', s.lang === 'de' && s.htmlLang === 'de' && s.mode === 'play' && s.ready && !s.fallback && !s.error, JSON.stringify(s).slice(0, 300));
       check('the Tagline is built from the markup (a German page)', same(s.lines, GERMAN_LINES), JSON.stringify(s.lines));
+      check('SW-3: switch is not visible/focusable before the closing line',await t.page.locator('#lang').evaluate(el=>getComputedStyle(el).visibility==='hidden'));
+      await t.page.evaluate(()=>Dream.test.seek(Dream.test.def().cta));
+      check('SW-3: switch appears with the closing line',await t.page.locator('#lang').evaluate(el=>getComputedStyle(el).visibility==='visible'));
       const de = t.seen.responses.find(r => pathOf(r.url) === PRE + 'i18n/de.js');
       check('FIL-13: the answer for i18n/de.js carries no charset', !!de && de.status === 200 && de.type === 'application/javascript', JSON.stringify(de));
       const reg = await t.page.evaluate(() => window.__probe.lang);
@@ -70,7 +73,7 @@ export default async function ({ base, browser }) {
       await started(t.page);
       const s = await state(t.page);
       check('FIL-11: the single-file page requests no language file', t.seen.requests.filter(r => isLangPath(pathOf(r.url))).length === 0, t.seen.requests.map(r => r.url).join(', '));
-      check('FIL-11: Dream.i18n exists and German is registered', s.i18n === 'object' && same(s.registered, ['de']), `${s.i18n} ${JSON.stringify(s.registered)}`);
+      check('FIL-11: Dream.i18n exists and German is registered', s.i18n === 'object' && s.registered.includes('de') && s.registered.length===47, `${s.i18n} ${JSON.stringify(s.registered)}`);
       check('FIL-11: the single-file page plays, German', s.lang === 'de' && s.mode === 'play' && s.ready && !s.error && !s.fallback, JSON.stringify(s).slice(0, 200));
       for (const p of await problems(t)) check('FIL-11: a clean console', false, p);
     } finally { await t.close(); }

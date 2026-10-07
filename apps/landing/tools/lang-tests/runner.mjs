@@ -68,9 +68,9 @@ test('a plain run: one PASS or FAIL line per module with its rows, the failure w
   assert.deepEqual(l.map(x => x.split(/\s+/).slice(0, 3).join(' ')), ['PASS a-pass ROW-a-pass', 'FAIL b-fail ROW-b-fail']);
   assert.match(r.stdout, /boom: the second line\s+and a third/);
   assert.deepEqual(ran().filter(x => !/^(sizes|langs|dir) /.test(x)), ['a-pass full', 'b-fail full']);
-  assert.ok(ran().includes('langs de'));
+  assert.ok(ran().some(l=>l.startsWith('langs ')&&l.slice(6).split(',').includes('de')));
   assert.ok(ran().some(x => /^sizes 1280x720,844x390,390x844,375x667,360x640,320x568$/.test(x)), 'the six sizes of SW-21');
-  assert.ok(ran().some(x => /^dir .*dist.apex-drafts$/.test(x)), 'the module gets the folder of the drafts build');
+  assert.ok(ran().some(x => /^dir .*dist.e2e-lang-\d+$/.test(x)), 'the module gets the folder of the drafts build');
 });
 
 test('--quick: the two phone sizes only, no optional module', () => {

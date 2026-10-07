@@ -71,11 +71,11 @@ test('the manifest file must be exactly one Dream.i18n.manifest(...) statement a
   }
 });
 
-test('the committed source manifest of the page is valid, offers German and publishes as the example line', () => {
+test('the committed source manifest of the page is valid, offers the approved47 and preserves table order', () => {
   const text = fs.readFileSync(path.join(SITE, 'i18n', 'index.js'), 'utf8');
   const m = parseManifest(text);
   assert.equal(m.dev, true);                                      // the source form (7.6 "Shape")
   assert.deepEqual(manifestProblems(m, 'source'), []);
   assert.ok(m.langs.some(l => l.c === 'de' && l.o === 1));
-  assert.equal(publishedManifest(m), EXAMPLE);                    // until slice 2 generates the real one: German only
+  assert.equal(m.langs.length,47);assert.ok(m.langs.every(l=>l.o===1));assert.deepEqual(parseManifest(publishedManifest(m)).langs.map(l=>l.c),m.langs.map(l=>l.c));                    // until slice 2 generates the real one: German only
 });

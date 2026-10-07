@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { parseManifest, publishedManifest } from '../lib-languages.mjs';
 import { ROOT, SITE } from '../lib.mjs';
 
 const PRE = '/homepage-assets/';
@@ -17,6 +18,7 @@ const sha = buf => crypto.createHash('sha256').update(buf).digest('hex');
 const scripts = html => [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].map(m => ({ attrs: m[1].trim(), body: m[2] }));
 
 const EXAMPLE_MANIFEST = 'Dream.i18n.manifest({"v":1,"dev":false,"langs":[{"c":"de","n":"Deutsch","d":"ltr","s":"DE"}]});\n';   // 7.6, the first Release
+const SOURCE=fs.readFileSync(path.join(SITE,'i18n/index.js'),'utf8'),CODES=parseManifest(SOURCE).langs.map(l=>l.c);
 let apex, apexHtml, drafts, single;
 
 before(() => {
@@ -33,11 +35,11 @@ before(() => {
   single = fs.readFileSync(abs(`${SCRATCH}/single.html`), 'utf8');
 });
 
-test('the apex build lists i18n.js, i18n/index.js and i18n/de.js: ten files, the languages ["de"]', () => {
+test('the apex build lists i18n.js, i18n/index.js and i18n/de.js: all approved languages', () => {
   const names = apex.files.map(f => f.path);
   for (const f of ['i18n.js', 'i18n/index.js', 'i18n/de.js']) assert.ok(names.includes(f), `${f} is not in apex.json`);
-  assert.equal(names.length, 10, names.join(', '));
-  assert.deepEqual(apex.languages, ['de']);
+  assert.equal(names.length, CODES.length+9, names.join(', '));
+  assert.deepEqual(apex.languages, CODES);
   assert.ok(!('drafts' in apex));
 });
 
@@ -51,10 +53,10 @@ test('every file of the apex build is what apex.json says, and the language file
   assert.ok(fs.readFileSync(abs(`${SCRATCH}/apex/i18n.js`)).equals(fs.readFileSync(path.join(SITE, 'i18n.js'))));
 });
 
-test('the published manifest of the apex build is, byte for byte, the German-only example of 7.6: 96 bytes, no "o", no draft (LST-5)', () => {
+test('the published manifest of the apex build is, byte for byte, the approved published manifest, no "o", no draft', () => {
   const buf = fs.readFileSync(abs(`${SCRATCH}/apex/i18n/index.js`));
-  assert.equal(buf.toString('utf8'), EXAMPLE_MANIFEST);
-  assert.equal(buf.length, 96);
+  assert.equal(buf.toString('utf8'),publishedManifest(parseManifest(SOURCE)));
+  assert.equal(parseManifest(buf.toString('utf8')).langs.length,47);
 });
 
 test('the apex page loads i18n.js, i18n/index.js and shell.js in this order, under the asset prefix, as classic scripts (FIL-6)', () => {
@@ -79,7 +81,7 @@ test('the drafts form is only written with --out, holds the source manifest and 
   assert.notEqual(none.status, 0);
   assert.match(none.stderr, /--drafts needs --out/);
   assert.equal(drafts.drafts, true);
-  assert.deepEqual(drafts.languages, ['de']);
+  assert.deepEqual(drafts.languages, CODES);
   const manifest = fs.readFileSync(abs(`${SCRATCH}/drafts/i18n/index.js`), 'utf8');
   assert.equal(manifest, fs.readFileSync(path.join(SITE, 'i18n/index.js'), 'utf8'));
   assert.match(manifest, /"dev":true/);
@@ -94,7 +96,7 @@ test('the single-file build runs boot, i18n.js, the language files, the manifest
   assert.doesNotMatch(single, /<script[^>]*\ssrc\s*=/i);
   const bodies = all.map(x => x.body);
   const at = needle => bodies.findIndex(b => b.includes(needle));
-  const order = [at('window.Dream={prods:{}'), at('Dream.i18n.ready'), at('Dream.lang("de"'), at('Dream.i18n.manifest({'), at('Dream.add({id:"4k"'), at('landing page – runtime')];
+  const order = [at('window.Dream={prods:{}'), at('I.ready=new Promise'), at('Dream.lang("de"'), at('Dream.i18n.manifest({'), at('Dream.add({id:"4k"'), at('landing page – runtime')];
   assert.ok(order.every(i => i >= 0), JSON.stringify(order));
   assert.deepEqual([...order].sort((x, y) => x - y), order, 'the order of the scripts: ' + JSON.stringify(order));
   assert.equal(order[0], 0, 'the boot script is first: it assigns window.Dream');

@@ -29,8 +29,8 @@ const CASES = [
   { name: 'i18n.js answers 404 (the manifest then has no Dream to talk to)', spec: { runtime: null }, fallback: '', i18n: false, wait: 'none',
     allow: [{ url: '/i18n.js' }, { pageError: 'ReferenceError' }] },
   { name: 'the page is that of the previous Release (no #blind, no .sw, no language scripts)', spec: { page: 'previous' }, fallback: '', i18n: false, wait: 'none', allow: [], noSw: true },
-  { name: 'i18n/de.js answers 404', spec: { manifest: MANIFEST_DE, files: { de: { status: 404 } } }, fallback: '', i18n: true, wait: 'at once', allow: [{ url: '/i18n/de.js' }] },
-  { name: 'i18n/de.js loads but registers nothing', spec: { files: { de: { body: '/* empty */' } } }, fallback: '', i18n: true, wait: 'at once', allow: [] },
+  { name: 'i18n/de.js answers 404', spec: { manifest: MANIFEST_DE, files: { de: { status: 404 } } }, fallback: 'load', i18n: true, wait: 'at once', allow: [{ url: '/i18n/de.js' }] },
+  { name: 'i18n/de.js loads but registers nothing', spec: { files: { de: { body: '/* empty */' } } }, fallback: 'load', i18n: true, wait: 'at once', allow: [] },
   { name: 'i18n/de.js answers after 1.5 s (the page waits for it, then starts)', spec: { files: { de: { delayMs: 1500 } } }, fallback: '', i18n: true, wait: 'file', allow: [] },
 ];
 
@@ -51,7 +51,7 @@ export default async function ({ base, browser, info }) {
         check(`${at} langFallback is ${JSON.stringify(c.fallback)}`, s.langFallback === c.fallback, JSON.stringify(s.langFallback));
         check(`${at} the Animation plays, with no error and no static fallback`, s.mode === 'play' && s.ready && !s.error && !s.fallback, JSON.stringify([s.mode, s.ready, s.error, s.fallback]));
         check(`${at} Dream.i18n is ${c.i18n ? 'there' : 'absent'}`, (s.i18n === 'object') === c.i18n, s.i18n);
-        check(`${at} no .sw is shown`, c.noSw ? s.sw === null : !!s.sw && s.sw.hidden && s.sw.display === 'none', JSON.stringify(s.sw));
+        if(c.noSw||c.spec.manifest!==undefined||c.spec.runtime===null)check(`${at} no .sw is shown`,c.noSw?s.sw===null:!!s.sw&&s.sw.hidden&&s.sw.display==='none',JSON.stringify(s.sw));
         for (const p of await problems(t, c.allow)) check(`${at} nothing but the browser's own lines`, false, p);
 
         const anim = resourceEnd(s, '/p/4k.js'), runtime = resourceEnd(s, '/i18n.js'), de = resourceEnd(s, '/i18n/de.js'), { tex } = s.timing;

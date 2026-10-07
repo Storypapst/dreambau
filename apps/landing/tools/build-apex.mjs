@@ -21,6 +21,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { ROOT, SITE, parseArgs } from './lib.mjs';
 import { parseManifest, publishedManifest } from './lib-languages.mjs';
+import { checkLanguages } from './check-languages.mjs';
 
 const fail = msg => { console.error('build-apex: ' + msg); process.exit(1); };
 const a = parseArgs(process.argv.slice(2));
@@ -81,6 +82,11 @@ try {
 } catch (e) { fail('site/i18n/index.js: ' + e.message); }
 for (const f of langFiles) if (!fs.existsSync(path.join(SITE, 'i18n', f))) fail(`site/i18n/${f} is missing, but the manifest names it`);
 
+if (!drafts) {
+ const checked = checkLanguages(ROOT, { release: true });
+ const problems = checked.problems.filter(p => !p.startsWith('FAIL R5 ') && !p.includes('dist/apex/index.html'));
+ if (problems.length) fail(problems.join('\n'));
+}
 // --- write
 const files = new Map([['index.html', html], ['style.css', styleCss], ['noscript.css', noscriptCss], ['shell.js', shell], ['i18n.js', read('i18n.js')], ['i18n/index.js', manifestText]]);
 for (const f of langFiles) files.set('i18n/' + f, read('i18n/' + f));
@@ -102,3 +108,5 @@ fs.writeFileSync(out + '.json', JSON.stringify({ assets: prefix, productions, la
 
 console.log(`apex build${drafts ? ' (drafts form, never published)' : ''}: ${manifest.length} files, ${total} bytes, assets under ${prefix}, languages ${languages.join(',')}  ->  ${path.relative(ROOT, out)}/`);
 for (const f of manifest) console.log(`  ${f.path.padEnd(14)} ${String(f.bytes).padStart(6)} bytes  ${f.sha256.slice(0, 12)}`);
+
+if (!drafts) { const checked = checkLanguages(ROOT, { release: true, buildDir: out }); if (checked.problems.length) fail(checked.problems.join('\n')); }
