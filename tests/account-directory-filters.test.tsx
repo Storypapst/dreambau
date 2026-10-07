@@ -55,11 +55,34 @@ describe("AccountDirectory filter state", () => {
     container.remove();
   });
 
-  function render() {
-    return act(async () => root.render(<AccountDirectory initialAccounts={accounts} initialTaxonomies={taxonomies} locale="de" onLocaleChange={() => undefined} onLogout={() => undefined} isAdmin entitlements={entitlements} />));
+  function render(initialAccounts = accounts, locale: "de" | "en" = "de") {
+    return act(async () => root.render(<AccountDirectory initialAccounts={initialAccounts} initialTaxonomies={taxonomies} locale={locale} onLocaleChange={() => undefined} onLogout={() => undefined} isAdmin entitlements={entitlements} />));
   }
   const rows = () => container.querySelector('[data-testid="table"]')?.textContent;
   const reset = () => container.querySelector('[data-testid="reset-filters"]') as HTMLButtonElement | null;
+
+  it.each(["de", "en"] as const)("accepts an expanded catalogue and derives encryption counts in %s", async (locale) => {
+    const expanded = Array.from({ length: 272 }, (_, index) => ({
+      ...account(`test.${index}@oriso.org`),
+      encryption: index === 0 ? { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false } : { state: "disabled" }
+    })) as AccountView[];
+    await render(expanded, locale);
+    expect(container.textContent).toContain("272");
+    expect(container.textContent).toContain("1 S/MIME");
+    expect(container.textContent).toContain(locale === "de" ? "271 ohne Verschlüsselung" : "271 unencrypted");
+    expect(container.textContent).not.toContain("180");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("does not mistake a legitimately scoped empty list for catalogue corruption", async () => {
+    await render([]);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("warns about duplicate addresses instead of an unexpected catalogue size", async () => {
+    await render([accounts[0], { ...accounts[0], email: accounts[0].email.toUpperCase() }]);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Doppelte Mailadressen");
+  });
 
   it("starts clean with no reset button and an empty URL", async () => {
     await render();

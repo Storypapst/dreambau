@@ -929,3 +929,110 @@ describe("human self-service ORISO PreDev provisioning", () => {
     });
   });
 });
+
+describe("confirmed ORISO admin deletion", () => {
+  function deletionService(environment: "dev" | "pre-dev", previewPatch = {}) {
+    const adminDeletion = {
+      preview: vi.fn(async (record: TestAccessRecord) => ({ accountId: record.id, environment, role: "tenant-admin" as const,
+        email: record.email!, username: record.username, productId: "product-id", state: "present" as const, ...previewPatch })),
+      remove: vi.fn(async () => undefined)
+    };
+    return { ...fakeService(), target: { ...fakeService().target, environment }, adminDeletion };
+  }
+  it.each(["dev", "pre-dev"] as const)("deletes only the selected %s admin and keeps its mailbox and secrets", async (environment) => {
+    const email = environment === "dev" ? "bart.simpson@oriso.org" : "lisa.simpson@dreambau.de";
+    const record = managedRecord({ id: `oriso/${environment}/test-admin`, environment, email, username: email });
+    const service = deletionService(environment);
+    const { agent } = await setup({ records: [record], services: { [environment]: service } });
+    const endpoint = `/testmails/api/accounts/${encodeURIComponent(email)}/oriso-admin-deletion`;
+    const preview = await agent.get(endpoint).query({ accountId: record.id, environment });
+    expect(preview.status).toBe(200);
+    const result = await agent.post(endpoint).send({ accountId: record.id, environment, productId: preview.body.productId, confirmEmail: email, confirmed: true });
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ deleted: true, mailboxPreserved: true, linked: { id: record.id, deleted: true, hasTotp: false } });
+    expect(service.adminDeletion.remove).toHaveBeenCalledWith(expect.objectContaining({ id: record.id }), "product-id");
+    const accounts = await agent.get("/testmails/api/accounts");
+    expect(accounts.body.find((row: AccountRecord) => row.email === email)).toBeTruthy();
+    expect(JSON.stringify(result.body)).not.toContain(record.secret);
+    expect(JSON.stringify(result.body)).not.toContain(record.totpSecret!);
+  });
+  it("refuses members even when they can provision", async () => {
+    const service = deletionService("pre-dev");
+    const { agent, lisa } = await setup({ role: "member", records: [managedRecord()], service });
+    const response = await agent.get(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-admin-deletion`).query({ accountId: managedRecord().id, environment: "pre-dev" });
+    expect(response.status).toBe(403);
+    expect(service.adminDeletion.preview).not.toHaveBeenCalled();
+  });
+  it("refuses an environment outside the human grant", async () => {
+    const service = deletionService("pre-dev");
+    const { agent, lisa } = await setup({ records: [managedRecord()], service, grantEnvironments: ["dev"] });
+    const response = await agent.get(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-admin-deletion`).query({ accountId: managedRecord().id, environment: "pre-dev" });
+    expect(response.status).toBe(403);
+    expect(service.adminDeletion.preview).not.toHaveBeenCalled();
+  });
+  it("refuses foreign records and mismatched confirmation", async () => {
+    const service = deletionService("pre-dev");
+    const { agent, lisa } = await setup({ records: [managedRecord()], service });
+    const endpoint = `/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-admin-deletion`;
+    expect((await agent.get(endpoint).query({ accountId: managedRecord().id, environment: "dev" })).status).not.toBe(200);
+    const response = await agent.post(endpoint).send({ accountId: managedRecord().id, environment: "pre-dev", productId: "product-id", confirmEmail: "bart.simpson@oriso.org", confirmed: true });
+    expect(response.status).toBe(400);
+    expect(service.adminDeletion.remove).not.toHaveBeenCalled();
+  });
+  it("does not delete when the registry cannot persist the outcome", async () => {
+    const service = deletionService("pre-dev");
+    const { agent, lisa } = await setup({ records: [managedRecord()], service, writer: null });
+    const result = await agent.post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-admin-deletion`).send({ accountId: managedRecord().id, environment: "pre-dev", productId: "product-id", confirmEmail: lisa.email, confirmed: true });
+    expect(result.status).toBe(503);
+    expect(service.adminDeletion.remove).not.toHaveBeenCalled();
+  });
+  it("reports a partial registry failure accurately and allows a confirmed status retry", async () => {
+    const service = deletionService("pre-dev", { productId: null, state: "absent" });
+    const writer = { enrollTotp: vi.fn(), updateRecord: vi.fn().mockRejectedValueOnce(new Error("synthetic writer failure")).mockResolvedValue({ recordId: managedRecord().id, updatedAt: "now" }) };
+    const { agent, lisa, database } = await setup({ records: [managedRecord()], service, writer });
+    const endpoint = `/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-admin-deletion`;
+    const body = { accountId: managedRecord().id, environment: "pre-dev", productId: null, confirmEmail: lisa.email, confirmed: true };
+    const first = await agent.post(endpoint).send(body);
+    expect(first.status).toBe(502);
+    expect(first.body).toEqual({ error: "admin_deleted_registry_update_failed", productDeleted: true });
+    expect(database.isOrisoAdminDeleted(managedRecord().id)).toBe(true);
+    const retained = await agent.get(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`);
+    expect(retained.body.state).toBeNull();
+    expect(retained.body.linked.deleted).toBe(true);
+    expect((await agent.post(endpoint).send(body)).status).toBe(200);
+  });
+  it("does not present a retained deleted record as ready", async () => {
+    const service = deletionService("pre-dev");
+    const { agent, lisa, database } = await setup({ records: [managedRecord({ provisioningStatus: "failed" })], service });
+    database.markOrisoAdminDeleted(managedRecord().id, "pre-dev", lisa.email, "test-actor", "2026-10-07");
+    const view = await agent.get(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`);
+    expect(view.body.state).toBeNull();
+    expect(view.body.linked).toMatchObject({ deleted: true, hasTotp: false });
+    expect(service.status).not.toHaveBeenCalled();
+  });
+  it("serializes deletion with provisioning of the same environment and mailbox", async () => {
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const service = deletionService("pre-dev");
+    service.adminDeletion.remove.mockImplementationOnce(async () => pending);
+    const { agent, lisa } = await setup({ records: [managedRecord()], service });
+    const endpoint = `/testmails/api/accounts/${encodeURIComponent(lisa.email)}`;
+    const first = agent.post(`${endpoint}/oriso-admin-deletion`).send({ accountId: managedRecord().id, environment: "pre-dev", productId: "product-id", confirmEmail: lisa.email, confirmed: true }).then((response) => response);
+    await vi.waitFor(() => expect(service.adminDeletion.remove).toHaveBeenCalled());
+    const second = await agent.post(`${endpoint}/oriso-provisioning`).send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(second.status).toBe(409);
+    expect(second.body.error).toBe("oriso_account_mutation_in_progress");
+    release();
+    expect((await first).status).toBe(200);
+  });
+  it("clears the persisted deletion marker only after verified recreation", async () => {
+    const service = deletionService("pre-dev");
+    const { agent, lisa, database } = await setup({ records: [managedRecord({ provisioningStatus: "failed" })], service });
+    database.markOrisoAdminDeleted(managedRecord().id, "pre-dev", lisa.email, "actor", "2026-10-07");
+    const response = await agent.post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(response.status).toBe(200);
+    expect(database.isOrisoAdminDeleted(managedRecord().id)).toBe(false);
+    expect(response.body.linked.deleted).toBeUndefined();
+  });
+
+});
