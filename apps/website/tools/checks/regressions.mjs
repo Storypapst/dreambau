@@ -51,11 +51,7 @@ export async function run({browser,base,artifact,ok,root,dist,policy}){
   let text=normal(await page.locator('body').innerText());
   for(const entry of data.references.older_references){
     ok('no-JS original remains readable: '+entry.client,text.includes(normal(entry.scope)));
-    // Disclosure content is available without JavaScript through native details.
     if(entry.detail_text){
-      const disclosure=page.locator('details').filter({hasText:entry.detail_text.slice(0,35)});
-      if(await disclosure.count())await disclosure.locator('summary').click();
-      text=normal(await page.locator('body').innerText());
       ok('no-JS English detail remains readable: '+entry.client,text.includes(normal(entry.detail_text)));
     }
   }
