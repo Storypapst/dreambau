@@ -12,6 +12,7 @@ export async function run({browser,base,artifact,ok,dist}){
    ok(lang+' source stays left-to-right',await page.locator('.cv-code').getAttribute('dir')==='ltr');
    await page.locator('#cv-copy').click();ok(lang+' translation preserves exact code clipboard',await page.evaluate(()=>navigator.clipboard.readText())===fs.readFileSync(path.join(dist,'p/4k.js'),'utf8'));
    await page.locator('#cv-size').click();await page.locator('.code-comparison[open]').waitFor();await page.locator('.cc-sources summary').click();
+   if(lang==='en')ok('Translated sources do not claim to be German originals',await page.locator('.cc-original').textContent()==='Source information');
    ok(lang+' comparison explanation has no German fallback',await page.locator('.code-comparison').innerText().then(text=>!/(Quelle:|Eigene Rechnung|Die Animation ist|Schätzungen|Spanne etwa)/.test(text.replace(/Eigene Rechnung/g,''))));
    await page.screenshot({path:path.join(artifact,'source-'+lang+'-comparison.png')});await page.keyboard.press('Escape');
   }
