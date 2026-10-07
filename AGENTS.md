@@ -89,6 +89,12 @@ the body is the live record, comments are the history.
 - **Delegation carries the rule.** When a subagent or a job on the Dreambau server writes to
   GitHub, include this rule in its prompt.
 
+## Website work under apps/
+
+Before changing any file under `apps/`, read `apps/AGENTS.md` and
+`docs/website/HANDOVER.md`. The website mockups and specifications set the
+design; do not introduce independent styling or invented content.
+
 ## GitHub issue tracking
 
 Use `Storypapst/dreambau` for Dreambau issues. Always apply the `Testmails`
