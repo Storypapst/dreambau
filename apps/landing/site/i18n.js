@@ -108,15 +108,19 @@ function wireSheet(){
  const trigger=document.querySelector('#lang'),sheet=document.querySelector('#langsheet');if(!trigger||!sheet)return;
  const backdrop=document.querySelector('#langback');
  const list=sheet.querySelector('.lang-list'),close=sheet.querySelector('.lang-close'),error=sheet.querySelector('.lang-error');let previous=[];
+ const moreHint=()=>list.classList.toggle('more',list.scrollHeight-list.clientHeight-list.scrollTop>3);list.addEventListener('scroll',moreHint,{passive:true});new ResizeObserver(moreHint).observe(list);
+ const phone=matchMedia('(max-width:600px), (pointer:coarse) and (max-height:520px)'),head=sheet.querySelector('.lang-head');
+ const layoutClose=()=>{const active=document.activeElement;const parent=phone.matches?sheet:head;if(close.parentNode!==parent)parent.appendChild(close);if(active&&active.isConnected&&sheet.contains(active)&&active!==document.activeElement)active.focus({preventScroll:true});};
+ phone.addEventListener('change',layoutClose);layoutClose();
  const hide=()=>{sheet.hidden=true;if(backdrop)backdrop.hidden=true;trigger.setAttribute('aria-expanded','false');for(const [el,value]of previous)el.inert=value;previous=[];trigger.focus();};
  trigger.addEventListener('click',()=>{
   list.replaceChildren();for(const entry of I.available()){
    const btn=document.createElement('button');btn.type='button';btn.textContent=entry.n;btn.lang=entry.c;btn.dir=entry.d;btn.setAttribute('role','option');btn.setAttribute('aria-selected',String(entry.c===S.lang));if(entry.c===S.lang)btn.setAttribute('aria-current','true');
    btn.addEventListener('click',async()=>{if(switching)return;sheet.setAttribute('aria-busy','true');if(await D.setLang(entry.c))hide();else{error.textContent=D.t('lang.error');error.hidden=false;}sheet.removeAttribute('aria-busy');});list.appendChild(btn);
   }
-  sheet.hidden=false;if(backdrop)backdrop.hidden=false;error.hidden=true;sheet.querySelector('.lang-title').textContent=D.t('lang.title');close.textContent=D.t('lang.close');trigger.setAttribute('aria-expanded','true');
+  sheet.hidden=false;if(backdrop)backdrop.hidden=false;error.hidden=true;sheet.querySelector('.lang-title').textContent=D.t('lang.title');close.querySelector('span').textContent=D.t('lang.close');trigger.setAttribute('aria-expanded','true');
   for(const el of document.body.children)if(el!==sheet&&el!==backdrop&&el.tagName!=='SCRIPT'){previous.push([el,el.inert]);el.inert=true;}
-  const current=list.querySelector('[aria-selected="true"]');if(current){current.focus();current.scrollIntoView({block:'nearest'});}
+  const current=list.querySelector('[aria-selected="true"]');if(current){current.focus();current.scrollIntoView({block:'nearest'});}moreHint();
  });
  close.addEventListener('click',hide);
  sheet.addEventListener('keydown',e=>{

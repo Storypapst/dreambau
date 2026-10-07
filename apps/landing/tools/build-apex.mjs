@@ -90,7 +90,7 @@ if (!drafts) {
 }
 // --- write
 const files = new Map([['index.html', html], ['style.css', styleCss], ['noscript.css', noscriptCss], ['shell.js', shell], ['i18n.js', read('i18n.js')], ['i18n/index.js', manifestText]]);
-for (const f of ['navigation.css','navigation.js','source-view.js','source-view.css','comparisons.js']) files.set(f, read(f));
+for (const f of ['navigation.css','navigation.js','source-view.js','source-view.css','source-locales.js','comparisons.js']) {files.set(f, read(f));}
 for (const f of langFiles) files.set('i18n/' + f, read('i18n/' + f));
 for (const id of productions) {
   const f = path.join(SITE, 'p', id + '.js');
