@@ -3,6 +3,7 @@ export async function run({browser,base,artifact,ok}) {
  const context=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'}), page=await context.newPage(); const errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  try {await page.goto(base+'/referenzen/'); await page.waitForTimeout(250);
+ ok('A22: unpublished legal pages remain pending text, never dead links',await page.locator('.foot a[href="/impressum.html"],.foot a[href="/datenschutz.html"]').count()===0 && (await page.locator('.foot').innerText()).includes('Impressum · Angaben noch offen') && (await page.locator('.foot').innerText()).includes('Datenschutz · Freigabe noch offen'));
  ok('A01: all twelve entries form the selected Zeitstrahl',await page.locator('.c-stage .node').count()===12);
  await page.screenshot({path:path.join(artifact,'references-desktop-default.png')});
  await page.locator('.nd[data-id="sf-care"]').click(); await page.waitForTimeout(150);
@@ -55,6 +56,21 @@ export async function run({browser,base,artifact,ok}) {
  await page.goto(base+'/referenzen/?lang=ar#getme');await page.waitForTimeout(200);ok('A11: RTL surroundings keep the English original in its own direction',await page.locator('.pv-title').last().evaluate(n=>n.dir==='ltr'&&document.documentElement.dir==='rtl'));
  await page.screenshot({path:path.join(artifact,'references-phone-rtl.png')});
  } finally {await context.close();}
+ const moving=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'no-preference'}), motion=await moving.newPage();
+ try{
+  await motion.goto(base+'/referenzen/#oriso');
+  await motion.waitForTimeout(9500);
+  const visibleCanvases=()=>motion.locator('canvas').evaluateAll(cs=>cs.filter(c=>c.getClientRects().length&&c.offsetParent).map(c=>c.toDataURL()));
+  const settled=await visibleCanvases();await motion.waitForTimeout(700);
+  ok('A11: ordinary reference background, orbs and artwork settle into a calm end',JSON.stringify(settled)===JSON.stringify(await visibleCanvases()));
+  await motion.screenshot({path:path.join(artifact,'references-calm-desktop.png')});
+  await motion.keyboard.press('Escape');await motion.locator('#q').fill('ORISO');await motion.waitForTimeout(200);
+  const filtered=await visibleCanvases();await motion.waitForTimeout(700);
+  ok('A11: filtering after the end repaints a stable character world',JSON.stringify(filtered)===JSON.stringify(await visibleCanvases()));
+  await motion.locator('#q').fill('');await motion.setViewportSize({width:390,height:844});await motion.locator('.nd[data-id="oriso"]').click();await motion.waitForTimeout(200);
+  const resized=await visibleCanvases();await motion.waitForTimeout(700);
+  ok('A11: opening and resizing after the end retain still background and artwork',JSON.stringify(resized)===JSON.stringify(await visibleCanvases()));
+ }finally{await moving.close();}
  const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}}), fallback=await nojs.newPage();
  try {await fallback.goto(base+'/referenzen/');ok('A01: without JavaScript every genuine entry remains readable',await fallback.locator('article').count()===12);ok('A02: English original content remains readable without JavaScript',(await fallback.locator('article#eeloy').textContent()).includes('Redesign the 8 Years old Direct Mailing solution'));}finally{await nojs.close();}
 }

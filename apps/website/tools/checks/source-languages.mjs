@@ -19,6 +19,25 @@ export async function run({browser,base,artifact,ok,dist}){
   await page.keyboard.press('Escape');await page.locator('#lang').click();const offers=await page.locator('#langsheet [role=option]').evaluateAll(els=>els.map(e=>({code:e.lang,name:e.textContent})));
   ok('All 47 existing language offers remain available',offers.length===47);await page.keyboard.press('Escape');
   for(const {code} of offers){
+   await page.locator('#lang').click();await page.locator('#langsheet [role=option][lang="'+code+'"]').click();
+   await page.locator('#langsheet').waitFor({state:'hidden'});
+   for(const width of [320,390,600]){
+    await page.setViewportSize({width,height:844});
+    const geometry=await page.evaluate(()=>{
+     const source=document.querySelector('#source-entry'),replay=document.querySelector('#play'),a=source.getBoundingClientRect(),b=replay.getBoundingClientRect();
+     const hit=n=>{const r=n.getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('button,a')===n;};
+     return {separate:Math.min(a.right,b.right)<=Math.max(a.left,b.left)||Math.min(a.bottom,b.bottom)<=Math.max(a.top,b.top),touch:a.height>=44&&b.height>=44&&a.width>=44&&b.width>=44,within:a.left>=0&&a.right<=innerWidth&&b.left>=0&&b.right<=innerWidth,hits:hit(source)&&hit(replay)};
+    });
+    ok(code+' '+width+'px source and Replay each retain their own accessible 44px tap area',geometry.separate&&geometry.touch&&geometry.within&&geometry.hits);
+    if(code==='it'&&width===320)await page.screenshot({path:path.join(artifact,'source-replay-phone-it.png')});
+   }
+   await page.setViewportSize({width:1440,height:900});
+  }
+  await page.locator('#lang').click();await page.locator('#langsheet [role=option][lang="it"]').click();await page.setViewportSize({width:320,height:844});
+  await page.locator('#play').click();await page.waitForTimeout(150);
+  ok('Narrow-phone Replay starts the animation without opening Quelltext',!await page.locator('.code-view[open]').count()&&!await page.locator('#play').isVisible());
+  await page.goto(base+'/?lang=de&anim=4k');await page.setViewportSize({width:1440,height:900});
+  for(const {code} of offers){
    await page.locator('#lang').click();await page.locator('#langsheet [role=option][lang="'+code+'"]').click();await page.locator('#source-entry').click();await page.locator('.code-view[open]').waitFor();
    const labels=await page.locator('.code-view [data-cv], #cv-close').evaluateAll(els=>els.map(e=>e.dataset.cv?e.textContent:e.getAttribute('aria-label')));
    ok(code+' all source actions and explanations remain accessible',labels.every(s=>typeof s==='string'&&s.trim().length>0));

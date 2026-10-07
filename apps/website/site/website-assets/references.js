@@ -56,7 +56,7 @@ const RM = () => mq.matches;
 const RM_T = 4.6;
 let V = null, app = null, last = 0, lastArt = 0, raf = 0, resizeObs = null;
 const t0 = performance.now();
-const nowT = () => (performance.now() - t0) / 1000;
+const nowT = () => Math.min(RM_T, (performance.now() - t0) / 1000);
 const isPhone = () => !!app && app.clientWidth < 900;
 
 const SCR = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&*+<>=';
@@ -279,18 +279,20 @@ function layoutAll() {
   redraw();
 }
 function redraw() {
-  try { if (V.frame) V.frame(RM() ? RM_T : nowT()); } catch (e) { console.error(e); }
-  if (RM()) { ARTS.forEach(cv => { if (cv.isConnected) drawArt(cv, RM() ? RM_T : nowT()); else ARTS.delete(cv); }); }
+  const t = RM() ? RM_T : nowT();
+  try { if (V.frame) V.frame(t); } catch (e) { console.error(e); }
+  ARTS.forEach(cv => { if (cv.isConnected) drawArt(cv, t); else ARTS.delete(cv); });
 }
 function tick(ts) {
-  if (RM()) { raf = 0; return; }
+  raf = 0;
+  if (RM() || nowT() >= RM_T) { redraw(); return; }
   raf = requestAnimationFrame(tick);
   if (D.hidden || ts - last < 50) return;
   last = ts;
   try { if (V.frame) V.frame(nowT()); } catch (e) { console.error(e); }
   if (ts - lastArt > 110) { lastArt = ts; ARTS.forEach(cv => { if (cv.isConnected) { if (cv.offsetParent) drawArt(cv, nowT()); } else ARTS.delete(cv); }); }
 }
-function loop() { if (!raf && !RM()) raf = requestAnimationFrame(tick); }
+function loop() { if (!raf && !RM() && nowT() < RM_T) raf = requestAnimationFrame(tick); }
 
 function wire() {
   D.addEventListener('click', e => {
@@ -323,7 +325,7 @@ function skeleton() {
 <canvas id="field" aria-hidden="true"></canvas>
 <header class="top"><a class="pill back" href="/">${svg(ICO.back, 16).replace('<svg ', '<svg class="flip" ')}<span>${esc(L('back'))}</span></a><h1 class="ttl"><span id="ttl">${esc(L('title'))}</span><i class="caret" aria-hidden="true"></i></h1><p class="kicker">${esc(L('sub'))}</p><p class="meta" id="meta" aria-hidden="true"></p></header>
 <section class="filter" role="search" aria-label="${esc(L('filter'))}">${filterHTML()}</section>
-<div class="scroll" id="scroll"><main id="content"></main><footer class="foot" aria-label="${esc(L('impressum'))}"><a href="/impressum.html">${esc(L('impressum'))}</a><i aria-hidden="true">·</i><a href="/datenschutz.html">${esc(L('datenschutz'))}</a><i aria-hidden="true">·</i><a href="/teamwork/">${esc(L('teamwork'))}</a><i aria-hidden="true">·</i><a href="/glossar/">Glossar</a><i aria-hidden="true">·</i><a href="mailto:info@dreambau.com">Kontakt</a></footer></div>
+<div class="scroll" id="scroll"><main id="content"></main><footer class="foot" aria-label="${esc(L('impressum'))}"><span class="pending" lang="de" dir="ltr">Impressum · Angaben noch offen</span><i aria-hidden="true">·</i><span class="pending" lang="de" dir="ltr">Datenschutz · Freigabe noch offen</span><i aria-hidden="true">·</i><a href="/teamwork/">${esc(L('teamwork'))}</a><i aria-hidden="true">·</i><a href="/glossar/">Glossar</a><i aria-hidden="true">·</i><a href="mailto:info@dreambau.com">Kontakt</a></footer></div>
 <div class="modal fs" id="fsheet" role="dialog" aria-modal="true" aria-labelledby="fs-t" aria-hidden="true" inert><div class="mbk"></div><section class="msheet" tabindex="-1"><span class="grab" aria-hidden="true"></span><header class="mh"><h2 id="fs-t">${esc(L('filterTitle'))}</h2><button type="button" class="pill" data-close data-autofocus>${esc(L('close'))}</button></header><div class="mb" id="fsbody"></div><footer class="mf"><button type="button" class="pill" id="fsreset">${esc(L('reset'))}</button><button type="button" class="pill pri" id="fsshow"></button></footer></section></div>
 </div></div></div><p class="sr" id="live" role="status" aria-live="polite"></p>`);
   app = $('#app');
