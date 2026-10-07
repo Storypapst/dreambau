@@ -132,6 +132,41 @@ describe("release list import", () => {
     expect(() => database.releaseLists.importTranslations("obp-2-1", translated)).toThrow("translation_exists");
   });
 
+  it("fills missing German originals without overwriting prior team edits", () => {
+    const { database } = setup();
+    const actor = { id: "editor", name: "Editor" };
+    const original = database.releaseLists.items("obp-2-1")[0];
+    const edited = database.releaseLists.updateItem("obp-2-1", original.id, {
+      name: "Edited English name", description: "Edited English description",
+      statusComment: "Checked on Dev", notes: "Edited English notes", releaseNotes: "English release notes",
+      devStatus: "OptUnclear", functional: ["OptAdjust"],
+      translations: { name: "Team's German name", notes: "Team's German notes", releaseNotes: "Team's German release notes", statusComment: "" }
+    }, actor);
+    database.releaseLists.addComment("obp-2-1", original.id, "Keep this discussion.", actor);
+    database.releaseLists.updateOption("obp-2-1", "areas", "OptA", { labelDe: "Team's German area" });
+    const activity = database.releaseLists.activity("obp-2-1", original.id);
+
+    expect(database.releaseLists.importTranslations("obp-2-1", {
+      titleDe: "Deutsche Liste", introDe: "Deutsche Einleitung",
+      options: [{ field: "areas", id: "OptA", labelDe: "Old German area" }, { field: "areas", id: "OptB", labelDe: "Datenschutz" }],
+      items: seed.features.map((feature) => ({
+        sourceId: feature.sourceId,
+        translations: { name: `DE ${feature.name}`, description: "Deutsche Beschreibung", statusComment: "Old German comment" }
+      }))
+    })).toEqual({ items: 3, options: 2 });
+
+    expect(database.releaseLists.getItem("obp-2-1", original.id)).toEqual({
+      ...edited, commentCount: 1,
+      translations: { ...edited.translations, description: "Deutsche Beschreibung" }
+    });
+    expect(database.releaseLists.activity("obp-2-1", original.id)).toEqual(activity);
+    expect(database.releaseLists.options("obp-2-1").areas.map((option) => option.labelDe)).toEqual(["Team's German area", "Datenschutz"]);
+    expect(database.releaseLists.items("obp-2-1")[1].translations).toEqual({
+      name: "DE Two-factor authentication (2FA)", description: "Deutsche Beschreibung", statusComment: "Old German comment"
+    });
+    expect(database.releaseLists.getList("obp-2-1")).toMatchObject({ titleDe: "Deutsche Liste", introDe: "Deutsche Einleitung" });
+  });
+
   it("translates only imported records and tolerates items and options added since", () => {
     const { database } = setup();
     const actor = { id: "editor", name: "Editor" };
