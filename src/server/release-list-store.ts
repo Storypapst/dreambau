@@ -355,7 +355,7 @@ export class ReleaseListStore {
   }
 
   /**
-   * Add German originals by stable Slack IDs without replacing English text, comments, or status edits.
+   * Fill missing German originals by stable Slack IDs without replacing prior team edits in either language.
    * Only imported records are matched; items and options the team added since need no translation.
    */
   importTranslations(listId: string, seed: ReleaseTranslationSeed): { items: number; options: number } {
@@ -364,8 +364,8 @@ export class ReleaseListStore {
       const list = this.getList(listId);
       if (!list) throw new ReleaseListError("list_not_found");
       if (list.titleDe) throw new ReleaseListError("translation_exists");
-      const imported = this.sqlite.prepare("SELECT source_id, archived_at FROM release_items WHERE list_id=? AND source_id IS NOT NULL")
-        .all(listId) as Array<{ source_id: string; archived_at: string | null }>;
+      const imported = this.sqlite.prepare("SELECT source_id, archived_at, translations FROM release_items WHERE list_id=? AND source_id IS NOT NULL")
+        .all(listId) as Array<{ source_id: string; archived_at: string | null; translations: string }>;
       const importedIds = new Set(imported.map((row) => row.source_id));
       const seedIds = new Set(seed.items.map((item) => item.sourceId));
       // Every active imported item needs a German name; archived ones may be in the file or not.
@@ -378,10 +378,14 @@ export class ReleaseListStore {
       const seedOptionKeys = new Set(seed.options.map((option) => optionKey(option.field, option.id)));
       if (seedOptionKeys.size !== seed.options.length || seed.options.some((option) => !optionKeys.has(optionKey(option.field, option.id)))) throw new ReleaseListError("unknown_option");
       this.sqlite.prepare("UPDATE release_lists SET title_de=?, intro_de=? WHERE id=?").run(seed.titleDe, seed.introDe, listId);
-      const updateOption = this.sqlite.prepare("UPDATE release_list_options SET label_de=? WHERE list_id=? AND field=? AND id=?");
+      const updateOption = this.sqlite.prepare("UPDATE release_list_options SET label_de=? WHERE list_id=? AND field=? AND id=? AND label_de=''");
       for (const option of seed.options) updateOption.run(option.labelDe, listId, option.field, option.id);
+      // Existing fields, including deliberately cleared empty strings, belong to the team.
+      const priorTranslations = new Map(imported.map((row) => [row.source_id, translationsSchema.parse(JSON.parse(row.translations))]));
       const updateItem = this.sqlite.prepare("UPDATE release_items SET translations=? WHERE list_id=? AND source_id=?");
-      for (const item of seed.items) updateItem.run(JSON.stringify(item.translations), listId, item.sourceId);
+      for (const item of seed.items) {
+        updateItem.run(JSON.stringify({ ...item.translations, ...priorTranslations.get(item.sourceId) }), listId, item.sourceId);
+      }
       return { items: seed.items.length, options: seed.options.length };
     })();
   }
