@@ -329,6 +329,8 @@ export function noise(a, b, c) {
 const RGB = { cyan: '56,214,255', amber: '255,178,62', pink: '255,94,200', violet: '169,139,255', lime: '198,242,58', slate: '200,208,224' };
 function initCanvas(page) {
   const context = page.canvas.getContext('2d');
+  const field = page.doc.createElement('canvas'), fieldContext = field.getContext('2d');
+  let fieldKey = '', cells = [];
   page.draw = (time) => {
     if (page.doc.hidden) return;
     const width = page.map.clientWidth, height = page.map.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
@@ -338,12 +340,29 @@ function initCanvas(page) {
     const cluster = page.root.dataset.layout !== 'constellation', cw = cluster ? 15 : 16, ch = cluster ? 19 : 20;
     const colours = page.state.catalogue?.zones.filter((zone) => zone.ring !== 'inner').map((zone) => RGB[zone.color]) || [];
     context.font = '12px ui-monospace, monospace'; context.textAlign = 'center';
-    for (let row = 0; row < height / ch; row++) for (let col = 0; col < width / cw; col++) {
-      const angle = (Math.atan2(row * ch - height / 2, col * cw - width / 2) + Math.PI * 2.5) % (Math.PI * 2);
-      const colour = colours[Math.floor(angle / (Math.PI * 2) * colours.length)] || RGB.slate;
-      context.fillStyle = `rgba(${colour},${.035 + .015 * noise(col, row, 3)})`;
-      context.fillText(GLYPHS[Math.floor(noise(col, row, Math.floor(time * (.15 + noise(col, row, 7)))) * GLYPHS.length)], col * cw, row * ch);
+    // Most field glyphs do not change between frames. Retain their bitmap and
+    // repaint only changed cells; their value still depends solely on time.
+    const nextKey = [width, height, dpr, cw, ch, ...colours].join('|');
+    if (nextKey !== fieldKey) {
+      fieldKey = nextKey; field.width = pw; field.height = ph; cells = [];
+      fieldContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+      fieldContext.font = context.font; fieldContext.textAlign = 'center';
+      for (let row = 0; row < height / ch; row++) for (let col = 0; col < width / cw; col++) {
+        const x = col * cw, y = row * ch;
+        const angle = (Math.atan2(y - height / 2, x - width / 2) + Math.PI * 2.5) % (Math.PI * 2);
+        const colour = colours[Math.floor(angle / (Math.PI * 2) * colours.length)] || RGB.slate;
+        cells.push({ col, row, x, y, rate: .15 + noise(col, row, 7), colour: `rgba(${colour},${.035 + .015 * noise(col, row, 3)})`, tick: null });
+      }
     }
+    for (const cell of cells) {
+      const tick = Math.floor(time * cell.rate);
+      if (tick === cell.tick) continue;
+      cell.tick = tick;
+      fieldContext.clearRect(cell.x - cw / 2, cell.y - 14, cw, ch);
+      fieldContext.fillStyle = cell.colour;
+      fieldContext.fillText(GLYPHS[Math.floor(noise(cell.col, cell.row, tick) * GLYPHS.length)], cell.x, cell.y);
+    }
+    context.drawImage(field, 0, 0, width, height);
     if (page.placement) {
       const { cx, cy, items } = page.placement;
       for (let ring = 0; ring < 2; ring++) for (let i = 0; i < 34; i++) {

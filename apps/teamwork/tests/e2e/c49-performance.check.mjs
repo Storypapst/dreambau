@@ -7,7 +7,7 @@ try{await run(async()=>{
   await context.addInitScript(()=>{
    window.__redraws=[];window.__clears=0;
    const clear=CanvasRenderingContext2D.prototype.clearRect;
-   CanvasRenderingContext2D.prototype.clearRect=function(...args){window.__clears++;return clear.apply(this,args);};
+   CanvasRenderingContext2D.prototype.clearRect=function(...args){if(this.canvas.id==='characters')window.__clears++;return clear.apply(this,args);};
    const raf=window.requestAnimationFrame.bind(window);
    window.requestAnimationFrame=(callback)=>raf((time)=>{const before=window.__clears,start=performance.now();callback(time);if(window.__clears>before)window.__redraws.push(performance.now()-start);});
   });
