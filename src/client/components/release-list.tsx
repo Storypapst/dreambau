@@ -23,6 +23,7 @@ import {
 } from "@/release-list-client";
 import type { Locale } from "@/i18n";
 import { renderMarkdown } from "@/safe-markdown";
+import { releaseChangeValue } from "@/release-change-value";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -138,7 +140,7 @@ export function ReleaseListPage({ locale, onLocaleChange, onBack }: { locale: Lo
 
   if (state === "error") return <main className="grid min-h-screen place-items-center p-6"><Alert variant="destructive" className="max-w-lg"><AlertTitle>{text.loadError}</AlertTitle><AlertDescription>{text.loadErrorHint}</AlertDescription></Alert></main>;
   if (state === "empty") return <main className="grid min-h-screen place-items-center p-6"><Card className="max-w-lg"><CardContent><Empty><EmptyHeader><EmptyTitle>{text.noList}</EmptyTitle><EmptyDescription>{text.noListHint}</EmptyDescription></EmptyHeader></Empty><Button variant="ghost" onClick={onBack}><ArrowLeftIcon data-icon="inline-start" />{text.back}</Button></CardContent></Card></main>;
-  if (!detail) return <main className="min-h-screen animate-pulse bg-muted/40" aria-label={text.kicker} />;
+  if (!detail) return <main className="min-h-screen p-6" aria-label={text.kicker}><Skeleton className="h-12 w-full" /><Skeleton className="mt-6 h-96 w-full" /></main>;
 
   const { list, options, items } = detail;
   const names = new Map(items.map((item) => [item.id, displayName(item, locale)]));
@@ -169,7 +171,7 @@ export function ReleaseListPage({ locale, onLocaleChange, onBack }: { locale: Lo
           <TableCell className="py-3 align-top whitespace-normal"><button type="button" className={`flex w-full items-start gap-2 text-left font-semibold hover:underline ${item.parentId ? "pl-5 font-medium text-muted-foreground" : ""}`} onClick={() => setOpenItemId(item.id)}>{item.parentId && <span aria-hidden>↳</span>}<span className="min-w-0 flex-1">{displayName(item, locale)}</span>{item.commentCount > 0 && <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground"><MessageSquareIcon className="size-3.5" />{item.commentCount}</span>}</button></TableCell>
           <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="areas" label={columns[locale].areas} item={item} options={options.areas} text={text} locale={locale} onChange={(value) => patch(item, { areas: value })} onCreate={(label) => createOption("areas", label)} /></TableCell>
           <TableCell className="py-3 align-top whitespace-normal"><Clamp>{displayText(item, "description", locale)}</Clamp></TableCell>
-          <TableCell className="py-3 align-top whitespace-normal"><div className="flex flex-col gap-1">{item.crossReferenceIds.map((id) => names.has(id) && <button key={id} type="button" className="w-fit text-left text-sm text-blue-700 hover:underline" onClick={() => setOpenItemId(id)}>{names.get(id)}</button>)}{displayText(item, "crossReferences", locale) && <Clamp>{displayText(item, "crossReferences", locale)}</Clamp>}</div></TableCell>
+          <TableCell className="py-3 align-top whitespace-normal"><div className="flex flex-col gap-1">{item.crossReferenceIds.map((id) => names.has(id) && <Button key={id} type="button" variant="link" className="h-auto w-fit justify-start whitespace-normal p-0 text-left" onClick={() => setOpenItemId(id)}>{names.get(id)}</Button>)}{displayText(item, "crossReferences", locale) && <Clamp>{displayText(item, "crossReferences", locale)}</Clamp>}</div></TableCell>
           <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="devStatus" label={columns[locale].devStatus} item={item} options={options.devStatus} text={text} locale={locale} onChange={(value) => patch(item, { devStatus: value[0] ?? null })} onCreate={(label) => createOption("devStatus", label)} /></TableCell>
           <TableCell className="py-3 align-top whitespace-normal"><SelectCell field="functional" label={columns[locale].functional} item={item} options={options.functional} text={text} locale={locale} onChange={(value) => patch(item, { functional: value })} onCreate={(label) => createOption("functional", label)} /></TableCell>
           <TableCell className="py-3 align-top whitespace-normal"><Clamp>{displayText(item, "statusComment", locale)}</Clamp></TableCell>
@@ -320,8 +322,8 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
   const describe = (change: ReleaseChange) => {
     if (change.field === "created") return text.created;
     if (change.field === "archived") return text.archived;
-    const label = (labels as Record<string, string>)[change.field] ?? change.field;
-    const show = (raw: string) => { try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed.map(optionLabel).join(", ") : String(parsed); } catch { return change.field === "devStatus" ? optionLabel(raw) : raw; } };
+    const label = change.field === "translations" ? (locale === "de" ? "Übersetzung" : "Translation") : (labels as Record<string, string>)[change.field] ?? change.field;
+    const show = (raw: string) => releaseChangeValue(raw, change.field, optionLabel, (field) => (labels as Record<string, string>)[field] ?? field);
     const next = show(change.newValue);
     return `${label}: ${next.length > 80 ? `${next.slice(0, 80)}…` : next || text.none}`;
   };
@@ -330,11 +332,11 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
     <SheetContent className="w-full overflow-y-auto sm:max-w-2xl" onOpenAutoFocus={(event) => event.preventDefault()}>
       <SheetHeader><SheetTitle className="sr-only">{displayName(current, locale)}</SheetTitle><SheetDescription>{text.lastEdit(current.updatedBy, new Date(current.updatedAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB"))}</SheetDescription></SheetHeader>
       <div className="flex flex-col gap-6 px-4 pb-8">
-        {current.parentId && <p className="text-sm text-muted-foreground">{text.subItemOf} <button type="button" className="text-blue-700 hover:underline" onClick={() => onOpen(current.parentId!)}>{names.get(current.parentId)}</button></p>}
+        {current.parentId && <p className="text-sm text-muted-foreground">{text.subItemOf} <Button type="button" variant="link" className="h-auto p-0" onClick={() => onOpen(current.parentId!)}>{names.get(current.parentId)}</Button></p>}
         <Input aria-label={labels.name} className="h-auto border-transparent px-0 text-2xl font-bold shadow-none focus-visible:border-input focus-visible:px-2 md:text-2xl" value={name} maxLength={200} onChange={(event) => setName(event.target.value)} onBlur={() => { if (name.trim()) { setName(name.trim()); commit("name", name.trim()); } else setName(baseline.current.name); }} />
         <dl className="grid grid-cols-[9rem_minmax(0,1fr)] items-start gap-x-4 gap-y-3 text-sm">
           {(["areas", "devStatus", "functional"] as const).map((field) => <div key={field} className="contents"><dt className="pt-1.5 text-muted-foreground">{labels[field]}</dt><dd><SelectCell field={field} label={labels[field]} item={current} options={options[field]} text={text} locale={locale} onChange={(value) => save(field === "devStatus" ? { devStatus: value[0] ?? null } : { [field]: value })} onCreate={(label) => onCreateOption(field, label)} /></dd></div>)}
-          {current.crossReferenceIds.length > 0 && <><dt className="text-muted-foreground">{text.linked}</dt><dd className="flex flex-col gap-1">{current.crossReferenceIds.map((id) => names.has(id) && <button key={id} type="button" className="w-fit text-left text-blue-700 hover:underline" onClick={() => onOpen(id)}>{names.get(id)}</button>)}</dd></>}
+          {current.crossReferenceIds.length > 0 && <><dt className="text-muted-foreground">{text.linked}</dt><dd className="flex flex-col gap-1">{current.crossReferenceIds.map((id) => names.has(id) && <Button key={id} type="button" variant="link" className="h-auto w-fit justify-start whitespace-normal p-0 text-left" onClick={() => onOpen(id)}>{names.get(id)}</Button>)}</dd></>}
         </dl>
         <FieldGroup>{textFields.map((field) => <Field key={field}><FieldLabel htmlFor={`release-${field}`}>{labels[field]}</FieldLabel><Textarea id={`release-${field}`} value={drafts[field]} maxLength={field === "notes" ? 8000 : 4000} onChange={(event) => setDrafts((value) => ({ ...value, [field]: event.target.value }))} onBlur={() => commit(field, drafts[field])} /></Field>)}</FieldGroup>
         <div className="flex flex-col gap-2"><p className="text-sm font-medium">{labels.releaseNotes}</p><ReleaseNotesField item={current} locale={locale} text={text} title={labels.releaseNotes} onSave={(value) => save(locale === "de" ? { translations: { releaseNotes: value } } : { releaseNotes: value })} /></div>
@@ -370,7 +372,7 @@ export function ReleaseNotesField({ item, title, text, locale = "en", onSave }: 
   const dirty = draft !== displayText(item, "releaseNotes", locale);
   return <>
     <button type="button" onClick={show} className="flex w-full flex-col items-start gap-1 rounded-md p-1 text-left hover:bg-muted" aria-label={`${title}: ${displayName(item, locale)}`}>
-      {displayText(item, "releaseNotes", locale) ? <><span className="line-clamp-3 text-sm text-foreground/90">{markdownTeaser(displayText(item, "releaseNotes", locale))}</span><span className="flex items-center gap-1 text-xs font-medium text-blue-700"><FileTextIcon className="size-3.5" />{text.openNotes}</span></>
+      {displayText(item, "releaseNotes", locale) ? <><span className="line-clamp-3 text-sm text-foreground/90">{markdownTeaser(displayText(item, "releaseNotes", locale))}</span><span className="flex items-center gap-1 text-xs font-medium text-primary"><FileTextIcon className="size-3.5" />{text.openNotes}</span></>
         : <span className="flex items-center gap-1 text-sm text-muted-foreground"><PlusIcon className="size-3.5" />{text.addNotes}</span>}
     </button>
     <Dialog open={open} onOpenChange={(next) => { if (!next && dirty && !window.confirm(text.discard)) return; setOpen(next); }}>

@@ -98,6 +98,22 @@ describe("release list import", () => {
     expect(() => database.releaseLists.importSeed("obp-2-1", "oriso", seed)).toThrow("list_exists");
   });
 
+  it("preserves German team corrections and release notes when importing missing translations", () => {
+    const { database } = setup();
+    const original = database.releaseLists.items("obp-2-1")[0];
+    database.releaseLists.updateItem("obp-2-1", original.id, { translations: { description: "Team correction", releaseNotes: "Team release notes" } }, { id: "editor", name: "Editor" });
+    const translated = {
+      titleDe: "Deutsche Liste", introDe: "Einleitung",
+      options: [],
+      items: seed.features.map((feature) => ({ sourceId: feature.sourceId, translations: { name: `DE ${feature.name}`, description: "Imported description" } }))
+    };
+    database.releaseLists.importTranslations("obp-2-1", translated);
+    expect(database.releaseLists.getItem("obp-2-1", original.id)?.translations).toEqual({
+      name: "DE Live chat queue", description: "Team correction", releaseNotes: "Team release notes"
+    });
+    expect(database.releaseLists.activity("obp-2-1", original.id).changes).toHaveLength(1);
+  });
+
   it("adds German originals by source ID without replacing live English edits", () => {
     const { database } = setup();
     const original = database.releaseLists.items("obp-2-1")[0];

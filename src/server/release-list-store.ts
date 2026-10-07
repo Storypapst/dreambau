@@ -364,8 +364,8 @@ export class ReleaseListStore {
       const list = this.getList(listId);
       if (!list) throw new ReleaseListError("list_not_found");
       if (list.titleDe) throw new ReleaseListError("translation_exists");
-      const imported = this.sqlite.prepare("SELECT source_id, archived_at FROM release_items WHERE list_id=? AND source_id IS NOT NULL")
-        .all(listId) as Array<{ source_id: string; archived_at: string | null }>;
+      const imported = this.sqlite.prepare("SELECT source_id, archived_at, translations FROM release_items WHERE list_id=? AND source_id IS NOT NULL")
+        .all(listId) as Array<{ source_id: string; archived_at: string | null; translations: string }>;
       const importedIds = new Set(imported.map((row) => row.source_id));
       const seedIds = new Set(seed.items.map((item) => item.sourceId));
       // Every active imported item needs a German name; archived ones may be in the file or not.
@@ -381,7 +381,9 @@ export class ReleaseListStore {
       const updateOption = this.sqlite.prepare("UPDATE release_list_options SET label_de=? WHERE list_id=? AND field=? AND id=?");
       for (const option of seed.options) updateOption.run(option.labelDe, listId, option.field, option.id);
       const updateItem = this.sqlite.prepare("UPDATE release_items SET translations=? WHERE list_id=? AND source_id=?");
-      for (const item of seed.items) updateItem.run(JSON.stringify(item.translations), listId, item.sourceId);
+      const existingTranslations = new Map(imported.map((row) => [row.source_id, JSON.parse(row.translations) as ReleaseTranslations]));
+      // Imported text fills missing fields; the team's existing edits remain authoritative.
+      for (const item of seed.items) updateItem.run(JSON.stringify({ ...item.translations, ...existingTranslations.get(item.sourceId) }), listId, item.sourceId);
       return { items: seed.items.length, options: seed.options.length };
     })();
   }
