@@ -1472,6 +1472,68 @@ describe("reusable ORISO PreDev account factory", () => {
     expect(calls[0]).toContain("/protocol/openid-connect/token");
   });
 
+  it.each([
+    ["admin-auth", [], "oriso_authentication_failed"],
+    ["create-conflict", ["started", "rejected"], "account_credentials_mismatch"],
+    ["create-network", ["started"], undefined],
+    ["post-create-auth", ["started"], "account_credentials_mismatch"]
+  ] as const)("reports the creation safety boundary for %s", async (failure, expectedAttempts, code) => {
+    const attempts: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/protocol/openid-connect/token")) {
+        const form = new URLSearchParams(init?.body);
+        if (form.get("username") === "abe.simpson@dreambau.de" && failure !== "admin-auth") {
+          return { ok: true, status: 200, async json() { return { access_token: "admin", expires_in: 300 }; } };
+        }
+        return { ok: false, status: 401, async json() { return {}; } };
+      }
+      if (url.endsWith("/useradmin/tenantadmins")) {
+        expect(attempts).toEqual(["started"]);
+        if (failure === "create-network") throw new Error("creation response lost");
+        return { ok: failure === "post-create-auth", status: failure === "post-create-auth" ? 201 : 409, async json() { return {}; } };
+      }
+      throw new Error("unexpected request");
+    };
+    const subject = service(fetch, provider(), undefined, { provisioningRetryDelaysMs: [] });
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@dreambau.de", displayName: "Lisa Simpson", role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl, appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa", now: new Date(), secret: "synthetic-application-password"
+    });
+    const result = subject.provision({
+      record, firstName: "Lisa", lastName: "Simpson", role: "tenant-admin", storeTotp: vi.fn(),
+      onCreationAttempt: (state) => attempts.push(state)
+    });
+    if (code) await expect(result).rejects.toMatchObject({ code });
+    else await expect(result).rejects.toThrow("creation response lost");
+    expect(attempts).toEqual(expectedAttempts);
+  });
+
+  it("does not mutate an authenticated direct account when stale-role replacement requires creation", async () => {
+    const calls: string[] = [];
+    const fetch: ProvisioningFetch = async (input) => {
+      const url = String(input); calls.push(url);
+      if (!url.includes("/protocol/openid-connect/token")) throw new Error("unexpected mutation");
+      return { ok: true, status: 200, async json() { return { access_token: "existing-user", expires_in: 300 }; } };
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({
+      email: "lisa.simpson@dreambau.de", displayName: "Lisa Simpson", role: "tenant-admin",
+      adminBaseUrl: subject.target.adminBaseUrl, appBaseUrl: subject.target.appBaseUrl,
+      responsiblePerson: "qa", now: new Date(), secret: "synthetic-application-password"
+    });
+    const storeTotp = vi.fn(), onCreationAttempt = vi.fn();
+    const result = await subject.provision({
+      record, firstName: "Lisa", lastName: "Simpson", role: "tenant-admin", storeTotp,
+      rejectExistingAccount: true, onCreationAttempt
+    });
+    expect(result.created).toBe(false);
+    expect(calls).toHaveLength(1);
+    expect(storeTotp).not.toHaveBeenCalled();
+    expect(onCreationAttempt).not.toHaveBeenCalled();
+  });
+
   it("maps an existing unmanaged account to a credential conflict", async () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);

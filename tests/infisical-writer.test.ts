@@ -338,8 +338,12 @@ describe("Infisical TOTP writer", () => {
     });
   });
 
-  it("rejects stale-role replacement after scope or role CAS drift", async () => {
-    const current = record({ roles: ["tenant-admin"] });
+  it.each([
+    ["role", { roles: ["platform-admin"] }],
+    ["scope", { environment: "dev", roles: ["tenant-admin"] }],
+    ["same-role READY advancement", { roles: ["tenant-admin"], provisioningStatus: "pending" }]
+  ] as const)("rejects stale-role replacement after %s CAS drift", async (_drift, expectedPatch) => {
+    const current = record({ roles: ["tenant-admin"], provisioningStatus: "ready" });
     const fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
       if (String(input).includes("/login")) {
         return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
@@ -361,15 +365,13 @@ describe("Infisical TOTP writer", () => {
       fetch: fetch as WriterFetch
     });
 
+    const expected = record({ provisioningStatus: "ready", ...expectedPatch });
     await expect(writer.replaceRecord!(
-      record({ roles: ["platform-admin"] }),
-      record({ roles: ["agency-admin"] })
+      expected,
+      record({ environment: expected.environment, roles: ["agency-admin"] })
     )).rejects.toThrow("Infisical record replacement validation failed");
-    await expect(writer.replaceRecord!(
-      record({ environment: "dev", roles: ["tenant-admin"] }),
-      record({ environment: "dev", roles: ["agency-admin"] })
-    )).rejects.toThrow("Infisical record replacement validation failed");
-    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(current).toMatchObject({ roles: ["tenant-admin"], provisioningStatus: "ready" });
   });
 
   it("rejects failed and unsupported provisioning-state updates", async () => {

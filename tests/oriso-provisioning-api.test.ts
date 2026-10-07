@@ -611,12 +611,90 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(service.provision).not.toHaveBeenCalled();
   });
 
-  it("persists a recoverable failed replacement when provisioning fails", async () => {
+  it.each([
+    ["account_credentials_mismatch", 409],
+    ["oriso_authentication_failed", 502],
+    ["account_create_failed", 502]
+  ] as const)("preserves the prior roles and status when replacement fails before creation: %s", async (code, status) => {
     const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
     const records = [existing];
     const service = fakeService({
       status: vi.fn(async () => null),
-      provision: vi.fn(async () => { throw new OrisoProvisioningError("account_create_failed"); })
+      provision: vi.fn(async () => { throw new OrisoProvisioningError(code); })
+    });
+    const { agent, lisa, writer } = await setup({ records, service });
+
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(status);
+    expect(response.body).toEqual({ error: code });
+    expect(records[0]).toEqual(existing);
+    expect(writer?.replaceRecord).toHaveBeenLastCalledWith(
+      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "pending" }),
+      existing
+    );
+    expect(writer?.updateRecord).not.toHaveBeenCalled();
+  });
+
+  it("restores the previous roles after an explicit external create conflict", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
+    const records = [existing];
+    const service = fakeService({
+      provision: vi.fn(async ({ onCreationAttempt }) => {
+        onCreationAttempt?.("started");
+        onCreationAttempt?.("rejected");
+        throw new OrisoProvisioningError("account_credentials_mismatch");
+      })
+    });
+    const { agent, lisa, writer } = await setup({ records, service });
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(409);
+    expect(records[0]).toEqual(existing);
+    expect(writer?.updateRecord).not.toHaveBeenCalled();
+  });
+
+  it("fails closed without overwriting a concurrent role change when rollback CAS rejects", async () => {
+    const existing = managedRecord();
+    const records = [existing];
+    const writer: RegistryWriter = {
+      enrollTotp: vi.fn(), createRecord: vi.fn(), updateRecord: vi.fn(),
+      replaceRecord: vi.fn(async (expected, replacement) => {
+        if (records[0].roles.join(",") !== expected.roles.join(",")) throw new Error("record scope or role changed");
+        records[0] = replacement;
+        return { recordId: replacement.id, updatedAt: replacement.updatedAt };
+      })
+    };
+    const service = fakeService({
+      provision: vi.fn(async () => {
+        records[0] = { ...records[0], roles: ["counsellor"], responsiblePerson: "concurrent operator" };
+        throw new OrisoProvisioningError("oriso_authentication_failed");
+      })
+    });
+    const { agent, lisa } = await setup({ records, service, writer });
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "record_replacement_failed" });
+    expect(records[0]).toMatchObject({ roles: ["counsellor"], responsiblePerson: "concurrent operator" });
+    expect(writer.updateRecord).not.toHaveBeenCalled();
+  });
+
+  it("persists a recoverable failed replacement when an external creation may have started", async () => {
+    const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
+    const records = [existing];
+    const service = fakeService({
+      status: vi.fn(async () => null),
+      provision: vi.fn(async ({ onCreationAttempt }) => {
+        onCreationAttempt?.("started");
+        throw new OrisoProvisioningError("account_create_failed");
+      })
     });
     const { agent, lisa, writer } = await setup({ records, service });
 

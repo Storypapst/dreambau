@@ -546,6 +546,7 @@ export function createApp(options: AppOptions = {}) {
         ? existingRecord
         : null;
       let recordReplaced = false;
+      let replacementMayHaveCreatedAccount = false;
       if (!linkedRecord) {
         linkedRecord = buildProvisionedRecord({
           email,
@@ -587,9 +588,10 @@ export function createApp(options: AppOptions = {}) {
           provisioningStatus: "pending",
           updatedAt: nowDate.toISOString()
         };
-        // Persist the replacement intent before touching ORISO. If the live
-        // account is created but the final READY write fails, the pending
-        // record makes the next same-role request converge instead of falling
+        // Empty invitation status alone cannot prove a direct account absent.
+        // Persist intent for recovery, but restore it on definitive pre-effect
+        // rejection below. Once creation may have started, keep the pending
+        // record so the next same-role request converges instead of falling
         // back into the old-role conflict.
         try {
           await registryWriter.replaceRecord!(recordReplacementExpected, linkedRecord);
@@ -606,6 +608,8 @@ export function createApp(options: AppOptions = {}) {
           firstName: nameParts[0] || email.split("@")[0],
           lastName: nameParts.slice(1).join(" ") || "-",
           role: body.role,
+          rejectExistingAccount: Boolean(recordReplacementExpected),
+          onCreationAttempt: (state) => { replacementMayHaveCreatedAccount = state === "started"; },
           storeTotp: async (totpSecret) => {
             await registryWriter.enrollTotp(linkedRecord!, totpSecret, nowDate.toISOString());
             linkedRecord = {
@@ -616,6 +620,7 @@ export function createApp(options: AppOptions = {}) {
             };
           }
         });
+        replacementMayHaveCreatedAccount ||= provisioned.created;
         // status(email) covers the invitation surface. Directly created users
         // are additionally detected by provision()'s credential probe. Never
         // rewrite the record if that probe authenticated an existing account,
@@ -640,7 +645,19 @@ export function createApp(options: AppOptions = {}) {
         await registryWriter.updateRecord(readyRecord);
         linkedRecord = readyRecord;
       } catch (error) {
-        if (linkedRecord.provisioningStatus !== "ready") {
+        if (recordReplacementExpected && recordReplaced && !replacementMayHaveCreatedAccount) {
+          // Credential/profile/admin-auth failures and explicit create conflicts
+          // leave a live or unverified identity guarded by its previous roles.
+          // The writer re-reads under its lock and refuses changed roles/state;
+          // unrelated concurrent credentials/lifetime fields remain untouched.
+          try {
+            await registryWriter.replaceRecord!(linkedRecord, recordReplacementExpected);
+            linkedRecord = recordReplacementExpected;
+            recordReplaced = false;
+          } catch {
+            return res.status(502).json({ error: "record_replacement_failed" });
+          }
+        } else if (linkedRecord.provisioningStatus !== "ready") {
           linkedRecord = {
             ...linkedRecord,
             provisioningStatus: "failed",

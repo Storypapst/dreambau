@@ -254,7 +254,8 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
             || current.environment !== expected.environment
             || current.email !== expected.email
             || current.roles.join(",") !== expected.roles.join(",")
-          ) throw new Error("record scope or role changed");
+            || current.provisioningStatus !== expected.provisioningStatus
+          ) throw new Error("record scope, role or provisioning state changed");
         } catch {
           throw new Error("Infisical record replacement validation failed");
         }

@@ -313,6 +313,10 @@ export interface OrisoProvisioningService {
     lastName: string;
     role: OrisoProvisioningRole;
     storeTotp(secret: string): Promise<void>;
+    rejectExistingAccount?: boolean;
+    // A dispatched mutation may have succeeded even if its response is lost.
+    // Only an explicit conflict proves that this attempt made no change.
+    onCreationAttempt?(state: "started" | "rejected"): void;
   }): Promise<{ created: boolean; state: OrisoProvisioningStateView }>;
 }
 
@@ -372,11 +376,13 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     return pendingToken;
   }
 
-  async function authorizedJson(path: string, init?: { method?: string; body?: string }) {
+  async function authorizedJson(path: string, init?: { method?: string; body?: string }, beforeSend?: () => void) {
+    const token = await accessToken();
+    beforeSend?.();
     const response = await fetch(`${apiBaseUrl}${path}`, {
       method: init?.method ?? "GET",
       headers: {
-        Authorization: `Bearer ${await accessToken()}`,
+        Authorization: `Bearer ${token}`,
         ...(init?.body ? { "Content-Type": "application/json" } : {})
       },
       body: init?.body,
@@ -669,9 +675,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
               tenantId: options.defaultTenantId,
               password: input.record.secret
             })
-          });
+          }, () => input.onCreationAttempt?.("started"));
           if (!reactivation.ok) {
             if (reactivation.status === 409) {
+              input.onCreationAttempt?.("rejected");
               throw new OrisoProvisioningError("account_credentials_mismatch");
             }
             throw new OrisoProvisioningError("account_create_failed");
@@ -692,6 +699,9 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       const initialProbe = staleManagedAccount
         ? { kind: "rejected" as const, status: 404 }
         : await credentialToken(input.record);
+      if (input.rejectExistingAccount && initialProbe.kind === "authenticated") {
+        return { created: false, state: directStateView(input.record, input.role, "DIRECT_RECONCILED") };
+      }
       let userToken = initialProbe.kind === "authenticated" ? initialProbe.token : null;
       let created = false;
       if (!userToken) {
@@ -699,9 +709,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         const createResponse = await authorizedJson(request.path, {
           method: "POST",
           body: JSON.stringify(request.body)
-        });
+        }, () => input.onCreationAttempt?.("started"));
         if (!createResponse.ok) {
           if (createResponse.status === 409) {
+            input.onCreationAttempt?.("rejected");
             throw new OrisoProvisioningError("account_credentials_mismatch");
           }
           throw new OrisoProvisioningError("account_create_failed");
