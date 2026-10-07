@@ -137,6 +137,42 @@ describe("AccountDirectory filter state", () => {
     expect(rows()).toBe("rows:3");
   });
 
+  it("resets favorites together with URL filters and restores every account", async () => {
+    favoriteState.favorites = ["lisa.simpson@oriso.org"];
+    window.history.replaceState(null, "", "/testmails/?q=lisa&domain=oriso.org");
+    await render();
+    const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
+    await act(async () => chip.click());
+    expect(rows()).toBe("rows:1");
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    const resetLabel = reset()?.textContent;
+
+    await act(async () => reset()?.click());
+
+    expect(rows()).toBe("rows:3");
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(reset()).toBeNull();
+    expect(window.location.search).toBe("");
+    expect(localStorage.getItem("testmails-filters")).toBeNull();
+    expect(resetLabel).toContain("Zurücksetzen (3)");
+  });
+
+  it("offers reset for favorites alone and restores every account", async () => {
+    favoriteState.favorites = ["lisa.simpson@oriso.org"];
+    await render();
+    const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
+    await act(async () => chip.click());
+    expect(rows()).toBe("rows:1");
+    expect(reset()?.textContent).toContain("Zurücksetzen (1)");
+
+    await act(async () => reset()?.click());
+
+    expect(rows()).toBe("rows:3");
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    expect(reset()).toBeNull();
+    expect(window.location.search).toBe("");
+  });
+
   it("shows only favorites when the favorites chip is on", async () => {
     favoriteState.favorites = ["lisa.simpson@oriso.org"];
     await render();
