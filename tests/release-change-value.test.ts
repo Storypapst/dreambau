@@ -14,3 +14,8 @@ describe("release change history", () => {
     expect(releaseChangeValue("OptDev", "devStatus", option, label)).toBe("Auf Dev");
   });
 });
+
+it("shows only changed translated fields, so unchanged descriptions do not hide new release notes", () => {
+  const previous = { name: "Feature", description: "Existing description ".repeat(20) };
+  expect(releaseChangeValue(JSON.stringify({ ...previous, releaseNotes: "New note" }), "translations", (id) => id, (field) => field, JSON.stringify(previous))).toBe("releaseNotes: New note");
+});

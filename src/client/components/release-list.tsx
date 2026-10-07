@@ -323,7 +323,7 @@ function ItemSheet({ listId, item, items, options, locale, text, onClose, onPatc
     if (change.field === "created") return text.created;
     if (change.field === "archived") return text.archived;
     const label = change.field === "translations" ? (locale === "de" ? "Übersetzung" : "Translation") : (labels as Record<string, string>)[change.field] ?? change.field;
-    const show = (raw: string) => releaseChangeValue(raw, change.field, optionLabel, (field) => (labels as Record<string, string>)[field] ?? field);
+    const show = (raw: string) => releaseChangeValue(raw, change.field, optionLabel, (field) => (labels as Record<string, string>)[field] ?? field, change.oldValue);
     const next = show(change.newValue);
     return `${label}: ${next.length > 80 ? `${next.slice(0, 80)}…` : next || text.none}`;
   };
