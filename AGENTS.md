@@ -44,10 +44,6 @@ Run live E2E only with credentials sourced from the operator Keychain. In
 particular, resolve `TESTMAILS_E2E_PASSWORD` at runtime rather than placing its
 value in a command literal, file, log or chat.
 
-## GitHub issue tracking
-
-Use `Storypapst/dreambau` for Dreambau issues. Always apply the `Testmails`
-label to issues and pull requests about Testmails accounts, access, or daily use.
 ## Canvas or epic: offer the epic (Frank, 2026-09-24)
 
 Frank wants delivery work tracked in **GitHub epics rather than Slack canvases**. A canvas is
@@ -92,3 +88,14 @@ the body is the live record, comments are the history.
   "**For developers — merge details (skip if you only need the status):**". No more than one line.
 - **Delegation carries the rule.** When a subagent or a job on the Dreambau server writes to
   GitHub, include this rule in its prompt.
+
+## Website work under apps/
+
+Before changing any file under `apps/`, read `apps/AGENTS.md` and
+`docs/website/HANDOVER.md`. The website mockups and specifications set the
+design; do not introduce independent styling or invented content.
+
+## GitHub issue tracking
+
+Use `Storypapst/dreambau` for Dreambau issues. Always apply the `Testmails`
+label to issues and pull requests about Testmails accounts, access, or daily use.
