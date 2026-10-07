@@ -15,6 +15,7 @@ import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
 import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
 import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
 import { createUnderstandKitRouter } from "./understand-kit.js";
+import { createReleaseListRouter } from "./release-list-router.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
 import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
@@ -930,6 +931,7 @@ export function createApp(options: AppOptions = {}) {
       handleValidation(error, res);
     }
   });
+  api.use("/release-lists", requireActiveHumanSession, createReleaseListRouter(database.releaseLists));
   api.put("/taxonomies/:kind", requireAdminSession, async (req, res) => {
     try { const kind = taxonomyKindSchema.parse(String(req.params.kind)); const { values } = taxonomyValuesSchema.parse(req.body); const result = database.putTaxonomy(kind, values); await regenerate(); res.json(result); } catch (error) { handleValidation(error, res); }
   });
