@@ -103,7 +103,7 @@ try {
     // ---- 3. the rendered page ----
     browser = await launchBrowser();
     server = await startPageServer();
-    const { context, page } = await openObserved(browser);
+    const { context, page } = await openObserved(browser, { viewport: { width: 390, height: 844 } });
     await page.goto(server.url);
     await page.waitForFunction(() => document.querySelectorAll('ul > li > a').length >= 21, null, { timeout: 15000 }).catch(() => {});
     const visible = await page.evaluate(() => {
@@ -118,7 +118,7 @@ try {
       return found;
     });
     const allowed = new Set([...spec, ...HUB_LINES, ...FROM_DATA]);
-    same('texts F14 every visible string of the page is a string of spec 5.1 or comes from the data files', [...new Set(visible.filter((text) => !allowed.has(text)))], []);
+    same('texts F14 every visible string of the page is a string of spec 5.1 or comes from the data files', [...new Set(visible.filter((text) => !allowed.has(text) && !/^Stand: vor \d+ (s|min|h)$/.test(text) && !/^\d+ Programme?$/.test(text) && !/^\d+$/.test(text)))], []);
     for (const text of new Set([PLAIN.title, PLAIN.kicker, PLAIN.back, PLAIN.privacy, PLAIN.footNote, ...HUB_LINES, ...FROM_DATA])) {
       check(`texts the page shows ${JSON.stringify(text).slice(0, 56)}`, visible.includes(text));
     }

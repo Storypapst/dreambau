@@ -5,9 +5,10 @@ All installation paths and the real list are supplied by the private operator
 configuration; this module contains no production inventory or credentials.
 """
 import argparse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from datetime import datetime, timezone
 import hashlib
+import heapq
 import http.client
 import json
 import multiprocessing
@@ -41,11 +42,12 @@ def valid_address(value, schemes, limit=None):
     if not isinstance(value, str) or (limit is not None and len(value) > limit):
         return False
     try:
+        value.encode("utf-8")
         parsed = urlsplit(value)
         return (parsed.scheme in schemes and bool(parsed.hostname)
                 and parsed.username is None and parsed.password is None
                 and parsed.port != 0 and not any(c.isspace() for c in value))
-    except ValueError:
+    except (ValueError, UnicodeError):
         return False
 
 
@@ -67,6 +69,11 @@ def validation_errors(value):
         raw = item.get(key)
         if not isinstance(raw, str) or not 1 <= len(raw) <= maximum or "\n" in raw or "\r" in raw:
             errors.append(where + "." + key + " has invalid type, length or line breaks")
+        else:
+            try:
+                raw.encode("utf-8")
+            except UnicodeError:
+                errors.append(where + "." + key + " is not Unicode text")
 
     def identifier(item, seen, where):
         raw = item.get("id")
@@ -140,7 +147,7 @@ def utc_now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def probe_child(address, connect_timeout, pipe):
+def probe_child(address, connect_timeout, total_timeout, pipe):
     """Blocking network work runs in a killable child, including DNS/header reads."""
     connection = None
     try:
@@ -153,9 +160,17 @@ def probe_child(address, connect_timeout, pipe):
         if parsed.query:
             target += "?" + parsed.query
         connection.request("GET", target, headers={"User-Agent": "dreambau-teamwork-status/1"})
-        response = connection.getresponse()
-        pipe.send(("result", {"code": response.status, "reason": "ok" if response.status < 500 else "status"}))
-        response.close()
+        # Reachability is the status line, not completion of the header block.
+        # Unbuffered reading avoids consuming a response body; the parent also
+        # enforces a hard wall-clock cap against trickling bytes and DNS stalls.
+        connection.sock.settimeout(total_timeout)
+        with connection.sock.makefile("rb", buffering=0) as stream:
+            line = stream.readline(65537)
+        match = re.fullmatch(br"HTTP/1\.[0-9] ([1-9][0-9]{2})(?:[ \t][^\r\n]*)?\r?\n", line)
+        if not match:
+            raise http.client.BadStatusLine("invalid status line")
+        code = int(match.group(1))
+        pipe.send(("result", {"code": code, "reason": "ok" if code < 500 else "status"}))
     except ssl.SSLError:
         pipe.send(("result", {"code": None, "reason": "tls"}))
     except socket.gaierror:
@@ -180,7 +195,7 @@ def probe(program, args, deadline, attempt):
     cap = min(args.timeout, remaining)
     context = multiprocessing.get_context("spawn")
     reader, writer = context.Pipe(duplex=False)
-    child = context.Process(target=probe_child, args=(program.get("probe", program["url"]), args.connect_timeout, writer))
+    child = context.Process(target=probe_child, args=(program.get("probe", program["url"]), args.connect_timeout, args.timeout, writer))
     result = {"code": None, "reason": "timeout"}
     try:
         child.start()
@@ -217,23 +232,45 @@ def run_checks(programs, args, deadline):
             **dict(result, code=result["code"] if result["code"] is not None else "none")), flush=True)
         results[result["id"]] = result
 
+    first = iter(programs)
+    first_done = False
+    retries = []
+    active = {}
+    sequence = 0
     with ThreadPoolExecutor(max_workers=args.parallel) as pool:
-        jobs = [pool.submit(probe, program, args, deadline, 1) for program in programs]
-        for job in jobs:
-            report(job.result())
-        failed = sorted((p for p in programs if results[p["id"]]["reason"] != "ok"),
-                        key=lambda p: results[p["id"]]["finished"])
-
-        def retry(program):
-            pause = max(0, results[program["id"]]["finished"] + args.retry_delay - time.monotonic())
-            if time.monotonic() + pause >= deadline:
+        while not first_done or active or retries:
+            if time.monotonic() >= deadline:
                 raise RunLimit()
-            time.sleep(pause)
-            return probe(program, args, deadline, 2)
-
-        jobs = [pool.submit(retry, program) for program in failed]
-        for job in jobs:
-            report(job.result())
+            while len(active) < args.parallel:
+                now = time.monotonic()
+                if retries and retries[0][0] <= now:
+                    _, _, program = heapq.heappop(retries)
+                    attempt = 2
+                elif not first_done:
+                    try:
+                        program = next(first)
+                        attempt = 1
+                    except StopIteration:
+                        first_done = True
+                        continue
+                else:
+                    break
+                active[pool.submit(probe, program, args, deadline, attempt)] = (program, attempt)
+            if not active:
+                if retries:
+                    time.sleep(min(max(0, retries[0][0] - time.monotonic()), max(0, deadline - time.monotonic())))
+                continue
+            timeout = max(0, deadline - time.monotonic())
+            if retries and len(active) < args.parallel:
+                timeout = min(timeout, max(0, retries[0][0] - time.monotonic()))
+            finished, _ = wait(active, timeout=timeout, return_when=FIRST_COMPLETED)
+            for job in finished:
+                program, attempt = active.pop(job)
+                result = job.result()
+                report(result)
+                if attempt == 1 and result["reason"] != "ok":
+                    sequence += 1
+                    heapq.heappush(retries, (result["finished"] + args.retry_delay, sequence, program))
     return [program["id"] for program in programs if results[program["id"]]["reason"] == "ok"]
 
 
@@ -245,9 +282,22 @@ def archive_list(raw, directory):
         with open(os.path.join(directory, copies[-1]), "rb") as stream:
             if hashlib.sha256(stream.read()).digest() == hashlib.sha256(raw).digest():
                 return
-    name = "programs-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + ".json"
-    filename = os.path.join(directory, name)
-    descriptor = os.open(filename, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    # The required name has second precision; never overwrite a different list
+    # archived during that same second. Wait for the next timestamp, bounded.
+    end = time.monotonic() + 2
+    while True:
+        name = "programs-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + ".json"
+        filename = os.path.join(directory, name)
+        try:
+            descriptor = os.open(filename, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            break
+        except FileExistsError:
+            with open(filename, "rb") as stream:
+                if stream.read() == raw:
+                    return
+            if time.monotonic() >= end:
+                raise OSError("history clock did not advance")
+            time.sleep(0.02)
     try:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(raw)

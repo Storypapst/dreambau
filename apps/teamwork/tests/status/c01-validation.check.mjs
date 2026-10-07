@@ -19,9 +19,9 @@ await run(async () => {
   }
   try {
     const example = JSON.parse(original);
-    check('C9 D4 the invented example list validates', validate(example).status === 0);
+    check('C1 D4 the invented example list validates', validate(example).status === 0);
     const empty = { format: 1, zones: [{ id: 'verwaltung', name: 'Verwaltung', color: 'lime', ring: 'inner' }], programs: [] };
-    check('C9 a genuine empty list can be published without inventing programs', validate(empty).status === 0);
+    check('C1 a genuine empty list can be published without inventing programs', validate(empty).status === 0);
     const cases = [
       ['format', (v) => { v.format = 2; }],
       ['duplicate program', (v) => { v.programs.push(v.programs[0]); }],
@@ -39,10 +39,10 @@ await run(async () => {
     for (const [name, spoil] of cases) {
       const value = JSON.parse(original); spoil(value);
       const result = validate(value);
-      check('C9 refuses ' + name, result.status === 2 && result.stderr.startsWith('invalid list:'));
+      check('C2 refuses ' + name, result.status === 2 && result.stderr.startsWith('invalid list:'));
     }
     fs.writeFileSync(file, '{');
     const broken = spawnSync('python3', [path.join(ROOT, 'status/teamwork_status.py'), '--list', file, '--out', out, '--history', history], { encoding: 'utf8' });
-    check('C10 invalid input preserves existing public files and creates no history', broken.status === 2 && broken.stderr.startsWith('invalid list:') && fs.readFileSync(path.join(out, 'status.json'), 'utf8') === 'unchanged\n' && fs.readdirSync(history).length === 0);
+    check('C2 invalid input preserves existing public files and creates no history', broken.status === 2 && broken.stderr.startsWith('invalid list:') && fs.readFileSync(path.join(out, 'status.json'), 'utf8') === 'unchanged\n' && fs.readdirSync(history).length === 0);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

@@ -1,0 +1,19 @@
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import {execFile} from 'node:child_process';import {promisify} from 'node:util';import {check,same,run} from '../lib/check.mjs';import {OPS} from '../lib/paths.mjs';import {startPageServer} from '../lib/page-server.mjs';import {replaceAtomically} from '../lib/tree.mjs';
+const execute=promisify(execFile),pause=(ms)=>new Promise((r)=>setTimeout(r,ms));const directory=fs.mkdtempSync(path.join(os.tmpdir(),'teamwork-reload-'));let server;
+try{await run(async()=>{
+ const final=fs.readFileSync(path.join(OPS,'nginx-test.conf'),'utf8');
+ const original=final.replace(/^\s*~\^\/teamwork\(\?:\/\|\$\).*\n/gm,'').replace(/\s*map \$uri \$robots_tag \{[\s\S]*?\n  \}/,'').replace(/^\s*add_header X-Robots-Tag.*\n/gm,'').replace(/^\s*location = \/teamwork \{[^\n]+\n/gm,'').replace(/^\s*location ~ \^\/teamwork\/[^\n]+\n/gm,'').replace(/\s*location \/teamwork\/ \{[\s\S]*?\n    \}/,'');
+ const file=path.join(directory,'base.conf');fs.writeFileSync(file,original);server=await startPageServer({conf:file});
+ const config=path.join(server.tree.etc,'nginx.conf');const command=(arg)=>execute('docker',['exec',server.name,'nginx',arg,'-c','/etc/dreambau-web/nginx.conf'],{timeout:15000});
+ const before=await command('-t');check('C20 original nginx syntax is valid',before.stderr.includes('syntax is ok')&&before.stderr.includes('test is successful'));
+ same('C20 original route is absent',(await fetch(server.url)).status,404);
+ const routes=['/','/homepage-assets/style.css','/health','/bildungshaus/','/bildungshaus','/nope'];
+ const snapshot=()=>Promise.all(routes.map(async(route)=>{const response=await fetch(server.origin+route,{redirect:'manual'});return {status:response.status,body:await response.text(),location:response.headers.get('location')};}));const baseline=await snapshot();
+ let done=false;const requests=[];const reader=(async()=>{while(!done){try{requests.push((await fetch(server.origin+'/')).status);}catch{requests.push(0);}await pause(30);}})();
+ replaceAtomically(config,final);if(process.platform==='darwin')await pause(700);const valid=await command('-t');check('C20 amended nginx syntax is valid',valid.stderr.includes('syntax is ok')&&valid.stderr.includes('test is successful'));
+ await execute('docker',['exec',server.name,'nginx','-s','reload','-c','/etc/dreambau-web/nginx.conf'],{timeout:15000});await pause(300);done=true;await reader;
+ check('C20 graceful reload does not interrupt root requests',requests.length>0&&requests.every((status)=>status===200));same('C20 new canonical route activates',(await fetch(server.origin+'/teamwork',{redirect:'manual'})).status,308);
+ same('C21 original routes remain byte-identical',await snapshot(),baseline);
+ replaceAtomically(config,original);if(process.platform==='darwin')await pause(700);await execute('docker',['exec',server.name,'nginx','-s','reload','-c','/etc/dreambau-web/nginx.conf'],{timeout:15000});await pause(300);
+ check('C25 rollback removes every Teamwork route',(await Promise.all(['/teamwork','/teamwork/','/teamwork/data/status.json'].map(async(route)=>(await fetch(server.origin+route,{redirect:'manual'})).status))).every((status)=>status===404));same('C25 original routes survive rollback',await snapshot(),baseline);
+});}finally{if(server)await server.stop();fs.rmSync(directory,{recursive:true,force:true});}
