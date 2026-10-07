@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-03T09:04:51.947Z",
+ "generated": "2026-10-07T02:59:43.381Z",
  "productions": {
   "4k": {
    "checks": [
@@ -10,7 +10,7 @@
      "warn": false
     },
     {
-     "name": "static scan: no network, media or asset APIs in the shipped files",
+     "name": "static scan: no network, media or asset APIs, no eval or new Function, in the shipped files",
      "ok": true,
      "detail": "",
      "warn": false
@@ -22,13 +22,13 @@
      "warn": false
     },
     {
-     "name": "first frame is nearly black (mean luminance 0.0 %)",
+     "name": "first frame is nearly black (mean luminance 0.1 %)",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "three or more distinct phases (differences between snapshots: 0.08 0.13 0.17 0.06)",
+     "name": "three or more distinct phases (differences between snapshots: 0.08 0.13 0.16 0.06)",
      "ok": true,
      "detail": "",
      "warn": false
@@ -58,40 +58,40 @@
      "warn": false
     },
     {
-     "name": "tagline revealed line by line, in order: 41.5 s → 45.5 s → 49.5 s",
+     "name": "tagline revealed line by line, in order: 41.5 s \u2192 45.5 s \u2192 49.5 s",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 16:9: text contrast 16.7 / 15.9 / 16.4, bottom band 0.0 % luminance",
+     "name": "final composition 16:9: text contrast 16.7 / 16.3 / 16.3, bottom band 0.0 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 21:9: text contrast 16.7 / 16.2 / 16.4, bottom band 0.0 % luminance",
+     "name": "final composition 21:9: text contrast 16.8 / 16.5 / 16.3, bottom band 0.0 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 4:3: text contrast 17.0 / 16.2 / 16.5, bottom band 0.0 % luminance",
+     "name": "final composition 4:3: text contrast 16.4 / 16.7 / 16.6, bottom band 0.0 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition portrait 9:16: text contrast 17.0 / 16.8 / 16.9, bottom band 0.0 % luminance",
+     "name": "final composition portrait 9:16: text contrast 16.4 / 16.7 / 16.8, bottom band 0.0 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "picture cost in software GL at 640x360: mean 54.7 ms, worst 63.4 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
-     "ok": true,
+     "name": "picture cost in software GL at 640x360: mean 224.1 ms, worst 658.6 ms (rule of thumb \u2264 150 ms \u2248 60 fps on an integrated GPU)",
+     "ok": false,
      "detail": "informational",
-     "warn": false
+     "warn": true
     },
     {
      "name": "music: loudness, silent start, fade-out, no clipping, progression",
@@ -102,13 +102,13 @@
     {
      "name": "real-time behaviour: autoplay allowed/blocked, mute, Esc, reduced motion, no WebGL, no network",
      "ok": true,
-     "detail": "",
+     "detail": "Passed targeted all-production recheck after explicitly selecting German in the German accessibility fixture; includes clock, idle stop and 60 random loads.",
      "warn": false
     },
     {
      "name": "contact sheet written (verification/4k/frames/sheet.png)",
      "ok": true,
-     "detail": "",
+     "detail": "Generated frame collection retained as private recovery evidence.",
      "warn": false
     }
    ],
@@ -122,10 +122,10 @@
     "cta": 54.5
    },
    "phaseDiffs": [
-    0.081,
+    0.08,
     0.131,
     0.165,
-    0.055
+    0.061
    ],
    "orderDiff": 0,
    "flash": {
@@ -148,11 +148,11 @@
     49.5
    ],
    "benchMs": {
-    "mean": 54.7,
-    "worst": 63.4
+    "mean": 224.1,
+    "worst": 658.6
    },
    "audio": [
-    "loudness/s    ▁▂▂▃▄▄▅▅▆▇▇█▇▇▇█████████████████████████▇▇▇▇▇▇▇█▇▇▇▇▆▆▅▄▁    ",
+    "loudness/s    \u2581\u2582\u2582\u2583\u2584\u2584\u2585\u2585\u2586\u2587\u2587\u2588\u2587\u2587\u2587\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2587\u2587\u2587\u2587\u2587\u2587\u2587\u2588\u2587\u2587\u2587\u2587\u2586\u2586\u2585\u2584\u2581    ",
     "peak -2.2 dBFS  rms -20.1 dBFS  stereo corr 0.94  est. tempo 123 BPM  clipped 0",
     "audio checks OK"
    ]
@@ -166,7 +166,7 @@
      "warn": false
     },
     {
-     "name": "static scan: no network, media or asset APIs in the shipped files",
+     "name": "static scan: no network, media or asset APIs, no eval or new Function, in the shipped files",
      "ok": true,
      "detail": "",
      "warn": false
@@ -184,7 +184,7 @@
      "warn": false
     },
     {
-     "name": "three or more distinct phases (differences between snapshots: 0.19 0.07 0.09 0.11)",
+     "name": "three or more distinct phases (differences between snapshots: 0.19 0.07 0.09 0.12)",
      "ok": true,
      "detail": "",
      "warn": false
@@ -208,43 +208,43 @@
      "warn": false
     },
     {
-     "name": "picture follows the music: bass energy vs brightness r=0.44 (lag -33 ms), vs activity r=0.41 (lag -33 ms)",
+     "name": "picture follows the music: bass energy vs brightness r=0.45 (lag -33 ms), vs activity r=0.41 (lag -33 ms)",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "tagline revealed line by line, in order: 43.5 s → 47 s → 51 s",
+     "name": "tagline revealed line by line, in order: 43.5 s \u2192 47 s \u2192 51 s",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 16:9: text contrast 13.8 / 13.9 / 12.5, bottom band 0.0 % luminance",
+     "name": "final composition 16:9: text contrast 12.7 / 12.9 / 12.1, bottom band 0.0 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 21:9: text contrast 13.7 / 13.6 / 12.5, bottom band 0.0 % luminance",
+     "name": "final composition 21:9: text contrast 12.7 / 12.9 / 12.2, bottom band 0.0 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 4:3: text contrast 13.9 / 14.1 / 12.6, bottom band 0.0 % luminance",
+     "name": "final composition 4:3: text contrast 12.7 / 13.0 / 12.1, bottom band 0.0 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition portrait 9:16: text contrast 15.0 / 14.8 / 13.8, bottom band 0.0 % luminance",
+     "name": "final composition portrait 9:16: text contrast 13.2 / 13.5 / 13.0, bottom band 0.0 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "picture cost in software GL at 640x360: mean 128.5 ms, worst 149.9 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "name": "picture cost in software GL at 640x360: mean 34.7 ms, worst 52.1 ms (rule of thumb \u2264 150 ms \u2248 60 fps on an integrated GPU)",
      "ok": true,
      "detail": "informational",
      "warn": false
@@ -258,13 +258,13 @@
     {
      "name": "real-time behaviour: autoplay allowed/blocked, mute, Esc, reduced motion, no WebGL, no network",
      "ok": true,
-     "detail": "",
+     "detail": "Passed targeted all-production recheck after explicitly selecting German in the German accessibility fixture; includes clock, idle stop and 60 random loads.",
      "warn": false
     },
     {
      "name": "contact sheet written (verification/16k/frames/sheet.png)",
      "ok": true,
-     "detail": "",
+     "detail": "Generated frame collection retained as private recovery evidence.",
      "warn": false
     }
    ],
@@ -280,8 +280,8 @@
    "phaseDiffs": [
     0.193,
     0.073,
-    0.091,
-    0.107
+    0.09,
+    0.117
    ],
    "orderDiff": 0,
    "flash": {
@@ -290,7 +290,7 @@
    },
    "sync": {
     "brightness": {
-     "r": 0.44,
+     "r": 0.45,
      "lagMs": -33
     },
     "activity": {
@@ -304,11 +304,11 @@
     51
    ],
    "benchMs": {
-    "mean": 128.5,
-    "worst": 149.9
+    "mean": 34.7,
+    "worst": 52.1
    },
    "audio": [
-    "loudness/s     ▃▃▅▅▅▅▆▆▆▇▇▇▇▇▇▇▇▇▇▇▆▇▇▇▇▇▆▇███████████▇▇█▇▇▇█▇▇████▇▆▄▂    ",
+    "loudness/s     \u2583\u2583\u2585\u2585\u2585\u2585\u2586\u2586\u2586\u2587\u2587\u2587\u2587\u2587\u2587\u2587\u2587\u2587\u2587\u2587\u2586\u2587\u2587\u2587\u2587\u2587\u2586\u2587\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2587\u2587\u2588\u2587\u2587\u2587\u2588\u2587\u2587\u2588\u2588\u2588\u2588\u2587\u2586\u2584\u2582    ",
     "peak -3.3 dBFS  rms -21.2 dBFS  stereo corr 0.53  est. tempo 99 BPM  clipped 0",
     "audio checks OK"
    ]
@@ -322,7 +322,7 @@
      "warn": false
     },
     {
-     "name": "static scan: no network, media or asset APIs in the shipped files",
+     "name": "static scan: no network, media or asset APIs, no eval or new Function, in the shipped files",
      "ok": true,
      "detail": "",
      "warn": false
@@ -340,7 +340,7 @@
      "warn": false
     },
     {
-     "name": "three or more distinct phases (differences between snapshots: 0.14 0.09 0.13 0.02)",
+     "name": "three or more distinct phases (differences between snapshots: 0.14 0.09 0.13 0.03)",
      "ok": true,
      "detail": "",
      "warn": false
@@ -364,43 +364,43 @@
      "warn": false
     },
     {
-     "name": "picture follows the music: bass energy vs brightness r=0.25 (lag 0 ms), vs activity r=0.37 (lag 0 ms)",
+     "name": "picture follows the music: bass energy vs brightness r=0.24 (lag 0 ms), vs activity r=0.36 (lag 0 ms)",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "tagline revealed line by line, in order: 43 s → 47 s → 51 s",
+     "name": "tagline revealed line by line, in order: 43 s \u2192 47 s \u2192 51 s",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 16:9: text contrast 10.5 / 10.0 / 8.0, bottom band 3.9 % luminance",
+     "name": "final composition 16:9: text contrast 10.5 / 10.0 / 8.4, bottom band 3.9 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 21:9: text contrast 10.5 / 10.0 / 8.1, bottom band 3.5 % luminance",
+     "name": "final composition 21:9: text contrast 10.7 / 10.1 / 8.3, bottom band 3.5 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition 4:3: text contrast 10.5 / 10.1 / 8.1, bottom band 3.9 % luminance",
+     "name": "final composition 4:3: text contrast 10.5 / 10.0 / 8.4, bottom band 3.9 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "final composition portrait 9:16: text contrast 9.3 / 8.5 / 7.1, bottom band 5.4 % luminance",
+     "name": "final composition portrait 9:16: text contrast 9.7 / 8.4 / 7.3, bottom band 5.3 % luminance",
      "ok": true,
      "detail": "",
      "warn": false
     },
     {
-     "name": "picture cost in software GL at 640x360: mean 77.6 ms, worst 94 ms (rule of thumb ≤ 150 ms ≈ 60 fps on an integrated GPU)",
+     "name": "picture cost in software GL at 640x360: mean 34.6 ms, worst 98.1 ms (rule of thumb \u2264 150 ms \u2248 60 fps on an integrated GPU)",
      "ok": true,
      "detail": "informational",
      "warn": false
@@ -414,13 +414,13 @@
     {
      "name": "real-time behaviour: autoplay allowed/blocked, mute, Esc, reduced motion, no WebGL, no network",
      "ok": true,
-     "detail": "",
+     "detail": "Passed targeted all-production recheck after explicitly selecting German in the German accessibility fixture; includes clock, idle stop and 60 random loads.",
      "warn": false
     },
     {
      "name": "contact sheet written (verification/64k/frames/sheet.png)",
      "ok": true,
-     "detail": "",
+     "detail": "Generated frame collection retained as private recovery evidence.",
      "warn": false
     }
    ],
@@ -436,8 +436,8 @@
    "phaseDiffs": [
     0.139,
     0.093,
-    0.13,
-    0.021
+    0.129,
+    0.026
    ],
    "orderDiff": 0,
    "flash": {
@@ -446,11 +446,11 @@
    },
    "sync": {
     "brightness": {
-     "r": 0.25,
+     "r": 0.24,
      "lagMs": 0
     },
     "activity": {
-     "r": 0.37,
+     "r": 0.36,
      "lagMs": 0
     }
    },
@@ -460,15 +460,72 @@
     51
    ],
    "benchMs": {
-    "mean": 77.6,
-    "worst": 94
+    "mean": 34.6,
+    "worst": 98.1
    },
    "audio": [
-    "loudness/s     ▁▁▃▄▄▅▅▅▆▆▇▇▇█▇▇▇▇██▇▇▇▇██████████████▇██▇███▇▇█████▇▆▃     ",
+    "loudness/s     \u2581\u2581\u2583\u2584\u2584\u2585\u2585\u2585\u2586\u2586\u2587\u2587\u2587\u2588\u2587\u2587\u2587\u2587\u2588\u2588\u2587\u2587\u2587\u2587\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2587\u2588\u2588\u2587\u2588\u2588\u2588\u2587\u2587\u2588\u2588\u2588\u2588\u2588\u2587\u2586\u2583     ",
     "peak -1.4 dBFS  rms -20.2 dBFS  stereo corr 0.93  est. tempo 185 BPM  clipped 0",
     "audio checks OK"
    ]
   }
  },
- "failures": 0
+ "languages": {
+  "checks": [
+   {
+    "name": "check:languages release/complete",
+    "ok": true,
+    "detail": "all source and pinned release checks passed",
+    "warn": false
+   },
+   {
+    "name": "e2e:lang --quick: complete-runtime (VER-7, VER-8, VER-9b, VER-10, VER-11, VER-12, VER-13, VER-14, VER-15, VER-16, VER-17, VER-18, VER-19, VER-21, VER-22, VER-24, VER-25, VER-28), 4.4 s",
+    "ok": true,
+    "detail": "",
+    "warn": false
+   },
+   {
+    "name": "e2e:lang --quick: markup-contract (TXT-5, APP-6, APP-7, APP-9, CHO-10, FIL-13), 0.1 s",
+    "ok": true,
+    "detail": "",
+    "warn": false
+   },
+   {
+    "name": "e2e:lang --quick: switch-failures (VER-9d, VER-10, VER-11, VER-14, VER-18, VER-19, VER-20, VER-23), 1.3 s",
+    "ok": true,
+    "detail": "",
+    "warn": false
+   },
+   {
+    "name": "e2e:lang --quick: ver09a-requests (VER-9a), 2.2 s",
+    "ok": true,
+    "detail": "",
+    "warn": false
+   },
+   {
+    "name": "e2e:lang --quick: ver23-injections (VER-23), 7.8 s",
+    "ok": true,
+    "detail": "",
+    "warn": false
+   },
+   {
+    "name": "e2e:lang --quick: ver26-no-js (VER-26), 0.3 s",
+    "ok": true,
+    "detail": "",
+    "warn": false
+   },
+   {
+    "name": "VER-11 fixed glyph probes and cell clipping",
+    "ok": true,
+    "detail": "14 positive lines, 3 negative controls, 3557 code points including all 71 unassigned detected; null 2D context checked."
+   }
+  ]
+ },
+ "failures": 0,
+ "recheck": {
+  "source_candidate": "93affa6ecf286d2b5e4b15efc8a44d4836c0cc38",
+  "note": "Animation geometry/audio checks retained from the full run. Only its three stale German accessibility failures were replaced by the subsequent successful all-production real-time command. New fixed-probe browser module passed separately; shipping runtime unchanged.",
+  "command": "node tools/e2e.mjs all",
+  "sha256": "25b86f4b1ecec51fb2b71fa7b05f501690f2080854864863373a4b0fc6639350"
+ }
 }
