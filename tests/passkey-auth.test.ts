@@ -230,6 +230,34 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
+  it("stores favorite accounts per user, drops duplicates and refuses bad values", async () => {
+    const { app, passkeyStore, user } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const other = passkeyStore.createUser({ email: "other@dreambau.com", name: "Other", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "other-credential", userId: other.id, publicKey: new Uint8Array([9]), counter: 0, transports: ["internal"], deviceType: "singleDevice", backedUp: false });
+    const path = "/testmails/api/auth/me/preferences/favorite-accounts";
+    expect((await request(app).get(path)).status).toBe(401);
+
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" } });
+
+    expect((await agent.get(path)).body).toEqual({ key: "favorite-accounts", value: null });
+    const saved = await agent.put(path).send({ value: ["abe.simpson@oriso.org", "abe.simpson@oriso.org", "lisa.simpson@oriso.org"] });
+    expect(saved.status).toBe(200);
+    expect(saved.body.value).toEqual(["abe.simpson@oriso.org", "lisa.simpson@oriso.org"]);
+    expect((await agent.get(path)).body.value).toEqual(["abe.simpson@oriso.org", "lisa.simpson@oriso.org"]);
+    expect((await agent.put(path).send({ value: "abe.simpson@oriso.org" })).status).toBe(400);
+    expect((await agent.put(path).send({ value: [""] })).status).toBe(400);
+    expect((await agent.put(path).send({ value: Array.from({ length: 301 }, (_, index) => `user${index}@oriso.org`) })).status).toBe(400);
+
+    const otherAgent = request.agent(app);
+    const otherOptions = await otherAgent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: other.email });
+    await otherAgent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: otherOptions.body.flowId, response: { id: "other-credential" } });
+    expect((await otherAgent.get(path)).body.value).toBeNull();
+    passkeyStore.close();
+  });
+
   it("lets a passkey session add, list, rename and delete passkeys but never the last one", async () => {
     const { app, passkeyStore, user, webauthn } = setup();
     passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["hybrid"], deviceType: "multiDevice", backedUp: true, name: "Pixel (Google)" });

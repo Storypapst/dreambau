@@ -94,3 +94,8 @@ the body is the live record, comments are the history.
 Before changing any file under `apps/`, read `apps/AGENTS.md` and
 `docs/website/HANDOVER.md`. The website mockups and specifications set the
 design; do not introduce independent styling or invented content.
+
+## GitHub issue tracking
+
+Use `Storypapst/dreambau` for Dreambau issues. Always apply the `Testmails`
+label to issues and pull requests about Testmails accounts, access, or daily use.

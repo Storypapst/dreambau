@@ -5,6 +5,8 @@ import {
   DEFAULT_FILTERS,
   coerceFilters,
   countActiveFilters,
+  domainList,
+  toggleDomain,
   initialFilters,
   loadLastFilters,
   parseFilters,
@@ -87,5 +89,26 @@ describe("filter persistence", () => {
     expect(initialFilters().query).toBe("remembered");
     window.history.replaceState(null, "", "/testmails/?q=from-url");
     expect(initialFilters().query).toBe("from-url");
+  });
+
+  it("keeps several domains in list order and drops unknown ones", () => {
+    const parsed = parseFilters(new URLSearchParams("domain=oriso.org,nope.example,dreambau.com,oriso.org"));
+    expect(parsed.domain).toBe("dreambau.com,oriso.org");
+    expect(domainList(parsed.domain)).toEqual(["dreambau.com", "oriso.org"]);
+    expect(parseFilters(new URLSearchParams("domain=nope.example")).domain).toBe("all");
+    expect(parseFilters(new URLSearchParams("domain=oriso.org")).domain).toBe("oriso.org");
+    expect(countActiveFilters({ ...DEFAULT_FILTERS, domain: "dreambau.com,oriso.org" })).toBe(1);
+  });
+
+  it("toggles single domains and treats an empty selection as all", () => {
+    expect(toggleDomain("all", "oriso.org")).toBe("oriso.org");
+    expect(toggleDomain("oriso.org", "trail.ist")).toBe("oriso.org,trail.ist");
+    expect(toggleDomain("oriso.org,trail.ist", "oriso.org")).toBe("trail.ist");
+    expect(toggleDomain("trail.ist", "trail.ist")).toBe("all");
+    expect(toggleDomain("oriso.org", "all")).toBe("all");
+  });
+
+  it("still reads a preset saved with one domain", () => {
+    expect(coerceFilters({ domain: "oriso.org", status: "active" }).domain).toBe("oriso.org");
   });
 });
