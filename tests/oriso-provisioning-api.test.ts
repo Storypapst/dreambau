@@ -5,11 +5,12 @@ import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/server/app.js";
 import type { AccountRecord } from "../src/server/accounts.js";
+import { secretNameForRecord } from "../src/server/infisical-import.js";
 import { createDatabase } from "../src/server/db.js";
 import type { RegistryProvider, TestAccessRecord } from "../src/server/infisical-provider.js";
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
-import type { RegistryWriter } from "../src/server/infisical-writer.js";
+import { createInfisicalRegistryWriter, type RegistryWriter } from "../src/server/infisical-writer.js";
 import {
   OrisoProvisioningError,
   publicInviteState,
@@ -169,6 +170,11 @@ async function setup(options: {
       const index = records.findIndex((candidate) => candidate.id === record.id);
       if (index >= 0) records[index] = record;
       return { recordId: record.id, updatedAt: record.updatedAt };
+    }),
+    markProvisioningFailed: vi.fn(async (expected: TestAccessRecord, updatedAt: string) => {
+      const index = records.findIndex((candidate) => candidate.id === expected.id);
+      if (index >= 0) records[index] = { ...records[index], provisioningStatus: "failed", updatedAt };
+      return { recordId: expected.id, updatedAt };
     }),
     replaceRecord: vi.fn(async (_expected: TestAccessRecord, record: TestAccessRecord) => {
       const index = records.findIndex((candidate) => candidate.id === record.id);
@@ -716,7 +722,12 @@ describe("human self-service ORISO PreDev provisioning", () => {
     const writer: RegistryWriter = {
       enrollTotp: vi.fn(),
       createRecord: vi.fn(),
-      replaceRecord: vi.fn(async (_expected: TestAccessRecord, record: TestAccessRecord) => {
+      markProvisioningFailed: vi.fn(async (expected: TestAccessRecord, updatedAt: string) => {
+      const index = records.findIndex((candidate) => candidate.id === expected.id);
+      if (index >= 0) records[index] = { ...records[index], provisioningStatus: "failed", updatedAt };
+      return { recordId: expected.id, updatedAt };
+    }),
+    replaceRecord: vi.fn(async (_expected: TestAccessRecord, record: TestAccessRecord) => {
         if (record.provisioningStatus === "ready") {
           throw new Error("Infisical final replacement failed");
         }
@@ -922,6 +933,51 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(writer.updateRecord).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["READY", { provisioningStatus: "ready" as const }],
+    ["role advancement", { roles: ["counsellor"] }]
+  ])("preserves concurrent %s after an older dispatched replacement fails", async (_name, advancement) => {
+    const records = [managedRecord()];
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com",
+      organizationSlug: "dreambau-test-access",
+      clientId: "writer",
+      clientSecret: "stub-writer-secret",
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch: async (input, init) => {
+        if (String(input).includes("/login")) {
+          return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+        }
+        if (init?.method === "PATCH") {
+          records[0] = JSON.parse(JSON.parse(String(init.body)).secretValue) as TestAccessRecord;
+          return Response.json({ secret: { id: "updated" } });
+        }
+        return Response.json({ secret: {
+          secretKey: secretNameForRecord(records[0].id),
+          secretValue: JSON.stringify(records[0])
+        } });
+      }
+    });
+    const service = fakeService({
+      provision: vi.fn(async ({ onCreationAttempt }) => {
+        onCreationAttempt?.("started");
+        records[0] = { ...records[0], ...advancement, responsiblePerson: "concurrent operator" };
+        throw new OrisoProvisioningError("account_create_failed");
+      })
+    });
+    const { agent, lisa } = await setup({ records, service, writer });
+    const response = await agent
+      .post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "account_create_failed" });
+    expect(records[0]).toMatchObject({
+      roles: ["agency-admin"], provisioningStatus: "pending", ...advancement,
+      responsiblePerson: "concurrent operator"
+    });
+  });
+
   it("persists a recoverable failed replacement when an external creation may have started", async () => {
     const existing = managedRecord({ roles: ["tenant-admin"], provisioningStatus: "ready" });
     const records = [existing];
@@ -945,8 +1001,9 @@ describe("human self-service ORISO PreDev provisioning", () => {
       existing,
       expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "pending" })
     );
-    expect(writer?.updateRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "failed" })
+    expect(writer?.markProvisioningFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ roles: ["agency-admin"], provisioningStatus: "pending" }),
+      expect.any(String)
     );
   });
 
@@ -1167,10 +1224,10 @@ describe("human self-service ORISO PreDev provisioning", () => {
       .send({ environment: "pre-dev", role: "tenant-admin" });
     expect(response.status).toBe(502);
     expect(response.body).toEqual({ error: "account_create_failed" });
-    expect(writer?.updateRecord).toHaveBeenLastCalledWith(expect.objectContaining({
+    expect(writer?.markProvisioningFailed).toHaveBeenLastCalledWith(expect.objectContaining({
       id: "oriso/pre-dev/lisa.simpson-dreambau.de",
-      provisioningStatus: "failed"
-    }));
+      provisioningStatus: "pending"
+    }), expect.any(String));
   });
 
   it("preserves a ready record when a retry fails transiently", async () => {
@@ -1193,13 +1250,13 @@ describe("human self-service ORISO PreDev provisioning", () => {
   });
 
   it("marks a new record failed when persisting the ready state fails", async () => {
-    const updateRecord = vi.fn()
-      .mockRejectedValueOnce(new Error("ready persistence failed"))
-      .mockResolvedValueOnce({ recordId: "oriso/pre-dev/lisa.simpson-dreambau.de", updatedAt: "2026-07-29T16:00:00.000Z" });
+    const updateRecord = vi.fn().mockRejectedValueOnce(new Error("ready persistence failed"));
+    const markProvisioningFailed = vi.fn(async (record: TestAccessRecord, updatedAt: string) => ({ recordId: record.id, updatedAt }));
     const writer: RegistryWriter = {
       createRecord: vi.fn(async (record) => ({ recordId: record.id })),
       enrollTotp: vi.fn(async (record, _totpSecret, updatedAt) => ({ recordId: record.id, updatedAt })),
-      updateRecord
+      updateRecord,
+      markProvisioningFailed
     };
     const { agent, lisa } = await setup({ writer });
 
@@ -1208,11 +1265,12 @@ describe("human self-service ORISO PreDev provisioning", () => {
       .send({ environment: "pre-dev", role: "tenant-admin" });
 
     expect(response.status).toBe(500);
-    expect(updateRecord).toHaveBeenCalledTimes(2);
-    expect(updateRecord).toHaveBeenLastCalledWith(expect.objectContaining({
+    expect(updateRecord).toHaveBeenCalledTimes(1);
+    expect(markProvisioningFailed).toHaveBeenCalledWith(expect.objectContaining({
       id: "oriso/pre-dev/lisa.simpson-dreambau.de",
-      provisioningStatus: "failed"
-    }));
+      provisioningStatus: "pending",
+      totpSecret: expect.any(String)
+    }), expect.any(String));
   });
 
   it("does not report ready from a generic local TOTP record without a successful provisioning marker", async () => {

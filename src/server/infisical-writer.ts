@@ -17,6 +17,10 @@ export interface RegistryWriter {
   ): Promise<{ recordId: string; updatedAt: string }>;
   createRecord?(record: TestAccessRecord): Promise<{ recordId: string }>;
   updateRecord?(record: TestAccessRecord): Promise<{ recordId: string; updatedAt: string }>;
+  markProvisioningFailed?(
+    expectedRecord: TestAccessRecord,
+    updatedAt: string
+  ): Promise<{ recordId: string; updatedAt: string }>;
   replaceRecord?(
     expectedRecord: TestAccessRecord,
     replacementRecord: TestAccessRecord
@@ -319,6 +323,58 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
           throw new Error("Infisical record update readback failed");
         }
         return { recordId: updated.id, updatedAt: updated.updatedAt };
+      });
+    },
+    async markProvisioningFailed(input, updatedAt) {
+      const expected = testAccessRecordSchema.parse(input);
+      if (
+        (expected.kind !== "app-user" && expected.kind !== "admin")
+        || expected.provisioningStatus === "ready"
+      ) throw new Error("Infisical provisioning failure validation failed");
+      return serializeEnrollment(expected.id, async () => {
+        const headers = { Authorization: `Bearer ${await accessToken()}` };
+        const current = await readScopedRecord(
+          expected, headers,
+          "Infisical provisioning failure lookup failed",
+          "Infisical provisioning failure validation failed"
+        );
+        // A failed older attempt must not downgrade a verified account or
+        // overwrite a newer role, credential enrollment, or retry attempt.
+        if (
+          current.kind !== expected.kind
+          || current.email !== expected.email
+          || current.roles.join(",") !== expected.roles.join(",")
+          || current.provisioningStatus !== expected.provisioningStatus
+          || current.updatedAt !== expected.updatedAt
+          || current.totpSecret !== expected.totpSecret
+        ) throw new Error("Infisical provisioning failure validation failed");
+        const updated = testAccessRecordSchema.parse({
+          ...current, provisioningStatus: "failed", updatedAt
+        });
+        const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(updated.id)}`, baseUrl), {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json" },
+          signal: requestSignal(),
+          body: JSON.stringify({
+            projectId: options.projectIds[updated.project],
+            environment: updated.environment,
+            secretPath: "/records",
+            secretValue: JSON.stringify(updated),
+            skipMultilineEncoding: true,
+            type: "shared",
+            secretComment: "Provisioning failure managed by Dreambau Test Access Hub"
+          })
+        });
+        if (!response.ok) throw new Error("Infisical provisioning failure update failed");
+        const persisted = await readScopedRecord(
+          updated, headers, "Infisical provisioning failure readback failed"
+        );
+        if (
+          persisted.provisioningStatus !== updated.provisioningStatus
+          || persisted.updatedAt !== updated.updatedAt
+          || persisted.totpSecret !== updated.totpSecret
+        ) throw new Error("Infisical provisioning failure readback failed");
+        return { recordId: updated.id, updatedAt };
       });
     },
     async replaceRecord(expectedInput, replacementInput) {

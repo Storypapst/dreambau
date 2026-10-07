@@ -594,6 +594,75 @@ describe("Infisical TOTP writer", () => {
     });
   });
 
+  it.each([
+    ["READY", { provisioningStatus: "ready" as const }],
+    ["role", { roles: ["counsellor"] }],
+    ["scope", { environment: "dev" as const }],
+    ["new attempt", { updatedAt: "2026-07-29T11:00:00.000Z" }],
+    ["TOTP enrollment", { totpSecret }]
+  ])("rejects an older failure write after concurrent %s advancement", async (_name, advancement) => {
+    const expected = record({ provisioningStatus: "pending" });
+    const current = { ...expected, ...advancement };
+    const fetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      if (String(input).includes("/login")) {
+        return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      }
+      if (init?.method === "PATCH") throw new Error("must not patch advanced record");
+      return Response.json({ secret: { secretKey: secretNameForRecord(expected.id), secretValue: JSON.stringify(current) } });
+    });
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com", organizationSlug: "dreambau-test-access",
+      clientId: "writer", clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" }, fetch
+    });
+    await expect(writer.markProvisioningFailed!(expected, "2026-07-29T12:00:00.000Z"))
+      .rejects.toThrow("Infisical provisioning failure validation failed");
+    expect(fetch.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(false);
+  });
+
+  it("persists retryable failure intent while preserving concurrent unrelated metadata", async () => {
+    const expected = record({ provisioningStatus: "pending" });
+    let current = { ...expected, responsiblePerson: "concurrent operator" };
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com", organizationSlug: "dreambau-test-access",
+      clientId: "writer", clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch: async (input, init) => {
+        if (String(input).includes("/login")) {
+          return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+        }
+        if (init?.method === "PATCH") {
+          current = JSON.parse(JSON.parse(String(init.body)).secretValue) as typeof current;
+          return Response.json({ secret: { id: "updated" } });
+        }
+        return Response.json({ secret: { secretKey: secretNameForRecord(expected.id), secretValue: JSON.stringify(current) } });
+      }
+    });
+    await writer.markProvisioningFailed!(expected, "2026-07-29T12:00:00.000Z");
+    expect(current).toMatchObject({
+      roles: expected.roles, secret: expected.secret, provisioningStatus: "failed",
+      responsiblePerson: "concurrent operator", updatedAt: "2026-07-29T12:00:00.000Z"
+    });
+  });
+
+  it("rejects a failure patch whose successful response is not confirmed by readback", async () => {
+    const expected = record({ provisioningStatus: "pending" });
+    const writer = createInfisicalRegistryWriter({
+      baseUrl: "https://secrets.dreambau.com", organizationSlug: "dreambau-test-access",
+      clientId: "writer", clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" },
+      fetch: async (input, init) => {
+        if (String(input).includes("/login")) {
+          return Response.json({ accessToken: "writer-token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+        }
+        if (init?.method === "PATCH") return Response.json({ secret: { id: "updated" } });
+        return Response.json({ secret: { secretKey: secretNameForRecord(expected.id), secretValue: JSON.stringify(expected) } });
+      }
+    });
+    await expect(writer.markProvisioningFailed!(expected, "2026-07-29T12:00:00.000Z"))
+      .rejects.toThrow("Infisical provisioning failure readback failed");
+  });
+
   it("replaces stale role fields while preserving the current secret, TOTP and creation time", async () => {
     const calls: Array<{ url: URL; init?: RequestInit }> = [];
     const current = record({

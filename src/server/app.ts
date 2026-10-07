@@ -885,13 +885,11 @@ export function createApp(options: AppOptions = {}) {
             return res.status(502).json({ error: "record_replacement_failed" });
           }
         } else if (linkedRecord.provisioningStatus !== "ready") {
-          linkedRecord = {
-            ...linkedRecord,
-            provisioningStatus: "failed",
-            updatedAt: nowDate.toISOString()
-          };
           try {
-            await registryWriter.updateRecord(linkedRecord);
+            // Failure writes compare the attempt's expected state. A newer
+            // successful request may already have made this record READY.
+            // If conditional writes are unavailable, retain pending intent.
+            await registryWriter.markProvisioningFailed?.(linkedRecord, nowDate.toISOString());
           } catch {
             // Preserve the original provisioning error. A failed status update
             // must never turn a recoverable ORISO failure into a misleading one.
