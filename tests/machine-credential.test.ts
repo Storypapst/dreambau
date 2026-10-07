@@ -7,22 +7,36 @@ import { describe, expect, it, vi } from "vitest";
 import { readMachineCredential, readMacOSKeychainCredential } from "../src/server/machine-credential.js";
 
 describe("Test Access machine credential", () => {
-  it("unlocks the macOS login Keychain and retries a headless credential read", () => {
-    const spawn = vi.fn()
-      .mockReturnValueOnce({ status: 36, stdout: "" })
-      .mockReturnValueOnce({ status: 0, stdout: "" })
-      .mockReturnValueOnce({ status: 0, stdout: "keychain-machine-token\n" });
+  it("allows time for human approval without a blind unlock", () => {
+    const spawn = vi.fn().mockReturnValue({ status: 0, stdout: "keychain-machine-token\n" });
 
     expect(readMacOSKeychainCredential("agent-mac-mini-oriso", {
       home: "/Users/kio",
       spawn
     })).toBe("keychain-machine-token");
     expect(spawn).toHaveBeenNthCalledWith(
-      2,
+      1,
       "security",
-      ["unlock-keychain", "/Users/kio/Library/Keychains/login.keychain-db"],
-      expect.objectContaining({ timeout: 2_000 })
+      ["find-generic-password", "-s", "dreambau-test-access", "-a", "agent-mac-mini-oriso", "-w"],
+      expect.objectContaining({ timeout: 120_000 })
     );
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports denied access without trying another credential source", () => {
+    const spawn = vi.fn().mockReturnValue({ status: 51, stdout: "" });
+    expect(() => readMacOSKeychainCredential("probe", { spawn })).toThrow(/Keychain access/);
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports an approval timeout without leaking subprocess output", () => {
+    const spawn = vi.fn().mockReturnValue({ status: null, error: { code: "ETIMEDOUT" }, stderr: "sensitive" });
+    expect(() => readMacOSKeychainCredential("probe", { spawn })).toThrow(/timed out after 120 seconds/);
+  });
+
+  it("allows file fallback when the keychain item is absent", () => {
+    const spawn = vi.fn().mockReturnValue({ status: 44, stdout: "" });
+    expect(readMacOSKeychainCredential("probe", { spawn })).toBe("");
   });
 
   it("uses a private machine credential file when headless Keychain access is unavailable", async () => {

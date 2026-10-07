@@ -1,0 +1,41 @@
+{
+  "skill_name": "code-archaeology",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Der Hover-Effekt auf der Lampenkarte der Login-Stage war schon mal drin, das hab ich im Juli definitiv gesehen. Jetzt ist er weg. Schau mal im ORISO-Frontend nach, wo das hin ist — ich glaub da wurde beim Mergen was übersehen.",
+      "expected_output": "Before searching, an immediate numbered scope question offering Dev, PreDev, Main, or all with multiple selection and Dev-only default. If the user continues without choosing, a Dev-only dig report: search keys derived from the claim, pickaxe/log evidence with commit shas, identification of the commit/merge where the code disappeared (or proof it never existed), a Dev-scoped version matrix, and a restore plan naming concrete commits — not a rewrite proposal.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "ist der agency-sortierungs-fix eigentlich schon auf pre-dev deployed oder nur gemerged? und ist der auf dem aktuellen speed-branch auch drin? nicht raten, nachweisen bitte",
+      "expected_output": "Because PreDev and the speed branch are already explicit, no repeated environment question. Fresh enumeration of the named scopes, git branch --contains evidence, and a version matrix that distinguishes 'merged on branch' from 'verified on the running PreDev environment', with live proof or an explicit ❓ where not verified.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "hier ein screenshot aus dem chat mit den anmerkungen — mach das mal. [screenshot with ~5 annotated jobs, one contradicting an ADR, one already implemented on a local branch]",
+      "expected_output": "Every job extracted into a numbered, sorted list and played back; the ADR-contradicting item flagged with the ADR reference instead of executed; the already-implemented item flagged with branch/commit evidence; ambiguous items get one concrete question each.",
+      "files": ["screenshot fixture needed — to be supplied by the skill maintainer or synthesized"]
+    },
+    {
+      "id": 4,
+      "prompt": "hier 8 screenshots aus verschiedenen chats, irgendwas stimmt mit den benachrichtigungen und dem admin panel nicht, ich weiß nicht genau wo. bitte NICHT einfach losbauen.",
+      "expected_output": "First the numbered environment-scope question. After selection, a triage: screenshots grouped by area, irrelevant ones explicitly parked; then a diagnosis phase (pass/fail signal for each named symptom, diagnosing-bugs loop) before any git digging; final output is an ordered work plan with go/no-go points and NO pull requests or branches created.",
+      "files": ["8 mixed screenshot fixtures — to be supplied by the skill maintainer or synthesized"]
+    },
+    {
+      "id": 5,
+      "prompt": "Schau bitte wirklich nur in Dev, warum der Create-Chat-Bereich verschwunden ist.",
+      "expected_output": "No scope question because Dev is explicit. Inspect only the Dev source branch and deployed Dev environment; do not inspect or add PreDev or Main matrix columns. Other source locations may only be recorded as pointers.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Prüf bitte Dev und Main, ob der alte Einladungs-Fix noch enthalten ist.",
+      "expected_output": "No scope question because two scopes are explicit. Inspect Dev and Main, produce only those integration/runtime columns plus discovered local source pointers, and do not inspect PreDev.",
+      "files": []
+    }
+  ]
+}

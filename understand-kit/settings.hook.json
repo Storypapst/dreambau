@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v kit-subscribe >/dev/null 2>&1 && KSUB=kit-subscribe || { C=\"${ORISO_KIT_HOME:-$HOME/.oriso-dev-kit}/kit-subscribe.sh\"; [ -f \"$C\" ] || C=\"$CLAUDE_PROJECT_DIR/understand-kit/kit-subscribe.sh\"; if [ -f \"$C\" ]; then KSUB=\"bash $C\"; else KSUB=\"\"; fi; }; if [ -n \"$KSUB\" ]; then $KSUB --max-seconds 10 2>&1 | tail -1; else echo \"[kit-subscribe] not installed — skipping\"; fi; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "command -v ua-pull >/dev/null 2>&1 && UAP=ua-pull || UAP=\"${ORISO_KIT_HOME:-$HOME/.oriso-dev-kit}/ua-pull.sh\"; [ -e \"$UAP\" ] || UAP=\"$CLAUDE_PROJECT_DIR/understand-kit/ua-pull.sh\"; [ -x \"$UAP\" ] || UAP=\"bash $UAP\"; if $UAP --verify >/tmp/ua-pull-verify.$$ 2>&1; then echo \"[ua-pull] knowledge graph fresh\"; else tail -c 400 /tmp/ua-pull-verify.$$ | tail -1; if [ -n \"${ORISO_UA_BASE:-}\" ]; then $UAP --via-https \"$ORISO_UA_BASE\" >/tmp/ua-pull-run.$$ 2>&1; else $UAP --via-ssh >/tmp/ua-pull-run.$$ 2>&1; fi; tail -1 /tmp/ua-pull-run.$$; fi; rm -f /tmp/ua-pull-verify.$$ /tmp/ua-pull-run.$$"
+          }
+        ]
+      }
+    ]
+  }
+}

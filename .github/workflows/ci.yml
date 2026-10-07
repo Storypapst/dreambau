@@ -48,3 +48,37 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # The releasable Test-Access CLI must build from every green commit, so a
+      # broken bundle never reaches main unnoticed.
+      - name: Build Test-Access CLI bundle
+        run: npm run cli:bundle && node dist/cli/test-access.mjs --version
+
+  # A push to main whose package.json → testAccessCli.version has no tag yet
+  # gets `test-access-cli/<version>`. The tag names the exact commit the served
+  # CLI is built from; the Dreambau image build stamps the same sha into the
+  # manifest, so `test-access --version` on a developer's Mac points at it.
+  tag-cli:
+    name: Tag Test-Access CLI release
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Create tag when the CLI version is new
+        run: |
+          version="$(node -p 'require("./package.json").testAccessCli.version')"
+          tag="test-access-cli/$version"
+          if git ls-remote --tags origin "refs/tags/$tag" | grep -q "$tag"; then
+            echo "$tag already exists"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Test-Access CLI $version"
+          git push origin "refs/tags/$tag"

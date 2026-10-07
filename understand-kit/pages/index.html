@@ -1,0 +1,297 @@
+<title>Understand Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --brand:#A5231D; --brand-deep:#6E1410; --brand-wash:#FBEDEB; --brand-line:#E7B9B5;
+    --paper:#FBF9F7; --card:#FFFFFF; --sunken:#F3EFEB; --line:#E4DDD7;
+    --ink:#1C1B1B; --ink-2:rgba(28,27,27,.66); --ink-3:rgba(28,27,27,.46);
+    --ok:#1F6B3A; --ok-wash:#E6F3EA; --ok-line:#B9DCC5; --warn:#8A5A00; --warn-wash:#FDF3DD; --warn-line:#ECD9A8;
+    --info:#1F4E79; --info-wash:#E8F0F8; --info-line:#B9CEE6;
+    --s-arbeiten:#A5231D; --s-features:#1F4E79; --s-arch:#4B3F8F; --s-code:#2A6F6F; --s-legal:#8A5A00; --s-betrieb:#5B5B5B;
+    --on-brand:#FFFFFF; --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --radius:6px; --maxw:1120px; --pad:28px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --brand:#E4665F; --brand-deep:#F0A09B; --brand-wash:#3A1C1A; --brand-line:#5A2C29;
+      --paper:#171514; --card:#1F1C1B; --sunken:#262221; --line:#3A3432;
+      --ink:#F1ECE8; --ink-2:rgba(241,236,232,.70); --ink-3:rgba(241,236,232,.50);
+      --ok:#7FD09A; --ok-wash:#1B2F22; --ok-line:#2E4D38; --warn:#F2C465; --warn-wash:#3A2E12; --warn-line:#5C4A1E;
+      --info:#8FB8E8; --info-wash:#1A2A3C; --info-line:#2E4864;
+      --s-arbeiten:#E4665F; --s-features:#8FB8E8; --s-arch:#A79BE0; --s-code:#7CC2C2; --s-legal:#F2C465; --s-betrieb:#A8A8A8;
+    }
+  }
+  :root[data-theme="dark"]{
+    --brand:#E4665F; --brand-deep:#F0A09B; --brand-wash:#3A1C1A; --brand-line:#5A2C29;
+    --paper:#171514; --card:#1F1C1B; --sunken:#262221; --line:#3A3432;
+    --ink:#F1ECE8; --ink-2:rgba(241,236,232,.70); --ink-3:rgba(241,236,232,.50);
+    --ok:#7FD09A; --ok-wash:#1B2F22; --ok-line:#2E4D38; --warn:#F2C465; --warn-wash:#3A2E12; --warn-line:#5C4A1E;
+    --info:#8FB8E8; --info-wash:#1A2A3C; --info-line:#2E4864;
+    --s-arbeiten:#E4665F; --s-features:#8FB8E8; --s-arch:#A79BE0; --s-code:#7CC2C2; --s-legal:#F2C465; --s-betrieb:#A8A8A8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}
+  code,.mono{font-family:var(--mono);font-size:.86em;overflow-wrap:anywhere}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  p{margin:0}
+  @media (max-width:640px){:root{--pad:16px}}
+
+  .appbar{background:var(--card);border-bottom:1px solid var(--line)}
+  .appbar-in{max-width:var(--maxw);margin:0 auto;padding:10px var(--pad);display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12.5px}
+  .appbar .brandname{font-weight:700;font-size:13.5px}
+  .appbar .sub{color:var(--ink-3);font-family:var(--mono);font-size:11.5px}
+  .appbar .sp{flex:1}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--ink-2);background:var(--card);white-space:nowrap}
+  .badge.solid{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+  .badge.warn{background:var(--warn-wash);color:var(--warn);border-color:var(--warn-line)}
+  .band-in{max-width:var(--maxw);margin:0 auto;padding:22px var(--pad) 0}
+  .headcard{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:var(--radius);padding:22px 26px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .eyebrow{color:var(--brand);letter-spacing:.08em;text-transform:uppercase;font-weight:700;font-size:12px}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.01em;line-height:1.15}
+  @media (max-width:640px){h1{font-size:24px}.headcard{padding:18px}}
+  .lead{max-width:70ch;font-size:15.5px;color:var(--ink-2)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;border:1px solid var(--brand-line);background:var(--brand-wash);color:var(--brand-deep);font-size:12.5px;font-weight:500}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex:0 0 auto}
+
+  .chipnav{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .chipnav-in{max-width:var(--maxw);margin:0 auto;padding:10px var(--pad);display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin}
+  .chipnav a{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--ink);font-size:13px;font-weight:500;background:var(--card)}
+  .chipnav a:hover{border-color:var(--brand);text-decoration:none}
+  .chipnav .sd{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:26px var(--pad) 64px;display:grid;gap:36px}
+  .meta{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .vlabel{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .vvalue{font-size:14px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
+  .vvalue .mono{font-weight:500}
+  .status{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid transparent}
+  .status.ok{background:var(--ok-wash);color:var(--ok);border-color:var(--ok-line)}
+  .status.warn{background:var(--warn-wash);color:var(--warn);border-color:var(--warn-line)}
+  .status.plan{background:var(--sunken);color:var(--ink-2);border-color:var(--line)}
+
+  .ch{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
+  h2{font-size:21px;font-weight:700;letter-spacing:-.01em}
+  .sub2{color:var(--ink-2);font-size:14px}
+
+  /* Sektoren */
+  .sectors{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+  .sec{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--sc);border-radius:var(--radius);padding:18px 20px;display:grid;gap:10px;align-content:start;min-width:0}
+  .sec .eb{color:var(--sc);letter-spacing:.08em;text-transform:uppercase;font-weight:700;font-size:11.5px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  .sec h3{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .sec .q{font-size:14.5px;color:var(--ink);font-style:italic;border-left:2px solid var(--sc);padding-left:10px}
+  .sec .who{font-size:12.5px;color:var(--ink-3)}
+  .sec ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--ink-2);display:grid;gap:3px}
+  .sec .foot{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+  .fr{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;background:var(--sunken);color:var(--ink-2);border:1px solid var(--line);white-space:nowrap}
+  .fr.ok{background:var(--ok-wash);color:var(--ok);border-color:var(--ok-line)}
+  .fr.warn{background:var(--warn-wash);color:var(--warn);border-color:var(--warn-line)}
+  .sec .links{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13.5px;font-weight:500}
+  .sec .links a{color:var(--sc)}
+  .sec.locked{position:relative}
+  .lock{font-size:11px;font-weight:600;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase}
+
+  /* Abo-Fluss */
+  .flowrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+  .fstep{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;display:grid;gap:5px;position:relative;min-width:0}
+  .fstep .n{font-family:var(--mono);color:var(--brand);font-weight:600;font-size:12px}
+  .fstep .t{font-weight:600;font-size:14px}
+  .fstep .d{font-size:13px;color:var(--ink-2)}
+  .fstep code{font-size:11.5px}
+
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);max-width:100%}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--sunken);vertical-align:bottom}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+  tr:last-child td{border-bottom:0}
+  td:first-child{font-weight:600}
+  .note{background:var(--warn-wash);border:1px solid var(--warn-line);border-radius:var(--radius);padding:12px 14px;font-size:14px}
+  .note b{color:var(--warn)}
+  footer{max-width:var(--maxw);margin:0 auto;padding:0 var(--pad) 40px;font-size:12.5px;color:var(--ink-3)}
+  .design{border:1px dashed var(--brand-line);border-radius:var(--radius);padding:12px 14px;font-size:13px;color:var(--ink-2)}
+  :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+</style>
+
+<div class="appbar">
+  <div class="appbar-in">
+    <span class="brandname">Understand Hub</span>
+    <span class="sub">/</span>
+    <span class="sp"></span>
+    <span class="badge solid">Startseite</span>
+    <span class="badge warn">Entwurf 0.1</span>
+    <span class="badge">Kit 0.2.0 · Graph 04.09.2026</span>
+  </div>
+</div>
+<header class="band">
+  <div class="band-in">
+    <div class="headcard">
+      <div class="eyebrow">ORISO · nur für das Team (Dreambau-Login)</div>
+      <h1>Verstehen, wie ORISO gebaut ist — und wie wir daran arbeiten</h1>
+      <p class="lead">Sechs Sektoren, eine Frage pro Sektor. Alles hier wird aus dem laufenden Code erzeugt oder von Frank an einer Stelle gepflegt; jede Seite trägt ihr eigenes Datum. Öffentlich ist nur, <em>was</em> gebaut ist (docs.oriso.org) — <em>wie</em> wir arbeiten, bleibt hier.</p>
+      <div class="chips">
+        <span class="chip"><span class="dot"></span>Graph alle 2 Stunden neu</span>
+        <span class="chip"><span class="dot"></span>Prompts &amp; Regeln als Abo, nie als Kopie</span>
+        <span class="chip"><span class="dot"></span>Claude, Codex und Menschen — derselbe Zugang</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="chipnav" aria-label="Sektoren">
+  <div class="chipnav-in">
+    <a href="#arbeiten"><span class="sd" style="background:var(--s-arbeiten)"></span>Arbeiten</a>
+    <a href="#features"><span class="sd" style="background:var(--s-features)"></span>Features</a>
+    <a href="#arch"><span class="sd" style="background:var(--s-arch)"></span>Architektur &amp; Logik</a>
+    <a href="#code"><span class="sd" style="background:var(--s-code)"></span>Code</a>
+    <a href="#legal"><span class="sd" style="background:var(--s-legal)"></span>Rechtliches</a>
+    <a href="#betrieb"><span class="sd" style="background:var(--s-betrieb)"></span>Betrieb</a>
+    <a href="#abo">So kommt es zu dir</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <div class="meta">
+    <div><div class="vlabel">Graph-Stand (Struktur)</div><div class="vvalue">04.09.2026 · alle 2 h</div></div>
+    <div><div class="vlabel">Tiefe (Prosa, Flows)</div><div class="vvalue">04.09.2026 · 7 aktive Repos</div></div>
+    <div><div class="vlabel">Kit-Version</div><div class="vvalue">0.2.0 <span class="mono">manifest.json</span></div></div>
+    <div><div class="vlabel">Feature-Seiten</div><div class="vvalue">1 von 10</div></div>
+    <div><div class="vlabel">Status Hub</div><div class="vvalue"><span class="status warn">im Aufbau</span></div></div>
+    <div><div class="vlabel">Nächste Prüfung</div><div class="vvalue">nach Deploy des Kit-Endpunkts</div></div>
+  </div>
+
+  <section>
+    <div class="ch"><h2>Sektoren</h2><span class="sub2">nach Zielgruppe, nicht nach Repo</span></div>
+    <div class="sectors">
+
+      <article class="sec" id="arbeiten" style="--sc:var(--s-arbeiten)">
+        <div class="eb"><span>Arbeiten</span><span class="lock">privat</span></div>
+        <h3>Richtig arbeiten — vor dem ersten Ticket</h3>
+        <p class="q">„Wie arbeite ich hier richtig, und was muss ich vor einem Ticket wissen?"</p>
+        <p class="who">Entwickler:innen und jede KI-Session (Claude, Codex)</p>
+        <ul>
+          <li>Arbeitsregel: Ticket → Graph + ADRs → Storybook → Code</li>
+          <li>Fünf Prompts: Ticket-Check, Onboarding, Komponente, HTML→Story, Story→HTML</li>
+          <li>Installer, Graph-Pull, Storybook-MCP-Zugang, Secrets über Infisical</li>
+          <li>Vorlagen: <code>AGENTS.md</code> als Quelle, <code>CLAUDE.md</code>/Codex nur Verweis</li>
+        </ul>
+        <div class="foot"><span class="fr ok">Kit 0.2.0</span><span class="fr">Abo-Endpunkt: gebaut, noch nicht deployt</span></div>
+        <div class="links"><a href="#abo">Abonnieren</a><a href="#" aria-disabled="true">Regel lesen</a><a href="#" aria-disabled="true">Prompts</a></div>
+      </article>
+
+      <article class="sec" id="features" style="--sc:var(--s-features)">
+        <div class="eb"><span>Verstehen — Features</span><span class="lock">privat</span></div>
+        <h3>Wie funktioniert …?</h3>
+        <p class="q">„Wir verstehen den Case Handover nicht — wie funktioniert der?"</p>
+        <p class="who">Alle: Product, QA, Entwickler:innen, neue Kolleg:innen</p>
+        <ul>
+          <li>Eine Seite pro Feature: Ablauf, Rollen, Regeln, Endpunkte, Entscheidungen, Lücken</li>
+          <li>Fakten aus Graph, Repo-Prosa und ADRs — nicht aus dem Gedächtnis</li>
+          <li>Geplant: Consent &amp; Re-Consent, Erstantwort, Einladungen, Termine, Supervision, Registrierung, DPA-Signatur, Teambesprechung, Matrix-Verschlüsselung</li>
+        </ul>
+        <div class="foot"><span class="fr ok">Case Handover 0.2</span><span class="fr warn">9 Seiten geplant</span></div>
+        <div class="links"><a href="https://claude.ai/code/artifact/7261a72b-af83-4b4b-8dff-6071e8c383be">Wie Case Handover funktioniert</a></div>
+      </article>
+
+      <article class="sec" id="arch" style="--sc:var(--s-arch)">
+        <div class="eb"><span>Verstehen — Architektur &amp; Logik</span><span class="lock">privat</span></div>
+        <h3>Was hängt an was?</h3>
+        <p class="q">„Wer ruft wen, wer besitzt welche Daten, welche Entscheidung gilt?"</p>
+        <p class="who">Entwickler:innen, Hassan, neue Leute</p>
+        <ul>
+          <li>Plattform-Graph: 17 Dienste, ~300 eigene Endpunkte, bestätigte Aufrufe Frontend→Backend</li>
+          <li>Datenbesitz je Dienst, ADR → Dienst, Helm → Dienst</li>
+          <li>Plattform-Tour (11 Stationen), <code>PLATFORM.md</code>, ADR-Übersicht mit Nummern-Drift</li>
+          <li>Reports: tote Frontend-Aufrufe, Spec-Drift, Abdeckung</li>
+        </ul>
+        <div class="foot"><span class="fr ok">Graph 04.09.</span><span class="fr">Seiten: geplant (Stufe 2)</span></div>
+        <div class="links"><a href="https://understand.oriso.org/" rel="noopener">Dashboard (öffentlich)</a></div>
+      </article>
+
+      <article class="sec" id="code" style="--sc:var(--s-code)">
+        <div class="eb"><span>Verstehen — Code</span><span class="lock">öffentlich</span></div>
+        <h3>Was tut diese Datei?</h3>
+        <p class="q">„Was macht diese Funktion, und wer ruft sie?"</p>
+        <p class="who">Entwickler:innen</p>
+        <ul>
+          <li>18 Repo-Graphen mit 3.032 Prosa-Beschreibungen für Dateien und Funktionen</li>
+          <li>Konzepte, Flows und Touren je Repo (Tiefe mit eigenem Datum)</li>
+          <li>Storybook-Stories als lebende Komponenten-Doku</li>
+        </ul>
+        <div class="foot"><span class="fr ok">Struktur alle 2 h</span><span class="fr">Tiefe 04.09. (7 Repos)</span></div>
+        <div class="links"><a href="https://understand.oriso.org/" rel="noopener">Repo-Dashboards</a><a href="https://predev.oriso.org/storybook-frontend/" rel="noopener">Storybook Frontend</a><a href="https://predev.oriso.org/storybook-admin/" rel="noopener">Storybook Admin</a></div>
+      </article>
+
+      <article class="sec" id="legal" style="--sc:var(--s-legal)">
+        <div class="eb"><span>Rechtliches</span><span class="lock">privat</span></div>
+        <h3>Was verarbeiten wir, und womit belegen wir es?</h3>
+        <p class="q">„Mit welcher Grundlage, welchen Belegen, welchen offenen Punkten?"</p>
+        <p class="who">Frank, Träger, Auditor:innen</p>
+        <ul>
+          <li>DSFA v2 als lebendes Dokument, Belegkette</li>
+          <li>Rechtstexte in vier Ebenen, AVV versioniert</li>
+          <li>Offen: unser Teil der DSFA-Abschnitte, Verknüpfung zu den Feature-Seiten</li>
+        </ul>
+        <div class="foot"><span class="fr ok">DSFA v2 live</span><span class="fr warn">unser Teil offen</span></div>
+        <div class="links"><a href="https://understand.oriso.org/legal/dsfa/" rel="noopener">DSFA v2</a></div>
+      </article>
+
+      <article class="sec" id="betrieb" style="--sc:var(--s-betrieb)">
+        <div class="eb"><span>Betrieb</span><span class="lock">privat · später</span></div>
+        <h3>Läuft es, und wie frisch ist es?</h3>
+        <p class="q">„Ist der Graph aktuell, was ist kaputt, was hat sich seit gestern geändert?"</p>
+        <p class="who">Frank, Hassan</p>
+        <ul>
+          <li>Refresh-Log und Verify-Tabelle (Knoten je Repo, Abweichung zum Vorlauf)</li>
+          <li>Reports: tote Aufrufe, Spec-Drift</li>
+          <li>Health der Kanäle: Graph-HTTPS, Storybook-MCP, Kit-Endpunkt</li>
+        </ul>
+        <div class="foot"><span class="fr">Stufe 3</span></div>
+        <div class="links"><a href="#" aria-disabled="true">geplant</a></div>
+      </article>
+
+    </div>
+  </section>
+
+  <section id="abo">
+    <div class="ch"><h2>So kommt es zu dir</h2><span class="sub2">abonnieren statt kopieren</span></div>
+    <div class="flowrow">
+      <div class="fstep"><div class="n">1</div><div class="t">Frank ändert</div><div class="d">Prompt, Regel oder Seite im Kit-Ordner (<code>dreambau/understand-kit</code>); Version im Manifest zählt hoch.</div></div>
+      <div class="fstep"><div class="n">2</div><div class="t">Dreambau liefert</div><div class="d"><code>GET /understand/api/v1/kit/manifest</code> und <code>…/bundle</code>, hinter Machine-Token.</div></div>
+      <div class="fstep"><div class="n">3</div><div class="t">predev baut den Graph</div><div class="d">Alle 2 Stunden, 18 Repos + Plattform-Graph; Auslieferung über <code>predev.oriso.org/ua</code>.</div></div>
+      <div class="fstep"><div class="n">4</div><div class="t">Session startet</div><div class="d">Hook: Manifest prüfen → neues Kit ziehen → Graph pullen. Codex: dieselben zwei Befehle.</div></div>
+      <div class="fstep"><div class="n">5</div><div class="t">Arbeiten</div><div class="d">Claude/Codex arbeiten mit dem aktuellen Stand. Lokale Kopien sind Cache, nie Quelle.</div></div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:26%">Zugang</th><th>Wie</th><th style="width:22%">Wo liegt das Geheimnis</th></tr></thead>
+        <tbody>
+          <tr><td>Kit (Prompts, Regeln, Seiten)</td><td>Machine-Token der Test-Access-API als Bearer; <code>install.sh --subscribe</code></td><td>Infisical <code>ORISO_KIT_TOKEN</code></td></tr>
+          <tr><td>Graph (JSON)</td><td>HTTPS mit Basic-Auth; <code>ua-pull --via-https</code></td><td>abgeleitet aus <code>ORISO_SB_MCP_AUTH</code></td></tr>
+          <tr><td>Storybook-MCP</td><td>Zwei MCP-Server über die Domain, User-Scope</td><td>Infisical <code>ORISO_SB_MCP_AUTH</code></td></tr>
+          <tr><td>Hub (diese Seiten)</td><td>Passkey-Login in Dreambau</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Noch nicht live:</b> Der Kit-Endpunkt ist gebaut und getestet, aber noch nicht deployt (Token anlegen, Push, PR, Image). Bis dahin läuft das Kit aus einer lokalen Kopie.</div>
+  </section>
+
+  <section>
+    <div class="ch"><h2>Was öffentlich bleibt</h2></div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:30%">Ort</th><th>Inhalt</th><th style="width:18%">Sichtbarkeit</th></tr></thead>
+        <tbody>
+          <tr><td>docs.oriso.org</td><td>Plattform- und Entwicklerdoku: <em>was</em> gebaut ist</td><td><span class="status ok">öffentlich</span></td></tr>
+          <tr><td>understand.oriso.org</td><td>Graph-Dashboards je Repo (Code verstehen darf jeder)</td><td><span class="status ok">öffentlich</span></td></tr>
+          <tr><td>Understand Hub (hier)</td><td>Prompts, Regeln, Workarounds, Belege, Feature-Erklärungen: <em>wie</em> wir arbeiten</td><td><span class="status plan">nur Team</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="design"><strong>Design-Notiz:</strong> Startseite im Legal-Stil (Kopfkarte, Chips, Meta-Karte). Jeder Sektor trägt eine eigene Kennfarbe als Oberkante und Punkt in der Navigation — Rechtliches bleibt bernstein, Features blau, Arbeiten rot. Karten zeigen immer: Leitfrage, Zielgruppe, Inhalt, Frische, Links.</div>
+  </section>
+
+</div>
+<footer>Understand Hub · Startseite · Entwurf 0.1 · nur für das ORISO-Team (Dreambau-Login) · Quelle: <code>dreambau/understand-kit</code>.</footer>

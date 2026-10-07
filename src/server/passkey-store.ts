@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import { z } from "zod";
 import { ALL_TEST_ENVIRONMENTS, createHumanGrantStore, migrateLegacyProjectGrants } from "./human-grants.js";
+import type { SessionBackend, SessionRecord } from "./sessions.js";
 
 const projectSchema = z.enum(["oriso", "orimo", "dreambau"]);
 const synchronizedProjectsSchema = z.array(projectSchema).max(3);
@@ -18,8 +19,10 @@ const credentialInputSchema = z.object({
   counter: z.number().int().nonnegative(),
   transports: z.array(z.string().min(1)),
   deviceType: z.string().min(1),
-  backedUp: z.boolean()
+  backedUp: z.boolean(),
+  name: z.string().trim().min(1).max(60).optional()
 });
+const credentialNameSchema = z.string().trim().min(1).max(60);
 const challengeSchema = z.object({
   sessionId: z.string().min(1),
   kind: z.enum(["registration", "authentication"]),
@@ -48,9 +51,14 @@ export interface StoredCredential {
   transports: string[];
   deviceType: string;
   backedUp: boolean;
+  /** Human label chosen at registration or later; null for passkeys from before labels existed. */
+  name: string | null;
   createdAt: string;
   lastUsedAt: string | null;
 }
+
+/** Public shape of a passkey for the owner's own management view. Never carries the public key. */
+export type PasskeySummary = Omit<StoredCredential, "publicKey" | "counter" | "userId">;
 
 export function createPasskeyStore(path: string) {
   const sqlite = new Database(path);
@@ -102,9 +110,28 @@ export function createPasskeyStore(path: string) {
     );
     CREATE INDEX IF NOT EXISTS email_otp_challenges_user_requested
       ON email_otp_challenges(user_id, requested_at DESC);
+    CREATE TABLE IF NOT EXISTS human_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES human_users(id) ON DELETE CASCADE,
+      method TEXT NOT NULL CHECK(method IN ('password-bootstrap','passkey','recovery','email-otp')),
+      remember INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS human_sessions_expires ON human_sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS human_user_preferences (
+      user_id TEXT NOT NULL REFERENCES human_users(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      value_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, key)
+    );
   `);
   const userColumns = new Set((sqlite.prepare("PRAGMA table_info(human_users)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!userColumns.has("role")) sqlite.exec("ALTER TABLE human_users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+  const credentialColumns = new Set((sqlite.prepare("PRAGMA table_info(passkey_credentials)").all() as Array<{ name: string }>).map((column) => column.name));
+  if (!credentialColumns.has("name")) sqlite.exec("ALTER TABLE passkey_credentials ADD COLUMN name TEXT");
 
   // Existing project assignments become explicit local grants before the column
   // stops being authoritative. Idempotent, so opening the store never duplicates.
@@ -157,9 +184,11 @@ export function createPasskeyStore(path: string) {
     transports: z.array(z.string()).parse(JSON.parse(row.transports)),
     deviceType: row.device_type,
     backedUp: Boolean(row.backed_up),
+    name: row.name ?? null,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at
   });
+  const toSummary = ({ publicKey: _publicKey, counter: _counter, userId: _userId, ...summary }: StoredCredential): PasskeySummary => summary;
 
   return {
     createUser(input: z.input<typeof userInputSchema>) {
@@ -216,10 +245,32 @@ export function createPasskeyStore(path: string) {
       const credential = credentialInputSchema.parse(input);
       const createdAt = new Date().toISOString();
       sqlite.prepare(`INSERT INTO passkey_credentials
-        (id,user_id,public_key,counter,transports,device_type,backed_up,created_at,last_used_at)
-        VALUES(?,?,?,?,?,?,?,?,NULL)`)
+        (id,user_id,public_key,counter,transports,device_type,backed_up,name,created_at,last_used_at)
+        VALUES(?,?,?,?,?,?,?,?,?,NULL)`)
         .run(credential.id, credential.userId, Buffer.from(credential.publicKey), credential.counter,
-          JSON.stringify(credential.transports), credential.deviceType, Number(credential.backedUp), createdAt);
+          JSON.stringify(credential.transports), credential.deviceType, Number(credential.backedUp), credential.name ?? null, createdAt);
+    },
+    listPasskeys(userId: string): PasskeySummary[] {
+      return (sqlite.prepare("SELECT * FROM passkey_credentials WHERE user_id=? ORDER BY created_at").all(userId) as any[])
+        .map(rowToCredential).map(toSummary);
+    },
+    renamePasskey(userId: string, id: string, name: string) {
+      const parsed = credentialNameSchema.parse(name);
+      const result = sqlite.prepare("UPDATE passkey_credentials SET name=? WHERE id=? AND user_id=?").run(parsed, id, userId);
+      return result.changes === 1;
+    },
+    /**
+     * Removes one passkey but never the last one: without any passkey the
+     * account would fall back to recovery codes only.
+     */
+    deletePasskey(userId: string, id: string): "deleted" | "not_found" | "last_passkey" {
+      return sqlite.transaction(() => {
+        const owned = sqlite.prepare("SELECT id FROM passkey_credentials WHERE user_id=?").all(userId) as Array<{ id: string }>;
+        if (!owned.some((row) => row.id === id)) return "not_found" as const;
+        if (owned.length <= 1) return "last_passkey" as const;
+        sqlite.prepare("DELETE FROM passkey_credentials WHERE id=? AND user_id=?").run(id, userId);
+        return "deleted" as const;
+      })();
     },
     getCredential(id: string) {
       const row = sqlite.prepare("SELECT * FROM passkey_credentials WHERE id=?").get(id);
@@ -322,6 +373,58 @@ export function createPasskeyStore(path: string) {
       return sqlite.prepare(`SELECT id,code_hmac,expires_at,attempts_remaining,requested_at,consumed_at
         FROM email_otp_challenges WHERE user_id=? ORDER BY requested_at`).all(userId);
     },
+    /**
+     * Small per-user settings such as saved filter presets. Values are opaque
+     * JSON for the store; the route validates shape and size per key.
+     */
+    getPreference(userId: string, key: string): unknown {
+      const row = sqlite.prepare("SELECT value_json FROM human_user_preferences WHERE user_id=? AND key=?").get(userId, key) as { value_json: string } | undefined;
+      if (!row) return null;
+      try { return JSON.parse(row.value_json); } catch { return null; }
+    },
+    setPreference(userId: string, key: string, value: unknown) {
+      sqlite.prepare(`INSERT INTO human_user_preferences(user_id,key,value_json,updated_at) VALUES(?,?,?,?)
+        ON CONFLICT(user_id,key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at`)
+        .run(userId, key, JSON.stringify(value), new Date().toISOString());
+    },
+    deletePreference(userId: string, key: string) {
+      return sqlite.prepare("DELETE FROM human_user_preferences WHERE user_id=? AND key=?").run(userId, key).changes === 1;
+    },
+    /**
+     * Human sessions live next to the users so a deployment or pod restart
+     * does not sign everyone out. Only the opaque session id is stored; the
+     * cookie carries the HMAC signature and is never persisted.
+     */
+    sessions: {
+      get(id: string): SessionRecord | null {
+        const row = sqlite.prepare("SELECT * FROM human_sessions WHERE id=?").get(id) as any;
+        if (!row) return null;
+        return {
+          id: row.id,
+          principal: { authenticated: true, method: row.method, userId: row.user_id ?? null },
+          remember: Boolean(row.remember),
+          createdAt: row.created_at,
+          expiresAt: row.expires_at,
+          lastSeenAt: row.last_seen_at
+        };
+      },
+      put(record: SessionRecord) {
+        sqlite.prepare(`INSERT INTO human_sessions(id,user_id,method,remember,created_at,expires_at,last_seen_at)
+          VALUES(?,?,?,?,?,?,?)
+          ON CONFLICT(id) DO UPDATE SET user_id=excluded.user_id,method=excluded.method,remember=excluded.remember,
+            created_at=excluded.created_at,expires_at=excluded.expires_at,last_seen_at=excluded.last_seen_at`)
+          .run(record.id, record.principal.userId, record.principal.method, Number(record.remember), record.createdAt, record.expiresAt, record.lastSeenAt);
+      },
+      touch(id: string, lastSeenAt: number) {
+        sqlite.prepare("UPDATE human_sessions SET last_seen_at=? WHERE id=?").run(lastSeenAt, id);
+      },
+      delete(id: string) {
+        sqlite.prepare("DELETE FROM human_sessions WHERE id=?").run(id);
+      },
+      deleteExpired(now: number) {
+        return sqlite.prepare("DELETE FROM human_sessions WHERE expires_at<=?").run(now).changes;
+      }
+    } satisfies SessionBackend,
     close() { sqlite.close(); }
   };
 }

@@ -1,3 +1,5 @@
+import type { AccountAccessAction } from "../server/account-link.js";
+
 export type LifecycleStatus = "unused" | "active" | "needs_review" | "delete_candidate" | "archived";
 export type FixtureQuality = "empty" | "synthetic" | "realistic" | "gold";
 export type Project = "NONE" | "ORI" | "ORISO" | "ORIMO" | "TRAIL.IST" | "DREAMBAU" | "OTHER";
@@ -19,7 +21,7 @@ export interface LinkedTestAccount {
 }
 export interface AccountAccessEvent {
   id: number; accountId: string; email: string; actorId: string;
-  action: "catalog_sync" | "secret_requested" | "mail_requested" | "otp_requested" | "environment_requested" | "browser_session_opened" | "totp_enrolled" | "record_linked" | "oriso_invite_requested" | "oriso_account_provisioned";
+  action: AccountAccessAction;
   createdAt: string; context: { runId?: string; applicationVersion?: string; environment?: "local" | "pre-dev" | "dev" | "production-test" };
 }
 export type OrisoProvisioningRole = "platform-admin" | "tenant-admin" | "agency-admin" | "counsellor" | "advice-seeker";
@@ -32,18 +34,33 @@ export interface OrisoProvisioningStateView {
 }
 export interface OrisoProvisioningView {
   configured: boolean; supportedRoles: OrisoProvisioningRole[]; environment: "pre-dev" | "dev";
-  state: OrisoProvisioningStateView | null; linked: LinkedTestAccount | null;
+  state: OrisoProvisioningStateView | null; provisioningRole: OrisoProvisioningRole | null;
+  linked: LinkedTestAccount | null; requiresApplicationPassword: boolean;
 }
 export interface OrisoProvisioningResult {
-  created: boolean; recordCreated: boolean; recordReplaced?: boolean; state: OrisoProvisioningStateView; linked: LinkedTestAccount;
+  created: boolean; recordCreated: boolean; recordReplaced?: boolean; state: OrisoProvisioningStateView | null;
+  provisioningRole: OrisoProvisioningRole; linked: LinkedTestAccount; requiresApplicationPassword: boolean;
 }
 export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
 export type OtpResponse = ({ source: "totp"; generatedAt: string; expiresAt: string } | { source: "mail"; receivedAt: string; messageId: string; subject: string }) & { accountId: string; code: string };
 export interface Taxonomies { roles: string[]; topics: string[]; conversationTypes: string[] }
+export const teamProjects = ["oriso", "orimo", "dreambau"] as const;
+export type TeamProject = (typeof teamProjects)[number];
+export const humanAccessSources = ["infisical", "local"] as const;
+export type HumanAccessSource = (typeof humanAccessSources)[number];
 export interface HumanUser {
-  id: string; email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">;
+  id: string; email: string; name: string; projects: TeamProject[];
   role: "admin" | "member"; status: "active" | "disabled"; createdAt: string;
+  accessSources?: HumanAccessSource[];
   entitlements: HumanEntitlements;
+}
+export type TeamMember = Omit<HumanUser, "entitlements"> & { entitlements?: HumanEntitlements };
+export type HumanAccessSourceStatus =
+  | { infisical: "available" }
+  | { infisical: "degraded"; correlationId: string };
+export interface TeamMembersResponse {
+  users: TeamMember[];
+  sourceStatus: HumanAccessSourceStatus;
 }
 export interface HumanEntitlements {
   orisoProvisioning: { environments: Array<"pre-dev" | "dev"> };

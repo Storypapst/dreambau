@@ -20,3 +20,12 @@ spec:
               service:
                 name: testmails
                 port: { name: http }
+          # Understand-Kit subscription endpoint (/understand/api/v1/kit/...).
+          # Same app and service, own top-level path: the kit is not part of the
+          # test-mail dashboard. Bearer-token protected in the app itself.
+          - path: /understand
+            pathType: Prefix
+            backend:
+              service:
+                name: testmails
+                port: { name: http }

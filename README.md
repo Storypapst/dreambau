@@ -1,5 +1,7 @@
 # Dreambau Testmails Registry
 
+> Weitere Projekte in diesem Repository: die Startseite dreambau.com liegt in [`apps/landing`](apps/landing/README.md) (eigenes `package.json`, eigener Build, unabhängig von der Anwendung hier im Wurzelordner).
+
 Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten kommen ausschließlich aus einem gemounteten Kubernetes Secret; editierbare Testmetadaten liegen in SQLite auf einem PVC.
 
 ## Betrieb
@@ -12,6 +14,8 @@ ssh m4dreambau 'kubectl logs deployment/testmails -n wcr --tail=100'
 ```
 
 Secrets werden ausschließlich aus stdin erzeugt. Das Account-JSON kommt aus Keychain-Service `dreambau-test-mailbox`; der gemeinsame Login aus `dreambau-testmails-auth`. Private S/MIME-Identitäten bleiben im Service `dreambau-test-smime` und werden nie in die Anwendung kopiert.
+
+Welche Postfächer verschlüsselt gespeichert werden, entscheidet ausschließlich `unencryptedDomains`/`unencryptedAccounts` in `src/server/accounts.ts` (Spiegel für das Provisionierungs-Skript: `scripts/mail-encryption-policy.mjs`). Neben `oriso.org` sind dort die Postfächer eingetragen, die als 2FA-E-Mail-OTP-Empfänger in einem Produkt-Realm registriert sind: Verschlüsselung im Ruhezustand macht aus jeder OTP-Mail einen S/MIME-Blob, den keine Testtooling-Seite lesen kann. Diese Postfächer werden mit `encryptionAtRest {"@type":"Disabled"}` provisioniert und bekommen keine S/MIME-Identität.
 
 ## Verifikation
 
@@ -241,6 +245,47 @@ drei konfigurierten Projekt-IDs und den vier Umgebungen `local`, `pre-dev`,
 `dev` und `production-test`. Ungültige, doppelte oder zum Infisical-Pfad
 widersprüchliche Records stoppen den Import. Upstream-Antworten und
 Credentials erscheinen nicht in Fehlern.
+
+### ORISO-Provisioning pro Postfach freigeben
+
+Provisionierbar ist ein Postfach, wenn zwei Dinge stimmen: seine Domain kennt
+eine ORISO-Umgebung, und `viewProject` liefert für den Datensatz `oriso`.
+
+`dreambau.com` und `dreambau.de` zeigen auf `pre-dev`, `oriso.org`,
+`openresilience.cc`, `getme.global` und `trail.ist` auf `dev`. `getme.global`
+und `trail.ist` kamen am 19.09.2026 dazu.
+
+Die Domain allein genügt aber nicht. Für `getme.global` und `trail.ist` muss das
+Projekt des Kontos ausdrücklich auf `ORISO` stehen — bis dahin antwortet die
+Route `422 mailbox_project_mismatch`. Das ist Absicht: die Domain-Zuordnung
+pauschal zu ändern würde diese Konten für alle aus dem Projekt-Scope `dreambau`
+nach `oriso` verschieben, und wer in Infisical nur `dreambau` hat, verlöre sie
+aus der Sicht. So entscheidet stattdessen der Operator pro Postfach, sichtbar in
+der Oberfläche und jederzeit zurücknehmbar.
+
+Ein Konto, dessen Projekt auf `TRAIL.IST` oder `DREAMBAU` steht, ist ausdrücklich
+ausgenommen. Client und Server halten dieselbe Zuordnung; ein Auseinanderlaufen
+lässt `tests/oriso-domain-scope.test.ts` fehlschlagen.
+
+### Postfach-Katalog aus Infisical
+
+Der Katalog der Testpostfächer liegt in denselben Projekten als Records mit
+`kind: "mailbox"` in der Umgebung `production-test` — 90 im Projekt `dreambau`,
+60 in `oriso`, 30 in `orimo`. Mit `TESTMAILS_ACCOUNTS_SOURCE=infisical` liest
+der Hub den Katalog von dort statt aus dem Secret-File.
+
+Das löst zwei Dinge. Postfach-Zugangsdaten hängen nicht mehr am macOS Keychain
+einer einzelnen Person, also kann jede Machine Identity provisionieren. Und
+`encryption` wird aus `encryptionFor(email)` **berechnet** statt gespeichert:
+ein veraltetes Flag kann nicht mehr entstehen. Genau das war passiert — vier
+OTP-Postfächer waren in Stalwart wochenlang unverschlüsselt, während die Datei
+weiter `encrypted` behauptete.
+
+Der Schalter ist bewusst opt-in und `file` bleibt Voreinstellung. Solange
+Infisical noch nicht geantwortet hat, und nur dann, beantwortet die Datei den
+Katalog; ein späterer fehlgeschlagener Refresh verwirft einen guten Stand nie.
+`GET /testmails/health/ready` zeigt unter `accounts`, aus welcher Quelle der
+laufende Katalog stammt, wie viele Konten er hat und wann er zuletzt frisch war.
 
 ### Mailbox und Anwendungslogin
 

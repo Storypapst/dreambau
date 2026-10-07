@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { installAuth } from "./auth.js";
 import { createDocsMirrorRouter } from "./docs-mirror.js";
 import { loadAccounts as loadAccountsFile, type AccountRecord } from "./accounts.js";
+import { createInfisicalAccountSource, type AccountSource } from "./infisical-accounts.js";
 import { loadConfig } from "./config.js";
 import { createDatabase, type RegistryDatabase } from "./db.js";
 import { lifecycleStatuses, metadataPatchSchema } from "./metadata.js";
@@ -13,10 +14,11 @@ import { z } from "zod";
 import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
 import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
 import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
+import { createUnderstandKitRouter } from "./understand-kit.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
 import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
-import { createPasskeyStore, type HumanUser, type PasskeyStore } from "./passkey-store.js";
+import { createPasskeyStore, type HumanProject, type HumanUser, type PasskeyStore } from "./passkey-store.js";
 import { installPasskeyAuth, type WebAuthnAdapter } from "./passkey-auth.js";
 import type { SessionPrincipal } from "./sessions.js";
 import {
@@ -28,6 +30,7 @@ import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
 import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
 import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
+import { createDeadlineQueue } from "./deadline-queue.js";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import { canProvisionOriso, humanEntitlementsFor, type HumanEntitlements } from "./human-entitlements.js";
 import { createSmtpEmailOtpSender, installEmailOtpAuth, type EmailOtpSender } from "./email-otp.js";
@@ -38,6 +41,7 @@ import {
   environmentForOrisoEmail,
   generateApplicationPassword,
   orisoProvisioningRoles,
+  provisioningRoleForRecord,
   readyStateForProvisionedRecord,
   recordRolesForProvisioningRole,
   OrisoProvisioningError,
@@ -65,11 +69,15 @@ interface AppOptions {
   bootstrapUser?: { email: string; name: string; projects: Array<"oriso" | "orimo" | "dreambau">; role: "admin" };
   runtimeStatusLoader?: (projects: CoordinationProject[]) => Promise<RuntimeStatus[]>;
   humanAccessProvider?: HumanAccessProvider;
+  humanAccessTimeoutMs?: number;
   emailOtpSender?: EmailOtpSender;
   emailOtpHmacKey?: string;
   orisoProvisioning?: OrisoProvisioningService;
   orisoProvisioningServices?: Partial<Record<OrisoProvisioningEnvironment, OrisoProvisioningService>>;
   docsMirrorDir?: string | null;
+  understandKitDir?: string | null;
+  /** Directory with the built Test-Access CLI (dist/cli by default); null disables the endpoint. */
+  testAccessCliDir?: string | null;
 }
 
 export function createApp(options: AppOptions = {}) {
@@ -100,9 +108,29 @@ export function createApp(options: AppOptions = {}) {
    * `user.projects` is now a derived projection of the grant rows rather than
    * authoritative storage.
    */
-  const syncHumanUser = async (user: HumanUser) => {
+  const humanAccessTimeoutMs = options.humanAccessTimeoutMs ?? 10_000;
+  const syncHumanUserUnsafe = async (user: HumanUser, deadlineAt = Date.now() + humanAccessTimeoutMs) => {
     if (!humanAccessProvider || user.role === "admin") return user;
-    const projects = await humanAccessProvider.projectsFor(user.email);
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) throw new Error("human_access_timeout");
+    const controller = new AbortController();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        reject(new Error("human_access_timeout"));
+      }, remainingMs);
+    });
+    let projects: HumanProject[];
+    try {
+      projects = await Promise.race([
+        humanAccessProvider.projectsFor(user.email, { signal: controller.signal }),
+        deadline
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+    if (Date.now() >= deadlineAt) throw new Error("human_access_timeout");
     passkeyStore.grants.replaceInfisical(user.id, projects.map((project) => ({
       userId: user.id,
       project,
@@ -111,14 +139,51 @@ export function createApp(options: AppOptions = {}) {
     })));
     return { ...user, projects: passkeyStore.grants.effective(user.id).map((grant) => grant.project) };
   };
+  // This queue is deliberately process-wide: the employee-list snapshot and
+  // rollback must be mutually exclusive with every grants.replaceInfisical
+  // writer, including auth/me. Provider reads are shared and cached, while the
+  // enqueue-time deadline bounds every caller's total wait.
+  const serializeHumanAccess = createDeadlineQueue(
+    humanAccessTimeoutMs,
+    () => Date.now(),
+    () => new Error("human_access_timeout")
+  );
+  const syncHumanUser = (user: HumanUser) => serializeHumanAccess((deadlineAt) => syncHumanUserUnsafe(user, deadlineAt));
   const { requireSession, requireStrongSession, sessions } = installAuth(
     api,
     options.passwordHash ?? config.passwordHash,
     options.sessionSecret ?? config.sessionSecret,
     options.secureCookies ?? config.secureCookies,
-    () => passkeyStore.credentialCount() === 0
+    () => passkeyStore.credentialCount() === 0,
+    passkeyStore.sessions,
+    options.now ? () => options.now!().getTime() : undefined
   );
-  const accountLoader = options.loadAccounts ?? (() => loadAccountsFile(config.accountsPath));
+  // Expired session rows are pruned hourly; `unref` keeps the timer from
+  // holding a test process open.
+  setInterval(() => sessions.prune(), 60 * 60 * 1000).unref();
+  // Created here, before anything reads the catalogue. The registry provider is
+  // built further down, so it is handed over as a thunk: an earlier version
+  // assigned this only after the provider existed, and the boot-time export ran
+  // in between, went straight to the file and crash-looped the container on a
+  // file that no longer validates.
+  // Setting the flag and getting the file anyway is the kind of quiet mismatch
+  // that cost two crash-looped deploys. Say so at startup instead.
+  if (!options.loadAccounts && config.accountsSource === "infisical" && config.registryProvider !== "infisical") {
+    throw new Error("TESTMAILS_ACCOUNTS_SOURCE=infisical requires TEST_ACCESS_PROVIDER=infisical");
+  }
+  const accountSource: AccountSource | null =
+    !options.loadAccounts && config.accountsSource === "infisical" && config.registryProvider === "infisical"
+      ? createInfisicalAccountSource({
+          registryProvider: () => registryProvider,
+          fallbackPath: config.accountsPath,
+          now: options.now
+        })
+      : null;
+  // Annotated because the file-backed registry provider is built *from* this
+  // loader while the loader reaches the provider through accountSource, and
+  // TypeScript gives up on the cycle and infers any.
+  const accountLoader: () => AccountRecord[] = options.loadAccounts
+    ?? (() => accountSource ? accountSource.load() : loadAccountsFile(config.accountsPath));
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
   installPasskeyAuth(api, {
     store: passkeyStore,
@@ -131,7 +196,8 @@ export function createApp(options: AppOptions = {}) {
     webauthn: options.webauthn,
     now: options.now,
     bootstrapUser: options.bootstrapUser ?? { email: "fg@dreambau.com", name: "Frank Gerhardt", projects: ["oriso", "orimo", "dreambau"], role: "admin" },
-    syncHumanUser,
+    syncHumanUser: syncHumanUserUnsafe,
+    serializeHumanAccess,
     entitlementsFor: (user, principal) => humanEntitlementsFor(user, passkeyStore.grants, principal.method)
   });
   installEmailOtpAuth(api, {
@@ -199,7 +265,11 @@ export function createApp(options: AppOptions = {}) {
   const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
   const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
-  const regenerate = async () => { if (exportPath) await writeMarkdownAtomically(exportPath, markdown()); };
+  // A degraded boot must not overwrite a good export with an empty catalogue.
+  const regenerate = async () => {
+    if (!exportPath || accountViews().length === 0) return;
+    await writeMarkdownAtomically(exportPath, markdown());
+  };
   void regenerate();
   const environments: TestEnvironment[] = ["local", "pre-dev", "dev", "production-test"];
   const runtimeRegistryProvider = () => {
@@ -214,6 +284,16 @@ export function createApp(options: AppOptions = {}) {
     });
   };
   const registryProvider = options.registryProvider ?? runtimeRegistryProvider();
+  // Refreshing starts only now, because the thunk above resolves this provider.
+  if (accountSource) {
+    const pull = () => accountSource.refresh().then(regenerate).catch((error) => {
+      // The boot-time export is skipped while the catalogue is empty, so the
+      // first successful refresh is what actually writes testmails.md.
+      console.error(`account catalogue refresh failed: ${error instanceof Error ? error.message : error}`);
+    });
+    void pull();
+    setInterval(pull, 5 * 60 * 1000).unref();
+  }
   const registryWriter = options.registryWriter ?? (
     config.registryProvider === "infisical" && config.infisical?.writer
       ? createInfisicalRegistryWriter({
@@ -274,17 +354,47 @@ export function createApp(options: AppOptions = {}) {
       .filter((record) => user.projects.includes(record.project));
   };
   app.get("/testmails/health/ready", async (_req, res) => {
+    // Reported on both paths: when the registry is unreachable, the catalogue is
+    // usually the thing an operator actually needs to see.
+    // Readiness is public and unauthenticated, so it reports that the catalogue
+    // failed and when — never the upstream message, which carries mailbox
+    // addresses and internal validation detail. The message stays in the logs.
+    const accountStatus = () => {
+      try {
+        const status = accountSource?.status();
+        if (!status) return { source: "file" as const, degraded: false, count: accountLoader().length, lastRefreshAt: null, lastFailureAt: null, failing: false };
+        const { lastFailure, ...rest } = status;
+        return { ...rest, failing: lastFailure !== null };
+      } catch {
+        return { source: "none" as const, degraded: true, count: 0, lastRefreshAt: null, lastFailureAt: null, failing: true };
+      }
+    };
     try {
       if (registryProvider.health) await registryProvider.health();
       else await registryProvider.list();
-      res.json({ status: "ok" });
+      // No catalogue means the hub cannot answer its central question, so it is
+      // not ready even when Infisical itself responds.
+      const accounts = accountStatus();
+      if (accounts.degraded) return res.status(503).json({ status: "unavailable", accounts });
+      res.json({
+        status: "ok",
+        accounts,
+        humanAccessQueue: {
+          enqueued: serializeHumanAccess.metrics.enqueued,
+          expired: serializeHumanAccess.metrics.expired
+        }
+      });
     } catch {
-      res.status(503).json({ status: "unavailable" });
+      res.status(503).json({ status: "unavailable", accounts: accountStatus() });
     }
   });
+  // One machine-identity source for every machine-token surface (Test Access
+  // API and the Understand-Kit subscription endpoint), so a revoked token is
+  // revoked for both at once.
+  const machineIdentitySource = options.machineIdentityLoader
+    ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath));
   api.use("/v1", createTestAccessRouter({
-    identities: options.machineIdentityLoader
-      ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath)),
+    identities: machineIdentitySource,
     registryProvider,
     registryWriter,
     database,
@@ -437,7 +547,10 @@ export function createApp(options: AppOptions = {}) {
   const orisoProvisionBodySchema = z.object({
     environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
     role: z.enum(orisoProvisioningRoles),
-    replaceStaleRole: z.boolean().optional().default(false)
+    replaceStaleRole: z.boolean().optional().default(false),
+    applicationPassword: z.string().min(1).max(512)
+      .refine((value) => value.trim().length > 0)
+      .optional()
   }).strict();
   const orisoLinkedRecord = (
     email: string,
@@ -469,7 +582,15 @@ export function createApp(options: AppOptions = {}) {
     const orisoProvisioning = orisoProvisioningServices[environment];
     res.set("Cache-Control", "no-store");
     if (!orisoProvisioning) {
-      return res.json({ configured: false, supportedRoles: [...orisoProvisioningRoles], environment, state: null, linked: null });
+      return res.json({
+        configured: false,
+        supportedRoles: [...orisoProvisioningRoles],
+        environment,
+        state: null,
+        provisioningRole: null,
+        linked: null,
+        requiresApplicationPassword: false
+      });
     }
     try {
       const records = await registryProvider.list();
@@ -477,12 +598,21 @@ export function createApp(options: AppOptions = {}) {
       const linked = orisoLinkedRecord(email, records, environment);
       const managedState = linked?.totpSecret ? readyStateForProvisionedRecord(linked) : null;
       const state = managedState ?? await orisoProvisioning.status(email);
+      const provisioningRole = state?.role ?? (linked ? provisioningRoleForRecord(linked) : null);
       res.json({
         configured: true,
         supportedRoles: [...orisoProvisioningRoles],
         environment,
         state,
-        linked: linked ? publicLinkedAccount(linked) : null
+        provisioningRole,
+        linked: linked ? publicLinkedAccount(linked) : null,
+        requiresApplicationPassword: Boolean(
+          provisioningRole
+          && (
+            !linked
+            || (!linked.totpSecret && linked.provisioningStatus === "failed")
+          )
+        )
       });
     } catch (error) {
       if (orisoProvisioningHttpError(error, res)) return;
@@ -547,8 +677,8 @@ export function createApp(options: AppOptions = {}) {
         : null;
       let recordReplaced = false;
       let replacementMayHaveCreatedAccount = false;
-      if (!linkedRecord) {
-        linkedRecord = buildProvisionedRecord({
+      const createLinkedRecord = async (secret: string) => {
+        const record = buildProvisionedRecord({
           email,
           displayName: current.displayName,
           role: body.role,
@@ -556,14 +686,111 @@ export function createApp(options: AppOptions = {}) {
           appBaseUrl: orisoProvisioning.target.appBaseUrl,
           responsiblePerson: user.email,
           now: nowDate,
-          secret: generateApplicationPassword(),
+          secret,
           environment
         });
         try {
-          await registryWriter.createRecord(linkedRecord);
+          await registryWriter.createRecord!(record);
+          return record;
         } catch {
-          return res.status(502).json({ error: "record_creation_failed" });
+          return null;
         }
+      };
+      const onboardingState = (!existingRecord || body.applicationPassword)
+        ? await orisoProvisioning.status(email)
+        : null;
+
+      // An invitation that already exists belongs to the human onboarding
+      // flow. Its password was (or will be) chosen there, so generating a new
+      // unrelated password and attempting direct creation can only leave a
+      // misleading half-record behind. Link the actual credential first and
+      // let the existing inline TOTP step complete the handoff.
+      if (!existingRecord && onboardingState && !body.applicationPassword) {
+        return res.status(409).json({ error: "application_password_required" });
+      }
+      if (
+        existingRecord
+        && !existingRecord.totpSecret
+        && existingRecord.provisioningStatus === "failed"
+        && !body.applicationPassword
+      ) {
+        return res.status(409).json({ error: "application_password_required" });
+      }
+      if (body.applicationPassword) {
+        if (existingRecord?.totpSecret || existingRecord?.provisioningStatus === "ready") {
+          return res.status(409).json({ error: "managed_record_password_locked" });
+        }
+        const canRepairFromRecord = Boolean(
+          !onboardingState
+          && existingRecord
+          && existingRecord.provisioningStatus === "failed"
+          && !existingRecord.totpSecret
+          && provisioningRoleForRecord(existingRecord) === body.role
+        );
+        if (
+          !canRepairFromRecord
+          && (!onboardingState || !onboardingState.role || onboardingState.role !== body.role)
+        ) {
+          return res.status(409).json({ error: "oriso_onboarding_state_mismatch" });
+        }
+        if (!linkedRecord) {
+          linkedRecord = await createLinkedRecord(body.applicationPassword);
+          if (!linkedRecord) return res.status(502).json({ error: "record_creation_failed" });
+          recordCreated = true;
+        } else {
+          if (!registryWriter.updateApplicationPassword) {
+            return res.status(503).json({ error: "record_password_update_unavailable" });
+          }
+          try {
+            await registryWriter.updateApplicationPassword(
+              linkedRecord,
+              body.applicationPassword,
+              nowDate.toISOString()
+            );
+          } catch {
+            return res.status(502).json({ error: "record_password_update_failed" });
+          }
+          linkedRecord = {
+            ...linkedRecord,
+            secret: body.applicationPassword,
+            provisioningStatus: "pending",
+            updatedAt: nowDate.toISOString()
+          };
+          database.recordAccountAccess({
+            accountId: linkedRecord.id,
+            email,
+            actorId: user.id,
+            action: "application_password_updated",
+            createdAt: nowDate.toISOString(),
+            context: { environment }
+          });
+        }
+        reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
+        if (recordCreated) {
+          database.recordAccountAccess({
+            accountId: linkedRecord.id,
+            email,
+            actorId: user.id,
+            action: "record_linked",
+            createdAt: nowDate.toISOString(),
+            context: { environment }
+          });
+        }
+        const linkedView = publicLinkedAccount(linkedRecord);
+        if (!linkedView) return res.status(500).json({ error: "record_projection_failed" });
+        res.set("Cache-Control", "no-store");
+        return res.status(recordCreated ? 201 : 200).json({
+          created: false,
+          recordCreated,
+          state: onboardingState,
+          provisioningRole: body.role,
+          linked: linkedView,
+          requiresApplicationPassword: false
+        });
+      }
+      if (!linkedRecord) {
+        linkedRecord = await createLinkedRecord(generateApplicationPassword());
+        if (!linkedRecord) return res.status(502).json({ error: "record_creation_failed" });
         recordCreated = true;
       } else if (recordReplacementExpected) {
         const roleRecord = buildProvisionedRecord({
@@ -691,13 +918,17 @@ export function createApp(options: AppOptions = {}) {
           context: { environment }
         });
       }
+      const linkedView = publicLinkedAccount(linkedRecord);
+      if (!linkedView) return res.status(500).json({ error: "record_projection_failed" });
       res.set("Cache-Control", "no-store");
       res.status(provisioned.created ? 201 : 200).json({
         created: provisioned.created,
         recordCreated,
         recordReplaced,
         state: provisioned.state,
-        linked: publicLinkedAccount(linkedRecord)
+        provisioningRole: body.role,
+        linked: linkedView,
+        requiresApplicationPassword: false
       });
     } catch (error) {
       if (orisoProvisioningHttpError(error, res)) return;
@@ -790,6 +1021,26 @@ export function createApp(options: AppOptions = {}) {
   });
   api.get("/export/markdown", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
   app.use("/testmails/api", api);
+  // Understand-Kit subscription endpoint — a top-level surface of its own, not
+  // part of the test-mail dashboard. Same bearer tokens, read-only.
+  const understandKitDir = options.understandKitDir === undefined
+    ? process.env.UNDERSTAND_KIT_DIR
+      ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../understand-kit")
+    : options.understandKitDir;
+  // dist/server/app.js → dist/cli; from source (tsx) there is no bundle and
+  // the endpoint answers 503 until scripts/build-test-access-bundle.sh ran.
+  const testAccessCliDir = options.testAccessCliDir === undefined
+    ? process.env.TEST_ACCESS_CLI_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../cli")
+    : options.testAccessCliDir;
+  if (understandKitDir) {
+    app.use("/understand/api/v1", createUnderstandKitRouter({
+      kitDir: understandKitDir,
+      cliDir: testAccessCliDir ?? undefined,
+      identities: machineIdentitySource,
+      onAuthenticated: (identity) => database.recordMachineIdentityUse(identity.id),
+      now: options.now
+    }));
+  }
   app.get("/testmails/testmails.md", requireActiveHumanSession, (_req, res) => res.type("text/markdown; charset=utf-8").send(generateMarkdown(scopedAccountViews(res.locals.humanUser), database.getTaxonomies())));
   const docsMirrorDir = options.docsMirrorDir === undefined ? process.env.DOCS_MIRROR_DIR ?? null : options.docsMirrorDir;
   if (docsMirrorDir) app.use("/testmails/docs", requireActiveHumanSession, createDocsMirrorRouter(docsMirrorDir));

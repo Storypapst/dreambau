@@ -1,14 +1,14 @@
 import express from "express";
 import { z } from "zod";
-import type { AccountRecord } from "./accounts.js";
+import { encryptionFor, type AccountRecord } from "./accounts.js";
 import type { RegistryDatabase } from "./db.js";
 import {
-  authenticateMachineToken,
   machineCan,
   type MachineIdentity,
   type TestEnvironment,
   type TestProject
 } from "./machine-access.js";
+import { createMachineAuthMiddleware, type MachineIdentitySource } from "./machine-auth.js";
 import type { TestMailReader } from "./test-mail.js";
 import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js";
 import type { RegistryWriter } from "./infisical-writer.js";
@@ -37,13 +37,8 @@ function idFor(account: AccountRecord) {
   return `mailbox:${account.email}`;
 }
 
-function bearerToken(header: string | undefined) {
-  const match = header?.match(/^Bearer ([^\s]+)$/);
-  return match?.[1] ?? "";
-}
-
 export function createTestAccessRouter(options: {
-  identities: MachineIdentity[] | (() => MachineIdentity[]);
+  identities: MachineIdentitySource;
   registryProvider: RegistryProvider;
   registryWriter?: RegistryWriter;
   database: RegistryDatabase;
@@ -53,14 +48,10 @@ export function createTestAccessRouter(options: {
 }) {
   const router = express.Router();
 
-  router.use((req, res, next) => {
-    const identities = typeof options.identities === "function" ? options.identities() : options.identities;
-    const identity = authenticateMachineToken(bearerToken(req.header("authorization")), identities);
-    if (!identity) return res.status(401).json({ error: "unauthorized" });
-    options.database.recordMachineIdentityUse(identity.id);
-    res.locals.machineIdentity = identity;
-    next();
-  });
+  router.use(createMachineAuthMiddleware({
+    identities: options.identities,
+    onAuthenticated: (identity) => options.database.recordMachineIdentityUse(identity.id)
+  }));
 
   const publicRecord = ({ secret: _secret, totpSecret: _totpSecret, ...record }: TestAccessRecord) => ({
     ...record,
@@ -358,9 +349,7 @@ function mailboxAccount(record: TestAccessRecord): AccountRecord | null {
     caldav: `https://box.dreambau.com/dav/cal/${encodeURIComponent(record.email)}/`,
     carddav: `https://box.dreambau.com/dav/card/${encodeURIComponent(record.email)}/`
   };
-  return domain === "oriso.org"
-    ? { ...common, encryption: { state: "disabled" } }
-    : { ...common, encryption: { state: "encrypted", format: "S/MIME", symmetricMode: "AES-256", encryptOnAppend: true, allowSpamTraining: false } };
+  return { ...common, encryption: encryptionFor(record.email) };
 }
 
 export function createAccountRegistryProvider(loadAccounts: () => AccountRecord[], database: RegistryDatabase): RegistryProvider {

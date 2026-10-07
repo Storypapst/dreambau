@@ -1,0 +1,509 @@
+<title>Wie Case Handover funktioniert</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --brand:#A5231D; --brand-deep:#6E1410; --brand-wash:#FBEDEB; --brand-line:#E7B9B5;
+    --paper:#FBF9F7; --card:#FFFFFF; --sunken:#F3EFEB; --line:#E4DDD7;
+    --ink:#1C1B1B; --ink-2:rgba(28,27,27,.66); --ink-3:rgba(28,27,27,.46);
+    --ok:#1F6B3A; --ok-wash:#E6F3EA; --ok-line:#B9DCC5; --warn:#8A5A00; --warn-wash:#FDF3DD; --warn-line:#ECD9A8;
+    --crit:#9B1C1C; --crit-wash:#FCE8E8; --crit-line:#F0BCBC;
+    --info:#1F4E79; --info-wash:#E8F0F8; --info-line:#B9CEE6;
+    --on-brand:#FFFFFF; --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --radius:6px; --maxw:1120px; --pad:28px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --brand:#E4665F; --brand-deep:#F0A09B; --brand-wash:#3A1C1A; --brand-line:#5A2C29;
+      --paper:#171514; --card:#1F1C1B; --sunken:#262221; --line:#3A3432;
+      --ink:#F1ECE8; --ink-2:rgba(241,236,232,.70); --ink-3:rgba(241,236,232,.50);
+      --ok:#7FD09A; --ok-wash:#1B2F22; --ok-line:#2E4D38; --warn:#F2C465; --warn-wash:#3A2E12; --warn-line:#5C4A1E;
+      --crit:#F08A8A; --crit-wash:#3E1C1C; --crit-line:#5C2B2B;
+      --info:#8FB8E8; --info-wash:#1A2A3C; --info-line:#2E4864; --on-brand:#FFFFFF;
+    }
+  }
+  :root[data-theme="dark"]{
+    --brand:#E4665F; --brand-deep:#F0A09B; --brand-wash:#3A1C1A; --brand-line:#5A2C29;
+    --paper:#171514; --card:#1F1C1B; --sunken:#262221; --line:#3A3432;
+    --ink:#F1ECE8; --ink-2:rgba(241,236,232,.70); --ink-3:rgba(241,236,232,.50);
+    --ok:#7FD09A; --ok-wash:#1B2F22; --ok-line:#2E4D38; --warn:#F2C465; --warn-wash:#3A2E12; --warn-line:#5C4A1E;
+    --crit:#F08A8A; --crit-wash:#3E1C1C; --crit-line:#5C2B2B;
+    --info:#8FB8E8; --info-wash:#1A2A3C; --info-line:#2E4864; --on-brand:#FFFFFF;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}
+  code,.mono{font-family:var(--mono);font-size:.86em;overflow-wrap:anywhere}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  p{margin:0}
+  @media (max-width:640px){:root{--pad:16px}}
+
+  /* App-Leiste + Kopfkarte — wie DSFA v2 */
+  .appbar{background:var(--card);border-bottom:1px solid var(--line)}
+  .appbar-in{max-width:var(--maxw);margin:0 auto;padding:10px var(--pad);display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12.5px}
+  .appbar .brandname{font-weight:700;font-size:13.5px}
+  .appbar .sub{color:var(--ink-3);font-family:var(--mono);font-size:11.5px}
+  .appbar .sp{flex:1}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--ink-2);background:var(--card);white-space:nowrap}
+  .badge.solid{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+  .badge.warn{background:var(--warn-wash);color:var(--warn);border-color:var(--warn-line)}
+  .band-in{max-width:var(--maxw);margin:0 auto;padding:22px var(--pad) 0}
+  .headcard{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:var(--radius);padding:22px 26px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .eyebrow{color:var(--brand);letter-spacing:.08em;text-transform:uppercase;font-weight:700;font-size:12px}
+  .band h1{font-size:30px;font-weight:700;letter-spacing:-.01em;line-height:1.15;color:var(--ink)}
+  @media (max-width:640px){.band h1{font-size:24px}.headcard{padding:18px}}
+  .lead{max-width:70ch;font-size:15.5px;color:var(--ink-2)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;border:1px solid var(--brand-line);background:var(--brand-wash);color:var(--brand-deep);font-size:12.5px;font-weight:500}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--brand);flex:0 0 auto}
+
+  /* Kapitel-Chips */
+  .chipnav{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .chipnav-in{max-width:var(--maxw);margin:0 auto;padding:10px var(--pad);display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin}
+  .chipnav a{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--ink);font-size:13px;font-weight:500;background:var(--card)}
+  .chipnav a:hover{border-color:var(--brand);text-decoration:none}
+  .chipnav .no{font-family:var(--mono);font-size:11px;color:var(--brand);font-weight:600}
+
+  /* Layout */
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:26px var(--pad) 64px;display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:32px}
+  @media (max-width:1000px){.wrap{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+  main{min-width:0;display:grid;gap:40px}
+  .toc{position:sticky;top:64px;align-self:start;font-size:13px}
+  .toc .tl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:8px}
+  .toc a{display:block;padding:5px 0;color:var(--ink-2);border-left:2px solid var(--line);padding-left:10px}
+  .toc a:hover{color:var(--brand);border-left-color:var(--brand);text-decoration:none}
+
+  /* Meta-Karte */
+  .meta{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .vlabel{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .vvalue{font-size:14px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
+  .vvalue .mono{font-weight:500}
+  .status{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .status.warn{background:var(--warn-wash);color:var(--warn);border:1px solid var(--warn-line)}
+
+  /* Kapitel */
+  section{display:grid;gap:16px;min-width:0}
+  .ch{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px}
+  .chapter-no{font-family:var(--mono);color:var(--brand);font-weight:600;font-size:13px}
+  section h2{font-size:21px;font-weight:700;letter-spacing:-.01em}
+  section h3{font-size:15px;font-weight:600}
+  .prose{max-width:70ch;display:grid;gap:10px;color:var(--ink)}
+  .prose li{margin:2px 0}
+  ul{margin:0;padding-left:20px}
+  .kurz{background:var(--brand-wash);border:1px solid var(--brand-line);border-radius:var(--radius);padding:16px 18px;display:grid;gap:8px}
+  .kurz strong{color:var(--brand-deep)}
+  .note{background:var(--warn-wash);border:1px solid var(--warn-line);border-radius:var(--radius);padding:12px 14px;font-size:14px;color:var(--ink)}
+  .note b{color:var(--warn)}
+
+  /* Ablauf als Schrittleiste (kein SVG, passt sich jeder Breite an) */
+  .legend{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--ink-2)}
+  .who{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;letter-spacing:.02em;border:1px solid var(--line);background:var(--sunken);color:var(--ink-2);white-space:nowrap}
+  .who::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
+  .who.b{background:var(--brand-wash);border-color:var(--brand-line);color:var(--brand-deep)}.who.b::before{background:var(--brand)}
+  .who.s{background:var(--info-wash);border-color:var(--info-line);color:var(--info)}.who.s::before{background:var(--info)}
+  .who.k{background:var(--ok-wash);border-color:var(--ok-line);color:var(--ok)}.who.k::before{background:var(--ok)}
+  .steps{list-style:none;margin:0;padding:0;display:grid}
+  .step{display:grid;grid-template-columns:36px minmax(0,1fr);gap:14px;position:relative;padding-bottom:20px}
+  .step::before{content:"";position:absolute;left:17px;top:38px;bottom:0;width:2px;background:var(--line)}
+  .step:last-child::before{display:none}
+  .step:last-child{padding-bottom:0}
+  .step-no{width:36px;height:36px;border-radius:50%;background:var(--card);border:2px solid var(--brand);color:var(--brand);display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:14px;position:relative;z-index:1}
+  .step-body{display:grid;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;min-width:0}
+  .step-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+  .step-title{font-weight:600;font-size:15px}
+  .step-text{color:var(--ink-2);font-size:14px;max-width:70ch}
+  .ep{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--ink-2);background:var(--sunken);border:1px solid var(--line);border-radius:4px;padding:2px 8px;overflow-wrap:anywhere;max-width:100%}
+  .branch{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+  .bcard{border-radius:var(--radius);padding:12px 14px;display:grid;gap:6px;border:1px solid var(--line);background:var(--sunken)}
+  .bcard .bt{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+  .bcard .bx{font-size:13.5px;color:var(--ink-2)}
+  .bcard.ok{background:var(--ok-wash);border-color:var(--ok-line)}.bcard.ok .bt{color:var(--ok)}
+  .bcard.warn{background:var(--warn-wash);border-color:var(--warn-line)}.bcard.warn .bt{color:var(--warn)}
+  .bcard.brand{background:var(--brand-wash);border-color:var(--brand-line)}.bcard.brand .bt{color:var(--brand-deep)}
+  .bcard.crit{background:var(--crit-wash);border-color:var(--crit-line)}.bcard.crit .bt{color:var(--crit)}
+  .arrow{font-size:12px;color:var(--ink-3);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+
+  /* Vergleichskarten */
+  .compare{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .ccard{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--ink-3);border-radius:var(--radius);padding:14px 16px;display:grid;gap:8px;align-content:start}
+  .ccard.a{border-top-color:var(--info)}.ccard.b{border-top-color:var(--brand)}
+  .ccard h3{font-size:15px}
+  .ccard .kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;font-size:13.5px}
+  .ccard .kv dt{color:var(--ink-3);font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;padding-top:2px}
+  .ccard .kv dd{margin:0}
+
+  /* Tabellen */
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--card);max-width:100%}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--sunken);vertical-align:bottom}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+  tr:last-child td{border-bottom:0}
+  tbody tr:hover td{background:color-mix(in srgb,var(--sunken) 55%,transparent)}
+  td:first-child{font-weight:600}
+  .tag{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11.5px;font-weight:600;letter-spacing:.02em;background:var(--sunken);color:var(--ink-2)}
+  .tag.warn{background:var(--warn-wash);color:var(--warn);border:1px solid var(--warn-line)}
+  .tag.ok{background:var(--ok-wash);color:var(--ok);border:1px solid var(--ok-line)}
+  .tag.crit{background:var(--crit-wash);color:var(--crit);border:1px solid var(--crit-line)}
+  .tag.spring{background:var(--brand-wash);color:var(--brand-deep)}
+  .tag.info{background:var(--info-wash);color:var(--info);border:1px solid var(--info-line)}
+
+  /* Rollen-Matrix: kompakte Zellen-Pills */
+  .matrix table{min-width:560px}
+  .matrix th:not(:first-child),.matrix td:not(:first-child){text-align:center}
+  .matrix td:first-child{white-space:normal}
+  .cell{display:inline-flex;align-items:center;justify-content:center;min-width:28px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;line-height:1.5}
+  .cell.y{background:var(--ok-wash);color:var(--ok);border:1px solid var(--ok-line)}
+  .cell.p{background:var(--warn-wash);color:var(--warn);border:1px solid var(--warn-line)}
+  .cell.n{color:var(--ink-3)}
+  .cell small{font-weight:500;margin-left:4px;color:inherit;opacity:.85}
+
+  /* Endpunkt-Liste */
+  .endpoints{display:grid;gap:8px}
+  .epr{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr);gap:10px 16px;align-items:start;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px}
+  .epr .verb{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;margin-right:6px;background:var(--info-wash);color:var(--info)}
+  .epr .verb.post{background:var(--brand-wash);color:var(--brand-deep)}
+  .epr .path{font-family:var(--mono);font-size:12.5px;overflow-wrap:anywhere}
+  .epr .desc{font-size:13.5px;color:var(--ink-2)}
+  .epr .caller{font-size:12.5px;display:grid;gap:4px}
+  .epr .caller code{font-size:12px}
+  .epr .lbl{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  @media (max-width:760px){.epr{grid-template-columns:minmax(0,1fr)}}
+
+  /* Quellen / Fuß */
+  .src{font-size:13px;color:var(--ink-2);display:grid;gap:6px}
+  .src code{color:var(--ink)}
+  footer{max-width:var(--maxw);margin:0 auto;padding:0 var(--pad) 40px;font-size:12.5px;color:var(--ink-3)}
+  .design{border:1px dashed var(--brand-line);border-radius:var(--radius);padding:12px 14px;font-size:13px;color:var(--ink-2)}
+  @media (prefers-reduced-motion:no-preference){.chipnav a{transition:border-color 150ms ease}}
+  :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+</style>
+
+<div class="appbar">
+  <div class="appbar-in">
+    <span class="brandname">Understand Hub</span>
+    <span class="sub">/verstehen/features/case-handover</span>
+    <span class="sp"></span>
+    <span class="badge solid">Feature</span>
+    <span class="badge">ADR-002 · 008 · 022</span>
+    <span class="badge warn">Entwurf 0.2</span>
+    <span class="badge">v2.0.5 · dev · 04.09.2026</span>
+  </div>
+</div>
+<header class="band">
+  <div class="band-in">
+    <div class="headcard">
+      <div class="eyebrow">Verstehen — Features · Fallübergabe zwischen Berater:innen</div>
+      <h1>Wie Case Handover funktioniert</h1>
+      <p class="lead">Eine Beraterin übernimmt einen bestehenden Fall einer Kollegin — zeitweise zur Beratung oder dauerhaft bei Abwesenheit. Diese Seite erklärt den Ablauf aus Sicht der Nutzer:innen, die Regeln dahinter und exakt die Dienste, Endpunkte und Entscheidungen, die ihn tragen.</p>
+      <div class="chips">
+        <span class="chip"><span class="dot"></span>Pull, nicht Push — die Übernehmende fragt an</span>
+        <span class="chip"><span class="dot"></span>Klient:in kann per Zustimmung entscheiden</span>
+        <span class="chip"><span class="dot"></span>Mitlesen (Co-Access) oder Übernahme</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="chipnav" aria-label="Kapitel">
+  <div class="chipnav-in">
+    <a href="#k1"><span class="no">1</span>Kurzfassung</a>
+    <a href="#k2"><span class="no">2</span>Ablauf</a>
+    <a href="#k3"><span class="no">3</span>Rollen &amp; Sichtbarkeit</a>
+    <a href="#k4"><span class="no">4</span>Regeln &amp; Gründe</a>
+    <a href="#k5"><span class="no">5</span>Technik</a>
+    <a href="#k6"><span class="no">6</span>Entscheidungen</a>
+    <a href="#k7"><span class="no">7</span>Bekannte Lücken</a>
+    <a href="#k8"><span class="no">8</span>Frische &amp; Quellen</a>
+  </div>
+</nav>
+
+<div class="wrap">
+<main>
+
+  <div class="meta">
+    <div><div class="vlabel">Version</div><div class="vvalue">Seite 0.2 · Entwurf</div></div>
+    <div><div class="vlabel">Graph-Stand (Struktur)</div><div class="vvalue">04.09.2026 <span class="mono">c6f6e2f8</span></div></div>
+    <div><div class="vlabel">Tiefe (Prosa, Flows)</div><div class="vvalue">04.09.2026</div></div>
+    <div><div class="vlabel">Status</div><div class="vvalue"><span class="status warn">Teilweise gebaut</span></div></div>
+    <div><div class="vlabel">Nächste Prüfung</div><div class="vvalue">bei Merge von US#925</div></div>
+    <div><div class="vlabel">Zuständig</div><div class="vvalue">UserService · Frontend · Admin</div></div>
+  </div>
+
+  <section id="k1">
+    <div class="ch"><span class="chapter-no">1</span><h2>Kurzfassung</h2></div>
+    <div class="kurz">
+      <p><strong>Was es ist.</strong> Case Handover (Fallübergabe) erlaubt einer Beraterin, Zugang zu einem Fall zu bekommen, den aktuell eine Kollegin derselben Beratungsstelle betreut — ohne dass die Kollegin etwas „weiterreichen" muss.</p>
+      <p><strong>Wie es sich anfühlt.</strong> Die Übernehmende sucht den Fall, wählt einen Grund, fragt an. Je nach Grund wird sofort freigegeben oder die Klient:in muss im Chat zustimmen. Danach sieht sie den Fall entweder <em>zeitlich begrenzt mit</em> oder <em>übernimmt ihn ganz</em>.</p>
+      <p><strong>Was es nicht ist.</strong> Kein Push durch die bisherige Beraterin, keine Weitergabe an fremde Beratungsstellen, nicht für Live-Chat oder interne Chats.</p>
+    </div>
+  </section>
+
+  <section id="k2">
+    <div class="ch"><span class="chapter-no">2</span><h2>Ablauf</h2></div>
+    <div class="legend">Wer handelt: <span class="who b">Übernehmende</span> <span class="who s">System (UserService)</span> <span class="who k">Klient:in</span> <span class="who">Matrix / Audit</span></div>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-no">1</div>
+        <div class="step-body">
+          <div class="step-head"><span class="step-title">Fall suchen</span><span class="who b">Übernehmende</span></div>
+          <div class="step-text">Sieht Fälle ihrer eigenen Beratungsstellen — nicht ihre eigenen, wahlweise archivierte — und filtert nach Fachbereich. Einstieg ist die Sitzungsliste mit dem Übergabe-Button.</div>
+          <span class="ep">GET /users/case-handover/candidates</span>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-no">2</div>
+        <div class="step-body">
+          <div class="step-head"><span class="step-title">Grund wählen</span><span class="who b">Übernehmende</span></div>
+          <div class="step-text">Einer der konfigurierten Gründe (Kapitel 4). Der Grund bestimmt, ob die Klient:in zustimmen muss und ob es ein Mitlesen oder eine Übernahme wird.</div>
+          <span class="ep">GET /users/case-handover/reasons</span>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-no">3</div>
+        <div class="step-body">
+          <div class="step-head"><span class="step-title">Zugang anfragen</span><span class="who b">Übernehmende</span></div>
+          <div class="step-text">Ein Aufruf für einen oder mehrere Fälle gleichzeitig; das Ergebnis meldet pro Fall Erfolg oder Ablehnung.</div>
+          <span class="ep">POST /users/case-handover/batch</span>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-no">4</div>
+        <div class="step-body">
+          <div class="step-head"><span class="step-title">Policy-Gate</span><span class="who s">System</span></div>
+          <div class="step-text">Prüft die Berechtigung (gleiche Beratungsstelle) und die Grund-Policy. Zwei Ausgänge:</div>
+          <div class="branch">
+            <div class="bcard ok">
+              <div class="bt">Sofort frei</div>
+              <div class="bx">Policy verlangt keine Zustimmung. Anfrage wird direkt gewährt — weiter mit Schritt 6.</div>
+            </div>
+            <div class="bcard warn">
+              <div class="bt">Zustimmung nötig</div>
+              <div class="bx">Status <code>PENDING_CLIENT_CONSENT</code>. Die Klient:in bekommt eine Systemnachricht im Chat — weiter mit Schritt 5.</div>
+            </div>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-no">5</div>
+        <div class="step-body">
+          <div class="step-head"><span class="step-title">Klient:in entscheidet</span><span class="who k">Klient:in</span></div>
+          <div class="step-text">Zustimmen oder ablehnen — im Chat. Ein „Nein" schlägt jede Policy: Ablehnung blockiert die Übergabe endgültig.</div>
+          <span class="ep">POST /users/sessions/{sessionId}/case-handover/{requestId}/client-consent</span>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-no">6</div>
+        <div class="step-body">
+          <div class="step-head"><span class="step-title">Zugang gewährt</span><span class="who s">System</span></div>
+          <div class="step-text">Je nach Grund eine von zwei Ausprägungen (Details in Kapitel 3):</div>
+          <div class="branch">
+            <div class="bcard">
+              <div class="bt">Co-Access</div>
+              <div class="bx">Mitlesen, zeitlich begrenzt, Zuständigkeit bleibt bei der bisherigen Beraterin.</div>
+            </div>
+            <div class="bcard brand">
+              <div class="bt">Übernahme</div>
+              <div class="bx">Zuständigkeit wechselt; die bisherige Beraterin wird für die Klient:in unsichtbar.</div>
+            </div>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-no">7</div>
+        <div class="step-body">
+          <div class="step-head"><span class="step-title">Matrix-Raum beitreten</span><span class="who">Matrix</span></div>
+          <div class="step-text">Die Übernehmende wird sichtbares Mitglied. Die Vorgängerin <em>bleibt</em> Mitglied — sonst wäre die verschlüsselte Historie verloren (ADR-002).</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-no">8</div>
+        <div class="step-body">
+          <div class="step-head"><span class="step-title">Audit-Log</span><span class="who">Audit</span></div>
+          <div class="step-text">Jede Anfrage wird protokolliert, für Admins einsehbar, Aufbewahrung 364 Tage.</div>
+          <span class="ep">GET /users/case-handover/logs</span>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section id="k3">
+    <div class="ch"><span class="chapter-no">3</span><h2>Rollen &amp; Sichtbarkeit</h2></div>
+    <div class="prose">
+      <p>Der Kern von ADR-002: <strong>Mitgliedschaft ist nicht Sichtbarkeit.</strong> Technisch sind alle Berater:innen einer Beratungsstelle stille Mitglieder des Raums (damit Schlüssel und Historie da sind); sichtbar und handlungsfähig ist nur, wer freigegeben wurde. Die Klient:in sieht ausschließlich die aktive Beraterin.</p>
+    </div>
+    <div class="table-scroll matrix">
+      <table>
+        <thead><tr><th>Rolle</th><th>Fall sehen</th><th>Schreiben</th><th>Übergabe anfragen</th><th>Entscheiden</th><th>Log einsehen</th></tr></thead>
+        <tbody>
+          <tr><td>Klient:in</td><td><span class="cell y">ja</span></td><td><span class="cell y">ja</span></td><td><span class="cell n">—</span></td><td><span class="cell y">ja<small>Zustimmung</small></span></td><td><span class="cell n">—</span></td></tr>
+          <tr><td>Aktive Beraterin</td><td><span class="cell y">ja</span></td><td><span class="cell y">ja</span></td><td><span class="cell n">—</span></td><td><span class="cell n">— <small>kein Push</small></span></td><td><span class="cell n">—</span></td></tr>
+          <tr><td>Kollegin, gleiche Beratungsstelle</td><td><span class="cell p">nach Freigabe</span></td><td><span class="cell p">bei Übernahme</span></td><td><span class="cell y">ja</span></td><td><span class="cell n">—</span></td><td><span class="cell n">—</span></td></tr>
+          <tr><td>Stilles Mitglied (nicht freigegeben)</td><td><span class="cell n">pseudonym</span></td><td><span class="cell n">—</span></td><td><span class="cell y">ja</span></td><td><span class="cell n">—</span></td><td><span class="cell n">—</span></td></tr>
+          <tr><td>Beratungsstellen-Admin</td><td><span class="cell n">—</span></td><td><span class="cell n">—</span></td><td><span class="cell n">—</span></td><td><span class="cell n">—</span></td><td><span class="cell p">eigene Stellen</span></td></tr>
+          <tr><td>Träger-/Plattform-Admin</td><td><span class="cell n">—</span></td><td><span class="cell n">—</span></td><td><span class="cell n">—</span></td><td><span class="cell p">Policies pflegen</span></td><td><span class="cell y">ja</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Zwei Ausprägungen der Freigabe</h3>
+    <div class="compare">
+      <div class="ccard a">
+        <h3>Co-Access — mitlesen</h3>
+        <dl class="kv">
+          <dt>Dauer</dt><dd>befristet, endet automatisch</dd>
+          <dt>Zuständig</dt><dd>bleibt die bisherige Beraterin</dd>
+          <dt>Klient:in sieht</dt><dd>weiterhin nur die bisherige Beraterin</dd>
+          <dt>Mechanik</dt><dd>dieselbe wie Supervision (ADR-008)</dd>
+          <dt>Typisch</dt><dd>„Ich brauche Rat"</dd>
+        </dl>
+      </div>
+      <div class="ccard b">
+        <h3>Übernahme — Fall wechselt</h3>
+        <dl class="kv">
+          <dt>Dauer</dt><dd>unbefristet</dd>
+          <dt>Zuständig</dt><dd>wechselt zur Übernehmenden</dd>
+          <dt>Klient:in sieht</dt><dd>nur noch die Übernehmende</dd>
+          <dt>Rückholbar</dt><dd>ja — außer beim Grund „hat die Stelle verlassen"</dd>
+          <dt>Typisch</dt><dd>Abwesenheit, Weggang</dd>
+        </dl>
+      </div>
+    </div>
+    <div class="prose"><p>Technisch steckt beides in <em>einem</em> Feld: eine endliche maximale Zugriffsdauer bedeutet Co-Access, keine Grenze bedeutet Übernahme.</p></div>
+  </section>
+
+  <section id="k4">
+    <div class="ch"><span class="chapter-no">4</span><h2>Regeln &amp; Gründe</h2></div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Grund (Code)</th><th>Bedeutung</th><th>Zustimmung Klient:in</th><th>Ergebnis</th><th>Stand</th></tr></thead>
+        <tbody>
+          <tr><td><code>COUNSELLOR_ASKED_FOR_ADVICE</code></td><td>Beraterin bittet Kollegin um Rat</td><td><span class="cell y">erforderlich</span></td><td>Co-Access</td><td><span class="tag ok">aktiv</span></td></tr>
+          <tr><td><code>COUNSELLOR_ON_HOLIDAY</code></td><td>Urlaub</td><td><span class="cell p">per Policy</span></td><td>Übernahme, rückholbar</td><td><span class="tag ok">aktiv</span></td></tr>
+          <tr><td><code>COUNSELLOR_IS_ILL</code></td><td>Krankheit</td><td><span class="cell p">per Policy</span></td><td>Übernahme, rückholbar</td><td><span class="tag crit">fachlich zu ändern</span></td></tr>
+          <tr><td><code>COUNSELLOR_LEFT</code></td><td>Hat die Beratungsstelle verlassen</td><td><span class="cell p">per Policy</span></td><td>Übernahme, <strong>nicht</strong> rückholbar</td><td><span class="tag ok">aktiv</span></td></tr>
+          <tr><td><code>OTHER_EMERGENCY</code></td><td>Sonstiger Notfall</td><td><span class="cell p">per Policy</span></td><td>Übernahme</td><td><span class="tag warn">nicht mehr konfigurierbar</span></td></tr>
+          <tr><td><code>LEGAL_VIOLATION</code></td><td>Rechtsverstoß</td><td><span class="cell n">—</span></td><td>—</td><td><span class="tag">nur UI-Platzhalter</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Fachliche Vorgabe (05.09.):</b> Gründe dürfen keinen Gesundheitsbezug haben. „Krankheit" wird zu <em>ungeplant abwesend</em>, „Urlaub" zu <em>geplant abwesend</em> — im Backend-Enum und in der Datenbank, nicht nur in der Anzeige. Analyse und Ticket-Zuordnung folgen in Kapitel 7.</div>
+    <div class="prose">
+      <h3>Verbindliche Regeln</h3>
+      <ul>
+        <li><strong>Zustimmungs-Untergrenze:</strong> Standard ist stillschweigende Zustimmung; widerspricht die Klient:in (Opt-out), wird aktive Zustimmung Pflicht. Pro Grund darf die Policy nur <em>strenger</em> sein, nie lockerer.</li>
+        <li><strong>Grund-Offenlegung</strong> gegenüber der Klient:in ist ein eigener Schalter je Träger.</li>
+        <li><strong>Geltungsbereich:</strong> nur Einzelberatung (1:1, nearby, proximity). Live-Chat, interne Chats und Team-Sitzungen sind ausgeschlossen (Team-Besprechung hat ihren eigenen Nebenraum, ADR-016).</li>
+        <li><strong>Berechtigung:</strong> nur innerhalb derselben Beratungsstelle. Die Prüfung sitzt im UserService (<code>verifyEligibleSameAgency</code>) — die Fachbereichs-Auswahl im Frontend ist heute nur kosmetisch (Kapitel 7).</li>
+        <li><strong>Benachrichtigung:</strong> Klient:innen erhalten je Sprache (de/en/tr/uk) eine Systemnachricht mit dem Platzhalter <code>{{newAdvisor}}</code>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="k5">
+    <div class="ch"><span class="chapter-no">5</span><h2>Technik — Endpunkte, Aufrufer, Dateien</h2></div>
+    <div class="note"><b>Doku-Befund:</b> Alle sieben Endpunkte existieren nur als Spring-Annotation im Code — keiner steht in einer OpenAPI-Datei. Der Plattform-Graph hat sie aus den Controllern rekonstruiert.</div>
+    <div class="endpoints">
+      <div class="epr"><div><span class="verb">GET</span><span class="path">/users/case-handover/candidates</span></div><div class="desc">Fälle der eigenen Stellen suchen (Query, Paging, archiviert)</div><div class="caller"><span class="lbl">Aufrufer</span><code>apiGetCaseHandoverCandidates</code> · Frontend</div></div>
+      <div class="epr"><div><span class="verb">GET</span><span class="path">/users/case-handover/reasons</span></div><div class="desc">Gründe laden</div><div class="caller"><span class="lbl">Aufrufer</span><code>apiGetCaseHandoverReasons</code> · Frontend</div></div>
+      <div class="epr"><div><span class="verb post">POST</span><span class="path">/users/case-handover/batch</span></div><div class="desc">Zugang für einen oder mehrere Fälle anfragen</div><div class="caller"><span class="lbl">Aufrufer</span><code>apiRequestCaseHandoverBatchAccess</code> · Frontend</div></div>
+      <div class="epr"><div><span class="verb">GET</span><span class="path">/users/sessions/{sessionId}/case-handover</span></div><div class="desc">Status je Fall (GRANTED / PENDING / …)</div><div class="caller"><span class="lbl">Aufrufer</span><span class="tag warn">keine Kante im Graph</span></div></div>
+      <div class="epr"><div><span class="verb post">POST</span><span class="path">/users/sessions/{sessionId}/case-handover/{requestId}/client-consent</span></div><div class="desc">Klient:in stimmt zu oder lehnt ab</div><div class="caller"><span class="lbl">Aufrufer</span><span class="tag warn">keine Kante im Graph</span><span>läuft über die Chat-Systemnachricht</span></div></div>
+      <div class="epr"><div><span class="verb">GET</span><span class="path">/users/case-handover/reason-policies</span></div><div class="desc">Policies je Grund lesen und schreiben</div><div class="caller"><span class="lbl">Aufrufer</span><code>useCaseHandoverReasonPolicies*</code> · Admin</div></div>
+      <div class="epr"><div><span class="verb">GET</span><span class="path">/users/case-handover/logs</span></div><div class="desc">Audit-Log, paginiert, mandantenbezogen</div><div class="caller"><span class="lbl">Aufrufer</span><code>useCaseHandoverLogsData</code> · Admin</div></div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:30%">Datei</th><th style="width:14%">Rolle</th><th>Was der Graph dazu sagt</th></tr></thead>
+        <tbody>
+          <tr><td><code>CaseHandoverController.java</code></td><td>REST-Eingang</td><td>Sucht Kandidaten mit Query, Paging und Archiv-Schalter; fragt Zugang je Fall im Batch an und sammelt Erfolg/Fehler pro Fall.</td></tr>
+          <tr><td><code>CaseHandoverService.java</code></td><td>Regeln</td><td><em>requestAccess</em>: gewährt sofort oder setzt PENDING_CLIENT_CONSENT je nach Policy. <em>resolveClientConsent</em>: prüft, dass die Aufrufende die Klient:in des Falls ist, dann Zuständigkeit + Matrix. <em>searchCandidates</em>: eigene Stellen ohne eigene Fälle, nach Fachbereich und Archiv gefiltert.</td></tr>
+          <tr><td><code>CaseHandoverLogsService.java</code></td><td>Audit</td><td>Paginiert Logs mit Fall- und Berater-Daten; <strong>fails closed</strong> — ein Beratungsstellen-Admin ohne zugewiesene Stellen sieht nichts.</td></tr>
+          <tr><td><code>CaseHandoverRequest.java</code><br><code>CaseHandoverReasonPolicy.java</code></td><td>Datenmodell</td><td>Audit-/Policy-Datensatz je Anfrage (mandantenfähig); Benachrichtigungsvorlagen je Sprache mit <code>{{newAdvisor}}</code>.</td></tr>
+          <tr><td><code>src/api/apiCaseHandover.ts</code><br><span class="tag">Frontend</span></td><td>Aufrufer</td><td>Drei Funktionen für Suche, Gründe und Anfrage; Einstieg <code>SessionsList.tsx</code> / <code>CaseHandoverActionButton</code>.</td></tr>
+          <tr><td><code>useCaseHandoverReasonPolicies.ts</code><br><code>useCaseHandoverLogsData.ts</code><br><span class="tag">Admin</span></td><td>Verwaltung</td><td>Policies bearbeiten (Master-Schalter, Zustimmung je Grund) und Log ansehen — <code>CaseHandoverCard</code> im Berechtigungen-Karussell.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="k6">
+    <div class="ch"><span class="chapter-no">6</span><h2>Entscheidungen, die hier gelten</h2></div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:26%">ADR</th><th>Sagt für Case Handover</th><th style="width:20%">Bindet</th></tr></thead>
+        <tbody>
+          <tr><td>ADR-002<br><span style="font-weight:400;color:var(--ink-2)">Silent room membership &amp; Access-Control-Curtain</span></td><td>Mitgliedschaft ≠ Sichtbarkeit; stille Mitglieder pseudonym; Vorgängerin bleibt Mitglied (Rückholbarkeit, verschlüsselte Historie); das Rocket.Chat-Modell „einladen, dann rauswerfen" ist verworfen.</td><td>UserService · TenantService · Frontend</td></tr>
+          <tr><td>ADR-008<br><span style="font-weight:400;color:var(--ink-2)">Supervision — agency-scoped reach</span></td><td>Co-Access nutzt die Supervision-Mechanik; Reichweite bleibt auf die Beratungsstelle begrenzt.</td><td>UserService · Frontend</td></tr>
+          <tr><td>ADR-022<br><span style="font-weight:400;color:var(--ink-2)">Zwei Consent-Gates</span></td><td>Genau zwei Gates, Zustimmungsstatus als Zeiger am Fall; Re-Consent innerhalb der Beratung — die Klient:innen-Zustimmung zur Übergabe folgt diesem Modell.</td><td>UserService · Frontend</td></tr>
+          <tr><td>ADR-003<br><span style="font-weight:400;color:var(--ink-2)">Department = Beratungsstelle × Thema</span></td><td>Zielbild für den Geltungsbereich der Übergabe (Fachbereich statt ganze Stelle) — noch nicht umgesetzt, siehe Kapitel 7.</td><td>AgencyService · UserService</td></tr>
+          <tr><td>ADR-016<br><span style="font-weight:400;color:var(--ink-2)">Team-Besprechung</span></td><td>Grenzt ab: Team-Sitzungen laufen über einen eigenen Nebenraum, nicht über Handover.</td><td>Frontend</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="k7">
+    <div class="ch"><span class="chapter-no">7</span><h2>Bekannte Lücken &amp; offene Produktfragen</h2></div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th style="width:32%">Lücke</th><th>Auswirkung heute</th><th style="width:20%">Verfolgt in</th></tr></thead>
+        <tbody>
+          <tr><td>Geltungsbereich ist die ganze Beratungsstelle, nicht Fachbereich (Department)</td><td>Es gibt keine Zuordnung Berater:in ↔ Fachbereich; alle Berater:innen der Stelle werden stille Mitglieder; der Fachbereichs-Filter im Frontend ist nur kosmetisch. Unkritisch, solange eine Stelle ein Thema hat.</td><td>#199 · #202 · #203 · #205 · US#925</td></tr>
+          <tr><td>Grund-Policies sind global (kein Träger-Override)</td><td>Plattform-Standard → Träger → schreibgeschützte Weitergabe ist nicht möglich; nur Master-Schalter und Zustimmung je Grund sind editierbar.</td><td>Admin#238 (Teil), Backend offen</td></tr>
+          <tr><td>Opt-out-Schalter der Klient:in im Chat</td><td>Zustimmungs-Untergrenze ist spezifiziert, der Schalter noch nicht gebaut.</td><td>US#313</td></tr>
+          <tr><td>Anfragen ohne direkt zugewiesene Beraterin</td><td>Verschlüsselte Räume solcher Anfragen haben kein freigebbares Mitglied.</td><td>US#925</td></tr>
+          <tr><td>OpenAPI-Spezifikation fehlt für alle sieben Endpunkte</td><td>Generierte Clients und die Doku kennen die Endpunkte nicht; der Graph rekonstruiert sie aus dem Code.</td><td>neu — Doku-Befund 04.09.</td></tr>
+          <tr><td>Status- und Consent-Endpunkt ohne nachverfolgten Aufrufer</td><td>Die Zustimmung läuft über die Chat-Systemnachricht; der Pfad ist im Graph noch nicht als Kante sichtbar.</td><td>Graph v2 (Aufrufer-Scan)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Offene Produktfragen (Frank, 05.09.) — Code-Analyse</h3>
+    <div class="branch" style="grid-template-columns:minmax(0,1fr)">
+      <div class="bcard warn">
+        <div class="bt"><span class="tag warn">Aufwand L</span> Push-Übergabe</div>
+        <div class="bx"><strong>Heute:</strong> nur Pull. Ein halber Push existiert als Caritas-Erbe: die Chat-Nachricht <code>REASSIGN_CONSULTANT</code>, die die <em>Klient:in</em> bestätigt — ohne Backend-Zustand, nur eine Mail. Die E-Mail-Texte „Eine Beratung soll an dich übergeben werden" sind fertig, aber nicht verdrahtet.</div>
+        <div class="bx"><strong>Tickets:</strong> FE#1262 (in Arbeit, Riccardo) ist das Push-Ticket, deckt aber nur „Rat einholen" (Co-Access), nicht die Urlaubsübergabe. FE#475 fordert das Zustandsmodell. US#200 liefert Co-Access/Übernahme, blockiert auf PR US#1034.</div>
+        <div class="bx"><strong>Nötig:</strong> Zielberater:in und Richtung am Antrag, Status „wartet auf Annahme der Kollegin", drei Endpunkte (anbieten, annehmen, ablehnen), Benachrichtigung, Frontend-Dialog mit Kolleg:innen-Auswahl, Admin-Policy „Kollegin muss annehmen". <strong>Kein drittes Consent-Gate</strong> (ADR-022) — die Zustimmung der Klient:in läuft weiter über die Grund-Policy. Der alte Chat-Pfad muss abgelöst werden, sonst zwei Übergabewege mit verschiedenem Consent.</div>
+      </div>
+      <div class="bcard crit">
+        <div class="bt"><span class="tag crit">Aufwand M · vor Go-Live</span> Gründe ohne Gesundheitsbezug</div>
+        <div class="bx"><strong>Befund:</strong> Es gibt kein Java-Enum — die Gründe sind Strings an drei Orten: DB-Seed (Changesets 0057/0059), Java-Fallback im Service, Admin-Übersetzungen. Schärfster Punkt: die Systemnachricht an die Klient:in lautet „Deine bisherige Berater:in ist leider erkrankt" (de/en/tr/uk) — ein Gesundheitsdatum der Beraterin, das <strong>unwiderruflich im Matrix-Raum</strong> landet.</div>
+        <div class="bx"><strong>Persistenz:</strong> <code>reason_code</code> + <code>reason_label</code> stehen pro Vorgang in <code>case_handover_request</code>, im Audit-Log, in den Benachrichtigungs-Parametern. Kein Constraint — umbenennen bricht nichts. Auf dev/pre-dev sind Datensätze mit <code>COUNSELLOR_IS_ILL</code> anzunehmen (Tests nutzen den Code).</div>
+        <div class="bx"><strong>Empfehlung:</strong> Codes umbenennen (<code>PLANNED_ABSENCE</code>, <code>UNPLANNED_ABSENCE</code>, <code>ASSIGNMENT_ENDED</code>, <code>ADVICE_REQUESTED</code>) <em>und</em> Bestandsdaten migrieren — kein Mapping, sonst bleibt der Code im Log stehen. Gehört in FE#1187 (Job 2) und US#201; kein Ticket nennt bisher den Datenschutz-Aspekt.</div>
+      </div>
+      <div class="bcard">
+        <div class="bt"><span class="tag">Aufwand M–L · Produktentscheidung</span> Teamberatung räumen bei Annahme</div>
+        <div class="bx"><strong>Heute:</strong> Beim Annehmen bleiben alle Kolleg:innen bewusst als stille Mitglieder im Raum; nur der Service-Account fliegt raus. Das Caritas-Erbe „andere entfernen" existiert noch — aber nur bei Um-Zuweisung laufender Fälle und mit Team-Ausnahme (Team-Berater:innen werden nie entfernt). Das, woran du dich erinnerst, ist die Teambesprechung: der Nebenraum wird bei Annahme hart geschlossen (ADR-016).</div>
+        <div class="bx"><strong>Nötig:</strong> Hook nach Accept, der die Team-Ausnahme abschaltet und per Matrix kickt; neues Tenant-Flag; Reconciliation der stillen Mitgliedschaft darf die Gekickten nicht wieder hinzufügen; Supervisor:innen ausnehmen; Session-Liste anpassen.</div>
+        <div class="bx"><strong>Aber:</strong> Es widerspricht ADR-002 §1 („kein invite-then-kick") und US#200 („ohne die Vorgängerin zu entfernen") — und es bricht die Fallübergabe: ohne stille Mitgliedschaft ist jede Übernahme wieder ein später Beitritt mit Schlüssel- und Historienproblem (siehe E2EE-Decrypt-Fehler). Blocker: US#1111 / Changeset 0091 (Team-Sessions als Gruppenchat gestempelt) muss zuerst gemergt sein. Braucht eine Entscheidung, nicht nur Code.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="k8">
+    <div class="ch"><span class="chapter-no">8</span><h2>Frische &amp; Quellen</h2></div>
+    <div class="src">
+      <div><strong>Struktur:</strong> Plattform-Graph <code>ORISO-Platform</code> vom 04.09.2026 (768 Knoten; Frontend <code>c6f6e2f8</code>, Branch <code>dev</code>); Endpunkte aus Spring-Annotationen, Aufrufer aus <code>src/api</code> / Admin-Hooks (bestätigte Kanten).</div>
+      <div><strong>Tiefe:</strong> Datei- und Funktionsbeschreibungen UserService/Frontend/Admin vom 04.09.2026; Flow „Consultant Hands a Case Over".</div>
+      <div><strong>Fachlich:</strong> ADR-002 (137 Zeilen), <code>ORISO-UserService/CONTEXT.md</code>, UAT-Spezifikation „Case Handover Fallübergabe KDG-compliant", Grill-Entscheidungen 04.–06.07.2026.</div>
+      <div><strong>Erklärung:</strong> Session „Fallübernahme Feature-Funktionsweise" (02.09.2026) — „Case Handover ist Pull, nicht Push".</div>
+      <div><strong>Sicherheitsstand:</strong> Handover war durch US#905 gebrochen (403 beim erneuten Einladen) und ist seit US PR#929 (30.07.2026) repariert; Klarnamen im Matrix-Raum seit <code>ConsultantDisplayNameResolver</code> pseudonymisiert.</div>
+    </div>
+    <div class="design"><strong>Design-Notiz zur Vorlage:</strong> Kopfkarte, Kapitel-Chips, Meta-Karte und Tabellen folgen der DSFA-v2-Seite. Neu gegenüber Legal: die Schrittleiste als Ablauf (statt Diagramm-Grafik — passt sich jeder Breite an), die Rollen-Matrix, Vergleichskarten und „Frische &amp; Quellen" als Pflichtkapitel jeder Feature-Seite. Diese Struktur ist die Vorlage für Consent, Erstantwort, Einladungen, Termine, Supervision.</div>
+  </section>
+
+</main>
+
+<aside class="toc" aria-label="Inhaltsverzeichnis">
+  <div class="tl">Inhalt</div>
+  <a href="#k1">1 Kurzfassung</a>
+  <a href="#k2">2 Ablauf</a>
+  <a href="#k3">3 Rollen &amp; Sichtbarkeit</a>
+  <a href="#k4">4 Regeln &amp; Gründe</a>
+  <a href="#k5">5 Technik</a>
+  <a href="#k6">6 Entscheidungen</a>
+  <a href="#k7">7 Lücken &amp; Fragen</a>
+  <a href="#k8">8 Frische &amp; Quellen</a>
+</aside>
+</div>
+
+<footer>Understand Hub · Sektor „Verstehen — Features" · Entwurf 0.2 · nur für das ORISO-Team (Dreambau-Login) · Inhalte aus Graph, ADRs und Sessions, redaktionell zu prüfen von Frank.</footer>

@@ -13,11 +13,18 @@ export const orisoProvisioningRoles = [
 export type OrisoProvisioningRole = typeof orisoProvisioningRoles[number];
 export type OrisoProvisioningEnvironment = "pre-dev" | "dev";
 
-const orisoEnvironmentByDomain: Record<string, OrisoProvisioningEnvironment> = {
+// Which ORISO environment a mailbox domain belongs to. Being listed here does not
+// make an account provisionable — viewProject still has to resolve to "oriso",
+// which for getme.global and trail.ist means setting the account's project to
+// ORISO by hand. That keeps the decision per mailbox instead of per domain.
+// tests/oriso-domain-scope.test.ts fails if the client's copy disagrees.
+export const orisoEnvironmentByDomain: Record<string, OrisoProvisioningEnvironment> = {
   "dreambau.com": "pre-dev",
   "dreambau.de": "pre-dev",
   "oriso.org": "dev",
-  "openresilience.cc": "dev"
+  "openresilience.cc": "dev",
+  "getme.global": "dev",
+  "trail.ist": "dev"
 };
 
 export function environmentForOrisoEmail(email: string): OrisoProvisioningEnvironment | null {
@@ -169,6 +176,14 @@ const passwordAlphabets = [
   "23456789",
   "!$%*+-=?"
 ];
+
+function adviceSeekerRegistrationUsername(email: string) {
+  return email
+    .trim()
+    .toLowerCase()
+    .replace("@", "_at_")
+    .replace(/[^a-z0-9=_\-./+]/g, "_");
+}
 
 /**
  * Generates the application password stored in the provisioned Test Access
@@ -391,11 +406,15 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     return response;
   }
 
-  async function credentialToken(record: TestAccessRecord, totpSecret?: string) {
+  async function credentialToken(
+    record: TestAccessRecord,
+    totpSecret?: string,
+    username = record.username
+  ) {
     const form = new URLSearchParams({
       client_id: options.clientId,
       grant_type: "password",
-      username: record.username,
+      username,
       password: record.secret
     });
     if (totpSecret) form.set("otp", generateEnvironmentTotp(totpSecret, now()).code);
@@ -461,12 +480,45 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     throw new OrisoProvisioningError("oriso_authentication_failed");
   }
 
-  async function retryAuthenticatedToken(record: TestAccessRecord, totpSecret?: string) {
-    let probe = await credentialToken(record, totpSecret);
+  async function publicRegistrationJson(
+    path: string,
+    agencyId: number,
+    init: { method?: string; body?: string } = {},
+    beforeSend?: () => void
+  ) {
+    const method = init.method ?? "GET";
+    const csrfToken = ["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)
+      ? null
+      : randomUUID();
+    beforeSend?.();
+    return fetch(`${apiBaseUrl}${path}`, {
+      method,
+      headers: {
+        agencyId: String(agencyId),
+        "X-U25-CSRF-TOKEN": "dreambau-test-access",
+        ...(csrfToken
+          ? {
+              "X-CSRF-Token": csrfToken,
+              Cookie: `CSRF-TOKEN=${csrfToken}`
+            }
+          : {}),
+        ...(init.body ? { "Content-Type": "application/json" } : {})
+      },
+      body: init.body,
+      signal: requestSignal()
+    });
+  }
+
+  async function retryAuthenticatedToken(
+    record: TestAccessRecord,
+    totpSecret?: string,
+    username = record.username
+  ) {
+    let probe = await credentialToken(record, totpSecret, username);
     for (const delay of provisioningRetryDelaysMs) {
       if (probe.kind === "authenticated") return probe.token;
       await sleep(delay);
-      probe = await credentialToken(record, totpSecret);
+      probe = await credentialToken(record, totpSecret, username);
     }
     return probe.kind === "authenticated" ? probe.token : null;
   }
@@ -539,7 +591,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         return {
           path: "/users/askers/new",
           body: {
-            username: input.record.username,
+            username: adviceSeekerRegistrationUsername(input.record.email ?? input.record.username),
             password: encodeURIComponent(input.record.secret),
             postcode: options.defaultPostcode,
             agencyId: options.defaultAgencyId,
@@ -706,10 +758,15 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       let created = false;
       if (!userToken) {
         const request = creationRequest(input);
-        const createResponse = await authorizedJson(request.path, {
-          method: "POST",
-          body: JSON.stringify(request.body)
-        }, () => input.onCreationAttempt?.("started"));
+        const createResponse = input.role === "advice-seeker"
+          ? await publicRegistrationJson(request.path, options.defaultAgencyId, {
+              method: "POST",
+              body: JSON.stringify(request.body)
+            }, () => input.onCreationAttempt?.("started"))
+          : await authorizedJson(request.path, {
+              method: "POST",
+              body: JSON.stringify(request.body)
+            }, () => input.onCreationAttempt?.("started"));
         if (!createResponse.ok) {
           if (createResponse.status === 409) {
             input.onCreationAttempt?.("rejected");
@@ -736,7 +793,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           if (!relationResponse.ok) throw new OrisoProvisioningError("account_create_failed");
         }
         created = true;
-        const postCreateToken = await retryAuthenticatedToken(input.record, input.record.totpSecret);
+        const postCreateUsername = input.role === "advice-seeker"
+          ? adviceSeekerRegistrationUsername(input.record.email ?? input.record.username)
+          : input.record.username;
+        const postCreateToken = await retryAuthenticatedToken(input.record, input.record.totpSecret, postCreateUsername);
         if (!postCreateToken) {
           throw new OrisoProvisioningError("account_credentials_mismatch");
         }

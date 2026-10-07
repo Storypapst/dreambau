@@ -1,0 +1,20 @@
+{
+  "//": "ORISO Understand Kit — project-scoped MCP config template for Claude Code. Copy to <repo>/.mcp.json (drop the .example suffix); it contains NO secret, only an env-var reference. Claude Code expands ${VAR} (and ${VAR:-default}) in .mcp.json url/headers/env at load time, so export ORISO_SB_MCP_AUTH in your shell profile. Alternative: mcp-add.sh registers the same servers via the CLI (user scope).",
+
+  "mcpServers": {
+    "storybook-frontend": {
+      "type": "http",
+      "url": "https://predev.oriso.org/storybook-frontend-mcp/mcp",
+      "headers": {
+        "Authorization": "Basic ${ORISO_SB_MCP_AUTH}"
+      }
+    },
+    "storybook-admin": {
+      "type": "http",
+      "url": "https://predev.oriso.org/storybook-admin-mcp/mcp",
+      "headers": {
+        "Authorization": "Basic ${ORISO_SB_MCP_AUTH}"
+      }
+    }
+  }
+}

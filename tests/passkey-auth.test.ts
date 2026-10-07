@@ -8,7 +8,11 @@ import { createApp } from "../src/server/app.js";
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
 import type { AccountRecord } from "../src/server/accounts.js";
-import type { HumanAccessProvider } from "../src/server/infisical-human-access.js";
+import {
+  createInfisicalHumanAccessProvider,
+  type HumanAccessFetch,
+  type HumanAccessProvider
+} from "../src/server/infisical-human-access.js";
 
 let passwordHash = "";
 beforeAll(async () => { passwordHash = await argon2.hash("bootstrap-password", { type: argon2.argon2id }); });
@@ -23,8 +27,9 @@ function account(email: string): AccountRecord {
   };
 }
 
-function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccessProvider) {
-  const passkeyStore = createPasskeyStore(path.join(mkdtempSync(path.join(tmpdir(), "passkey-auth-")), "auth.sqlite"));
+function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccessProvider, humanAccessTimeoutMs?: number) {
+  const sqlitePath = path.join(mkdtempSync(path.join(tmpdir(), "passkey-auth-")), "auth.sqlite");
+  const passkeyStore = createPasskeyStore(sqlitePath);
   const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso", "dreambau"], role: "admin" });
   const webauthn: WebAuthnAdapter = {
     generateRegistrationOptions: vi.fn(async () => ({ challenge: "registration-challenge", rp: { id: "dreambau.com" } })),
@@ -51,9 +56,32 @@ function setup(accounts: AccountRecord[] = [], humanAccessProvider?: HumanAccess
     passwordHash, secureCookies: false, loadAccounts: () => accounts, passkeyStore, webauthn,
     rpId: "dreambau.com", expectedOrigin: "https://dreambau.com",
     bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" },
-    humanAccessProvider
+    humanAccessProvider, humanAccessTimeoutMs
   });
-  return { app, passkeyStore, user, webauthn };
+  return { app, passkeyStore, user, webauthn, sqlitePath };
+}
+
+function infisicalProvider(mode: "project-failure" | "malformed-memberships") {
+  const fetch: HumanAccessFetch = vi.fn(async (input: string | URL) => {
+    const url = String(input);
+    if (url.endsWith("/auth/universal-auth/login")) {
+      return Response.json({ accessToken: "access-token", expiresIn: 3600, accessTokenMaxTTL: 3600, tokenType: "Bearer" });
+    }
+    if (url.endsWith("/projects/p-orimo/memberships")) {
+      return mode === "project-failure"
+        ? Response.json({ message: "upstream-secret-marker" }, { status: 503 })
+        : Response.json({ memberships: [{ user: { username: "member@dreambau.com" }, upstreamSecret: "upstream-secret-marker" }] });
+    }
+    return Response.json({ memberships: [] });
+  });
+  return createInfisicalHumanAccessProvider({
+    baseUrl: "https://secrets.dreambau.com",
+    organizationSlug: "dreambau-test-access",
+    clientId: "client-id",
+    clientSecret: "client-secret-marker",
+    projectIds: { oriso: "p-oriso", orimo: "p-orimo", dreambau: "p-dreambau" },
+    fetch
+  });
 }
 
 describe("passkey authentication", () => {
@@ -72,7 +100,7 @@ describe("passkey authentication", () => {
       response: { id: "credential-id", response: { transports: ["internal"] } }
     });
     expect(verified.status).toBe(200);
-    expect(verified.body).toEqual({ verified: true, email: user.email });
+    expect(verified.body).toEqual({ verified: true, email: user.email, passkeyId: "credential-id" });
     expect(passkeyStore.getCredential("credential-id")?.userId).toBe(user.id);
     expect((await agent.get("/testmails/api/auth/session")).body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
     await agent.post("/testmails/api/auth/logout");
@@ -122,6 +150,180 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
+  it("keeps a remembered passkey login for 30 days across an app restart", async () => {
+    const twelveHours = 12 * 60 * 60;
+    const thirtyDays = 30 * 24 * 60 * 60;
+    const { app, passkeyStore, user, webauthn, sqlitePath } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+
+    const plain = await request(app).post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    const plainVerify = await request(app).post("/testmails/api/auth/passkeys/authentication/verify")
+      .send({ flowId: plain.body.flowId, response: { id: "credential-id" } });
+    expect(plainVerify.status).toBe(200);
+    expect(plainVerify.body).toEqual({ verified: true, remember: false });
+    expect(String(plainVerify.headers["set-cookie"])).toContain(`Max-Age=${twelveHours}`);
+
+    const remembered = await request(app).post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    const rememberedVerify = await request(app).post("/testmails/api/auth/passkeys/authentication/verify")
+      .send({ flowId: remembered.body.flowId, response: { id: "credential-id" }, remember: true });
+    expect(rememberedVerify.status).toBe(200);
+    expect(rememberedVerify.body).toEqual({ verified: true, remember: true });
+    const cookieHeader = String(rememberedVerify.headers["set-cookie"]);
+    expect(cookieHeader).toContain(`Max-Age=${thirtyDays}`);
+    const cookie = cookieHeader.split(";")[0];
+
+    // A deployment replaces the process, so the store object goes with it. Closing
+    // this one and opening a second over the same file is what actually proves the
+    // session was written to SQLite; reusing the live object would pass even if
+    // sessions still lived in memory.
+    passkeyStore.close();
+    const restartedStore = createPasskeyStore(sqlitePath);
+    const restarted = createApp({
+      passwordHash, secureCookies: false, loadAccounts: () => [], passkeyStore: restartedStore, webauthn,
+      rpId: "dreambau.com", expectedOrigin: "https://dreambau.com",
+      bootstrapUser: { email: user.email, name: user.name, projects: user.projects, role: "admin" }
+    });
+    const session = await request(restarted).get("/testmails/api/auth/session").set("Cookie", cookie);
+    expect(session.body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
+    restartedStore.close();
+  });
+
+  it("stores filter presets per user and validates their shape", async () => {
+    const { app, passkeyStore, user } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const other = passkeyStore.createUser({ email: "other@dreambau.com", name: "Other", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "other-credential", userId: other.id, publicKey: new Uint8Array([9]), counter: 0, transports: ["internal"], deviceType: "singleDevice", backedUp: false });
+
+    expect((await request(app).get("/testmails/api/auth/me/preferences/filter-presets")).status).toBe(401);
+
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" } });
+
+    const empty = await agent.get("/testmails/api/auth/me/preferences/filter-presets");
+    expect(empty.status).toBe(200);
+    expect(empty.headers["cache-control"]).toBe("no-store");
+    expect(empty.body).toEqual({ key: "filter-presets", value: null });
+
+    const presets = [{ id: "p1", name: "ORISO active", filters: { query: "", domain: "oriso.org", status: "active", quality: "all", project: "all", versionAfter: "", roles: ["consultant"], topics: [], conversations: [] } }];
+    const saved = await agent.put("/testmails/api/auth/me/preferences/filter-presets").send({ value: presets });
+    expect(saved.status).toBe(200);
+    expect(saved.body.value).toEqual(presets);
+    expect((await agent.get("/testmails/api/auth/me/preferences/filter-presets")).body.value).toEqual(presets);
+
+    // Missing fields are filled with defaults; wrong shapes are refused.
+    const partial = await agent.put("/testmails/api/auth/me/preferences/filter-presets").send({ value: [{ id: "p2", name: " Short ", filters: { query: "lisa" } }] });
+    expect(partial.status).toBe(200);
+    expect(partial.body.value[0]).toEqual({ id: "p2", name: "Short", filters: { query: "lisa", domain: "all", status: "all", quality: "all", project: "all", versionAfter: "", roles: [], topics: [], conversations: [] } });
+    expect((await agent.put("/testmails/api/auth/me/preferences/filter-presets").send({ value: { not: "a list" } })).status).toBe(400);
+    expect((await agent.put("/testmails/api/auth/me/preferences/filter-presets").send({ value: [{ id: "p3", name: "", filters: {} }] })).status).toBe(400);
+    expect((await agent.put("/testmails/api/auth/me/preferences/unknown-key").send({ value: [] })).status).toBe(404);
+
+    // Another user sees only their own presets.
+    const otherAgent = request.agent(app);
+    const otherOptions = await otherAgent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: other.email });
+    await otherAgent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: otherOptions.body.flowId, response: { id: "other-credential" } });
+    expect((await otherAgent.get("/testmails/api/auth/me/preferences/filter-presets")).body.value).toBeNull();
+
+    expect((await agent.delete("/testmails/api/auth/me/preferences/filter-presets")).body).toEqual({ key: "filter-presets", value: null });
+    expect((await agent.get("/testmails/api/auth/me/preferences/filter-presets")).body.value).toBeNull();
+    passkeyStore.close();
+  });
+
+  it("lets a passkey session add, list, rename and delete passkeys but never the last one", async () => {
+    const { app, passkeyStore, user, webauthn } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["hybrid"], deviceType: "multiDevice", backedUp: true, name: "Pixel (Google)" });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    expect(options.body.options.hints).toEqual(["client-device", "hybrid"]);
+    const login = await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" }, remember: true });
+    const rememberedCookie = String(login.headers["set-cookie"]).split(";")[0];
+
+    const listed = await agent.get("/testmails/api/auth/passkeys");
+    expect(listed.status).toBe(200);
+    expect(listed.headers["cache-control"]).toBe("no-store");
+    expect(listed.body.passkeys).toHaveLength(1);
+    expect(listed.body.passkeys[0]).toMatchObject({ id: "credential-id", name: "Pixel (Google)", transports: ["hybrid"], deviceType: "multiDevice", backedUp: true });
+    expect(listed.body.passkeys[0]).not.toHaveProperty("publicKey");
+
+    // The last passkey stays: deleting it would strand the account.
+    expect((await agent.delete("/testmails/api/auth/passkeys/credential-id")).status).toBe(409);
+
+    // Adding a second passkey from a live passkey session keeps that session.
+    vi.mocked(webauthn.verifyRegistrationResponse).mockResolvedValueOnce({
+      verified: true,
+      registrationInfo: { credential: { id: "mac-credential", publicKey: new Uint8Array([4, 5, 6]), counter: 0, transports: ["internal"] }, credentialDeviceType: "singleDevice", credentialBackedUp: false }
+    });
+    const registration = await agent.post("/testmails/api/auth/passkeys/registration/options").send({});
+    expect(registration.status).toBe(200);
+    expect(vi.mocked(webauthn.generateRegistrationOptions).mock.calls.at(-1)?.[0]).toMatchObject({
+      authenticatorSelection: { residentKey: "required", userVerification: "required" },
+      preferredAuthenticatorType: "localDevice"
+    });
+    const added = await agent.post("/testmails/api/auth/passkeys/registration/verify").send({ flowId: registration.body.flowId, response: { id: "mac-credential" }, name: "  MacBook Safari " });
+    expect(added.status).toBe(200);
+    expect(added.body).toEqual({ verified: true, email: user.email, passkeyId: "mac-credential" });
+    expect(added.headers["set-cookie"]).toBeUndefined();
+    expect((await request(app).get("/testmails/api/auth/session").set("Cookie", rememberedCookie)).body).toEqual({ authenticated: true, method: "passkey", userId: user.id });
+
+    const renamed = await agent.patch("/testmails/api/auth/passkeys/mac-credential").send({ name: "MacBook Touch ID" });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.passkeys.map((entry: { name: string }) => entry.name)).toEqual(["Pixel (Google)", "MacBook Touch ID"]);
+    expect((await agent.patch("/testmails/api/auth/passkeys/mac-credential").send({ name: "" })).status).toBe(400);
+    expect((await agent.patch("/testmails/api/auth/passkeys/unknown").send({ name: "x" })).status).toBe(404);
+
+    const deleted = await agent.delete("/testmails/api/auth/passkeys/credential-id");
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.passkeys.map((entry: { id: string }) => entry.id)).toEqual(["mac-credential"]);
+    expect(passkeyStore.getCredential("credential-id")).toBeNull();
+    passkeyStore.close();
+  });
+
+  it("derives a passkey name from the authenticator when none is given", async () => {
+    const { app, passkeyStore, user, webauthn } = setup();
+    const agent = request.agent(app);
+    await agent.post("/testmails/api/auth/login").send({ password: "bootstrap-password" });
+    vi.mocked(webauthn.verifyRegistrationResponse).mockResolvedValueOnce({
+      verified: true,
+      registrationInfo: { credential: { id: "phone-credential", publicKey: new Uint8Array([1]), counter: 0, transports: ["hybrid"] }, credentialDeviceType: "multiDevice", credentialBackedUp: true }
+    });
+    const options = await agent.post("/testmails/api/auth/passkeys/registration/options").send({});
+    const verified = await agent.post("/testmails/api/auth/passkeys/registration/verify").send({ flowId: options.body.flowId, response: { id: "phone-credential" } });
+    expect(verified.status).toBe(200);
+    // Bootstrap sessions are upgraded to a passkey session by the first registration.
+    expect(String(verified.headers["set-cookie"])).toContain("dreambau_testmails_session=");
+    expect((await agent.get("/testmails/api/auth/passkeys")).body.passkeys[0].name).toBe("Hybrid passkey (phone)");
+    passkeyStore.close();
+  });
+
+  it("hides passkey management from recovery and anonymous sessions", async () => {
+    const { app, passkeyStore, user } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    expect((await request(app).get("/testmails/api/auth/passkeys")).status).toBe(401);
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" } });
+    const codes = await agent.post("/testmails/api/auth/recovery-codes");
+    const recovery = request.agent(app);
+    await recovery.post("/testmails/api/auth/recovery").send({ email: user.email, code: codes.body.codes[0] });
+    expect((await recovery.get("/testmails/api/auth/passkeys")).status).toBe(403);
+    expect((await recovery.delete("/testmails/api/auth/passkeys/credential-id")).status).toBe(403);
+    passkeyStore.close();
+  });
+
+  it("does not remember a recovery-code login", async () => {
+    const { app, passkeyStore, user } = setup();
+    passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential-id" } });
+    const codes = await agent.post("/testmails/api/auth/recovery-codes");
+    const recovery = await request(app).post("/testmails/api/auth/recovery").send({ email: user.email, code: codes.body.codes[0], remember: true });
+    expect(recovery.status).toBe(200);
+    expect(String(recovery.headers["set-cookie"])).toContain(`Max-Age=${12 * 60 * 60}`);
+    passkeyStore.close();
+  });
+
   it("issues one-time recovery codes to a passkey session and recovery can only bootstrap a new passkey", async () => {
     const { app, passkeyStore, user } = setup();
     passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
@@ -160,7 +362,9 @@ describe("passkey authentication", () => {
     const disabled = await admin.patch(`/testmails/api/auth/users/${created.body.id}/status`).send({ status: "disabled" });
     expect(disabled.status).toBe(200);
     expect(disabled.body.status).toBe("disabled");
-    expect((await admin.get("/testmails/api/auth/users")).body).toHaveLength(2);
+    const listed = await admin.get("/testmails/api/auth/users");
+    expect(listed.body.users).toHaveLength(2);
+    expect(listed.body.sourceStatus).toEqual({ infisical: "available" });
     expect((await employee.get("/testmails/api/accounts")).status).toBe(403);
     passkeyStore.close();
   });
@@ -204,7 +408,8 @@ describe("passkey authentication", () => {
     // removes Infisical-derived access and never touches a local grant. This
     // previously returned ["orimo"], silently discarding what an administrator
     // had granted — the defect behind the "0 of 0 accounts" report.
-    expect(listed.body.find((entry: { email: string }) => entry.email === member.email).projects).toEqual(["orimo", "oriso"]);
+    expect(listed.body.users.find((entry: { email: string }) => entry.email === member.email).projects).toEqual(["orimo", "oriso"]);
+    expect(listed.body.sourceStatus).toEqual({ infisical: "available" });
 
     const agent = request.agent(app);
     const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
@@ -233,6 +438,218 @@ describe("passkey authentication", () => {
     await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
     expect((await agent.get("/testmails/api/accounts")).status).toBe(503);
     passkeyStore.close();
+  });
+
+  it("aborts a timed-out human access lookup and releases the synchronization queue", async () => {
+    let calls = 0;
+    let aborted = false;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn((_email, options) => {
+        calls += 1;
+        if (calls > 1) return Promise.resolve([]);
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () => {
+            aborted = true;
+            reject(new DOMException("Aborted", "AbortError"));
+          }, { once: true });
+        });
+      })
+    };
+    const { app, passkeyStore } = setup([], humanAccessProvider, 100);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const employee = request.agent(app);
+    const options = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+
+    const timedOut = await employee.get("/testmails/api/auth/me");
+    const retried = await employee.get("/testmails/api/auth/me");
+
+    expect(timedOut.status).toBe(503);
+    expect(timedOut.body).toEqual({ error: "human_access_unavailable" });
+    expect(aborted).toBe(true);
+    expect(retried.status).toBe(200);
+    expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(2);
+    passkeyStore.close();
+  });
+
+  it("serves the local employee snapshot when the list expires while waiting in the queue", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let rejectHeldLookup!: (error: Error) => void;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(() => new Promise((_resolve, reject) => { rejectHeldLookup = reject; }))
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider, 1_000);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const admin = request.agent(app);
+    const adminOptions = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: adminOptions.body.flowId, response: { id: "admin-credential" } });
+    const employee = request.agent(app);
+    const employeeOptions = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: employeeOptions.body.flowId, response: { id: "member-credential" } });
+    const listUsers = vi.spyOn(passkeyStore, "listUsers");
+    let now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+
+    try {
+      const held = employee.get("/testmails/api/auth/me").then((response) => response);
+      await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledOnce());
+      const queuedList = admin.get("/testmails/api/auth/users").then((response) => response);
+      await vi.waitFor(() => expect(listUsers).toHaveBeenCalledOnce());
+
+      now += 1_000;
+      rejectHeldLookup(new Error("offline"));
+      const [heldResponse, listResponse] = await Promise.all([held, queuedList]);
+
+      expect(heldResponse.status).toBe(503);
+      expect(listResponse.status).toBe(200);
+      expect(listResponse.headers["cache-control"]).toBe("no-store");
+      expect(listResponse.body.sourceStatus.infisical).toBe("degraded");
+      expect(listResponse.body.sourceStatus.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(listResponse.body.users.find((entry: { email: string }) => entry.email === member.email)).toMatchObject({
+        projects: ["oriso"],
+        accessSources: ["local"]
+      });
+      expect(humanAccessProvider.projectsFor).toHaveBeenCalledOnce();
+    } finally {
+      clock.mockRestore();
+      listUsers.mockRestore();
+      warning.mockRestore();
+      passkeyStore.close();
+    }
+  });
+
+  it("keeps the employee list fail-closed for anonymous and non-admin passkey sessions", async () => {
+    const { app, passkeyStore } = setup();
+    expect((await request(app).get("/testmails/api/auth/users")).status).toBe(401);
+
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    const agent = request.agent(app);
+    const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+    await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "member-credential" } });
+
+    const forbidden = await agent.get("/testmails/api/auth/users");
+    expect(forbidden.status).toBe(403);
+    expect(forbidden.body).toEqual({ error: "admin_required" });
+    passkeyStore.close();
+  });
+
+  for (const mode of ["project-failure", "malformed-memberships"] as const) {
+    it(`serves locally stored employees with degraded source status after ${mode}`, async () => {
+      const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const { app, passkeyStore, user } = setup([], infisicalProvider(mode));
+      const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+      passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+      try {
+        const admin = request.agent(app);
+        const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+        await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+
+        const listed = await admin.get("/testmails/api/auth/users");
+
+        expect(listed.status).toBe(200);
+        expect(listed.body.sourceStatus.infisical).toBe("degraded");
+        expect(listed.body.sourceStatus.correlationId).toMatch(/^[0-9a-f-]{36}$/);
+        expect(listed.body.users.find((entry: { email: string }) => entry.email === member.email)).toMatchObject({
+          projects: ["oriso"],
+          accessSources: ["local"]
+        });
+        const logged = JSON.stringify(warning.mock.calls);
+        expect(logged).toContain(listed.body.sourceStatus.correlationId);
+        expect(logged).toContain("human access synchronization failed");
+        expect(logged).not.toContain("member@dreambau.com");
+        expect(logged).not.toContain("upstream-secret-marker");
+        expect(logged).not.toContain("client-secret-marker");
+      } finally {
+        warning.mockRestore();
+        passkeyStore.close();
+      }
+    });
+  }
+
+  it("rolls back every Infisical grant when one employee synchronization fails", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(async (email) => {
+        if (email === "alpha@dreambau.com") return ["orimo"];
+        throw new Error("offline");
+      })
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider);
+    const alpha = passkeyStore.createUser({ email: "alpha@dreambau.com", name: "Alpha", projects: ["oriso"], role: "member" });
+    passkeyStore.createUser({ email: "zeta@dreambau.com", name: "Zeta", projects: ["dreambau"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    try {
+      const admin = request.agent(app);
+      const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+      await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+
+      const listed = await admin.get("/testmails/api/auth/users");
+
+      expect(listed.status).toBe(200);
+      expect(listed.body.sourceStatus.infisical).toBe("degraded");
+      expect(listed.body.users.find((entry: { email: string }) => entry.email === alpha.email)).toMatchObject({
+        projects: ["oriso"],
+        accessSources: ["local"]
+      });
+      expect(passkeyStore.grants.list(alpha.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
+        { project: "oriso", source: "local", status: "active" }
+      ]);
+    } finally {
+      warning.mockRestore();
+      passkeyStore.close();
+    }
+  });
+
+  it("does not let a failed employee-list sync roll back newer grants from auth/me", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let rejectFirst!: (error: Error) => void;
+    let calls = 0;
+    const humanAccessProvider: HumanAccessProvider = {
+      projectsFor: vi.fn(() => {
+        calls += 1;
+        if (calls === 1) return new Promise((_, reject) => { rejectFirst = reject; });
+        return Promise.resolve(["orimo"]);
+      })
+    };
+    const { app, passkeyStore, user } = setup([], humanAccessProvider);
+    const member = passkeyStore.createUser({ email: "member@dreambau.com", name: "Member", projects: ["oriso"], role: "member" });
+    passkeyStore.addCredential({ id: "admin-credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    passkeyStore.addCredential({ id: "member-credential", userId: member.id, publicKey: new Uint8Array([2]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+    try {
+      const admin = request.agent(app);
+      const options = await admin.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+      await admin.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "admin-credential" } });
+      const employee = request.agent(app);
+      const employeeOptions = await employee.post("/testmails/api/auth/passkeys/authentication/options").send({ email: member.email });
+      await employee.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: employeeOptions.body.flowId, response: { id: "member-credential" } });
+
+      const employeeListRequest = admin.get("/testmails/api/auth/users").then((response) => response);
+      await vi.waitFor(() => expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1));
+      let currentUserSettled = false;
+      const currentUserRequest = employee.get("/testmails/api/auth/me")
+        .then((response) => response)
+        .finally(() => { currentUserSettled = true; });
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(humanAccessProvider.projectsFor).toHaveBeenCalledTimes(1);
+      expect(currentUserSettled).toBe(false);
+      rejectFirst(new Error("offline"));
+      const [employeeList, currentUser] = await Promise.all([employeeListRequest, currentUserRequest]);
+
+      expect(employeeList.body.sourceStatus.infisical).toBe("degraded");
+      expect(currentUser.status).toBe(200);
+      expect(currentUser.body.projects).toEqual(["orimo", "oriso"]);
+      expect(passkeyStore.grants.list(member.id).map(({ project, source, status }) => ({ project, source, status }))).toEqual([
+        { project: "orimo", source: "infisical", status: "active" },
+        { project: "oriso", source: "local", status: "active" }
+      ]);
+    } finally {
+      warning.mockRestore();
+      passkeyStore.close();
+    }
   });
 
   it("keeps the local grant when no Infisical access group remains", async () => {

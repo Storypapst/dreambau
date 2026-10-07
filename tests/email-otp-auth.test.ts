@@ -141,3 +141,39 @@ describe("email OTP authentication", () => {
     passkeyStore.close();
   });
 });
+
+describe("email OTP sessions cannot enrol a passkey", () => {
+  // A passkey session is the only thing requireStrongSession accepts, and
+  // enrolling mints one. If the weak read-only factor could enrol, its holder
+  // could promote itself to the strong tier at will.
+  async function emailOtpAgent() {
+    const { app, member, sent } = setup();
+    await request(app).post("/testmails/api/auth/email-otp/request").send({ email: member.email });
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    const agent = request.agent(app);
+    await agent.post("/testmails/api/auth/email-otp/verify").send({ email: member.email, code: sent[0].code });
+    return { agent, member };
+  }
+
+  it("refuses registration options and keeps the session weak", async () => {
+    const { agent, member } = await emailOtpAgent();
+    const options = await agent
+      .post("/testmails/api/auth/passkeys/registration/options")
+      .send({ email: member.email });
+
+    expect(options.status).toBe(403);
+    expect(options.body).toEqual({ error: "enrolment_not_allowed" });
+    expect((await agent.get("/testmails/api/auth/session")).body.method).toBe("email-otp");
+  });
+
+  it("refuses registration verification", async () => {
+    const { agent } = await emailOtpAgent();
+    const verify = await agent
+      .post("/testmails/api/auth/passkeys/registration/verify")
+      .send({ flowId: "any-flow", response: { id: "credential-id" } });
+
+    expect(verify.status).toBe(403);
+    expect(verify.body).toEqual({ error: "enrolment_not_allowed" });
+    expect((await agent.get("/testmails/api/auth/session")).body.method).toBe("email-otp");
+  });
+});

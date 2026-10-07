@@ -20,7 +20,7 @@ const membershipsResponseSchema = z.object({
 export type HumanAccessFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 export interface HumanAccessProvider {
-  projectsFor(email: string, options?: { force?: boolean }): Promise<HumanProject[]>;
+  projectsFor(email: string, options?: { force?: boolean; signal?: AbortSignal }): Promise<HumanProject[]>;
 }
 
 interface InfisicalHumanAccessOptions {
@@ -51,12 +51,19 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
   const cacheTtlMs = options.cacheTtlMs ?? 60_000;
   let cachedToken: { value: string; expiresAt: number } | null = null;
   let cachedProjects: { value: Map<string, HumanProject[]>; expiresAt: number } | null = null;
-  let pendingProjects: Promise<Map<string, HumanProject[]>> | null = null;
+  type PendingProjects = {
+    promise: Promise<Map<string, HumanProject[]>>;
+    controller: AbortController;
+    activeCallers: number;
+    settled: boolean;
+  };
+  let pendingProjects: PendingProjects | null = null;
 
-  async function accessToken() {
+  async function accessToken(signal?: AbortSignal) {
     if (cachedToken && cachedToken.expiresAt > now() + 30_000) return cachedToken.value;
     const response = await fetch(`${baseUrl}/api/v1/auth/universal-auth/login`, {
       method: "POST",
+      signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: options.clientId,
@@ -72,11 +79,12 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
     return cachedToken.value;
   }
 
-  async function loadProjects() {
-    const token = await accessToken();
+  async function loadProjects(signal?: AbortSignal) {
+    const token = await accessToken(signal);
     const memberships = await Promise.all((Object.entries(options.projectIds) as Array<[HumanProject, string]>).map(async ([project, projectId]) => {
       const response = await fetch(`${baseUrl}/api/v1/projects/${encodeURIComponent(projectId)}/memberships`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        signal
       });
       if (!response.ok) throw new Error("Infisical human access lookup failed");
       try { return { project, memberships: membershipsResponseSchema.parse(await response.json()).memberships }; }
@@ -94,14 +102,65 @@ export function createInfisicalHumanAccessProvider(options: InfisicalHumanAccess
         result.set(email, projects);
       }
     }
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     cachedProjects = { value: result, expiresAt: now() + cacheTtlMs };
     return result;
   }
 
-  async function projects(optionsForRead?: { force?: boolean }) {
+  function createPendingProjects() {
+    const controller = new AbortController();
+    const promise = loadProjects(controller.signal);
+    const pending: PendingProjects = {
+      controller,
+      activeCallers: 0,
+      settled: false,
+      promise
+    };
+    pending.promise.then(
+      () => {
+        pending.settled = true;
+        if (pendingProjects === pending) pendingProjects = null;
+      },
+      () => {
+        pending.settled = true;
+        if (pendingProjects === pending) pendingProjects = null;
+      }
+    );
+    return pending;
+  }
+
+  function joinPendingProjects(pending: PendingProjects, signal?: AbortSignal) {
+    if (signal?.aborted) return Promise.reject<Map<string, HumanProject[]>>(new DOMException("Aborted", "AbortError"));
+    pending.activeCallers += 1;
+    return new Promise<Map<string, HumanProject[]>>((resolve, reject) => {
+      let callerSettled = false;
+      const finishCaller = () => {
+        if (callerSettled) return false;
+        callerSettled = true;
+        signal?.removeEventListener("abort", abortCaller);
+        pending.activeCallers -= 1;
+        if (pending.activeCallers === 0 && !pending.settled) {
+          if (pendingProjects === pending) pendingProjects = null;
+          pending.controller.abort();
+        }
+        return true;
+      };
+      const abortCaller = () => {
+        if (!finishCaller()) return;
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      signal?.addEventListener("abort", abortCaller, { once: true });
+      pending.promise.then(
+        (value) => { if (finishCaller()) resolve(value); },
+        (error: unknown) => { if (finishCaller()) reject(error); }
+      );
+    });
+  }
+
+  async function projects(optionsForRead?: { force?: boolean; signal?: AbortSignal }) {
     if (!optionsForRead?.force && cachedProjects && cachedProjects.expiresAt > now()) return cachedProjects.value;
-    if (!pendingProjects) pendingProjects = loadProjects().finally(() => { pendingProjects = null; });
-    return pendingProjects;
+    if (!pendingProjects) pendingProjects = createPendingProjects();
+    return joinPendingProjects(pendingProjects, optionsForRead?.signal);
   }
 
   return {

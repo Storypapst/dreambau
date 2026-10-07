@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "benchmark": "DreamBau Landing Demo",
+  "measured_on": "2026-10-03",
+  "note": "Measured values of the reference TEST host. Visitors use their own browsers; the page needs WebGL2 and WebAudio and degrades to a static page without WebGL2.",
+  "host": {
+    "node": "v22.22.0",
+    "playwright": "1.56.1",
+    "browser": "141.0.7390.37",
+    "platform": "linux"
+  },
+  "browser": {
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.7390.37 Safari/537.36",
+    "hardware_concurrency": 4,
+    "webgl2": true,
+    "webgl_renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "max_texture_size": 8192,
+    "ext_color_buffer_float": true,
+    "audio_context_sample_rate": 44100,
+    "offline_audio_context": "function"
+  },
+  "targets": {
+    "desktop": "1920x1080, Chrome/Edge/Firefox/Safari current",
+    "phone": "390x844 portrait, iOS Safari / Android Chrome current",
+    "aspect_ratios": [
+      "16:9",
+      "21:9",
+      "4:3",
+      "9:16"
+    ]
+  },
+  "limits": {
+    "development_time": "none",
+    "tokens_or_cost": "none",
+    "iterations": "none"
+  }
+}
