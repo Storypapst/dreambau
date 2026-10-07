@@ -642,7 +642,7 @@
           "place": "Startseite, in der Animation",
           "what": "„Jeht nich…“ ist Berlinerisch für „Geht nicht, gibt’s nicht“.",
           "where": "drei Zeilen in jeder Animation",
-          "whatFor": "Das Versprechen: Unmögliches wird gebaut.",
+          "whatFor": null,
           "btn": [
             "Animation ansehen",
             "https://dreambau.com"
@@ -753,7 +753,7 @@
           "whatFor": "Besuchern zeigen, was wir können.",
           "btn": [
             "Referenzen öffnen",
-            "https://dreambau.com"
+            "/referenzen/"
           ]
         },
         "keywords": "projekte portfolio"
@@ -771,7 +771,7 @@
           "whatFor": "Zeigen, woran wir gerade arbeiten.",
           "btn": [
             "Referenzen öffnen",
-            "https://dreambau.com"
+            "/referenzen/"
           ]
         },
         "keywords": "laufend"
@@ -825,7 +825,7 @@
           "whatFor": "Alle sagen dasselbe Wort für dasselbe Ding.",
           "btn": [
             "Alle Wörter von A bis Z",
-            null
+            "#woerter"
           ]
         },
         "keywords": "begriff bedeutung"
@@ -843,7 +843,7 @@
           "whatFor": "Das, was ein Teammitglied öffnet.",
           "btn": [
             "Teamwork öffnen",
-            "https://dreambau.com"
+            "/teamwork/"
           ]
         },
         "keywords": "anwendung starten"
@@ -861,7 +861,7 @@
           "whatFor": "Teammitglieder finden ihr Programm schnell.",
           "btn": [
             "Teamwork öffnen",
-            "https://dreambau.com"
+            "/teamwork/"
           ]
         },
         "keywords": "verzeichnis"
@@ -883,7 +883,7 @@
           "whatFor": "Die Seite ist offen, die Programme nicht.",
           "btn": [
             "Teamwork öffnen",
-            "https://dreambau.com"
+            "/teamwork/"
           ]
         },
         "keywords": "anmelden zugang"
@@ -901,7 +901,7 @@
           "whatFor": "Programme nach Zonen geordnet zeigen.",
           "btn": [
             "In Teamwork ansehen",
-            "https://dreambau.com"
+            "/teamwork/"
           ]
         },
         "keywords": "look aufbau"
@@ -919,7 +919,7 @@
           "whatFor": "Orientierung: Wohin gehört ein Programm?",
           "btn": [
             "In Teamwork ansehen",
-            "https://dreambau.com"
+            "/teamwork/"
           ]
         },
         "keywords": "farbe bereich"
@@ -937,7 +937,7 @@
           "whatFor": "Das Klickziel.",
           "btn": [
             "In Teamwork ansehen",
-            "https://dreambau.com"
+            "/teamwork/"
           ]
         },
         "keywords": "klick"
@@ -955,7 +955,7 @@
           "whatFor": "Keine toten Links; ist die Prüfung zu alt: „Status unbekannt“.",
           "btn": [
             "In Teamwork ansehen",
-            "https://dreambau.com"
+            "/teamwork/"
           ]
         },
         "keywords": "laeuft status ausgeblendet erreichbar"
@@ -973,7 +973,7 @@
           "whatFor": "Führt zur Verwaltung der Programme, mit eigenem Login.",
           "btn": [
             "In Teamwork ansehen",
-            "https://dreambau.com"
+            "/teamwork/"
           ]
         },
         "keywords": "verwaltung programme schalter link"
@@ -987,7 +987,7 @@
         "answer": {
           "place": "vor dem Veröffentlichen",
           "what": "Franks ausdrückliches Ja. Ohne Freigabe wird nichts öffentlich.",
-          "where": "Ein zusammengeführter Pull Request ist die Freigabe.",
+          "where": "Frank gibt das Veröffentlichen ausdrücklich frei.",
           "whatFor": "Die Kontrolle darüber, was öffentlich ist.",
           "btn": [
             "Zum Pull Request",
