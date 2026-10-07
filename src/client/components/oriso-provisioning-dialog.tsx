@@ -13,6 +13,7 @@ import type {
   OtpResponse
 } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -429,21 +430,23 @@ export function OrisoProvisioningDialog({
           </SelectGroup></SelectContent>
         </Select>
       </div>}
-      {staleRoleConflict && <div className="flex flex-col gap-2 rounded-lg border border-destructive/50 p-3" role="alert">
-        <p className="text-sm font-medium">
+      {staleRoleConflict && <Alert variant="destructive">
+        <AlertTitle>
           {locale === "de" ? "Veraltete Rollen im Test-Access-Record" : "Stale roles in the Test Access record"}
-        </p>
-        <p className="text-sm">
-          {locale === "de"
-            ? `Gespeichert: ${staleRoleConflict.linked.roles.map((value) => roleLabels[value as OrisoProvisioningRole]?.de ?? value).join(", ")}. Gewünscht: ${roleLabels[staleRoleConflict.requestedRole].de}.`
-            : `Stored: ${staleRoleConflict.linked.roles.map((value) => roleLabels[value as OrisoProvisioningRole]?.en ?? value).join(", ")}. Requested: ${roleLabels[staleRoleConflict.requestedRole].en}.`}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {locale === "de"
-            ? "Der Server prüft vor dem Austausch nochmals live, dass kein ORISO-Konto existiert. Passwort und TOTP bleiben unverändert."
-            : "Before replacing the roles, the server checks live again that no ORISO account exists. Password and TOTP remain unchanged."}
-        </p>
-      </div>}
+        </AlertTitle>
+        <AlertDescription className="flex flex-col gap-2">
+          <p>
+            {locale === "de"
+              ? `Gespeichert: ${staleRoleConflict.linked.roles.map((value) => roleLabels[value as OrisoProvisioningRole]?.de ?? value).join(", ")}. Gewünscht: ${roleLabels[staleRoleConflict.requestedRole].de}.`
+              : `Stored: ${staleRoleConflict.linked.roles.map((value) => roleLabels[value as OrisoProvisioningRole]?.en ?? value).join(", ")}. Requested: ${roleLabels[staleRoleConflict.requestedRole].en}.`}
+          </p>
+          <p>
+            {locale === "de"
+              ? "Der Server prüft vor dem Austausch nochmals live, dass kein ORISO-Konto existiert. Passwort und TOTP bleiben unverändert."
+              : "Before replacing the roles, the server checks live again that no ORISO account exists. Password and TOTP remain unchanged."}
+          </p>
+        </AlertDescription>
+      </Alert>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={busy}>
