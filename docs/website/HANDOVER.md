@@ -114,14 +114,12 @@ Dreambau Mockups `claude.ai/artifact/4jSEnrrdZqPhkvEsNrNd1o` · Work Mockup A/B/
 `3WLhmcntRBc6je5LfBoS8J` (älterer Spielplatz, Schwarz-Weiß, gilt nicht mehr als Richtung) · Design-System „Dreambau“
 `W6NGQi8aAYimsUnzwmKj7q` (gilt für die **Testmails-App**, nicht für die Website; nicht mischen).
 
-### 2.6 Lokaler Zustand auf Franks Mac (wichtig, bevor du etwas anfasst)
+### 2.6 Arbeitskopie vorbereiten
 
-- `~/dreambau` steht auf `feat/test-access-api-v1`, **weicht von origin ab (7 zu 3 Commits) und hat ungesicherte
-  Änderungen** (`.gitignore`, `AGENTS.md`, `index.html`, `src/client/styles.css`, ein Test). Dort nicht arbeiten, nichts
-  zurücksetzen, nichts committen.
-- Arbeite in einem neuen Worktree von `origin/main`, z. B.
-  `git -C ~/dreambau fetch --prune && git -C ~/dreambau worktree add ~/dreambau-worktrees/website origin/main -b docs/website-handover`.
-- `~/dreambau-worktrees/` enthält rund 50 ältere Worktrees (alle „prunable“). Nicht aufräumen, das entscheidet Frank.
+- Prüfe Branch und ungesicherte Änderungen, bevor du arbeitest. Verwende für Website-Arbeit einen isolierten Worktree
+  vom vorgesehenen Ausgangsbranch; fremde Änderungen bleiben erhalten.
+- Der aktuelle Zustand von Arbeitskopien und Worktrees gehört in den privaten Dreambau Core, nicht in diese öffentliche
+  Übergabe. Aufräumen entscheidet Frank.
 
 ---
 
@@ -140,7 +138,6 @@ Branches, Kommentare der letzten 72 Stunden) nachsehen, ob das Ergebnis angekomm
 | Blog-Frage und Impressum | drei Prüf-Agenten, „Antworten in Version 2“ | Kommentare am Blog- und Impressum-Ticket | mit Abschnitt 4 abgleichen; Franks Antworten vom 06.10. gehen vor | Abschnitt 4 gilt |
 | Editor | Recherche lief, Empfehlung offen | Issue „Editor“ | Empfehlung Frank vorlegen | Recherche neu, eine Seite, mit Empfehlung |
 | Hygiene: Rollback überspringt die alte `nginx.conf` | Agent baute mit Tests | Branch/PR zu `tools/start-page-publish` | prüfen, mergen nach Regel 6.4 | neu bauen; **Pflicht vor jedem weiteren Release** |
-| Server-Platte | gemessen: 93 % voll | — | — | Löschen entscheidet Frank (W10) |
 | Rahmenvertrag | privat abgelegt | — | nicht Website, nicht anfassen | — |
 | Teamwork-Bau, Mehrsprachigkeits-Bau (M1) | Planer, dann Tickets und Implementierer | Tickets „Teamwork NN“, „Multilingual M1 NN“ | Ticket 01 je fertig (PR #133, #134); restliche Tickets der Reihe nach | fehlende Tickets aus der Spec ableiten (Slices bzw. Abschnitte von `i18n.js`) |
 
@@ -274,8 +271,8 @@ Bei jedem Arbeitsbeginn und vor jedem Ende:
   einmal angefasst wird. Vorlage: `apps/teamwork/ops/nginx-teamwork.additions.conf`.
 - Nach dem Release: `check:apex` gegen die echte Seite, `/bildungshaus/` unverändert, Matrix-Discovery Byte für Byte gleich,
   `/testmails`-Login 200, geschützte API 401, fehlende Datei 404.
-- Die Server-Platte ist zu 93 % voll (Messung der letzten Session). Vor dem Release freien Platz messen; reicht er nicht:
-  Frank eine Liste mit Löschkandidaten geben, **selbst nichts löschen**.
+- Vor dem Release prüft der Operator die nötige Kapazität. Messwerte und eine gegebenenfalls nötige Liste mit
+  Löschkandidaten bleiben im privaten Dreambau Core; **selbst nichts löschen**.
 
 ---
 
@@ -355,7 +352,8 @@ Jedes Paket: Ziel · Grundlage · fertig, wenn … · wartet auf. Pakete ohne �
 - Befund „Rollback überspringt die alte `nginx.conf`“ fertig bauen, mit Test. Skripte für spätere Releases verallgemeinern.
 
 **W10 Server-Platte**
-- Belegung messen, die zehn größten Verursacher mit Zweck auflisten, Frank vorlegen. Nichts löschen.
+- Kapazität vor dem Release prüfen und nötige Maßnahmen Frank vorlegen. Die Betriebsinventur bleibt im privaten
+  Dreambau Core. Nichts löschen.
 
 **W11 Release v1**
 - Ein Release mit W1–W7 und den Routen, nach „ja, anwenden“. Abnahme nach 6.5. Danach auf echten Geräten ansehen
@@ -381,7 +379,7 @@ Jedes Paket: Ziel · Grundlage · fertig, wenn … · wartet auf. Pakete ohne �
 
 ## 9. Was du nicht tust
 
-- Nichts in `~/dreambau` (Arbeitskopie mit ungesicherten Änderungen) und nichts an alten Worktrees.
+- Keine fremden Arbeitskopien oder älteren Worktrees verändern.
 - Keine Zugangsdaten, Serverpfade, Programmlisten oder Steuernummer ins öffentliche Repo.
 - Keine Schrift, keine Wirkung am Schriftzug, keine neuen Farben, keine Werbetexte, kein „Über uns“.
 - Kein Merge nach `main` und kein Release ohne Franks Wort. Kein Löschen auf dem Server.
