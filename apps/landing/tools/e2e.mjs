@@ -31,7 +31,7 @@ async function newPage(browser, id, params = {}, opts = {}) {
   page.on('console', m => logs.push(`[${m.type()}] ${m.text()}`));
   page.on('pageerror', e => logs.push('[pageerror] ' + e.message));
   page.on('request', r => reqs.push(r.url()));
-  await page.goto(pageUrl({ anim: id, q: .5, ...extra, ...params }));
+  await page.goto(pageUrl({ anim: id, q: .5, lang: 'de', ...extra, ...params }));
   return { page, logs, reqs, ctx };
 }
 
