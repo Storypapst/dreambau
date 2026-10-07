@@ -33,6 +33,8 @@ npm run verify
 
 `check:nginx` launches and removes an isolated nginx container. It verifies the exact apex file hashes, linked styles, script MIME types, CSP, missing-file 404s and all three animation starts with Chromium. The dedicated path-filtered landing workflow runs independently of root application checks.
 
+The Linux CI font baseline excludes only `fonts-unifont`. GNU Unifont supplies hexadecimal filler glyphs for unassigned code points, so those font-provided pictures differ from the browser's missing-glyph references ([GNU Unifont source documentation](https://www.unifoundry.com/unifont/doxygen/html/unihexgen_8c.html)). This is a test-environment limit, not a product font change: the fixed 14 positive lines, three negative controls and all 3,557 code points remain strictly checked. A visitor with unusual placeholder fonts can still expose the spec's `SCR-10` limitation. The request hold-back test enforces the full second with a monotonic clock rather than assuming a requested timer duration is an elapsed duration.
+
 ## Runtime contract
 
 Classic `i18n.js`, `i18n/index.js`, then `shell.js` preserve the existing CSP. Only German and the chosen file are loaded. URL selection preserves other parameters and hashes, uses replaceState, and stores no language in cookies or local storage. Missing scripts, invalid manifests, missing visible glyphs and three-second deadlines fall back to German.

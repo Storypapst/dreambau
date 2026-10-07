@@ -48,13 +48,20 @@ export default async function ({ base, browser }) {
   // --- FIL-7: the request for the language file leaves while the answer for shell.js is held back
   await part(check, 'FIL-7', async () => {
     const t = await openPage(browser);
-    let heldAt = 0, releasedAt = 0;
+    let heldAt = 0, releasedAt = 0, heldFor = 0;
     try {
-      await t.page.route('**/shell.js', async route => { heldAt = Date.now(); await sleep(1000); releasedAt = Date.now(); await route.continue(); });
+      await t.page.route('**/shell.js', async route => {
+        heldAt = Date.now();
+        const began = performance.now();
+        do { await sleep(Math.max(1,1000-(performance.now()-began))); } while (performance.now()-began < 1000);
+        heldFor = performance.now()-began;
+        releasedAt = Date.now();
+        await route.continue();
+      });
       await t.page.goto(`${base}/?anim=4k&test=1`);
       await started(t.page);
       const de = t.seen.requests.find(r => pathOf(r.url) === PRE + 'i18n/de.js');
-      check('FIL-7: shell.js was held back for 1 s', heldAt > 0 && releasedAt - heldAt >= 1000, `${releasedAt - heldAt} ms`);
+      check('FIL-7: shell.js was held back for 1 s', heldAt > 0 && heldFor >= 1000, `${heldFor.toFixed(1)} ms (monotonic)`);
       check('FIL-7: the request for i18n/de.js leaves during that hold (the manifest starts the loading at once)', !!de && de.at < releasedAt,
         de ? `${de.at - heldAt} ms after the hold began, the hold ended after ${releasedAt - heldAt} ms` : 'no request for i18n/de.js');
       const s = await state(t.page);

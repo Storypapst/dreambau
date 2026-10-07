@@ -22,6 +22,9 @@ jobs:
           cache-dependency-path: apps/landing/package-lock.json
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # GNU Unifont draws hexadecimal labels for unassigned code points. Keep the
+      # strict missing-glyph regression calibrated against Chromium's own tofu.
+      - run: sudo apt-get purge -y fonts-unifont && fc-cache -f
       - run: npm run build
       - run: npm run check:languages -- --complete --release
       - run: npm run test:languages
