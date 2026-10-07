@@ -104,3 +104,5 @@ test('the single-file build runs boot, i18n.js, the language files, the manifest
   assert.equal(order[0], 0, 'the boot script is first: it assigns window.Dream');
   assert.ok(bodies[order[3]].includes('"dev":false') && !bodies[order[3]].includes('"o"'), 'the manifest of the single-file build is the published form');
 });
+
+test('standalone website menu points to published pages, never missing sibling routes',()=>{for(const route of ['/','/referenzen/','/teamwork/','/glossar/','/bildungshaus/'])assert.ok(single.includes('href="https://dreambau.com'+route+'"'),route);assert.doesNotMatch(single,/<a\b[^>]*href="\//);});

@@ -23,6 +23,8 @@ const read = rel => fs.readFileSync(path.join(SITE, rel), 'utf8');
 const script = js => `<script>${js.replace(/<\/script/gi, '<\\/script')}</script>`;
 const ids = IDS;
 let html = read('index.html');
+// The export has one file; website links point to the actual published pages.
+html=html.replace(/(<a\b[^>]*href=")\/([^"]*)"/g,'$1https://dreambau.com/$2"');
 const boot = '<script>window.Dream={prods:{},add:function(d){this.prods[d.id]=d}}</script>';
 const prods = ids.map(id => script(read(`p/${id}.js`))).join('\n');
 const manifest = publishedManifest(parseManifest(read('i18n/index.js')));
