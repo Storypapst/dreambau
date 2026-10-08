@@ -1,4 +1,4 @@
-/* Website navigation reuses the approved pill and list panel. It is available from the first frame. */
+/* Existing functional navigation. Menu composition is pending an owner source; see the correction spec. */
 .site-menu{position:fixed;z-index:5;top:max(12px,env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));font-size:13px}
 .site-menu summary,.site-pill{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border:1px solid rgba(var(--fg),.34);border-radius:24px;background:rgba(6,8,13,.55);color:rgba(var(--fg),.9);cursor:pointer;list-style:none;font:inherit}
 .site-menu summary::-webkit-details-marker{display:none}.site-menu summary:focus-visible{outline:3px solid #fff;outline-offset:3px}
@@ -6,4 +6,7 @@
 .site-menu nav a,.site-menu nav button,.site-menu nav .pending{display:flex;align-items:center;min-height:44px;width:100%;padding:10px 4px;border-bottom:1px solid rgba(var(--fg),.1);text-decoration:none;color:rgba(var(--fg),.9);text-align:start;font:inherit;white-space:normal}
 .site-menu nav .pending{color:rgba(var(--fg),.62);font-size:12px}.site-menu nav a:hover,.site-menu nav button:hover{color:rgb(var(--fg));background:rgba(var(--fg),.06)}
 .site-menu .menu-close{margin-top:12px}#source-entry{position:fixed;z-index:4;top:12px;left:112px;font-size:13px}#source-entry[hidden]{display:none}
-@media(max-width:600px){#source-entry{top:64px;left:12px}html.still #play{top:64px;left:auto;right:12px;transform:none;max-width:calc(100vw - 165px)}}
+@media(max-width:600px){#source-entry{top:64px;left:12px}html.still #play{top:116px;left:auto;right:12px;transform:none;max-width:calc(100vw - 24px)}}
+
+/* Selected Quelltext B entry: glyph and measurement are separate from its label. */
+#source-entry{gap:8px}#source-entry .gl{color:rgb(var(--cur,255,190,100));font:400 12px ui-monospace,monospace;letter-spacing:-.04em}#source-entry b{font:500 12px ui-monospace,monospace;color:rgb(var(--cur,255,190,100));padding-inline-start:9px;margin-inline-start:1px;border-inline-start:1px solid rgba(var(--fg),.25)}#source-entry b:empty{display:none}

@@ -4,6 +4,7 @@ import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { parseManifest, publishedManifest } from '../lib-languages.mjs';
@@ -106,3 +107,17 @@ test('the single-file build runs boot, i18n.js, the language files, the manifest
 });
 
 test('standalone website menu points to published pages, never missing sibling routes',()=>{for(const route of ['/','/referenzen/','/teamwork/','/glossar/','/bildungshaus/'])assert.ok(single.includes('href="https://dreambau.com'+route+'"'),route);assert.doesNotMatch(single,/<a\b[^>]*href="\//);});
+
+test('the public build rejects missing source locales instead of publishing an unusable viewer',()=>{
+ const fixture=fs.mkdtempSync(path.join(os.tmpdir(),'source-locale-build-')),landing=path.join(fixture,'landing'),website=path.join(fixture,'website');
+ fs.mkdirSync(landing);fs.mkdirSync(website);
+ try{
+  fs.cpSync(SITE,path.join(landing,'site'),{recursive:true});fs.cpSync(path.join(ROOT,'tools'),path.join(landing,'tools'),{recursive:true});
+  fs.cpSync(path.resolve(ROOT,'../website/dist'),path.join(website,'dist'),{recursive:true});fs.copyFileSync(path.resolve(ROOT,'../website/dist.json'),path.join(website,'dist.json'));
+  const locale=path.join(landing,'site/source-locales.js'),saved=locale+'.fixture-backup';fs.renameSync(locale,saved);
+  try{
+   const build=spawnSync(process.execPath,['tools/build-apex.mjs','--drafts','--out','dist/missing-locale'],{cwd:landing,encoding:'utf8'});
+   assert.notEqual(build.status,0,'a release without all47 source locales must fail');assert.match(build.stderr,/source-locales\.js/);
+  }finally{fs.renameSync(saved,locale);}
+ }finally{fs.rmSync(fixture,{recursive:true,force:true});}
+});

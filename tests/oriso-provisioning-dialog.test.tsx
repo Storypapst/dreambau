@@ -71,6 +71,7 @@ describe("OrisoProvisioningDialog", () => {
     document.body.append(container);
     root = createRoot(container);
     vi.mocked(api).mockReset();
+    Element.prototype.scrollIntoView = vi.fn();
   });
   afterEach(async () => {
     await act(async () => root.unmount());
@@ -131,6 +132,61 @@ describe("OrisoProvisioningDialog", () => {
     expect(api).toHaveBeenLastCalledWith(
       `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/otp?accountId=${encodeURIComponent(linkedFixture.id)}`
     );
+  });
+
+  it("requires an explicit second action before replacing stale roles", async () => {
+    const staleLinked = {
+      ...linkedFixture,
+      roles: ["platform-admin", "tenant-admin", "user-admin", "topic-admin"],
+      hasTotp: true
+    };
+    vi.mocked(api).mockResolvedValueOnce({
+      configured: true,
+      supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
+      environment: "pre-dev",
+      state: null,
+      linked: staleLinked
+    });
+    vi.mocked(api).mockRejectedValueOnce(new Error("record_role_conflict"));
+    vi.mocked(api).mockResolvedValueOnce({
+      created: false,
+      recordCreated: false,
+      recordReplaced: true,
+      state: { ...readyStateFixture(), role: "agency-admin", targetRole: "AGENCY_ADMIN" },
+      linked: { ...staleLinked, roles: ["agency-admin"] }
+    });
+
+    await openDialog();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Noch kein ORISO-Konto"));
+    const roleTrigger = document.querySelector<HTMLElement>("[aria-label=Rolle]")!;
+    await act(async () => roleTrigger.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    const agencyOption = Array.from(document.querySelectorAll<HTMLElement>("[role=option]"))
+      .find((option) => option.textContent?.includes("Beratungsstellen-Admin"));
+    await act(async () => agencyOption?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    const submit = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Konto anlegen & prüfen"));
+    await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Veraltete Rollen"));
+    expect(document.body.textContent).toContain("Plattform-Admin");
+    expect(document.body.textContent).toContain("Beratungsstellen-Admin");
+    expect(document.body.textContent).toContain("Passwort und TOTP bleiben unverändert");
+    expect(document.body.textContent).not.toContain("Details stehen im Server-Log");
+    expect(Array.from(document.querySelectorAll("button"))
+      .some((button) => button.textContent?.includes("Konto anlegen & prüfen"))).toBe(false);
+
+    const replace = Array.from(document.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("Veraltete Rollen ersetzen & Konto anlegen"));
+    await act(async () => replace?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    await vi.waitFor(() => expect(api).toHaveBeenLastCalledWith(
+      `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
+      {
+        method: "POST",
+        body: JSON.stringify({ environment: "pre-dev", role: "agency-admin", replaceStaleRole: true })
+      }
+    ));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Live geprüft"));
   });
 
   it("lets an operator verify or restore a ready linked account with its fixed role", async () => {

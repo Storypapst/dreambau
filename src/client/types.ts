@@ -38,7 +38,7 @@ export interface OrisoProvisioningView {
   linked: LinkedTestAccount | null; requiresApplicationPassword: boolean;
 }
 export interface OrisoProvisioningResult {
-  created: boolean; recordCreated: boolean; state: OrisoProvisioningStateView | null;
+  created: boolean; recordCreated: boolean; recordReplaced?: boolean; state: OrisoProvisioningStateView | null;
   provisioningRole: OrisoProvisioningRole; linked: LinkedTestAccount; requiresApplicationPassword: boolean;
 }
 export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
