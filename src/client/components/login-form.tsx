@@ -11,7 +11,7 @@ import { rememberLoginEmail, rememberedLoginEmail } from "@/login-hint";
 import { authenticateWithPasskey } from "@/passkey-client";
 import { rememberStaySignedIn, rememberedStaySignedIn } from "@/remember-me";
 
-export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onAuthenticated: () => void }) {
+export function LoginForm({ locale, onLocaleChange, onAuthenticated, context }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onAuthenticated: () => void; context?: { title: string; description: string } }) {
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState(rememberedLoginEmail);
   const [staySignedIn, setStaySignedIn] = useState(rememberedStaySignedIn);
@@ -68,9 +68,9 @@ export function LoginForm({ locale, onLocaleChange, onAuthenticated }: { locale:
   return <main className="grid min-h-screen place-items-center p-6">
     <Card className="w-full max-w-md">
       <CardHeader>
-        <div className="mb-2 flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground"><LockKeyholeIcon /></div>
-        <div className="flex items-center justify-between gap-3"><CardTitle>{locale === "de" ? "Testkonten öffnen" : "Open test accounts"}</CardTitle><Button type="button" variant="outline" size="sm" onClick={() => onLocaleChange(locale === "de" ? "en" : "de")} aria-label={t(locale, "page.language")}><LanguagesIcon />{locale === "de" ? "EN" : "DE"}</Button></div>
-        <CardDescription>{locale === "de" ? "Geschütztes Verzeichnis für Simpsons-Testidentitäten." : "Protected directory for Simpsons test identities."}</CardDescription>
+        {!context && <div className="mb-2 flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground"><LockKeyholeIcon /></div>}
+        <div className="flex items-center justify-between gap-3"><CardTitle>{context?.title ?? (locale === "de" ? "Testkonten öffnen" : "Open test accounts")}</CardTitle><Button type="button" variant="outline" size="sm" onClick={() => onLocaleChange(locale === "de" ? "en" : "de")} aria-label={t(locale, "page.language")}><LanguagesIcon />{locale === "de" ? "EN" : "DE"}</Button></div>
+        <CardDescription>{context?.description ?? (locale === "de" ? "Geschütztes Verzeichnis für Simpsons-Testidentitäten." : "Protected directory for Simpsons test identities.")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit}>

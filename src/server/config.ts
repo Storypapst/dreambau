@@ -1,3 +1,4 @@
+import path from "node:path";
 import { readFileSync } from "node:fs";
 
 function fromFileOrEnv(fileName: string, envName: string) {
@@ -7,6 +8,7 @@ function fromFileOrEnv(fileName: string, envName: string) {
 }
 
 export interface RuntimeConfig {
+  teamworkGuidesPath: string | null;
   passwordHash: string;
   sessionSecret: string;
   accountsPath: string;
@@ -160,6 +162,7 @@ export function loadConfig(): RuntimeConfig {
   if (smtp && !emailOtpHmacKey) throw new Error("TESTMAILS_EMAIL_OTP_HMAC_KEY is required when email OTP SMTP is enabled");
   if (smtp && emailOtpHmacKey.length < 32) throw new Error("TESTMAILS_EMAIL_OTP_HMAC_KEY must be at least 32 characters");
   return {
+    teamworkGuidesPath: process.env.TEAMWORK_GUIDES_PATH?.trim() || path.join(path.dirname(process.env.TESTMAILS_DATABASE_PATH ?? "/data/testmails.sqlite"), "teamwork-guides.json"),
     passwordHash: fromFileOrEnv("password-hash", "TESTMAILS_PASSWORD_HASH"),
     sessionSecret: fromFileOrEnv("session-secret", "TESTMAILS_SESSION_SECRET"),
     accountsPath: process.env.TESTMAILS_ACCOUNTS_PATH ?? "/run/secrets/testmails/accounts.json",

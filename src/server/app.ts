@@ -1,3 +1,4 @@
+import { loadProgrammeGuide } from "./teamwork-guides.js";
 import { installOrisoAdminDeletionRoutes } from "./oriso-admin-deletion-router.js";
 import cookieParser from "cookie-parser";
 import express from "express";
@@ -52,6 +53,7 @@ import {
 } from "./oriso-provisioning.js";
 
 interface AppOptions {
+  teamworkGuidesPath?: string | null;
   passwordHash?: string;
   sessionSecret?: string;
   secureCookies?: boolean;
@@ -245,6 +247,18 @@ export function createApp(options: AppOptions = {}) {
         }
       })();
     });
+  const teamworkGuidesPath = options.teamworkGuidesPath === undefined ? config.teamworkGuidesPath : options.teamworkGuidesPath;
+  // Apply no-store before authentication so rejection responses are private too.
+  api.use("/teamwork/guides", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+  api.get("/teamwork/guides/:id", requireActiveHumanSession, async (req, res) => {
+    try {
+      const guide = await loadProgrammeGuide(teamworkGuidesPath, String(req.params.id));
+      if (!guide) return res.status(404).json({ error: "guide_not_found" });
+      return res.json(guide);
+    } catch {
+      return res.status(503).json({ error: "guide_unavailable" });
+    }
+  });
   const requireAdminSession = (req: express.Request, res: express.Response, next: express.NextFunction) =>
     requireStrongSession(req, res, () => {
       const principal = res.locals.session as SessionPrincipal;

@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "guides": [
+    {
+      "id": "example",
+      "title": "Example programme",
+      "summary": "Synthetic example for configuration validation. Do not publish this fixture.",
+      "useCases": ["An example practical use."],
+      "learnMore": [{"label": "Introduction", "url": "https://example.org/introduction"}],
+      "platforms": [
+        {
+          "id": "phone",
+          "label": "Telefon",
+          "downloads": [{"label": "Official app", "url": "https://example.org/download"}],
+          "steps": [{"title": "Set up your device", "text": "Follow the official instructions."}]
+        },
+        {
+          "id": "computer",
+          "label": "Computer",
+          "downloads": [],
+          "steps": [{"title": "Open the programme", "text": "Use the address supplied by your team."}]
+        }
+      ],
+      "launchUrl": "https://example.org/"
+    }
+  ]
+}
