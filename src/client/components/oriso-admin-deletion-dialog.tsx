@@ -70,8 +70,8 @@ export function OrisoAdminDeletionDialog({ account, linked, locale, onDeleted }:
     setOpen(next);
     if (next) void check(); else { generation.current++; setPreview(null); setConfirmation(""); setError(null); }
   }}>
-    <DialogTrigger asChild><Button type="button" variant="outline" size="sm"><Trash2Icon data-icon="inline-start" />{locale === "de" ? "ORISO-Admin löschen" : "Delete ORISO admin"} ({linked.environment})</Button></DialogTrigger>
-    <DialogContent>
+    <DialogTrigger asChild><Button className="min-h-11" type="button" variant="outline" size="sm"><Trash2Icon data-icon="inline-start" />{locale === "de" ? "ORISO-Admin löschen" : "Delete ORISO admin"} ({linked.environment})</Button></DialogTrigger>
+    <DialogContent className="[&>button]:min-h-11 [&>button]:min-w-11">
       <DialogHeader><DialogTitle>{locale === "de" ? "ORISO-Admin-Konto löschen" : "Delete ORISO admin account"}</DialogTitle>
         <DialogDescription>{locale === "de" ? "Nur das gewählte ORISO-Admin-Konto wird entfernt. Das Mailpostfach und die gespeicherte Verknüpfung bleiben erhalten." : "Only the selected ORISO admin account is removed. The mailbox and stored linked record are retained."}</DialogDescription>
       </DialogHeader>
@@ -79,10 +79,10 @@ export function OrisoAdminDeletionDialog({ account, linked, locale, onDeleted }:
       {busy && <p role="status">{locale === "de" ? "Konto wird geprüft…" : "Checking account…"}</p>}
       {error && <Alert variant="destructive"><AlertTitle>{locale === "de" ? "Aktion nicht abgeschlossen" : "Action not completed"}</AlertTitle><AlertDescription>{messages[error]?.[locale] ?? (locale === "de" ? "Die Aktion ist nicht verfügbar oder fehlgeschlagen. Bitte erneut prüfen oder den ORISO-Admin verwenden." : "The action is unavailable or failed. Check again or use ORISO Admin.")}</AlertDescription></Alert>}
       {preview?.state === "absent" && <p>{locale === "de" ? "Das ORISO-Admin-Konto ist bereits nicht mehr vorhanden. Du kannst den gespeicherten Status abgleichen." : "The ORISO admin account is already absent. You can reconcile its stored status."}</p>}
-      {preview && <FieldGroup><Field><FieldLabel htmlFor={inputId}>{locale === "de" ? "Zur Bestätigung die Mailadresse eingeben" : "Enter the email address to confirm"}</FieldLabel><Input id={inputId} autoComplete="off" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={busy} /></Field></FieldGroup>}
-      <DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>{locale === "de" ? "Abbrechen" : "Cancel"}</Button>
-        {!preview && <Button type="button" disabled={busy} onClick={() => void check()}>{locale === "de" ? "Erneut prüfen" : "Check again"}</Button>}
-        {preview && <Button type="button" variant="destructive" disabled={busy || confirmation.trim().toLowerCase() !== preview.email.toLowerCase()} onClick={() => void remove()}>{preview.state === "absent" ? (locale === "de" ? "Status abgleichen" : "Reconcile status") : (locale === "de" ? "Admin-Konto endgültig löschen" : "Permanently delete admin account")}</Button>}
+      {preview && <FieldGroup><Field><FieldLabel htmlFor={inputId}>{locale === "de" ? "Zur Bestätigung die Mailadresse eingeben" : "Enter the email address to confirm"}</FieldLabel><Input className="min-h-11" id={inputId} autoComplete="off" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={busy} /></Field></FieldGroup>}
+      <DialogFooter><Button className="min-h-11" type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>{locale === "de" ? "Abbrechen" : "Cancel"}</Button>
+        {!preview && <Button className="min-h-11" type="button" disabled={busy} onClick={() => void check()}>{locale === "de" ? "Erneut prüfen" : "Check again"}</Button>}
+        {preview && <Button className="min-h-11" type="button" variant="destructive" disabled={busy || confirmation.trim().toLowerCase() !== preview.email.toLowerCase()} onClick={() => void remove()}>{preview.state === "absent" ? (locale === "de" ? "Status abgleichen" : "Reconcile status") : (locale === "de" ? "Admin-Konto endgültig löschen" : "Permanently delete admin account")}</Button>}
       </DialogFooter>
     </DialogContent>
   </Dialog>;
