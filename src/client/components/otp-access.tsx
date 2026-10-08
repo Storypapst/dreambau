@@ -1,3 +1,4 @@
+import { OrisoAdminDeletionDialog } from "./oriso-admin-deletion-dialog";
 import { useEffect, useState } from "react";
 import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -38,10 +39,11 @@ export function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null
   return ORISO_ENVIRONMENT_BY_DOMAIN[account.domain.trim().toLowerCase()] ?? null;
 }
 
-export function OtpAccess({ account, locale, compact = false, orisoProvisioningEnvironments = [], onProvisioned }: {
+export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned }: {
   account: AccountView;
   locale: Locale;
   compact?: boolean;
+  canDeleteOrisoAdmin?: boolean;
   orisoProvisioningEnvironments?: HumanEntitlements["orisoProvisioning"]["environments"];
   onProvisioned?: (email: string, linked: LinkedTestAccount) => void;
 }) {
@@ -50,6 +52,12 @@ export function OtpAccess({ account, locale, compact = false, orisoProvisioningE
   const provisioningDialog = environment && orisoProvisioningEnvironments.includes(environment) && onProvisioned
     && (!linked || (linked.project === "oriso" && linked.environment === environment))
     ? <OrisoProvisioningDialog account={account} locale={locale} hasLinkedAccess={Boolean(linked)} onProvisioned={onProvisioned} />
+    : null;
+  const deletionDialogs = canDeleteOrisoAdmin && onProvisioned
+    ? account.linkedAccess?.filter((record) => record.project === "oriso" && record.kind === "admin"
+      && (record.environment === "dev" || record.environment === "pre-dev")
+      && orisoProvisioningEnvironments.includes(record.environment))
+      .map((record) => <OrisoAdminDeletionDialog key={record.id} account={account} linked={record} locale={locale} onDeleted={onProvisioned} />)
     : null;
   const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);
   const [applicationSecret, setApplicationSecret] = useState<{ email: string; accountId: string; value: string } | null>(null);
@@ -77,6 +85,8 @@ export function OtpAccess({ account, locale, compact = false, orisoProvisioningE
     setSecretCopied(false);
     setSecretError(false);
   }, [account.email, linked?.id]);
+  if (linked?.deletionPending) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Löschung prüfen" : "Check ORISO deletion"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
+  if (linked?.deleted) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Konto gelöscht" : "ORISO account deleted"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
   if (!linked) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div>;
 
   async function requestApplicationSecret(): Promise<string | null> {
@@ -200,6 +210,7 @@ export function OtpAccess({ account, locale, compact = false, orisoProvisioningE
             onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
           />}
       {provisioningDialog}
+      {deletionDialogs}
       {displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
     </div>
     {waitingUntil && <OtpValidity expiresAt={waitingUntil} locale={locale} waiting />}

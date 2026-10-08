@@ -1,3 +1,4 @@
+import { createOrisoAdminDeletionService, type OrisoAdminDeletionService } from "./oriso-admin-deletion.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
@@ -314,6 +315,7 @@ interface ServiceOptions extends OrisoProvisioningTarget {
 }
 
 export interface OrisoProvisioningService {
+  adminDeletion?: OrisoAdminDeletionService;
   target: OrisoProvisioningTarget;
   status(recipientEmail: string): Promise<OrisoProvisioningStateView | null>;
   ensureInvite(input: {
@@ -644,6 +646,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   }
 
   return {
+    adminDeletion: createOrisoAdminDeletionService({ environment: options.environment, adminRecordId: options.adminRecordId, registryProvider: options.registryProvider, request: authorizedJson }),
     target: {
       apiBaseUrl,
       environment: options.environment,

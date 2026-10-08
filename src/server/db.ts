@@ -30,6 +30,11 @@ export interface RegistryDatabase {
   upsertMetadata(email: string, patch: MetadataPatch): AccountMetadata; bulkStatus(emails: string[], status: string): number;
   recordMachineIdentityUse(identityId: string, usedAt?: string): void;
   getMachineIdentityUsage(): Array<{ identityId: string; lastUsedAt: string }>;
+  markOrisoAdminDeletionPending(accountId: string, environment: string, email: string, actorId: string, startedAt: string): void;
+  isOrisoAdminDeletionPending(accountId: string): boolean;
+  markOrisoAdminDeleted(accountId: string, environment: string, email: string, actorId: string, deletedAt: string): void;
+  isOrisoAdminDeleted(accountId: string): boolean;
+  clearOrisoAdminDeletion(accountId: string): void;
   recordAccountAccess(event: AccountAccessEventInput): AccountAccessEvent;
   getAccountAccess(email: string, limit?: number): AccountAccessSummary;
   reconcileTestAccessLinks(accounts: string[], records: TestAccessRecord[], seenAt?: string): TestAccessLinkReconciliation;
@@ -57,6 +62,10 @@ export function createDatabase(path: string): RegistryDatabase {
     CREATE TABLE IF NOT EXISTS machine_identity_usage (
       identity_id TEXT PRIMARY KEY,
       last_used_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS oriso_admin_deletions (
+      account_id TEXT PRIMARY KEY, environment TEXT NOT NULL, email TEXT NOT NULL,
+      actor_id TEXT NOT NULL, deleted_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS account_access_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,6 +154,14 @@ export function createDatabase(path: string): RegistryDatabase {
     roles: JSON.parse(row.roles), topics: JSON.parse(row.topics), conversationTypes: JSON.parse(row.conversation_types),
     fixtureQuality: row.fixture_quality, sampleFileCount: row.sample_file_count, notes: row.notes, updatedAt: row.updated_at
   });
+  if (!(sqlite.pragma("table_info(oriso_admin_deletions)") as Array<{ name: string }>).some((column) => column.name === "state")) {
+    sqlite.exec("ALTER TABLE oriso_admin_deletions ADD COLUMN state TEXT NOT NULL DEFAULT 'deleted'");
+  }
+  const markDeletion = (accountId: string, environment: string, email: string, actorId: string, at: string, state: "pending" | "deleted") => {
+    sqlite.prepare(`INSERT INTO oriso_admin_deletions(account_id,environment,email,actor_id,deleted_at,state) VALUES(?,?,?,?,?,?)
+      ON CONFLICT(account_id) DO UPDATE SET environment=excluded.environment,email=excluded.email,actor_id=excluded.actor_id,deleted_at=excluded.deleted_at,state=excluded.state`)
+      .run(accountId, environment, email, actorId, at, state);
+  };
   const api: RegistryDatabase = {
     testRuns: new TestRunStore(sqlite),
     releaseLists: new ReleaseListStore(sqlite),
@@ -164,6 +181,11 @@ export function createDatabase(path: string): RegistryDatabase {
         ON CONFLICT(identity_id) DO UPDATE SET last_used_at=excluded.last_used_at`).run(identityId, usedAt);
     },
     getMachineIdentityUsage: () => (sqlite.prepare("SELECT identity_id,last_used_at FROM machine_identity_usage ORDER BY identity_id").all() as Array<{ identity_id: string; last_used_at: string }>).map((row) => ({ identityId: row.identity_id, lastUsedAt: row.last_used_at })),
+    markOrisoAdminDeletionPending(accountId, environment, email, actorId, startedAt) { markDeletion(accountId, environment, email, actorId, startedAt, "pending"); },
+    isOrisoAdminDeletionPending(accountId) { return Boolean(sqlite.prepare("SELECT 1 FROM oriso_admin_deletions WHERE account_id=? AND state='pending'").get(accountId)); },
+    markOrisoAdminDeleted(accountId, environment, email, actorId, deletedAt) { markDeletion(accountId, environment, email, actorId, deletedAt, "deleted"); },
+    isOrisoAdminDeleted(accountId) { return Boolean(sqlite.prepare("SELECT 1 FROM oriso_admin_deletions WHERE account_id=? AND state='deleted'").get(accountId)); },
+    clearOrisoAdminDeletion(accountId) { sqlite.prepare("DELETE FROM oriso_admin_deletions WHERE account_id=?").run(accountId); },
     recordAccountAccess(input) {
       const event = accountAccessEventInputSchema.parse({
         ...input,

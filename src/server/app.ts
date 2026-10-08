@@ -1,3 +1,4 @@
+import { installOrisoAdminDeletionRoutes } from "./oriso-admin-deletion-router.js";
 import cookieParser from "cookie-parser";
 import express from "express";
 import path from "node:path";
@@ -28,7 +29,7 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
-import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount } from "./account-link.js";
+import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount as projectLinkedAccount } from "./account-link.js";
 import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { createDeadlineQueue } from "./deadline-queue.js";
@@ -186,6 +187,21 @@ export function createApp(options: AppOptions = {}) {
   const accountLoader: () => AccountRecord[] = options.loadAccounts
     ?? (() => accountSource ? accountSource.load() : loadAccountsFile(config.accountsPath));
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
+  const publicLinkedAccount = (record: TestAccessRecord) => {
+    const linked = projectLinkedAccount(record);
+    if (!linked) return null;
+    if (database.isOrisoAdminDeleted(record.id)) return { ...linked, deleted: true, hasTotp: false };
+    if (database.isOrisoAdminDeletionPending(record.id)) return { ...linked, deletionPending: true, hasTotp: false };
+    return linked;
+  };
+  const accountMutations = new Set<string>();
+  const guardAccountMutation = (handler: express.RequestHandler): express.RequestHandler => async (req, res, next) => {
+    const key = `${String(req.body?.environment)}:${String(req.params.email).trim().toLowerCase()}`;
+    if (accountMutations.has(key)) { res.status(409).json({ error: "oriso_account_mutation_in_progress" }); return; }
+    accountMutations.add(key);
+    try { await handler(req, res, next); } finally { accountMutations.delete(key); }
+  };
+
   installPasskeyAuth(api, {
     store: passkeyStore,
     sessions,
@@ -569,6 +585,17 @@ export function createApp(options: AppOptions = {}) {
     res.status(status).json({ error: error.code });
     return true;
   };
+  installOrisoAdminDeletionRoutes(api, {
+    requireAdmin: requireAdminSession, requireProvisioning: requireOrisoProvisioningSession,
+    canUseEnvironment: (entitlements, environment) => canProvisionOriso(entitlements as HumanEntitlements, environment),
+    accounts: (user) => scopedAccountViews(user),
+    isOrisoAccount: (account) => viewProject({ ...account, metadata: database.getMetadata(account.email) }) === "oriso",
+    provider: registryProvider, writer: registryWriter, services: orisoProvisioningServices,
+    guardMutation: guardAccountMutation, projectLinked: publicLinkedAccount,
+    markPending: (record, actorId, startedAt) => database.markOrisoAdminDeletionPending(record.id, record.environment, record.email!, actorId, startedAt),
+    markDeleted: (record, actorId, deletedAt) => database.markOrisoAdminDeleted(record.id, record.environment, record.email!, actorId, deletedAt),
+    now: options.now ?? (() => new Date())
+  });
   api.get("/accounts/:email/oriso-provisioning", requireOrisoProvisioningSession, async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
@@ -598,7 +625,7 @@ export function createApp(options: AppOptions = {}) {
       reconcileRecords(records);
       const linked = orisoLinkedRecord(email, records, environment);
       const managedState = linked?.totpSecret ? readyStateForProvisionedRecord(linked) : null;
-      const state = managedState ?? await orisoProvisioning.status(email);
+      const state = linked && (database.isOrisoAdminDeleted(linked.id) || database.isOrisoAdminDeletionPending(linked.id)) ? null : managedState ?? await orisoProvisioning.status(email);
       const provisioningRole = state?.role ?? (linked ? provisioningRoleForRecord(linked) : null);
       res.json({
         configured: true,
@@ -620,7 +647,7 @@ export function createApp(options: AppOptions = {}) {
       next(error);
     }
   });
-  api.post("/accounts/:email/oriso-provisioning", requireOrisoProvisioningSession, async (req, res, next) => {
+  api.post("/accounts/:email/oriso-provisioning", requireOrisoProvisioningSession, guardAccountMutation(async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
     const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
@@ -917,6 +944,7 @@ export function createApp(options: AppOptions = {}) {
           context: { environment }
         });
       }
+      database.clearOrisoAdminDeletion(linkedRecord.id);
       const linkedView = publicLinkedAccount(linkedRecord);
       if (!linkedView) return res.status(500).json({ error: "record_projection_failed" });
       res.set("Cache-Control", "no-store");
@@ -933,7 +961,7 @@ export function createApp(options: AppOptions = {}) {
       if (orisoProvisioningHttpError(error, res)) return;
       next(error);
     }
-  });
+  }));
   api.patch("/accounts/:email", requireActiveHumanSession, async (req, res) => {
     const email = decodeURIComponent(String(req.params.email));
     const current = scopedAccountViews(res.locals.humanUser).find((account) => account.email === email);

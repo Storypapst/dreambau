@@ -17,7 +17,7 @@ export interface AccountView {
 export interface LinkedTestAccount {
   id: string; project: "oriso" | "orimo" | "dreambau"; environment: "local" | "pre-dev" | "dev" | "production-test";
   kind: "mailbox" | "app-user" | "admin" | "seed-profile"; displayName: string; username: string; email: string;
-  roles: string[]; loginUrl: string; hasTotp: boolean;
+  roles: string[]; loginUrl: string; hasTotp: boolean; deleted?: boolean; deletionPending?: boolean;
 }
 export interface AccountAccessEvent {
   id: number; accountId: string; email: string; actorId: string;
@@ -64,4 +64,10 @@ export interface TeamMembersResponse {
 }
 export interface HumanEntitlements {
   orisoProvisioning: { environments: Array<"pre-dev" | "dev"> };
+}
+
+export interface OrisoAdminDeletionPreview {
+  accountId: string; environment: "dev" | "pre-dev";
+  role: "platform-admin" | "tenant-admin" | "agency-admin";
+  email: string; username: string; productId: string | null; state: "present" | "absent";
 }
