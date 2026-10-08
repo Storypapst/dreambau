@@ -85,6 +85,7 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
     setSecretCopied(false);
     setSecretError(false);
   }, [account.email, linked?.id]);
+  if (linked?.deletionPending) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Löschung prüfen" : "Check ORISO deletion"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
   if (linked?.deleted) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Konto gelöscht" : "ORISO account deleted"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
   if (!linked) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div>;
 

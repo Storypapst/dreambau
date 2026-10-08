@@ -7,6 +7,7 @@ import { createApp } from "../src/server/app.js";
 import type { AccountRecord } from "../src/server/accounts.js";
 import { secretNameForRecord } from "../src/server/infisical-import.js";
 import { createDatabase } from "../src/server/db.js";
+import { createOrisoAdminDeletionService } from "../src/server/oriso-admin-deletion.js";
 import type { RegistryProvider, TestAccessRecord } from "../src/server/infisical-provider.js";
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
@@ -1389,7 +1390,7 @@ describe("confirmed ORISO admin deletion", () => {
     const result = await agent.post(endpoint).send({ accountId: record.id, environment, productId: preview.body.productId, confirmEmail: email, confirmed: true });
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ deleted: true, mailboxPreserved: true, linked: { id: record.id, deleted: true, hasTotp: false } });
-    expect(service.adminDeletion.remove).toHaveBeenCalledWith(expect.objectContaining({ id: record.id }), "product-id");
+    expect(service.adminDeletion.remove).toHaveBeenCalledWith(expect.objectContaining({ id: record.id }), "product-id", expect.any(Function));
     const accounts = await agent.get("/testmails/api/accounts");
     expect(accounts.body.find((row: AccountRecord) => row.email === email)).toBeTruthy();
     expect(JSON.stringify(result.body)).not.toContain(record.secret);
@@ -1464,14 +1465,113 @@ describe("confirmed ORISO admin deletion", () => {
     release();
     expect((await first).status).toBe(200);
   });
-  it("clears the persisted deletion marker only after verified recreation", async () => {
+  it.each(["pending", "deleted"] as const)("clears the persisted %s marker only after verified recreation", async (state) => {
     const service = deletionService("pre-dev");
     const { agent, lisa, database } = await setup({ records: [managedRecord({ provisioningStatus: "failed" })], service });
-    database.markOrisoAdminDeleted(managedRecord().id, "pre-dev", lisa.email, "actor", "2026-10-07");
+    if (state === "pending") database.markOrisoAdminDeletionPending(managedRecord().id, "pre-dev", lisa.email, "actor", "2026-10-07");
+    else database.markOrisoAdminDeleted(managedRecord().id, "pre-dev", lisa.email, "actor", "2026-10-07");
     const response = await agent.post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "tenant-admin" });
     expect(response.status).toBe(200);
     expect(database.isOrisoAdminDeleted(managedRecord().id)).toBe(false);
     expect(response.body.linked.deleted).toBeUndefined();
+    expect(response.body.linked.deletionPending).toBeUndefined();
+    expect(database.isOrisoAdminDeletionPending(managedRecord().id)).toBe(false);
+  });
+
+  it.each(["verification503", "deleteTransportUnknown"] as const)("retains a pending non-READY outcome after %s and reconciles verified absence", async (failure) => {
+    const record = managedRecord();
+    const records = [structuredClone(record)];
+    const product = { id: "synthetic-product", email: record.email, username: record.username, tenantId: "7", hasOtherIdentity: false };
+    let exists = true;
+    let verificationUnavailable = true;
+    let isPending: () => boolean;
+    const upstream = vi.fn(async (path: string, init?: { method?: string }) => {
+      if (init?.method === "DELETE") {
+        // The durable marker must precede the irreversible request, including
+        // an applied DELETE whose response is lost in transport.
+        expect(isPending()).toBe(true);
+        exists = false;
+        if (failure === "deleteTransportUnknown") throw new Error("synthetic response lost after DELETE");
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (!exists && verificationUnavailable) return { ok: false, status: 503, json: async () => ({}) };
+      return { ok: true, status: path.includes("/search?") || exists ? 200 : 204, json: async () => path.includes("/search?")
+        ? { total: exists ? 1 : 0, _embedded: exists ? [{ _embedded: product }] : [] }
+        : { _embedded: product } };
+    });
+    const adminDeletion = createOrisoAdminDeletionService({
+      environment: "pre-dev", adminRecordId: "synthetic-managed",
+      registryProvider: { list: async () => [], get: async () => managedRecord({ id: "synthetic-managed", email: "service@example.invalid", username: "service@example.invalid" }) },
+      request: upstream
+    });
+    const service = { ...deletionService("pre-dev"), adminDeletion };
+    const { agent, database } = await setup({ records, service });
+    isPending = () => database.isOrisoAdminDeletionPending(record.id);
+    const endpoint = `/testmails/api/accounts/${encodeURIComponent(record.email!)}`;
+    const response = await agent.post(`${endpoint}/oriso-admin-deletion`).send({ accountId: record.id, environment: "pre-dev", productId: product.id, confirmEmail: record.email, confirmed: true });
+    expect(exists).toBe(false);
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "admin_deletion_outcome_unknown" });
+    expect(database.isOrisoAdminDeletionPending(record.id)).toBe(true);
+    expect(database.isOrisoAdminDeleted(record.id)).toBe(false);
+    expect(records[0]).toEqual(record);
+    const view = await agent.get(`${endpoint}/oriso-provisioning`).query({ environment: "pre-dev" });
+    expect(view.status).toBe(200);
+    expect(view.body.state).toBeNull();
+    expect(view.body.linked).toMatchObject({ deletionPending: true, hasTotp: false });
+    expect(view.body.linked.deleted).toBeUndefined();
+    const catalogue = await agent.get("/testmails/api/accounts");
+    expect(catalogue.body.find((row: AccountRecord) => row.email === record.email).linkedAccess[0])
+      .toMatchObject({ deletionPending: true, hasTotp: false });
+    expect(JSON.stringify(response.body)).not.toContain(record.secret);
+    expect(JSON.stringify(response.body)).not.toContain(record.totpSecret!);
+    verificationUnavailable = false;
+    const reconciled = await agent.post(`${endpoint}/oriso-admin-deletion`).send({ accountId: record.id, environment: "pre-dev", productId: null, confirmEmail: record.email, confirmed: true });
+    expect(reconciled.status).toBe(200);
+    expect(reconciled.body.linked).toMatchObject({ deleted: true, hasTotp: false });
+    expect(reconciled.body.linked.deletionPending).toBeUndefined();
+    expect(database.isOrisoAdminDeletionPending(record.id)).toBe(false);
+    expect(database.isOrisoAdminDeleted(record.id)).toBe(true);
+    expect(upstream.mock.calls.filter(([, init]) => init?.method === "DELETE")).toHaveLength(1);
+    expect(records[0]).toMatchObject({ secret: record.secret, totpSecret: record.totpSecret, roles: record.roles, provisioningStatus: "failed" });
+  });
+
+  it("does not create a pending marker when a fresh shared-identity guard refuses DELETE", async () => {
+    const record = managedRecord();
+    const product = { id: "synthetic-product", email: record.email, username: record.username, tenantId: "7", hasOtherIdentity: false };
+    const upstream = vi.fn(async (path: string) => ({ ok: true, status: 200, json: async () => path.includes("/search?")
+      ? { total: 1, _embedded: [{ _embedded: product }] }
+      : { _embedded: { ...product, hasOtherIdentity: true } } }));
+    const adminDeletion = createOrisoAdminDeletionService({
+      environment: "pre-dev", adminRecordId: "synthetic-managed",
+      registryProvider: { list: async () => [], get: async () => managedRecord({ id: "synthetic-managed", email: "service@example.invalid", username: "service@example.invalid" }) },
+      request: upstream
+    });
+    const service = { ...deletionService("pre-dev"), adminDeletion };
+    const { agent, database } = await setup({ records: [record], service });
+    const result = await agent.post(`/testmails/api/accounts/${encodeURIComponent(record.email!)}/oriso-admin-deletion`)
+      .send({ accountId: record.id, environment: "pre-dev", productId: product.id, confirmEmail: record.email, confirmed: true });
+    expect(result.status).toBe(409);
+    expect(result.body).toEqual({ error: "admin_identity_changed" });
+    expect(upstream.mock.calls).toHaveLength(2);
+    expect(database.isOrisoAdminDeletionPending(record.id)).toBe(false);
+    expect(database.isOrisoAdminDeleted(record.id)).toBe(false);
+  });
+
+  it("does not clear a pending deletion marker when recreation fails", async () => {
+    const record = managedRecord();
+    const service = fakeService({ provision: vi.fn().mockRejectedValueOnce(new OrisoProvisioningError("account_create_failed")) });
+    const { agent, database } = await setup({ records: [record], service });
+    database.markOrisoAdminDeletionPending(record.id, "pre-dev", record.email!, "actor", "2026-10-08");
+    const endpoint = `/testmails/api/accounts/${encodeURIComponent(record.email!)}/oriso-provisioning`;
+    const failed = await agent.post(endpoint).send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(failed.status).toBe(502);
+    expect(failed.body).toEqual({ error: "account_create_failed" });
+    expect(database.isOrisoAdminDeletionPending(record.id)).toBe(true);
+    const view = await agent.get(endpoint).query({ environment: "pre-dev" });
+    expect(view.body.state).toBeNull();
+    expect(view.body.linked).toMatchObject({ deletionPending: true, hasTotp: false });
+    expect(view.body.linked.deleted).toBeUndefined();
   });
 
 });

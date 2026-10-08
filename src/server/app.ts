@@ -189,7 +189,10 @@ export function createApp(options: AppOptions = {}) {
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
   const publicLinkedAccount = (record: TestAccessRecord) => {
     const linked = projectLinkedAccount(record);
-    return linked && database.isOrisoAdminDeleted(record.id) ? { ...linked, deleted: true, hasTotp: false } : linked;
+    if (!linked) return null;
+    if (database.isOrisoAdminDeleted(record.id)) return { ...linked, deleted: true, hasTotp: false };
+    if (database.isOrisoAdminDeletionPending(record.id)) return { ...linked, deletionPending: true, hasTotp: false };
+    return linked;
   };
   const accountMutations = new Set<string>();
   const guardAccountMutation = (handler: express.RequestHandler): express.RequestHandler => async (req, res, next) => {
@@ -589,6 +592,7 @@ export function createApp(options: AppOptions = {}) {
     isOrisoAccount: (account) => viewProject({ ...account, metadata: database.getMetadata(account.email) }) === "oriso",
     provider: registryProvider, writer: registryWriter, services: orisoProvisioningServices,
     guardMutation: guardAccountMutation, projectLinked: publicLinkedAccount,
+    markPending: (record, actorId, startedAt) => database.markOrisoAdminDeletionPending(record.id, record.environment, record.email!, actorId, startedAt),
     markDeleted: (record, actorId, deletedAt) => database.markOrisoAdminDeleted(record.id, record.environment, record.email!, actorId, deletedAt),
     now: options.now ?? (() => new Date())
   });
@@ -621,7 +625,7 @@ export function createApp(options: AppOptions = {}) {
       reconcileRecords(records);
       const linked = orisoLinkedRecord(email, records, environment);
       const managedState = linked?.totpSecret ? readyStateForProvisionedRecord(linked) : null;
-      const state = linked && database.isOrisoAdminDeleted(linked.id) ? null : managedState ?? await orisoProvisioning.status(email);
+      const state = linked && (database.isOrisoAdminDeleted(linked.id) || database.isOrisoAdminDeletionPending(linked.id)) ? null : managedState ?? await orisoProvisioning.status(email);
       const provisioningRole = state?.role ?? (linked ? provisioningRoleForRecord(linked) : null);
       res.json({
         configured: true,

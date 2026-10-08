@@ -22,6 +22,7 @@ export function installOrisoAdminDeletionRoutes(api: Router, options: {
   services: Partial<Record<"dev" | "pre-dev", OrisoProvisioningService>>;
   guardMutation(handler: RequestHandler): RequestHandler;
   projectLinked(record: TestAccessRecord): LinkedTestAccount | null;
+  markPending(record: TestAccessRecord, actorId: string, startedAt: string): void;
   markDeleted(record: TestAccessRecord, actorId: string, deletedAt: string): void;
   now(): Date;
 }) {
@@ -43,6 +44,7 @@ export function installOrisoAdminDeletionRoutes(api: Router, options: {
     if (locks.has(lock)) { res.status(409).json({ error: "admin_deletion_in_progress" }); return; }
     if (deleting) locks.add(lock);
     let productDeleted = false;
+    let deletionPending = false;
     try {
       const record = await options.provider.get(accountId);
       if (!record || record.project !== "oriso" || record.kind !== "admin" || record.environment !== environment
@@ -52,7 +54,10 @@ export function installOrisoAdminDeletionRoutes(api: Router, options: {
       if (!deleting) { res.json(await service.preview(record)); return; }
       const body = confirmation.parse(req.body);
       if (body.confirmEmail.trim().toLowerCase() !== email) { res.status(400).json({ error: "confirmation_mismatch" }); return; }
-      await service.remove(record, body.productId);
+      await service.remove(record, body.productId, () => {
+        options.markPending(record, res.locals.humanUser.id, options.now().toISOString());
+        deletionPending = true;
+      });
       productDeleted = true;
       const deletedAt = options.now().toISOString();
       options.markDeleted(record, res.locals.humanUser.id, deletedAt);
@@ -61,6 +66,7 @@ export function installOrisoAdminDeletionRoutes(api: Router, options: {
       res.json({ deleted: true, mailboxPreserved: true, linked: options.projectLinked(updated) });
     } catch (error) {
       if (productDeleted) { res.status(502).json({ error: "admin_deleted_registry_update_failed", productDeleted: true }); return; }
+      if (deletionPending) { res.status(502).json({ error: "admin_deletion_outcome_unknown" }); return; }
       if (error instanceof OrisoAdminDeletionError) {
         const upstream = ["oriso_admin_request_failed", "admin_lookup_failed", "admin_delete_failed", "admin_delete_not_verified"].includes(error.code);
         res.status(upstream ? 502 : 409).json({ error: error.code }); return;

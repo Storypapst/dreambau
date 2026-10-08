@@ -17,7 +17,7 @@ export interface AccountView {
 export interface LinkedTestAccount {
   id: string; project: "oriso" | "orimo" | "dreambau"; environment: "local" | "pre-dev" | "dev" | "production-test";
   kind: "mailbox" | "app-user" | "admin" | "seed-profile"; displayName: string; username: string; email: string;
-  roles: string[]; loginUrl: string; hasTotp: boolean; deleted?: boolean;
+  roles: string[]; loginUrl: string; hasTotp: boolean; deleted?: boolean; deletionPending?: boolean;
 }
 export interface AccountAccessEvent {
   id: number; accountId: string; email: string; actorId: string;

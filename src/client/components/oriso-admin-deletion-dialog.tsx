@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import type { OrisoAdminDeletionPreview } from "@/types";
 
 const messages: Record<string, { de: string; en: string }> = {
+  admin_deletion_outcome_unknown: { de: "Das Ergebnis der Löschung ist noch unklar. Das Konto ist bis zur erneuten Prüfung nicht als bereit markiert.", en: "The deletion outcome is uncertain. The account is not marked ready until it is checked again." },
   managed_admin_protected: { de: "Das verwaltete Service-Admin-Konto ist geschützt.", en: "The managed service administrator is protected." },
   shared_admin_identity_protected: { de: "Dieses Konto besitzt auch eine Berater-Identität. Bitte den ORISO-Admin verwenden.", en: "This account also has a counsellor identity. Please use ORISO Admin." },
   admin_record_not_supported: { de: "Diese Rollen können hier nicht eindeutig gelöscht werden. Bitte den ORISO-Admin verwenden.", en: "These roles cannot be deleted unambiguously here. Please use ORISO Admin." },

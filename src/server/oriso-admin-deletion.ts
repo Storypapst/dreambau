@@ -16,7 +16,7 @@ export class OrisoAdminDeletionError extends Error {
 }
 export interface OrisoAdminDeletionService {
   preview(record: TestAccessRecord): Promise<OrisoAdminDeletionPreview>;
-  remove(record: TestAccessRecord, expectedProductId: string | null): Promise<void>;
+  remove(record: TestAccessRecord, expectedProductId: string | null, beforeDelete?: () => void): Promise<void>;
 }
 
 const adminSchema = z.object({
@@ -81,7 +81,7 @@ export function createOrisoAdminDeletionService(options: {
   }
   return {
     preview,
-    async remove(record, expectedProductId) {
+    async remove(record, expectedProductId, beforeDelete) {
       const current = await preview(record);
       if (current.productId !== expectedProductId) throw new OrisoAdminDeletionError("admin_identity_changed");
       if (!current.productId) return;
@@ -96,6 +96,9 @@ export function createOrisoAdminDeletionService(options: {
         || (current.role !== "agency-admin" && (admin.tenantId == null || (current.role === "platform-admin") !== (String(admin.tenantId) === "0")))) {
         throw new OrisoAdminDeletionError("admin_identity_changed");
       }
+      // Persist uncertainty before the irreversible request: a timeout or failed
+      // verification must never leave retained credentials reporting READY.
+      beforeDelete?.();
       const deleted = await request(path, "DELETE");
       if (deleted.status !== 200 && deleted.status !== 204) throw new OrisoAdminDeletionError("admin_delete_failed");
       const after = await request(path);
