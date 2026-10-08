@@ -13,6 +13,7 @@ import type {
   OtpResponse
 } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -147,6 +148,10 @@ export function OrisoProvisioningDialog({
   const [otpWaitingUntil, setOtpWaitingUntil] = useState<number | null>(null);
   const [otpError, setOtpError] = useState(false);
   const [liveVerified, setLiveVerified] = useState(false);
+  const [staleRoleConflict, setStaleRoleConflict] = useState<{
+    linked: LinkedTestAccount;
+    requestedRole: OrisoProvisioningRole;
+  } | null>(null);
   const environment = view?.environment
     ?? (account.domain === "oriso.org" || account.domain === "openresilience.cc" ? "dev" : "pre-dev");
   const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
@@ -172,6 +177,7 @@ export function OrisoProvisioningDialog({
     setOtpWaitingUntil(null);
     setOtpError(false);
     setLiveVerified(false);
+    setStaleRoleConflict(null);
     if (value) {
       setView(null);
       void load();
@@ -251,10 +257,11 @@ export function OrisoProvisioningDialog({
     }
   }
 
-  async function provision(selectedRole: OrisoProvisioningRole, existingPassword?: string) {
+  async function provision(selectedRole: OrisoProvisioningRole, existingPassword?: string, replaceStaleRole = false) {
     setBusy(true);
     setError(null);
     setLiveVerified(false);
+    if (!replaceStaleRole) setStaleRoleConflict(null);
     try {
       const result = await api<OrisoProvisioningResult>(
         `/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`,
@@ -263,6 +270,7 @@ export function OrisoProvisioningDialog({
           body: JSON.stringify({
             environment,
             role: selectedRole,
+            ...(replaceStaleRole ? { replaceStaleRole: true } : {}),
             ...(existingPassword ? { applicationPassword: existingPassword } : {})
           })
         }
@@ -275,12 +283,21 @@ export function OrisoProvisioningDialog({
         requiresApplicationPassword: result.requiresApplicationPassword
       } : current);
       setLiveVerified(result.state?.state === "ready" && result.linked.hasTotp);
+      setStaleRoleConflict(null);
       onProvisioned(account.email, result.linked);
       if (existingPassword) {
         setApplicationPassword("");
       }
     } catch (cause) {
-      setError(provisioningErrorMessage(cause instanceof Error ? cause.message : "", locale));
+      if (cause instanceof Error && cause.message === "record_role_conflict" && view?.linked) {
+        setStaleRoleConflict({ linked: view.linked, requestedRole: selectedRole });
+      } else if (cause instanceof Error && cause.message === "record_role_conflict_live_account") {
+        setError(locale === "de"
+          ? "Rollen wurden nicht ersetzt: Die frische Live-Prüfung hat weiterhin ein ORISO-Konto gefunden."
+          : "Roles were not replaced: the fresh live check still found an ORISO account.");
+      } else {
+        setError(provisioningErrorMessage(cause instanceof Error ? cause.message : "", locale));
+      }
     } finally {
       setBusy(false);
     }
@@ -403,23 +420,55 @@ export function OrisoProvisioningDialog({
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
       {view?.configured && !view.state && !view.requiresApplicationPassword && <div className="flex flex-col gap-3">
         <p className="text-sm">{locale === "de" ? "Noch kein ORISO-Konto. Rolle wählen und Konto vollständig anlegen:" : "No ORISO account yet. Choose a role and provision the complete account:"}</p>
-        <Select value={role} onValueChange={(value) => setRole(value as OrisoProvisioningRole)}>
+        <Select value={role} onValueChange={(value) => {
+          setRole(value as OrisoProvisioningRole);
+          setStaleRoleConflict(null);
+        }}>
           <SelectTrigger aria-label={locale === "de" ? "Rolle" : "Role"}><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>
             {view.supportedRoles.map((value) => <SelectItem key={value} value={value}>{roleLabels[value][locale]}</SelectItem>)}
           </SelectGroup></SelectContent>
         </Select>
       </div>}
+      {staleRoleConflict && <Alert variant="destructive">
+        <AlertTitle>
+          {locale === "de" ? "Veraltete Rollen im Test-Access-Record" : "Stale roles in the Test Access record"}
+        </AlertTitle>
+        <AlertDescription className="flex flex-col gap-2">
+          <p>
+            {locale === "de"
+              ? `Gespeichert: ${staleRoleConflict.linked.roles.map((value) => roleLabels[value as OrisoProvisioningRole]?.de ?? value).join(", ")}. Gewünscht: ${roleLabels[staleRoleConflict.requestedRole].de}.`
+              : `Stored: ${staleRoleConflict.linked.roles.map((value) => roleLabels[value as OrisoProvisioningRole]?.en ?? value).join(", ")}. Requested: ${roleLabels[staleRoleConflict.requestedRole].en}.`}
+          </p>
+          <p>
+            {locale === "de"
+              ? "Der Server prüft vor dem Austausch nochmals live, dass kein ORISO-Konto existiert. Passwort und TOTP bleiben unverändert."
+              : "Before replacing the roles, the server checks live again that no ORISO account exists. Password and TOTP remain unchanged."}
+          </p>
+        </AlertDescription>
+      </Alert>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <DialogFooter>
         <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={busy}>
           {locale === "de" ? "Schließen" : "Close"}
         </Button>
-        {view?.configured && !view.state && !view.requiresApplicationPassword && <Button type="button" onClick={() => provision(role)} disabled={busy}>
+        {view?.configured && !view.state && !view.requiresApplicationPassword && !staleRoleConflict && <Button type="button" onClick={() => provision(role)} disabled={busy}>
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
             : (locale === "de" ? "Konto anlegen & prüfen" : "Provision & verify account")}
+        </Button>}
+        {staleRoleConflict && <Button
+          type="button"
+          variant="destructive"
+          className="h-auto min-h-11 whitespace-normal"
+          onClick={() => provision(staleRoleConflict.requestedRole, undefined, true)}
+          disabled={busy}
+        >
+          <RefreshCwIcon data-icon="inline-start" />
+          {busy
+            ? (locale === "de" ? "Wird geprüft und ersetzt…" : "Checking and replacing…")
+            : (locale === "de" ? "Veraltete Rollen ersetzen & Konto anlegen" : "Replace stale roles & provision account")}
         </Button>}
         {view?.configured && view.state && !view.linked && provisioningRole && <Button type="button" onClick={() => provision(provisioningRole, applicationPassword)} disabled={busy || !applicationPassword.trim()}>
           <CircleCheckIcon data-icon="inline-start" />
