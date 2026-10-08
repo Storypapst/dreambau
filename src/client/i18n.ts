@@ -7,7 +7,7 @@ const messages = {
   de: {
     "page.title": "Springfield Testkonten",
     "page.kicker": "Geschützter Testraum",
-    "page.description": "180 Identitäten für Mail-, Kalender-, Adressbuch- und Beratungstests.",
+    "page.description": "{count} Identitäten für Mail-, Kalender-, Adressbuch- und Beratungstests.",
     "page.webmail": "Webmail öffnen",
     "page.markdown": "Markdown",
     "page.logout": "Abmelden",
@@ -82,7 +82,7 @@ const messages = {
   en: {
     "page.title": "Springfield test accounts",
     "page.kicker": "Protected test workspace",
-    "page.description": "180 identities for email, calendar, address book, and counseling tests.",
+    "page.description": "{count} identities for email, calendar, address book, and counseling tests.",
     "page.webmail": "Open webmail",
     "page.markdown": "Markdown",
     "page.logout": "Sign out",
