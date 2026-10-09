@@ -75,6 +75,9 @@ const sourceMark = (L) => `<span class="mk src" title="${esc(L['blog.source.mark
 const englishMark = (L, { described = true } = {}) => `<span class="en"${described ? ` title="${esc(L['blog.lang.en.title'])}"` : ''}><span aria-hidden="true">EN</span>${described ? `<span class="sr">${esc(L['blog.lang.en.title'])}</span>` : ''}</span>`;
 const marksOf = (L, post) => `${post.sourceLink === undefined ? '' : sourceMark(L)}${post.lang === 'en' ? englishMark(L) : ''}`;
 
+// FD-6: the list and every post page announce the feed in their head. The title is the one of the feed (FD-2).
+const feedLink = (L) => `<link rel="alternate" type="application/atom+xml" title="${esc(`${L['blog.title']} · dreambau.com`)}" href="/blog/feed.xml">\n`;
+
 // ---- the list (LI-1 to LI-8) ----
 
 function row(L, post) {
@@ -128,7 +131,7 @@ ${rows.join('\n')}
 </div>
 ${legend(L)}</div>
 `;
-  return `${head({ title: `${L['blog.title']} · dreambau.com`, extra: `<link rel="canonical" href="${ORIGIN}/blog/">\n` })}${header(L, { heading: true })}<main id="main">
+  return `${head({ title: `${L['blog.title']} · dreambau.com`, extra: `<link rel="canonical" href="${ORIGIN}/blog/">\n${feedLink(L)}` })}${header(L, { heading: true })}<main id="main">
 ${body}</main>
 ${footer(L, footerItems)}`;
 }
@@ -158,7 +161,7 @@ ${footer(L, footerItems)}`;
 
 // ---- a post (PO-1 to PO-10) ----
 
-function postHead(post) {
+function postHead(L, post) {
   const description = descriptionOf(post.paragraphs);
   const canonical = `${ORIGIN}${addressOf(post)}`;
   const image = post.imageInfo ? `<meta property="og:image" content="${ORIGIN}${addressOf(post)}image.${post.imageInfo.format}">\n` : '';
@@ -168,7 +171,7 @@ function postHead(post) {
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:type" content="article">
 <meta property="og:url" content="${esc(canonical)}">
-${image}`;
+${image}${feedLink(L)}`;
 }
 
 function neighbour(L, key, other) {
@@ -209,7 +212,7 @@ ${line(`<div class="tx srcbox"><a class="sk" href="${esc(href)}" rel="noreferrer
 <dl><div><dt>${esc(L['blog.language'])}</dt><dd>${esc(L[post.lang === 'en' ? 'blog.lang.en' : 'blog.lang.de'])}</dd></div><div><dt>${esc(L['blog.address'])}</dt><dd>${esc(addressOf(post))}</dd></div></dl>
 </aside>`);
 
-  return `${head({ title: `${post.title} · ${L['blog.title']} · dreambau.com`, extra: postHead(post), script: true })}${header(L, { heading: false })}<main id="main">
+  return `${head({ title: `${post.title} · ${L['blog.title']} · dreambau.com`, extra: postHead(L, post), script: true })}${header(L, { heading: false })}<main id="main">
 <article class="post" lang="${esc(post.lang)}">
 ${lines.join('\n')}
 </article>

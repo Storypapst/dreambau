@@ -1,14 +1,18 @@
 // The generator: the posts of one folder -> <outDir>/public/index.html, <outDir>/public/<year>/<slug>/index.html and
 // <outDir>/blog.json (spec 7.2). Plain Node, no dependency, no clock, no random value, no network (BD-1, BD-2): the same
-// posts give byte-identical files. Slice S0 writes plain, valid HTML; the look is slice S2, the feed S3, the 404 S4 (ER-1).
+// posts give byte-identical files. The look is slice S2, the feed (feed.xml, checked as XML before it is written) S3, the
+// 404 page S4 (ER-1).
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkFeed } from './lib/feed-check.mjs';
+import { feedXml } from './lib/feed.mjs';
 import { fail, format, hasFailure } from './lib/findings.mjs';
 import { FOOTER_FILE, loadFooter, pendingKeys } from './lib/footer.mjs';
 import { LABELS_FILE, loadLabels } from './lib/labels.mjs';
 import { numberPosts } from './lib/numbering.mjs';
+import { checkOutput } from './lib/output-check.mjs';
 import { errorPage, listPage, postPage } from './lib/pages.mjs';
 import { checkPostText } from './lib/post-file.mjs';
 import { MARKER } from './lib/post-rules.mjs';
@@ -76,11 +80,20 @@ export function buildBlog({ postsDir, outDir, mode = 'preview', displayDir = pos
     throw new BuildRefused([fail('LI-8', 'index.html', `the list page is ${list.length} bytes, over the limit of ${listLimit} bytes (128 KiB); the list is never cut silently, the way out is pagination: see open point OP-11`)]);
   }
   const pages = new Map([['index.html', list], ['404.html', Buffer.from(errorPage(context), 'utf8')], ['blog.css', assets.css], ['blog.js', assets.js]]);
+  // FD-1: the feed is generated with the pages and checked as XML (the offline validator) before anything is written.
+  const feed = feedXml({ labels, posts });
+  const feedProblems = checkFeed(feed, { labels });
+  if (hasFailure(feedProblems)) throw new BuildRefused(feedProblems);
+  pages.set('feed.xml', Buffer.from(feed, 'utf8'));
   for (const post of posts) {
     const html = postPage({ ...context, post, older: posts[post.number - 2], newer: posts[post.number] });
     pages.set(`${post.address}/index.html`, Buffer.from(html, 'utf8'));
     if (post.imageInfo) pages.set(`${post.address}/image.${post.imageInfo.format}`, fs.readFileSync(path.join(postsDir, post.year, post.image)));
   }
+
+  // V16: only files of the shapes of 7.2, no name with a dot, every address in a head and in the feed on dreambau.com.
+  const treeProblems = checkOutput([...pages].map(([name, bytes]) => ({ name, bytes })));
+  if (hasFailure(treeProblems)) throw new BuildRefused(treeProblems);
 
   const files = [...pages.keys()].sort(compare).map((name) => {
     const buffer = pages.get(name);

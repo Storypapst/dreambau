@@ -21,11 +21,11 @@ await run(async () => {
   withScratch('build', (out) => {
     const manifest = buildBlog({ postsDir: FIXTURES, outDir: out, mode: 'preview' });
     const files = digestTree(out);
-    same('AD-1 the output holds the manifest, the list, the 404 page, the stylesheet, the script, a page for each of the seven posts and the one image, and nothing else',
+    same('AD-1 the output holds the manifest, the list, the 404 page, the feed, the stylesheet, the script, a page for each of the seven posts and the one image, and nothing else',
       files.map((file) => file.path), [
         'blog.json', 'public/2026/ein-film-der-in-eine-mail-passt/index.html', 'public/2026/ein-werkzeug-das-zeichen-zaehlt/index.html', 'public/2026/kurzer-film-lange-nachgedacht/index.html',
         'public/2026/notiz-aus-der-werkstatt/index.html', 'public/2026/small-is-a-habit/index.html', 'public/2026/warum-bei-uns-der-text-zuerst-kommt/image.png',
-        'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/index.html']);
+        'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/feed.xml', 'public/index.html']);
 
     const list = fs.readFileSync(path.join(out, 'public', 'index.html'), 'utf8');
     const page = fs.readFileSync(path.join(out, 'public', ADDRESS, 'index.html'), 'utf8');
@@ -87,13 +87,13 @@ await run(async () => {
     fs.rmSync(path.join(posts, '2026', 'zwei.md'));
     buildBlog({ postsDir: posts, outDir: out, mode: 'preview' });
     same('BD-11 a rebuild keeps the very directory public/ (same inode): a container that mounts it keeps seeing it', fs.statSync(path.join(out, 'public')).ino, before);
-    same('BD-11 a rebuild removes the page of a post that is gone', digestTree(out).map((file) => file.path), ['blog.json', 'public/2026/eins/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/index.html']);
+    same('BD-11 a rebuild removes the page of a post that is gone', digestTree(out).map((file) => file.path), ['blog.json', 'public/2026/eins/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/feed.xml', 'public/index.html']);
   });
 
   // ---- no posts at all: a valid, empty list ----
   withScratch('empty', (dir) => {
     const manifest = buildBlog({ postsDir: path.join(dir, 'does-not-exist'), outDir: path.join(dir, 'out'), mode: 'preview' });
-    same('BD-3 a folder without posts gives an empty manifest', [manifest.posts, manifest.files.map((file) => file.path)], [[], ['404.html', 'blog.css', 'blog.js', 'index.html']]);
+    same('BD-3 a folder without posts gives an empty manifest', [manifest.posts, manifest.files.map((file) => file.path)], [[], ['404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html']]);
     check('BD-3 the empty list is still a page, with no row', count(fs.readFileSync(path.join(dir, 'out', 'public', 'index.html'), 'utf8'), /<li\b/g) === 0);
   });
 

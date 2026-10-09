@@ -1,6 +1,6 @@
 # Blog
 
-Das Blog (Logbuch) von dreambau.com unter `/blog/`: kurze Beiträge als Dateien, gebaut mit einem kleinen Generator in reinem Node, ohne Laufzeit-Abhängigkeit. Dieser Stand zeichnet die Liste und die Beitragsseite im Look "Logbuch" (Desktop und Handy, nur Deutsch) und zeigt sieben erfundene Beispiel-Beiträge. Er prüft Beitragsdateien nach den Regeln der Spezifikation (Abschnitt 5.2): jeder Fehler mit genauer Zeile, die Nummer eines Beitrags aus (Datum, Adresse). Es wird nichts veröffentlicht.
+Das Blog (Logbuch) von dreambau.com unter `/blog/`: kurze Beiträge als Dateien, gebaut mit einem kleinen Generator in reinem Node, ohne Laufzeit-Abhängigkeit. Dieser Stand zeichnet die Liste und die Beitragsseite im Look "Logbuch" (Desktop und Handy, nur Deutsch) und zeigt sieben erfundene Beispiel-Beiträge. Er prüft Beitragsdateien nach den Regeln der Spezifikation (Abschnitt 5.2): jeder Fehler mit genauer Zeile, die Nummer eines Beitrags aus (Datum, Adresse). Der Bau schreibt außerdem den Atom-Feed `feed.xml` (die 50 neuesten Beiträge mit dem vollen Text von "Warum lesenswert") und prüft ihn und den Ausgabebaum, bevor er etwas schreibt. Es wird nichts veröffentlicht.
 
 Voraussetzungen: Node 20 (siehe `.nvmrc` im Wurzelordner) und Docker. Die Browser-Prüfungen brauchen Chromium: `npx playwright install chromium` (oder `CHROMIUM_EXECUTABLE=/Pfad/zu/chromium`, wie bei `apps/landing`).
 
@@ -32,3 +32,13 @@ node tools/check-post-pr.mjs                           # Dateiname, Reihenfolge,
 ```
 
 `check-post-pr` und `slug --year` lesen `refs/remotes/origin/main`; vorher `git fetch origin main` ausführen. Statt des Git-Standes nimmt `--base <Ordner>` eine Kopie von `posts/`. `--publish` und `--now <Zeitpunkt>` schalten die Regeln eines Veröffentlichungs-Builds dazu (kein Datum nach heute in Berlin, keine erfundenen Quell-Hosts, kein `example: true`).
+
+Feed und Ausgabe prüfen (ohne Netz, ohne Abhängigkeit; Ausgabe wie oben `FAIL <Regel> <Datei>:<Zeile>: <was>`, Exit 0 / 1 / 2):
+
+```sh
+npm run build:demo
+node tools/check-feed.mjs dist-demo/public/feed.xml    # strenges XML 1.0, dann Atom 1.0 nach FD-1 bis FD-5 und AD-3
+node tools/check-output.mjs dist-demo/public           # nur die Dateiformen aus 7.2, kein Punkt-Name, Adressen nur auf dreambau.com
+```
+
+Der Feed-Prüfer ist der Fallback aus der Spezifikation (Anhang D): ein eigener strenger XML-Leser (`src/lib/xml.mjs`) plus die Regeln FD-1 bis FD-5, weil ein fertiger Feed-Prüfer ohne Netz und ohne Abhängigkeit (BD-1) nicht zu haben ist. Im Browser liest `tests/browser/feed.check.mjs` den Feed zusätzlich mit dem XML-Parser von Chromium.

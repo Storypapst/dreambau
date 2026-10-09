@@ -85,7 +85,7 @@ await run(async () => {
     fs.writeFileSync(path.join(posts, '2026', 'mit-bild.webp'), webp({ width: 800, height: 450 }));
     const out = path.join(dir, 'out');
     const manifest = buildBlog({ postsDir: posts, outDir: out, mode: 'preview' });
-    same('V7 the output holds the page and the image as image.webp', digestTree(path.join(out, 'public')).map((file) => file.path), ['2026/mit-bild/image.webp', '2026/mit-bild/index.html', '404.html', 'blog.css', 'blog.js', 'index.html']);
+    same('V7 the output holds the page and the image as image.webp', digestTree(path.join(out, 'public')).map((file) => file.path), ['2026/mit-bild/image.webp', '2026/mit-bild/index.html', '404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html']);
     same('V7 the image is copied byte for byte', fs.readFileSync(path.join(out, 'public', '2026', 'mit-bild', 'image.webp')).equals(webp({ width: 800, height: 450 })), true);
     const page = fs.readFileSync(path.join(out, 'public', '2026', 'mit-bild', 'index.html'), 'utf8');
     check('V7 the page has an <img> with width 800, height 450, the alt text escaped, and the address image.webp next to the page (PO-6)', page.includes('<img src="image.webp" width="800" height="450" alt="Eine Folie mit &quot;Anführungszeichen&quot; &amp; mehr" loading="eager" decoding="async">'), page);

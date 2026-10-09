@@ -58,7 +58,7 @@ await run(async () => {
     const empty = path.join(out, 'no-posts');
     fs.mkdirSync(empty);
     const manifest = buildBlog({ postsDir: empty, outDir: path.join(out, 'c'), mode: 'preview' });
-    same('7.2 a blog without posts has 404.html, blog.css, blog.js and index.html', manifest.files.map((item) => item.path), ['404.html', 'blog.css', 'blog.js', 'index.html']);
+    same('7.2 a blog without posts has 404.html, blog.css, blog.js, feed.xml and index.html', manifest.files.map((item) => item.path), ['404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html']);
     same('ER-1 the 404 of a blog without posts is the 404 of the demo build', fs.readFileSync(path.join(out, 'c', 'public', '404.html')).equals(fs.readFileSync(path.join(out, 'a', 'public', '404.html'))), true);
   });
 });
