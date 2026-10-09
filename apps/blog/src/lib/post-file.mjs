@@ -1,6 +1,7 @@
 // The validator of one post file (spec 5.2): the reader (PF-2, PF-3), then the rules of every field (PF-1, PF-4 to
 // PF-12, PF-14) and of the body (PF-10, PF-12). It reports every failure, never throws, and returns the post (the shape
 // the generator uses) when there is no FAIL.
+import path from 'node:path';
 import { at, fail, hasFailure } from './findings.mjs';
 import { parsePostText } from './frontmatter.mjs';
 import { inspectImage } from './image.mjs';
@@ -11,7 +12,7 @@ const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // `posts/<year>/<slug>.md` from the last two parts of a path: { year, slug, problem? }.
 export function addressOf(file) {
-  const parts = String(file).split(/[\\/]/);
+  const parts = path.resolve(String(file)).split(/[\\/]/); // resolved, so that `x.md` run inside posts/2026/ still has its year folder
   const name = parts[parts.length - 1] || '';
   const year = parts[parts.length - 2] || '';
   const found = { year, slug: name.replace(/\.md$/, ''), problems: [] };
