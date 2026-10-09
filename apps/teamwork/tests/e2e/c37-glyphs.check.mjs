@@ -37,15 +37,25 @@ async function visibleGlyphs(page) {
     const scale = canvas.width / box.width, cx = (h.x + h.width / 2 - box.x) * scale, cy = (h.y + h.height / 2 - box.y) * scale;
     const ink = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     let rings = 0;
+    const cardinalInk = [0, 0, 0, 0], palette = [[56, 214, 255], [255, 94, 200], [255, 178, 62], [169, 139, 255]];
     for (let y = Math.max(0, Math.floor(cy - (radius + 34) * scale)); y < Math.min(canvas.height, cy + (radius + 34) * scale); y++) {
       for (let x = Math.max(0, Math.floor(cx - (radius + 34) * scale)); x < Math.min(canvas.width, cx + (radius + 34) * scale); x++) {
         const d = Math.hypot(x - cx, y - cy) / scale;
-        if (d > radius + 7 && d < radius + 34 && ink[(y * canvas.width + x) * 4 + 3] > 80) rings++;
+        const pixel = (y * canvas.width + x) * 4;
+        if (d > radius + 7 && d < radius + 34 && ink[pixel + 3] > 80) {
+          rings++;
+          const angle = Math.atan2(y - cy, x - cx);
+          for (let zone = 0; zone < 4; zone++) {
+            const axis = -Math.PI / 2 + zone * Math.PI / 2, difference = Math.atan2(Math.sin(angle - axis), Math.cos(angle - axis));
+            if (Math.abs(difference) < .24 && palette[zone].every((value, channel) => Math.abs(ink[pixel + channel] - value) < 25)) cardinalInk[zone]++;
+          }
+        }
       }
     }
     return {
       orbs,
       rings,
+      cardinalInk,
       layout: document.getElementById('page').dataset.layout,
     };
   }, orbs);
@@ -73,6 +83,7 @@ try {
         const visible = await visibleGlyphs(page);
         check(`C37 ${name} exercises ${expected}`, visible.layout === expected, visible.layout);
         check(`C37 ${name} renders both hub rings`, visible.rings > 100, String(visible.rings));
+        if (name === 'desktop') check('C37 hub ring colors follow the north east south west zone axes', visible.cardinalInk.every(n => n > 10), JSON.stringify(visible.cardinalInk));
         if (!unknown) check(`C37 ${name} visibly fills every orb interior`, visible.orbs.length === catalogue.programs.length && visible.orbs.every(n => n > 20), JSON.stringify(visible.orbs));
         else {
           check('C37 unknown keeps the question markers readable', await page.locator('.unknown').count() === catalogue.programs.length);

@@ -328,6 +328,9 @@ export function noise(a, b, c) {
   x = Math.imul(x ^ (x >>> 13), 1274126177); x ^= x >>> 16; return (x >>> 0) / 4294967296;
 }
 const RGB = { cyan: '56,214,255', amber: '255,178,62', pink: '255,94,200', violet: '169,139,255', lime: '198,242,58', slate: '200,208,224' };
+// Outer zones start at north and occupy equal sectors centred on their axes.
+// For four zones this is the mockup's dominant-axis N/E/S/W division.
+const sectorIndex = (angle, count) => count ? Math.floor((((angle + Math.PI / 2 + Math.PI / count) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * count) : 0;
 function initCanvas(page) {
   const context = page.canvas.getContext('2d');
   const discs = page.doc.getElementById('orb-glyphs'), discContext = discs.getContext('2d');
@@ -368,8 +371,8 @@ function initCanvas(page) {
       fieldContext.font = context.font; fieldContext.textAlign = 'center';
       for (let row = 0; row < height / ch; row++) for (let col = 0; col < width / cw; col++) {
         const x = col * cw, y = row * ch;
-        const angle = (Math.atan2(y - height / 2, x - width / 2) + Math.PI * 2.5) % (Math.PI * 2);
-        const colour = colours[Math.floor(angle / (Math.PI * 2) * colours.length)] || RGB.slate;
+        const angle = Math.atan2(y - height / 2, x - width / 2);
+        const colour = colours[sectorIndex(angle, colours.length)] || RGB.slate;
         cells.push({ col, row, x, y, rate: .15 + noise(col, row, 7), colour: `rgba(${colour},${.035 + .015 * noise(col, row, 3)})`, tick: null });
       }
     }
@@ -387,10 +390,9 @@ function initCanvas(page) {
     const rings = cluster ? [[radius + 12, 26, .22, 1], [radius + 26, 34, .16, -1]] : [[radius + 14, 30, .22, 1], [radius + 30, 40, .16, -1]];
     for (const [ring, [r, count, speed, direction]] of rings.entries()) for (let i = 0; i < count; i++) {
       const angle = i / count * Math.PI * 2 + (page.reduced ? .35 : time * speed * direction), hv = noise(i, ring, 41);
-      const quadrant = Math.floor(((angle + Math.PI / 4) / (Math.PI / 2) % 4 + 4) % 4);
       const alpha = page.reduced ? .5 + .25 * hv : .42 + .4 * (.5 + .5 * Math.sin(time * 1.6 + i * .8 + ring));
       const tick = page.reduced ? Math.floor(hv * 30) : Math.floor(time * (1 + 3 * hv) + hv * 30);
-      context.fillStyle = `rgba(${colours[quadrant % colours.length] || RGB.slate},${ring ? alpha * .8 : alpha})`;
+      context.fillStyle = `rgba(${colours[sectorIndex(angle, colours.length)] || RGB.slate},${ring ? alpha * .8 : alpha})`;
       context.fillText(GLYPHS[Math.floor(noise(i + ring * 50, 3, tick) * GLYPHS.length)], cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
     }
     // An overlay above the card fills keeps the 31-glyph discs visible. The
