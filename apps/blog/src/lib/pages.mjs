@@ -133,6 +133,29 @@ ${body}</main>
 ${footer(L, footerItems)}`;
 }
 
+// ---- the real 404 (ER-1) ----
+
+// The page nginx sends with status 404 for every missing path under /blog/ and for a folder without an index (AD-5). It
+// is served for any address, so it holds root-relative addresses only, no canonical link and no script; noindex keeps it
+// out of a search index. The Blog's name is a paragraph here, because the one <h1> of the page is the error.
+export function errorPage({ labels: L, footer: footerItems }) {
+  const extra = '<meta name="robots" content="noindex">\n';
+  return `${head({ title: `${L['blog.error.title']} · ${L['blog.title']} · dreambau.com`, extra })}${header(L, { heading: false })}<main id="main">
+<div class="cols solo">
+<div class="logp">
+<p class="logtop" aria-hidden="true">${esc(CHROME.path)}</p>
+<div class="elog" role="group" aria-labelledby="error-h">
+<div class="ln"><h1 class="tx cmt" id="error-h">${esc(L['blog.error.title'])}</h1></div>
+<div class="ln"><p class="tx cmt">${esc(L['blog.error.text'])}</p></div>
+<div class="ln"><span class="tx cur" aria-hidden="true"></span></div>
+</div>
+</div>
+</div>
+</main>
+<div class="dock"><a class="pill pri back" href="/blog/">${CHEVRON}<span>${esc(L['blog.back'])}</span></a></div>
+${footer(L, footerItems)}`;
+}
+
 // ---- a post (PO-1 to PO-10) ----
 
 function postHead(post) {

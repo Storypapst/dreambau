@@ -10,6 +10,7 @@ await run(async () => {
   // ---- the scan proves itself on made-up text (the strings are assembled so that this file does not trip the scan) ----
   const scheme = 'https://';
   same('hygiene the scan reads hosts, also behind user information, and lower-cases them', hostsOf(`a ${scheme}Videos.Example.Test/x ${scheme}user:pw@${'other'}.org:8080/y http://127.0.0.1:80/blog/`), ['videos.example.test', 'other.org', '127.0.0.1']);
+  same('hygiene the scan stops a host at a semicolon (a policy line: frame-src <host>; base-uri)', hostsOf(`frame-src ${scheme}umfrage.example.test; base-uri 'none'`), ['umfrage.example.test']);
   same('hygiene the scan reads e-mail addresses', emailsOf(`write to ${'a.b'}@${'other'}.org or info@dreambau.com`), [`a.b@${'other'}.org`, 'info@dreambau.com']);
   same('hygiene the scan reports a foreign host and a foreign address and accepts the allowed ones', foreignNames([
     { name: 'bad.md', text: `${scheme}${'other'}.org/ and ${'someone'}@${'other'}.org` },

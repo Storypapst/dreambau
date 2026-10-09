@@ -75,7 +75,7 @@ img{display:block;max-width:100%;height:auto}
 /* the empty log: two comment lines and a caret */
 .elog{counter-reset:line;padding:14px 0 18px}
 .cmt::before{content:"// " / ""}
-.elog h2{font:600 17px/1.5 var(--mono);color:rgba(var(--fg),.9)}
+.elog h2,.elog h1{font:600 17px/1.5 var(--mono);color:rgba(var(--fg),.9)}
 .elog p{font:400 14px/1.6 var(--mono);color:rgba(var(--fg),.7)}
 .cur{display:inline-block;width:.6em;height:1.15em;vertical-align:-.2em;background:rgb(var(--cur));animation:blink 1.1s steps(1) infinite}
 

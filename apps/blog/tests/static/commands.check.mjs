@@ -19,10 +19,10 @@ await run(async () => {
     same('BD-2 npm run build:demo exits 0 in the second copy', npm(appB, 'build:demo').status, 0);
     const treeA = digestTree(path.join(appA, 'dist-demo'));
     const treeB = digestTree(path.join(appB, 'dist-demo'));
-    same('BD-2 the build wrote blog.json, the list, blog.css, blog.js, seven post pages and the one image', treeA.map((file) => file.path), [
+    same('BD-2 the build wrote blog.json, the list, the 404 page, blog.css, blog.js, seven post pages and the one image', treeA.map((file) => file.path), [
       'blog.json', 'public/2026/ein-film-der-in-eine-mail-passt/index.html', 'public/2026/ein-werkzeug-das-zeichen-zaehlt/index.html', 'public/2026/kurzer-film-lange-nachgedacht/index.html',
       'public/2026/notiz-aus-der-werkstatt/index.html', 'public/2026/small-is-a-habit/index.html', 'public/2026/warum-bei-uns-der-text-zuerst-kommt/image.png',
-      'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/blog.css', 'public/blog.js', 'public/index.html']);
+      'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/index.html']);
     same('BD-2 two builds in two scratch copies (other paths) give the same sha256 for every file, blog.json included', treeB, treeA);
     npm(appA, 'build:demo');
     same('BD-2 a second build in the same copy changes nothing', digestTree(path.join(appA, 'dist-demo')), treeA);

@@ -6,8 +6,12 @@
 //   await server.stop()
 //
 // - The image is nginx:1.27-alpine, replaceable by the environment variable BLOG_NGINX_IMAGE (tests/lib/image.mjs).
-// - The config ops/nginx-test.conf is mounted at /etc/dreambau-blog and nginx is started with -c. The served directory
-//   is mounted as a directory (never a single file), read-only, at /srv/blog.
+// - The config ops/nginx-blog-test.conf (the Teamwork test text plus the additions of spec 7.4) is mounted at
+//   /etc/dreambau-blog and nginx is started with -c. The served directory is mounted as a directory (never a single
+//   file), read-only, at /blog, where the live container has it (DL-1, OS-6).
+// - Options of startPageServer: confDirectory/confName (another config, for the baseline without the Blog rules),
+//   extraMounts ([{ source, target }] for /site, /teamwork, /bildungshaus), probe (the path that must answer 200 before
+//   start() returns; /blog/ unless the directory is empty on purpose, then /health).
 // - The port is a free one on 127.0.0.1 and the container name is unique and starts with blog-test-.
 // - start() returns when /blog/ answers 200. The container is removed when stop() is called, when the process ends and
 //   when it is interrupted (SIGINT, SIGTERM, SIGHUP). A container whose process was killed anyway (its label names the
@@ -23,7 +27,8 @@ import { ROOT } from './paths.mjs';
 const execFileAsync = promisify(execFile);
 const LABEL = 'dreambau.blog.test.owner';
 const CONF_DIRECTORY = '/etc/dreambau-blog';
-const SERVED_DIRECTORY = '/srv/blog';
+const SERVED_DIRECTORY = '/blog';
+export const CONF_NAME = 'nginx-blog-test.conf';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function docker(args, timeout = 120000) {
@@ -66,7 +71,9 @@ async function publishedPort(name) {
     if (match) return Number(match[1]);
     await sleep(100);
   }
-  throw new Error(`Docker published no port for ${name}`);
+  const state = await docker(['inspect', '--format', '{{.State.Status}} exit={{.State.ExitCode}}', name]).then((text) => text.trim(), () => 'the container is gone');
+  const log = await docker(['logs', '--tail', '5', name]).then((text) => text.trim().split('\n').slice(-3).join(' | '), () => '');
+  throw new Error(`Docker published no port for ${name} within 5 s (${state}${log === '' ? '' : `; log: ${log}`})`);
 }
 
 async function waitUntilReady(url, name, limit) {
@@ -89,8 +96,8 @@ async function waitUntilReady(url, name, limit) {
     }
     await sleep(100);
   }
-  // What the container sees in the served directory is the first thing to know when the page does not answer (an empty
-  // directory answers 403, a missing one 404).
+  // What the container sees in the served directory is the first thing to know when the page does not answer (with the rules of 7.4 an empty
+  // directory answers 404, a missing one 404 too; the server check starts such a server on purpose and probes /health).
   const listing = await docker(['exec', name, 'ls', '-la', SERVED_DIRECTORY]).then((text) => text.trim().split('\n').slice(0, 8).join(' | '), () => 'the directory could not be listed');
   throw new Error(`the page server did not answer on ${url} within ${Math.round(limit / 1000)} s (${last}); ${SERVED_DIRECTORY} in the container: ${listing}`);
 }
@@ -118,12 +125,12 @@ function hookProcess() {
 // in the container on Docker Desktop (measured on 2026-10-09: 7 of 25 starts when the directory had just been
 // removed and created again; none when it was older than a moment). The listing of /srv/blog from inside tells; an
 // empty listing of a host directory that is not empty is a failed mount, and the container is started again.
-async function launch(publicDir, name, image) {
-  const mounts = [[path.resolve(publicDir), SERVED_DIRECTORY], [path.join(ROOT, 'ops'), CONF_DIRECTORY]];
+async function launch(publicDir, name, image, { confDirectory, confName, extraMounts }) {
+  const mounts = [[path.resolve(publicDir), SERVED_DIRECTORY], [path.resolve(confDirectory), CONF_DIRECTORY], ...extraMounts.map(({ source, target }) => [path.resolve(source), target])];
   try {
     await docker(['run', '-d', '--name', name, '--label', `${LABEL}=${process.pid}`, '-p', '127.0.0.1::8080',
       ...mounts.flatMap(([source, target]) => ['--mount', `type=bind,source=${source},target=${target},readonly`]),
-      image, 'nginx', '-c', `${CONF_DIRECTORY}/nginx-test.conf`, '-g', 'daemon off;']);
+      image, 'nginx', '-c', `${CONF_DIRECTORY}/${confName}`, '-g', 'daemon off;']);
   } catch (error) {
     throw new Error(`the page server could not start a container of the image ${image}: ${error.message}`);
   }
@@ -137,7 +144,7 @@ async function mountIsEmpty(publicDir, name) {
 
 const MOUNT_ATTEMPTS = 3;
 
-export async function startPageServer({ publicDir }) {
+export async function startPageServer({ publicDir, confDirectory = path.join(ROOT, 'ops'), confName = CONF_NAME, extraMounts = [], probe = '/blog/' }) {
   await removeStaleContainers();
   const image = nginxImage();
   const handle = { name: '', image, origin: '', url: '', stopSync: () => {}, stop: async () => {} };
@@ -155,7 +162,7 @@ export async function startPageServer({ publicDir }) {
   try {
     for (let attempt = 1; ; attempt += 1) {
       handle.name = `blog-test-${process.pid}-${crypto.randomBytes(3).toString('hex')}`;
-      await launch(publicDir, handle.name, image);
+      await launch(publicDir, handle.name, image, { confDirectory, confName, extraMounts });
       if (!(await mountIsEmpty(publicDir, handle.name))) break;
       removeContainer(handle.name);
       if (attempt === MOUNT_ATTEMPTS) throw new Error(`the container saw ${publicDir} as an empty directory in ${MOUNT_ATTEMPTS} starts in a row (a Docker Desktop file sharing problem)`);
@@ -164,7 +171,7 @@ export async function startPageServer({ publicDir }) {
     }
     handle.origin = `http://127.0.0.1:${await publishedPort(handle.name)}`;
     handle.url = `${handle.origin}/blog/`;
-    await waitUntilReady(handle.url, handle.name, Number(process.env.BLOG_SERVER_START_TIMEOUT_MS || 60000));
+    await waitUntilReady(`${handle.origin}${probe}`, handle.name, Number(process.env.BLOG_SERVER_START_TIMEOUT_MS || 60000));
   } catch (error) {
     handle.stopSync();
     throw error;
