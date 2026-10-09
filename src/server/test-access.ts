@@ -17,6 +17,7 @@ import { parseSeedProfile } from "./seed-profile.js";
 import { createTestRunRouter } from "./test-run-router.js";
 import { canonicalLoginUrl, derivedCatalogPatch, isKnownSyntheticEmail, publicLinkedAccount } from "./account-link.js";
 import { enrollTotpForRecord, totpEnrollmentHttpError } from "./totp-enrollment.js";
+import { acquireAccountMutationLock } from "./account-mutation-lock.js";
 
 const querySchema = z.object({
   project: z.enum(["oriso", "orimo", "dreambau"]).optional(),
@@ -41,6 +42,7 @@ export function createTestAccessRouter(options: {
   identities: MachineIdentitySource;
   registryProvider: RegistryProvider;
   registryWriter?: RegistryWriter;
+  databasePath?: string;
   database: RegistryDatabase;
   mailReader: TestMailReader;
   accounts: () => AccountRecord[];
@@ -53,7 +55,7 @@ export function createTestAccessRouter(options: {
     onAuthenticated: (identity) => options.database.recordMachineIdentityUse(identity.id)
   }));
 
-  const publicRecord = ({ secret: _secret, totpSecret: _totpSecret, ...record }: TestAccessRecord) => ({
+  const publicRecord = ({ secret: _secret, totpSecret: _totpSecret, accountSetup: _accountSetup, ...record }: TestAccessRecord) => ({
     ...record,
     loginUrl: canonicalLoginUrl(record)
   });
@@ -103,11 +105,16 @@ export function createTestAccessRouter(options: {
     const identity = res.locals.machineIdentity as MachineIdentity;
     if (!machineCan(identity, "accounts:totp:write")) return res.status(403).json({ error: "action_denied" });
     if (!options.registryWriter) return res.status(503).json({ error: "totp_enrollment_unavailable" });
+    let release: (() => Promise<void>) | null = null;
     try {
-      const match = await scopedRecord(String(req.params.id), identity);
+      let match = await scopedRecord(String(req.params.id), identity);
       if (!match || (match.kind !== "app-user" && match.kind !== "admin")) {
         return res.status(404).json({ error: "account_not_found" });
       }
+      release = await acquireAccountMutationLock(options.databasePath ?? ":memory:", `${match.environment}:${match.email?.trim().toLowerCase()}`);
+      if (!release) return res.status(409).json({ error: "oriso_account_mutation_in_progress" });
+      match = await scopedRecord(String(req.params.id), identity);
+      if (!match || (match.kind !== "app-user" && match.kind !== "admin")) return res.status(404).json({ error: "account_not_found" });
       const parsed = enrollmentSchema.parse(req.body);
       const result = await enrollTotpForRecord({
         record: match,
@@ -123,7 +130,7 @@ export function createTestAccessRouter(options: {
       const mapped = totpEnrollmentHttpError(error);
       if (mapped) return res.status(mapped.status).json(mapped.body);
       next(error);
-    }
+    } finally { await release?.(); }
   });
 
   router.post("/accounts/:id/catalog", async (req, res, next) => {

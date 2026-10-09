@@ -89,6 +89,24 @@ describe("OrisoProvisioningDialog", () => {
     return onProvisioned;
   }
 
+  it("finishes a mailed first-password setup inside Testmails without credential inputs", async () => {
+    vi.mocked(api).mockResolvedValueOnce({ configured: true, supportedRoles: ["counsellor"], environment: "pre-dev",
+      state: stateFixture({ role: "counsellor", nextStep: "complete-account-setup" }), provisioningRole: "counsellor",
+      linked: { ...linkedFixture, roles: ["consultant"], hasTotp: false }, requiresApplicationPassword: false, requiresAccountSetup: true
+    }).mockResolvedValueOnce({ created: false, recordCreated: false, state: readyStateFixture(), provisioningRole: "counsellor",
+      linked: { ...linkedFixture, hasTotp: true }, requiresApplicationPassword: false, requiresAccountSetup: false });
+    await openDialog();
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    const submit = Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Einrichtung abschließen"));
+    expect(submit).toBeDefined();
+    await act(async () => submit!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(api).toHaveBeenLastCalledWith(`/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`, {
+      method: "POST", body: JSON.stringify({ environment: "pre-dev", role: "counsellor", completeAccountSetup: true })
+    });
+    expect(document.body.textContent).toContain("Live geprüft");
+    expect(document.body.textContent).not.toContain("Einrichtung abschließen");
+  });
+
   it.each(["account_creation_conflict", "provisioning_agency_unavailable", "record_username_incompatible"])("keeps %s failures separate from password repair", async (code) => {
     vi.mocked(api).mockResolvedValueOnce({ configured: true, supportedRoles: ["counsellor"], environment: "pre-dev", state: null, linked: null });
     vi.mocked(api).mockRejectedValueOnce(new Error(code));
@@ -184,7 +202,7 @@ describe("OrisoProvisioningDialog", () => {
     await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(document.body.textContent).toContain("Veraltete Rollen"));
-    expect(document.body.textContent).toContain("Plattform-Admin");
+    expect(document.body.textContent).toContain("Platform Admin");
     expect(document.body.textContent).toContain("Agency Admin");
     expect(document.body.textContent).toContain("Passwort und TOTP bleiben unverändert");
     expect(document.body.textContent).not.toContain("Details stehen im Server-Log");

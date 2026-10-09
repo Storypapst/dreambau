@@ -3,6 +3,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
 import { generateCompatibleOrisoTotp } from "./totp.js";
+import { completeBoundAccountSetup, validateAccountSetupInvite, verifyBoundAccountSetupIdentity, type AccountSetupInput } from "./oriso-account-setup.js";
 
 export const orisoProvisioningRoles = [
   "platform-admin",
@@ -69,6 +70,11 @@ export type OrisoProvisioningErrorCode =
   | "invite_create_failed"
   | "account_create_failed"
   | "account_credentials_mismatch"
+  | "account_setup_required"
+  | "account_setup_binding_mismatch"
+  | "account_setup_mail_unavailable"
+  | "account_setup_store_failed"
+  | "account_setup_outcome_unknown"
   | "account_creation_conflict"
   | "record_username_incompatible"
   | "provisioning_agency_unavailable"
@@ -98,7 +104,10 @@ const inviteSchema = z.object({
   accessGateStatus: z.string().nullable().optional(),
   createDate: z.string().nullable().optional(),
   expiresAt: z.string().nullable().optional(),
-  acceptedAt: z.string().nullable().optional()
+  acceptedAt: z.string().nullable().optional(),
+  onboardingPurpose: z.string().optional(),
+  tenantId: z.number().nullable().optional(),
+  provisionedUserId: z.string().nullable().optional()
 }).passthrough();
 type OrisoInvite = z.infer<typeof inviteSchema>;
 
@@ -144,7 +153,7 @@ export interface OrisoProvisioningStateView {
   createdAt: string | null;
   expiresAt: string | null;
   acceptedAt: string | null;
-  nextStep: "open-invitation-mail" | "complete-onboarding" | "store-totp" | "none";
+  nextStep: "open-invitation-mail" | "complete-account-setup" | "complete-onboarding" | "store-totp" | "none";
 }
 
 /**
@@ -154,7 +163,9 @@ export interface OrisoProvisioningStateView {
  */
 export function publicInviteState(invite: OrisoInvite): OrisoProvisioningStateView {
   const state = provisioningStateForInvite(invite);
-  const nextStep = state === "invited" ? "open-invitation-mail"
+  const nextStep = invite.onboardingPurpose === "EXISTING_ACCOUNT_SETUP" && invite.inviteStatus === "EMAIL_SENT"
+    ? "complete-account-setup"
+    : state === "invited" ? "open-invitation-mail"
     : state === "onboarding-pending" ? "complete-onboarding"
     : state === "two-factor-pending" ? "store-totp"
     : "none";
@@ -301,6 +312,7 @@ export type ProvisioningFetch = (input: string | URL, init?: {
   headers?: Record<string, string>;
   body?: string;
   signal?: AbortSignal;
+  redirect?: "error";
 }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 export interface OrisoProvisioningTarget {
@@ -330,6 +342,8 @@ export interface OrisoProvisioningService {
   adminDeletion?: OrisoAdminDeletionService;
   target: OrisoProvisioningTarget;
   status(recipientEmail: string): Promise<OrisoProvisioningStateView | null>;
+  completeAccountSetup?(input: AccountSetupInput): Promise<TestAccessRecord>;
+  verifyAccountSetup?(record: TestAccessRecord): Promise<void>;
   ensureInvite(input: {
     recipientEmail: string;
     firstName: string;
@@ -342,7 +356,9 @@ export interface OrisoProvisioningService {
     lastName: string;
     role: OrisoProvisioningRole;
     storeTotp(secret: string): Promise<void>;
+    storeSetupBinding?(binding: NonNullable<TestAccessRecord["accountSetup"]>): Promise<void>;
     rejectExistingAccount?: boolean;
+    existingAccountOnly?: boolean;
     // A dispatched mutation may have succeeded even if its response is lost.
     // Only an explicit conflict proves that this attempt made no change.
     onCreationAttempt?(state: "started" | "rejected"): void;
@@ -641,7 +657,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     }
   }
 
-  async function findInvite(recipientEmail: string) {
+  async function findInvite(recipientEmail: string, requireUnique = false) {
     const normalized = recipientEmail.trim().toLowerCase();
     const matches: OrisoInvite[] = [];
     for (let page = 0; page < 20; page += 1) {
@@ -659,6 +675,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     const active = matches
       .filter((invite) => activeInviteStatuses.has(invite.inviteStatus))
       .sort((left, right) => (right.createDate ?? "").localeCompare(left.createDate ?? ""));
+    if (requireUnique && active.length !== 1) throw new OrisoProvisioningError("account_setup_binding_mismatch");
     return active[0] ?? null;
   }
 
@@ -726,6 +743,18 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         throw new OrisoProvisioningError("invite_create_failed");
       }
       return { created: true, state: publicInviteState(invite) };
+    },
+    async verifyAccountSetup(record) {
+      await verifyBoundAccountSetupIdentity({ record, target: options, readIdentity: (path) => authorizedJson(path) });
+      if (!record.accountSetup?.submittedAt) validateAccountSetupInvite({ record, target: options, invite: await findInvite(record.email ?? "", true) });
+    },
+    async completeAccountSetup(input) {
+      const binding = input.record.accountSetup;
+      if (!binding) throw new OrisoProvisioningError("account_setup_binding_mismatch");
+      await verifyBoundAccountSetupIdentity({ record: input.record, target: options, readIdentity: (path) => authorizedJson(path) });
+      if (binding.submittedAt) return input.record;
+      const invite = await findInvite(input.record.email ?? "", true);
+      return completeBoundAccountSetup({ ...input, invite, target: options, fetch, now });
     },
     async provision(input) {
       const expectedRoles = roleContract[input.role].recordRoles;
@@ -795,8 +824,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       }
       let userToken = initialProbe.kind === "authenticated" ? initialProbe.token : null;
       let created = false;
+      let createdProductId: string | null = null;
       let creationAgencyName: string | undefined;
       if (!userToken) {
+        if (input.existingAccountOnly) throw new OrisoProvisioningError("account_setup_outcome_unknown");
         if (!isProvisioningUsernameCompatible(input.record, input.role)) throw new OrisoProvisioningError("record_username_incompatible");
         creationAgencyName = await verifyCreationAgency(input.role);
         const request = creationRequest(input);
@@ -825,6 +856,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           } catch {
             throw new OrisoProvisioningError("account_create_failed");
           }
+          createdProductId = createdId;
           const relation = input.role === "agency-admin"
             ? { path: `/useradmin/agencyadmins/${encodeURIComponent(createdId)}/agencies`, body: [{ agencyId: options.defaultAgencyId, role: "ADMIN_DEFAULT" }] }
             : { path: `/useradmin/consultants/${encodeURIComponent(createdId)}/agencies`, body: [{ agencyId: options.defaultAgencyId, roleSetKey: "CONSULTANT_DEFAULT" }] };
@@ -840,6 +872,18 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           : input.record.username;
         const postCreateToken = await retryAuthenticatedToken(input.record, input.record.totpSecret, postCreateUsername);
         if (!postCreateToken) {
+          const setup = input.record.email && ["counsellor", "agency-admin"].includes(input.role)
+            ? await findInvite(input.record.email) : null;
+          if (setup?.onboardingPurpose === "EXISTING_ACCOUNT_SETUP" && setup.inviteStatus === "EMAIL_SENT") {
+            if (!createdProductId || setup.provisionedUserId !== createdProductId
+              || setup.targetRole !== roleContract[input.role].targetRole || !input.storeSetupBinding) {
+              throw new OrisoProvisioningError("account_setup_binding_mismatch");
+            }
+            try {
+              await input.storeSetupBinding({ inviteId: setup.id, provisionedUserId: createdProductId, submittedAt: null });
+            } catch { throw new OrisoProvisioningError("account_setup_store_failed"); }
+            throw new OrisoProvisioningError("account_setup_required");
+          }
           throw new OrisoProvisioningError("account_credentials_mismatch");
         }
         userToken = postCreateToken;

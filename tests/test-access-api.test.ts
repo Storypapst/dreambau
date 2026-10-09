@@ -191,6 +191,7 @@ describe("test access API v1", () => {
       permissionsDescription: "PreDev consultant",
       loginUrl: "https://pre-dev.example.test",
       secret: "fake-predev-password",
+      accountSetup: { inviteId: 119, provisionedUserId: "private-original-id", submittedAt: null },
       responsiblePerson: "qa",
       createdAt: "2026-07-12T00:00:00.000Z",
       updatedAt: "2026-07-12T00:00:00.000Z",
@@ -221,11 +222,13 @@ describe("test access API v1", () => {
       .get("/testmails/api/v1/accounts?project=oriso&environment=pre-dev")
       .set("Authorization", `Bearer ${orisoToken}`);
     expect(list.status).toBe(200);
-    expect(list.body).toEqual([{ ...record, secret: undefined }].map(({ secret: _secret, totpSecret: _totp, ...publicRecord }) => ({
+    expect(list.body).toEqual([{ ...record, secret: undefined }].map(({ secret: _secret, totpSecret: _totp, accountSetup: _accountSetup, ...publicRecord }) => ({
       ...publicRecord,
       loginUrl: "https://predev.oriso.org"
     })));
     expect(JSON.stringify(list.body)).not.toContain(record.secret);
+    expect(JSON.stringify(list.body)).not.toContain("private-original-id");
+    expect(list.body[0]).not.toHaveProperty("accountSetup");
 
     const secret = await request(target)
       .get(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/secret`)

@@ -46,6 +46,10 @@ const stateLabels: Record<OrisoOnboardingState, { de: string; en: string }> = {
 };
 
 const nextStepLabels: Record<OrisoProvisioningStateView["nextStep"], { de: string; en: string }> = {
+  "complete-account-setup": {
+    de: "Das Konto ist angelegt. Die Ersteinrichtung aus der E-Mail kann hier abgeschlossen werden.",
+    en: "The account exists. Complete the first-time setup from its email here."
+  },
   "open-invitation-mail": {
     de: "Einladungsmail im Springfield-Postfach öffnen und das Onboarding starten.",
     en: "Open the invitation mail in the Springfield mailbox and start onboarding."
@@ -87,6 +91,18 @@ function StateSummary({
 }
 
 function provisioningErrorMessage(code: string, locale: Locale) {
+  if (code === "account_setup_required") return locale === "de"
+    ? "Das Konto wurde angelegt. Bitte jetzt die Ersteinrichtung aus der E-Mail abschließen."
+    : "The account was created. Complete the first-time setup from its email now.";
+  if (code === "account_setup_outcome_unknown") return locale === "de"
+    ? "Das Ergebnis der Einrichtung ist noch unklar. Das gespeicherte Passwort bleibt erhalten. Erneutes Prüfen ändert es nicht nochmals."
+    : "The setup outcome is uncertain. The stored password is preserved. Checking again will not change it a second time.";
+  if (["account_setup_binding_mismatch", "account_setup_mail_unavailable"].includes(code)) return locale === "de"
+    ? "Die passende aktive Einrichtungsmail konnte für dieses Konto nicht bestätigt werden. Bitte Postfach und Kontozuordnung prüfen."
+    : "The matching active setup email could not be confirmed for this account. Check the mailbox and account mapping.";
+  if (["account_setup_store_failed", "account_setup_unavailable"].includes(code)) return locale === "de"
+    ? "Die geschützte Ersteinrichtung ist derzeit nicht verfügbar. Das Konto bleibt zur Prüfung markiert."
+    : "Protected first-time setup is currently unavailable. The account remains marked for review.";
   if (code === "application_password_required") {
     return locale === "de"
       ? "Das bestehende ORISO-Konto muss mit dem Passwort verknüpft werden, das im Onboarding verwendet wurde."
@@ -265,7 +281,7 @@ export function OrisoProvisioningDialog({
     }
   }
 
-  async function provision(selectedRole: OrisoProvisioningRole, existingPassword?: string, replaceStaleRole = false) {
+  async function provision(selectedRole: OrisoProvisioningRole, existingPassword?: string, replaceStaleRole = false, completeAccountSetup = false) {
     setBusy(true);
     setError(null);
     setLiveVerified(false);
@@ -279,6 +295,7 @@ export function OrisoProvisioningDialog({
             environment,
             role: selectedRole,
             ...(replaceStaleRole ? { replaceStaleRole: true } : {}),
+            ...(completeAccountSetup ? { completeAccountSetup: true } : {}),
             ...(existingPassword ? { applicationPassword: existingPassword } : {})
           })
         }
@@ -288,6 +305,7 @@ export function OrisoProvisioningDialog({
         state: result.state,
         provisioningRole: result.provisioningRole,
         linked: result.linked,
+        requiresAccountSetup: result.requiresAccountSetup ?? false,
         requiresApplicationPassword: result.requiresApplicationPassword
       } : current);
       setLiveVerified(result.state?.state === "ready" && result.linked.hasTotp);
@@ -305,6 +323,13 @@ export function OrisoProvisioningDialog({
           : "Roles were not replaced: the fresh live check still found an ORISO account.");
       } else {
         setError(provisioningErrorMessage(cause instanceof Error ? cause.message : "", locale));
+        if (cause instanceof Error && cause.message === "account_setup_required") {
+          try {
+            const refreshed = await api<OrisoProvisioningView>(`/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`);
+            setView(refreshed);
+            if (refreshed.linked) onProvisioned(account.email, refreshed.linked);
+          } catch { /* Keep the explicit setup-required result if refresh fails. */ }
+        }
       }
     } finally {
       setBusy(false);
@@ -319,13 +344,13 @@ export function OrisoProvisioningDialog({
           : <><MailPlusIcon data-icon="inline-start" />{locale === "de" ? "ORISO-Konto anlegen" : "Provision ORISO account"}</>}
       </Button>
     </DialogTrigger>
-    <DialogContent>
+    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto [&>*]:min-w-0 [&_button]:h-auto [&_button]:min-h-9 [&_button]:max-w-full [&_button]:whitespace-normal">
       <DialogHeader>
         <DialogTitle>{locale === "de" ? `ORISO ${environmentLabel} Konto` : `ORISO ${environmentLabel} account`}</DialogTitle>
         <DialogDescription>
           {locale === "de"
-            ? "Legt über den verwalteten Plattform-Admin ein wiederverwendbares ORISO-Konto für dieses Springfield-Postfach an, aktiviert 2FA und prüft den Login. Das App-Passwort wird genau einmal vergeben, bleibt unverändert und ist anschließend geschützt in der Testkonto-Zeile abrufbar."
-            : "Creates a reusable ORISO account for this Springfield mailbox through the managed platform admin, activates 2FA, and verifies login. The app password is assigned once, stays unchanged, and can then be retrieved securely from the test-account row."}
+            ? "Legt ein ORISO-Testkonto für dieses Springfield-Postfach an und prüft Passwort und 2FA. Wenn ORISO eine Ersteinrichtung verlangt, wird das endgültige Passwort dabei geschützt in Infisical gespeichert."
+            : "Creates an ORISO test account for this Springfield mailbox and verifies its password and 2FA. When ORISO requires first-time setup, the permanent password is stored securely in Infisical during that step."}
         </DialogDescription>
       </DialogHeader>
       {!view && !error && <p className="text-sm text-muted-foreground">{locale === "de" ? "Status wird geladen…" : "Loading status…"}</p>}
@@ -356,7 +381,7 @@ export function OrisoProvisioningDialog({
           ? "Für dieses ORISO-Konto existiert noch kein Test-Access-Record. Erst nach dem Verknüpfen erscheinen das fest zugewiesene ORISO-App-Passwort und „2FA hinterlegen“ in der Zeile."
           : "This ORISO account has no Test Access record yet. The permanently assigned ORISO app password and “Set up 2FA” appear in the row only after linking."}
       </p>}
-      {view?.configured && provisioningRole && (!view.linked || view.requiresApplicationPassword) && <div className="flex flex-col gap-2 rounded-lg border p-3">
+      {view?.configured && !view.requiresAccountSetup && provisioningRole && (!view.linked || view.requiresApplicationPassword) && <div className="flex flex-col gap-2 rounded-lg border p-3">
         <p className="text-sm font-medium">{locale === "de" ? "ORISO-App-Passwort verknüpfen" : "Link ORISO app password"}</p>
         <p className="text-xs text-muted-foreground">
           {locale === "de"
@@ -376,7 +401,7 @@ export function OrisoProvisioningDialog({
           disabled={busy || enrollBusy}
         />
       </div>}
-      {view?.configured && view.linked && !view.linked.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
+      {view?.configured && !view.requiresAccountSetup && view.linked && !view.linked.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
         <p className="text-sm font-medium">{locale === "de" ? "2FA direkt hier abschließen" : "Finish 2FA right here"}</p>
         <p className="text-xs text-muted-foreground">
           {locale === "de"
@@ -426,7 +451,7 @@ export function OrisoProvisioningDialog({
       {otpWaitingUntil && <OtpValidity expiresAt={otpWaitingUntil} locale={locale} waiting />}
       {otp?.expiresAt && <OtpValidity expiresAt={otp.expiresAt} locale={locale} />}
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
-      {view?.configured && !view.state && !view.requiresApplicationPassword && <div className="flex flex-col gap-3">
+      {view?.configured && !view.requiresAccountSetup && !view.state && !view.requiresApplicationPassword && <div className="flex flex-col gap-3">
         <p className="text-sm">{locale === "de" ? "Kein verknüpfter Onboarding-Status gefunden. Ein bestehendes ORISO-Konto ist damit nicht ausgeschlossen. Rolle für die Anlage wählen:" : "No linked onboarding status was found. An existing ORISO account has not been ruled out. Choose the role to provision:"}</p>
         <Select value={role} onValueChange={(value) => {
           setRole(value as OrisoProvisioningRole);
@@ -456,11 +481,20 @@ export function OrisoProvisioningDialog({
         </AlertDescription>
       </Alert>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <DialogFooter>
+      {view?.requiresAccountSetup && <p className="text-sm text-muted-foreground">
+        {locale === "de"
+          ? "Testmails prüft die Einrichtungsmail dieses Postfachs, speichert das endgültige Passwort geschützt und schließt die normale ORISO-Einrichtung mit 2FA ab."
+          : "Testmails verifies this mailbox’s setup email, stores the permanent password securely, and completes normal ORISO setup with 2FA."}
+      </p>}
+      <DialogFooter className="sm:flex-wrap">
         <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={busy}>
           {locale === "de" ? "Schließen" : "Close"}
         </Button>
-        {view?.configured && !view.state && !view.requiresApplicationPassword && !staleRoleConflict && <Button type="button" onClick={() => provision(role)} disabled={busy}>
+        {view?.configured && view.requiresAccountSetup && provisioningRole && <Button type="button" className="h-auto min-h-11 whitespace-normal" onClick={() => provision(provisioningRole, undefined, false, true)} disabled={busy}>
+          <ShieldCheckIcon data-icon="inline-start" />
+          {busy ? (locale === "de" ? "Einrichtung wird geprüft…" : "Checking setup…") : (locale === "de" ? "Einrichtung abschließen & prüfen" : "Complete setup & verify")}
+        </Button>}
+        {view?.configured && !view.requiresAccountSetup && !view.state && !view.requiresApplicationPassword && !staleRoleConflict && <Button type="button" onClick={() => provision(role)} disabled={busy}>
           <CircleCheckIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
@@ -484,7 +518,7 @@ export function OrisoProvisioningDialog({
             ? (locale === "de" ? "Wird verknüpft…" : "Linking…")
             : (locale === "de" ? "Test-Access-Record verknüpfen" : "Link Test Access record")}
         </Button>}
-        {view?.configured && provisioningRole && view.linked?.hasTotp && <Button type="button" onClick={() => provision(provisioningRole)} disabled={busy}>
+        {view?.configured && !view.requiresAccountSetup && provisioningRole && view.linked?.hasTotp && <Button type="button" onClick={() => provision(provisioningRole)} disabled={busy}>
           <RefreshCwIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird live geprüft…" : "Verifying live…")
