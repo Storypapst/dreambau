@@ -8,12 +8,20 @@ import { serveNginx } from './lib-nginx.mjs';
 const fixture=await serveNginx(ROOT+'/dist/apex');
 let browser;
 const output=process.env.EVIDENCE_DIR;
-const capture=async(page,name)=>{if(output)await page.screenshot({path:path.join(output,name+'.png')});};
+const capture=async(page,name)=>{if(output){
+ // Allow an additional public canvas composition before the evidence capture.
+ await page.screenshot();await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await page.screenshot({path:path.join(output,name+'.png')});
+}};
 if(output)fs.mkdirSync(output,{recursive:true});
 async function home(viewport, options={},query=""){
  const context=await browser.newContext({viewport,locale:'de-DE',...options});const page=await context.newPage();page.setDefaultTimeout(5000);
  await page.goto(fixture.base+'/?anim=4k&sound=off'+query,{waitUntil:'load'});
- if(options.javaScriptEnabled!==false)await page.waitForFunction(()=>document.documentElement.classList.contains('ready'));
+ if(options.javaScriptEnabled!==false){
+  await page.waitForFunction(()=>document.documentElement.classList.contains('ready'));
+  if(options.reducedMotion==='reduce')await page.waitForFunction(()=>window.Dream?.state.mode==='still'&&document.querySelector('#cta').classList.contains('on')&&getComputedStyle(document.querySelector('#cta')).opacity==='1');
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ }
  return {context,page};
 }
 try{
@@ -39,6 +47,7 @@ try{
  await page.mouse.move(handle.x+handle.width/2,handle.y+22);await page.mouse.down();await page.mouse.move(handle.x+handle.width/2,handle.y+122,{steps:6});await page.mouse.up();
  await page.waitForFunction(()=>!document.getElementById('site-menu').open,null,{timeout:2000});
  assert(await page.locator('#site-menu summary').evaluate(el=>el===document.activeElement),'153 drag restores opener focus');
+ await capture(page,'phone-controls-after-menu-390x844');
  console.log('PASS153 grip drag dismisses');
  await page.locator('#source-entry').click();
  await page.getByRole('dialog',{name:'Wie klein ist das?'}).waitFor();
