@@ -10,10 +10,9 @@ function loadScript(url){return new Promise((resolve,reject)=>{const s=doc.creat
 const icon=path=>'<svg class="cv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>';
 function button(id,key,shape){return '<button type="button" id="'+id+'">'+(shape?icon(shape):'')+'<span data-cv="'+key+'"></span></button>';}
 function loadViewCSS(base){
- const css=node('link');css.rel='stylesheet';css.href=base+'source-view.css';viewCssReady=new Promise((resolve,reject)=>{css.onload=resolve;css.onerror=()=>{css.remove();viewCssReady=null;reject(new Error('Source view stylesheet could not be loaded.'));};});doc.head.append(css);
+ const css=node('link');css.rel='stylesheet';css.href=base+'source-view.css';viewCssReady=new Promise((resolve,reject)=>{css.onload=resolve;css.onerror=()=>{css.remove();viewCssReady=null;reject(new Error('Source view stylesheet could not be loaded.'));};});doc.head.append(css);return viewCssReady;
 }
-function makeView(base){
- loadViewCSS(base);
+function makeView(){
  view=node('dialog',null,'code-view');view.setAttribute('aria-labelledby','cv-title');
  view.innerHTML='<header class="cv-head"><h2 id="cv-title" data-cv="title"></h2><span class="cv-chip" id="cv-identity"></span><span class="cv-grow"></span>'+button('cv-copy','copy','<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H4v13h4"/>')+'<button type="button" id="cv-close" aria-label=""><kbd>Esc</kbd><span aria-hidden="true">✕</span></button></header><div class="cv-split"><section class="cv-source"><div class="cv-file"><span id="cv-file"></span><span id="cv-file-info"></span>'+button('cv-follow','follow','<path d="M12 4v11M7.5 11.5L12 16l4.5-4.5M5 20h14"/>')+'</div><div class="cv-code" dir="ltr" tabindex="0"></div><progress class="cv-progress" max="1" value="0"></progress></section><aside class="cv-data"><dl class="cv-nums"><div class="cv-big"><dt data-cv="animation"></dt><dd><button type="button" class="cv-size" id="cv-size" aria-haspopup="dialog"><span id="cv-anim-size"></span><span class="cv-unit">KB</span>'+icon('<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7" r=".5"/>')+'</button></dd><span class="cv-exact" id="cv-exact"></span></div><div><dt data-cv="page"></dt><dd id="cv-page-size"></dd></div><div><dt data-cv="runtime"></dt><dd id="cv-runtime"></dd></div><div><dt data-cv="load"></dt><dd id="cv-load"></dd></div></dl><div class="cv-tabs" role="group"><button type="button" id="cv-picture-tab" data-cv="pictureTab" aria-pressed="true"></button><button type="button" id="cv-scale-tab" data-cv="scale" aria-pressed="false"></button></div><div class="cv-pane" id="cv-picture-pane"><canvas id="cv-preview" aria-hidden="true" width="640" height="360"></canvas><p class="cv-caption" data-cv="caption"></p><h4 data-cv="description"></h4><p class="cv-description"></p></div><div class="cv-pane" id="cv-scale-pane" hidden><label class="cv-all"><input id="cv-all" type="checkbox" checked><span data-cv="all"></span></label><p class="cv-caption" data-cv="area"></p><div id="cv-scale-figure"></div><div id="cv-animations"></div></div></aside><div class="cv-actions" role="group">'+button('cv-compare','compare','<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><rect x="3.5" y="11.5" width="9" height="9" rx="1"/><rect x="3.5" y="16.5" width="4" height="4"/>')+button('cv-picture','picture','<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10.5" r="1.7"/><path d="M4.5 17.5l4.7-4.7 3.6 3.6 2.7-2.7 4 4"/>')+'</div></div><footer class="cv-close-footer"><button type="button" id="cv-close-bottom" data-cv="close"></button></footer><p class="cv-status" role="status"></p>';
  doc.body.append(view);for(const close of view.querySelectorAll('#cv-close,#cv-close-bottom'))close.addEventListener('click',()=>view.close());
@@ -65,7 +64,7 @@ function draw(t){
  for(const r of rows){const n=Math.max(0,Math.min(r.end-r.a,count-r.a)),current=!calm&&count>=r.a&&count<r.end;if(n!==r.count||r.current!==current){paint(r.text,r.a,r.a+n);if(current){const caret=node('span','','cv-caret');caret.setAttribute('aria-hidden','true');r.text.append(caret);}r.count=n;r.current=current;}r.row.classList.toggle('cur',current);if(current)active=r;}
  const code=view.querySelector('.cv-code');if(following&&active){const line=parseFloat(getComputedStyle(code).lineHeight);code.scrollTop=Math.max(0,rows.indexOf(active)*line+8-.68*code.clientHeight);lastScroll=code.scrollTop;}
  view.querySelector('.cv-progress').value=calm?1:Math.min(1,t/fin);const follow=view.querySelector('#cv-follow');follow.disabled=calm||picture&&view.classList.contains('cv-stack');follow.setAttribute('aria-pressed',String(following));
- const canvas=view.querySelector('#cv-preview');canvas.getContext('2d').drawImage(doc.getElementById('c'),0,0,canvas.width,canvas.height);
+ const canvas=view.querySelector('#cv-preview');if(tab==='picture'&&(!view.classList.contains('cv-stack')||picture))canvas.getContext('2d').drawImage(doc.getElementById('c'),0,0,canvas.width,canvas.height);
 }
 function buildScale(){
  if(!D.sourceTexts)return;const all=view.querySelector('#cv-all').checked,ids=all?['4k','16k','64k']:[D.state.id],values=ids.map(id=>({id,n:bytes(D.sourceTexts[id]),label:({'4k':'Rohbau','16k':'Traumhaus','64k':'Skyline'}[id])})),maximum=Math.max(...values.map(v=>v.n));
@@ -93,9 +92,16 @@ function renderComparison(){
 }
 D.openSourceView=async base=>{
  const visitResources=performance.getEntriesByType('resource').map(e=>e.name),id=D.state.id;if(!id||!D.prods[id])throw new Error('Animation is still loading.');
- for(const animation of ['4k','16k','64k'])if(!D.sourceTexts?.[animation])await loadScript(base+'p/'+animation+'.src.js');
- if(!D.sourceFacts)await loadScript(base+'source-facts.js');if(!D.codeComparisons)await loadScript(base+'comparisons.js');if(!D.sourceLocales)await loadScript(base+'source-locales.js');data=D.codeComparisons;
- source=D.sourceTexts[id];classes=classify(source);if(!view)makeView(base);else if(!viewCssReady)loadViewCSS(base);await viewCssReady;view.querySelector('#cv-file').textContent='p/'+id+'.js';localise();
+ const loads=[];
+ for(const animation of ['4k','16k','64k'])if(!D.sourceTexts?.[animation])loads.push(loadScript(base+'p/'+animation+'.src.js'));
+ if(!D.sourceFacts)loads.push(loadScript(base+'source-facts.js'));
+ if(!D.codeComparisons)loads.push(loadScript(base+'comparisons.js'));
+ if(!D.sourceLocales)loads.push(loadScript(base+'source-locales.js'));
+ loads.push(viewCssReady||loadViewCSS(base));
+ // Wait for every independent request before reporting failure, so retry cannot duplicate pending loads.
+ const settled=await Promise.allSettled(loads),failure=settled.find(result=>result.status==='rejected');
+ if(failure)throw failure.reason;
+ data=D.codeComparisons;source=D.sourceTexts[id];classes=classify(source);if(!view)makeView();view.querySelector('#cv-file').textContent='p/'+id+'.js';localise();
  const initial=new Set(visitResources.filter(url=>url.startsWith(base)).map(url=>url.slice(base.length))),pageBytes=D.sourceFacts.files['index.html']+[...initial].reduce((sum,name)=>sum+(D.sourceFacts.files[name]||0),0);
  view.querySelector('#cv-page-size').textContent=fmt(pageBytes/1000)+' KB';view.querySelector('#cv-page-size').title=tr('uncompressed');view.querySelector('#cv-runtime').textContent=fmt(D.sourceFacts.runtimeBytes/1000)+' KB';const timing=performance.getEntriesByName(new URL('p/'+id+'.js',base).href).find(e=>e.entryType==='resource');view.querySelector('#cv-load').textContent=timing?fmt(timing.duration)+' ms':tr('unavailable');
  view.querySelector('.cv-status').textContent='';picture=false;view.classList.remove('picture-mode');shown=0;lastFrame=0;following=true;view.showModal();layout();setTab('picture');buildRows();stopDraw?.();stopDraw=D.onDraw(draw);draw(D.state.T);D.redraw();
