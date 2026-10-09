@@ -56,7 +56,7 @@ await run(async () => {
     same('V9 seven posts, two on one day: numbers 1 to 7 by (date, slug)', first.posts.map((post) => `${post.number}:${post.address}`),
       ['1:2026/eins', '2:2026/aaa-beitrag', '3:2026/bbb-beitrag', '4:2026/vier', '5:2026/fuenf', '6:2026/sieben', '7:2026/sechs']);
     const list = fs.readFileSync(path.join(dir, 'out1', 'public', 'index.html'), 'utf8');
-    same('V9 the list shows 07 first and 01 last', [...list.matchAll(/<span class="no">(\d+)<\/span>/g)].map((match) => match[1]), ['07', '06', '05', '04', '03', '02', '01']);
+    same('V9 the list shows 07 first and 01 last', [...list.matchAll(/<span class="no" aria-hidden="true">(\d+)<\/span>/g)].map((match) => match[1]), ['07', '06', '05', '04', '03', '02', '01']);
     const second = buildBlog({ postsDir: posts, outDir: path.join(dir, 'out2'), mode: 'preview' });
     same('V9 the build twice gives the same manifest', second, first);
     writeTree(posts, [{ year: '2027', slug: 'neuer-beitrag', title: 'Neuer Beitrag', date: '2027-01-05' }]);
@@ -73,7 +73,7 @@ await run(async () => {
     const manifest = buildBlog({ postsDir: posts, outDir: path.join(dir, 'out'), mode: 'preview' });
     same('V9 105 posts: the numbers run 1 to 105', [manifest.posts.length, manifest.posts[0].number, manifest.posts[98].number, manifest.posts[99].number, manifest.posts[104].number], [105, 1, 99, 100, 105]);
     const list = fs.readFileSync(path.join(dir, 'out', 'public', 'index.html'), 'utf8');
-    const shown = [...list.matchAll(/<span class="no">(\d+)<\/span>/g)].map((match) => match[1]);
+    const shown = [...list.matchAll(/<span class="no" aria-hidden="true">(\d+)<\/span>/g)].map((match) => match[1]);
     same('V9 the list shows 105 down to 100, then 99 and below with two digits, 01 last', [shown.slice(0, 7), shown[105 - 1]], [['105', '104', '103', '102', '101', '100', '99'], '01']);
   });
 
@@ -85,10 +85,10 @@ await run(async () => {
     fs.writeFileSync(path.join(posts, '2026', 'mit-bild.webp'), webp({ width: 800, height: 450 }));
     const out = path.join(dir, 'out');
     const manifest = buildBlog({ postsDir: posts, outDir: out, mode: 'preview' });
-    same('V7 the output holds the page and the image as image.webp', digestTree(path.join(out, 'public')).map((file) => file.path), ['2026/mit-bild/image.webp', '2026/mit-bild/index.html', 'index.html']);
+    same('V7 the output holds the page and the image as image.webp', digestTree(path.join(out, 'public')).map((file) => file.path), ['2026/mit-bild/image.webp', '2026/mit-bild/index.html', 'blog.css', 'blog.js', 'index.html']);
     same('V7 the image is copied byte for byte', fs.readFileSync(path.join(out, 'public', '2026', 'mit-bild', 'image.webp')).equals(webp({ width: 800, height: 450 })), true);
     const page = fs.readFileSync(path.join(out, 'public', '2026', 'mit-bild', 'index.html'), 'utf8');
-    check('V7 the page has an <img> with width 800, height 450, the alt text escaped, and a root-relative address', page.includes('<img src="/blog/2026/mit-bild/image.webp" width="800" height="450" alt="Eine Folie mit &quot;Anführungszeichen&quot; &amp; mehr">'), page);
+    check('V7 the page has an <img> with width 800, height 450, the alt text escaped, and the address image.webp next to the page (PO-6)', page.includes('<img src="image.webp" width="800" height="450" alt="Eine Folie mit &quot;Anführungszeichen&quot; &amp; mehr" loading="eager" decoding="async">'), page);
     same('V7 the manifest lists the image with bytes and sha256', manifest.files.find((file) => file.path === '2026/mit-bild/image.webp').bytes, webp({ width: 800, height: 450 }).length);
     // a faulty image refuses the build with the line
     fs.writeFileSync(path.join(posts, '2026', 'mit-bild.webp'), png());

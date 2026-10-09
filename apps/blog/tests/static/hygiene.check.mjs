@@ -20,7 +20,9 @@ await run(async () => {
   // ---- the real folder ----
   const files = filesBelow(ROOT, { skipFolders: ['node_modules', 'dist', 'dist-demo'] });
   check('hygiene the scan covered the folder (more than ten files)', files.length > 10, `${files.length} files`);
-  same('hygiene no host and no address but dreambau.com, info@dreambau.com, *.example.test and the local test address', foreignNames(files), []);
+  const lock = files.find((file) => file.name === 'package-lock.json');
+  same('hygiene no host and no address but dreambau.com, info@dreambau.com, *.example.test and the local test addresses (the lock file aside)', foreignNames(files.filter((file) => file.name !== 'package-lock.json')), []);
+  same('hygiene the lock file names the npm registry and no other host', [...new Set(hostsOf(lock.text))], ['registry.npmjs.org']);
 
   // ---- the fixture ----
   const fixture = fs.readFileSync(FIXTURE_POST, 'utf8');

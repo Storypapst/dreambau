@@ -44,7 +44,7 @@ export function emailsOf(text) {
 // The only real names in the folder are dreambau.com and info@dreambau.com. Invented hosts end in example.test; the
 // address of the local test server (127.0.0.1, localhost) is no name of anyone. A placeholder such as ${host} is no host.
 const allowedHost = (host) => host === 'dreambau.com' || host === 'example.test' || host.endsWith('.example.test')
-  || host === '127.0.0.1' || host === 'localhost' || /^[<${]/.test(host);
+  || host === '127.0.0.1' || host === 'localhost' || host === 'blog.test' || /^[<${]/.test(host);
 
 export function foreignNames(files) {
   const found = [];

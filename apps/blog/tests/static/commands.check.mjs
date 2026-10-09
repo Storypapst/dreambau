@@ -9,7 +9,6 @@ import { ROOT } from '../lib/paths.mjs';
 import { copyApp, digestTree, topLevel, withScratch } from '../lib/scratch.mjs';
 
 const npm = (cwd, ...args) => spawnSync('npm', ['run', '--silent', ...args], { cwd, encoding: 'utf8' });
-const ADDRESS = '2026/ein-film-der-in-eine-mail-passt';
 
 await run(async () => {
   withScratch('copy-a', (a) => withScratch('copy-b', (b) => {
@@ -20,11 +19,14 @@ await run(async () => {
     same('BD-2 npm run build:demo exits 0 in the second copy', npm(appB, 'build:demo').status, 0);
     const treeA = digestTree(path.join(appA, 'dist-demo'));
     const treeB = digestTree(path.join(appB, 'dist-demo'));
-    same('BD-2 the build wrote the list, the post page and blog.json', treeA.map((file) => file.path), ['blog.json', `public/${ADDRESS}/index.html`, 'public/index.html']);
+    same('BD-2 the build wrote blog.json, the list, blog.css, blog.js, seven post pages and the one image', treeA.map((file) => file.path), [
+      'blog.json', 'public/2026/ein-film-der-in-eine-mail-passt/index.html', 'public/2026/ein-werkzeug-das-zeichen-zaehlt/index.html', 'public/2026/kurzer-film-lange-nachgedacht/index.html',
+      'public/2026/notiz-aus-der-werkstatt/index.html', 'public/2026/small-is-a-habit/index.html', 'public/2026/warum-bei-uns-der-text-zuerst-kommt/image.png',
+      'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/blog.css', 'public/blog.js', 'public/index.html']);
     same('BD-2 two builds in two scratch copies (other paths) give the same sha256 for every file, blog.json included', treeB, treeA);
     npm(appA, 'build:demo');
     same('BD-2 a second build in the same copy changes nothing', digestTree(path.join(appA, 'dist-demo')), treeA);
-    check('BD-3 the demo build tells what it built and where', /1 post/.test(first.stdout) && /dist-demo/.test(first.stdout), first.stdout);
+    check('BD-3 the demo build tells what it built and where', /7 posts/.test(first.stdout) && /dist-demo/.test(first.stdout), first.stdout);
     const manifest = JSON.parse(fs.readFileSync(path.join(appA, 'dist-demo', 'blog.json'), 'utf8'));
     same('BD-3 the demo build is a preview build', manifest.mode, 'preview');
   }));

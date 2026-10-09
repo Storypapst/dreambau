@@ -17,13 +17,18 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 
 export async function withBrowser(body) {
   const executablePath = process.env.CHROMIUM_EXECUTABLE;
-  const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
-  const closeOnSignal = () => { browser.close().finally(() => process.exit(130)); };
-  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, closeOnSignal);
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+  } catch (error) {
+    throw new Error(`Chromium could not be started (${String(error.message).split('\n')[0]}). Run \`npx playwright install chromium\` in apps/blog, or set CHROMIUM_EXECUTABLE to a Chromium.`);
+  }
+  const handlers = new Map(['SIGINT', 'SIGTERM'].map((signal) => [signal, () => { browser.close().finally(() => process.kill(process.pid, signal)); }]));
+  for (const [signal, handler] of handlers) process.once(signal, handler);
   try {
     return await body(browser);
   } finally {
-    for (const signal of ['SIGINT', 'SIGTERM']) process.removeListener(signal, closeOnSignal);
+    for (const [signal, handler] of handlers) process.removeListener(signal, handler);
     await browser.close();
   }
 }
