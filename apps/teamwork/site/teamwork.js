@@ -160,7 +160,7 @@ export function buildTile(doc, program, unknown = false) {
     'aria-label': TEXTS.tileLabel(program, { newTab, unknown }),
   }, make(doc, 'span', { class: 'orb', 'aria-hidden': 'true' }),
   make(doc, 'span', { class: 'lb' }, make(doc, 'span', { class: 'nm', 'aria-hidden': 'true' }, program.name.slice(0, 40)), make(doc, 'span', { class: 'ds' }, program.purpose.slice(0, 120))));
-  if (unknown) { link.append(make(doc, 'span', { class: 'unknown', 'aria-hidden': 'true' }, TEXTS.unknownMarker)); link.querySelector('.lb').append(make(doc, 'span', { class: 'unknown-text', 'aria-hidden': 'true' }, TEXTS.statusUnknown)); }
+  if (unknown) { link.querySelector('.orb').append(make(doc, 'span', { class: 'unknown', 'aria-hidden': 'true' }, TEXTS.unknownMarker)); link.querySelector('.lb').append(make(doc, 'span', { class: 'unknown-text', 'aria-hidden': 'true' }, TEXTS.statusUnknown)); }
   return make(doc, 'li', {}, link);
 }
 

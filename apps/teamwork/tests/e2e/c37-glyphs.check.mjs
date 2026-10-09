@@ -74,6 +74,7 @@ try {
       ['desktop', sparse, { width: 1440, height: 900 }, 'constellation', false],
       ['dense-fallback', dense, { width: 1440, height: 900 }, 'cluster', false],
       ['unknown', sparse, { width: 1440, height: 900 }, 'constellation', true],
+      ['unknown-phone', sparse, { width: 390, height: 844 }, 'cluster', true],
     ]) {
       server = await startPageServer({ list: catalogue, ...(unknown ? { checkedAt: '2000-01-01T00:00:00Z' } : {}) });
       const { context, page, seen, violations } = await openObserved(browser, { viewport, reducedMotion: 'reduce' });
@@ -87,6 +88,13 @@ try {
         if (!unknown) check(`C37 ${name} visibly fills every orb interior`, visible.orbs.length === catalogue.programs.length && visible.orbs.every(n => n > 20), JSON.stringify(visible.orbs));
         else {
           check('C37 unknown keeps the question markers readable', await page.locator('.unknown').count() === catalogue.programs.length);
+          if (name === 'unknown') check('C37 desktop unknown covers both left and right label directions', await page.locator('.left-label .unknown').count() > 0 && await page.locator('.tile:not(.left-label) .unknown').count() > 0);
+          const markers = await page.locator('.tile').evaluateAll(tiles => tiles.map(tile => {
+            const orb = tile.querySelector('.orb').getBoundingClientRect(), marker = tile.querySelector('.unknown').getBoundingClientRect();
+            return { id: tile.dataset.id, distance: Math.hypot(marker.x + marker.width / 2 - orb.x - orb.width / 2, marker.y + marker.height / 2 - orb.y - orb.height / 2),
+              contained: marker.x >= orb.x && marker.y >= orb.y && marker.right <= orb.right && marker.bottom <= orb.bottom };
+          }));
+          check(`C37 ${name} every question marker stays centered inside its own orb`, markers.every(marker => marker.contained && marker.distance < 1), JSON.stringify(markers));
           check('C37 unknown leaves the glyph overlay empty as in the mockup', await page.locator('#orb-glyphs').evaluate(e => {
             const pixels = e.getContext('2d').getImageData(0, 0, e.width, e.height).data;
             return pixels.every((value, i) => i % 4 !== 3 || value === 0);
