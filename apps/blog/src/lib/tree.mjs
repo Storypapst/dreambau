@@ -153,8 +153,8 @@ export function checkAgainstBase({ head, base, displayDir = 'posts' }) {
   return findings;
 }
 
-// Everything for a pull request: the file rules for every post of the head, then the checks against the base.
-export function checkTree({ head, base, headDir, displayDir = 'posts', publish = false, now = new Date() }) {
+// The file rules for every post of the tree (PF-1 to PF-12, PF-14), also for the files of a build.
+export function checkFiles({ head, headDir, displayDir = 'posts', publish = false, now = new Date() }) {
   const findings = [];
   const fixture = isFixtureTree(headDir);
   for (const post of head.posts.values()) {
@@ -162,10 +162,23 @@ export function checkTree({ head, base, headDir, displayDir = 'posts', publish =
     if (post.text === null) { findings.push(fail('PF-2', file, 'the file is not valid UTF-8')); continue; }
     findings.push(...checkPostText(post.text, { file, publish, now, fixture, readImage: safeImageReader(path.join(headDir, post.year)) }).findings);
   }
-  findings.push(...checkAgainstBase({ head, base, displayDir }));
+  return findings;
+}
+
+// What a build refuses: the file rules for every post, a bad line in removed.txt, and a post at a removed address (AD-7).
+export function checkForBuild({ head, headDir, displayDir = 'posts', publish = false, now = new Date() }) {
+  const findings = checkFiles({ head, headDir, displayDir, publish, now });
+  for (const item of head.tombstoneProblems) findings.push(fail('AD-7', at(`${displayDir}/removed.txt`, item.line), `removed.txt: ${item.what}`));
+  for (const [address, post] of head.posts) {
+    if (head.tombstones.has(address)) findings.push(fail('AD-7', `${displayDir}/${post.relative}`, `the address ${address} is in removed.txt and may never be used again`));
+  }
   return sortFindings(findings);
 }
 
+// Everything for a pull request: the file rules for every post of the head, then the checks against the base.
+export function checkTree({ head, base, headDir, displayDir = 'posts', publish = false, now = new Date() }) {
+  return sortFindings([...checkFiles({ head, headDir, displayDir, publish, now }), ...checkAgainstBase({ head, base, displayDir })]);
+}
 
 // The default base of the tools: origin/main of the repository that holds `appRoot` (the folder apps/blog), below posts/.
 export function loadOriginMain(appRoot, ref = 'refs/remotes/origin/main') {

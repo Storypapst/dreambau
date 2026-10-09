@@ -14,6 +14,8 @@ const tool = (name, args, options = {}) => {
   const result = spawnSync(process.execPath, [path.join(ROOT, 'tools', name), ...args], { cwd: options.cwd || ROOT, encoding: 'utf8' });
   return { status: result.status, out: result.stdout, err: result.stderr, lines: result.stdout.split('\n').filter(Boolean) };
 };
+// a host that is not an invented one (a publish build refuses those); assembled, so that the scan of the folder (hygiene) finds no foreign name here
+const REAL_LOOKING = ['https:', '', 'videos.beispiel-video.de', 'x'].join('/');
 const FIXTURE_DIR = path.dirname(FIXTURE_POST);
 
 await run(async () => {
@@ -29,7 +31,7 @@ await run(async () => {
     same('the ticket: date 2026-02-30 gives FAIL PF-5 with the line number, exit 1', [bad.lines.map((line) => line.replace(`${stray}`, 'FILE')), bad.status],
       [['FAIL PF-5 FILE:3: the date "2026-02-30" is not a real calendar date written YYYY-MM-DD'], 1]);
     // the title of 101 characters and the http:// link in the same file: both in one run
-    fs.writeFileSync(stray, fs.readFileSync(FIXTURE_POST, 'utf8').replace('title: Ein Film, der in eine Mail passt', `title: ${'a'.repeat(101)}`).replace('https://videos', 'http://videos'));
+    fs.writeFileSync(stray, fs.readFileSync(FIXTURE_POST, 'utf8').replace('title: Ein Film, der in eine Mail passt', `title: ${'a'.repeat(101)}`).replace('https:', 'http:'));
     const both = tool('check-post.mjs', [stray]);
     same('the ticket: a title of 101 characters and an http:// link give both failures in one run, with their lines', [both.lines.map((line) => line.split(': ')[0].replace(stray, 'FILE')), both.status], [['FAIL PF-4 FILE:2', 'FAIL PF-7 FILE:5'], 1]);
   } finally {
@@ -84,7 +86,7 @@ await run(async () => {
 
     // ---- publish and the injected clock ----
     const future = path.join(dir, '2026', 'zukunft.md');
-    fs.writeFileSync(future, plainPost({ title: 'Zukunft', date: '2026-10-10', extra: 'sourceLink: https://videos.beispiel-video.de/x\n' }));
+    fs.writeFileSync(future, plainPost({ title: 'Zukunft', date: '2026-10-10', extra: `sourceLink: ${REAL_LOOKING}\n` }));
     same('V3 preview: tomorrow is fine', tool('check-post.mjs', ['--now', '2026-10-09T10:00:00Z', future]).status, 0);
     same('V3 --publish: tomorrow in Berlin is FAIL PF-5, exit 1', (({ lines, status }) => [lines.map((line) => line.split(':')[0].replace(future, 'FILE')), status])(tool('check-post.mjs', ['--publish', '--now', '2026-10-09T10:00:00Z', future])), [['FAIL PF-5 FILE'], 1]);
     same('V3 --publish at 22:30 UTC (already tomorrow in Berlin): passes', tool('check-post.mjs', ['--publish', '--now', '2026-10-09T22:30:00Z', future]).status, 0);

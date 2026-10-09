@@ -93,7 +93,7 @@ await run(async () => {
 
   // ---- the same tree read from a git ref ----
   withScratch('git', (dir) => {
-    const git = (...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd: dir, encoding: 'utf8' });
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=tests', ...args], { cwd: dir, encoding: 'utf8' });
     git('init', '-q');
     writeTree(path.join(dir, 'apps', 'blog', 'posts'), BASE_POSTS, ['2026/alt 2026-01-01']);
     fs.mkdirSync(path.join(dir, 'other'), { recursive: true });

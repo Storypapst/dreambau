@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { check, same, run } from '../lib/check.mjs';
 import { FIXTURES } from '../lib/paths.mjs';
+import { BODY } from '../lib/posts.mjs';
 import { digestTree, withScratch, writePost } from '../lib/scratch.mjs';
 import { buildBlog } from '../../src/generate.mjs';
 
@@ -14,7 +15,7 @@ const SECOND = 'Das gilt auch für unsere Arbeit: Wer vorher entscheidet, was wi
 
 const textOf = (html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 const count = (text, pattern) => (text.match(pattern) || []).length;
-const post = (extra = '', title = 'Ein anderer Beitrag', date = '2026-09-01') => `---\ntitle: ${title}\ndate: ${date}\n${extra}---\n\nEin Satz.\n`;
+const post = (extra = '', title = 'Ein anderer Beitrag', date = '2026-09-01') => `---\ntitle: ${title}\ndate: ${date}\n${extra}---\n\n${BODY}\n`;
 
 await run(async () => {
   withScratch('build', (out) => {
@@ -89,7 +90,7 @@ await run(async () => {
   withScratch('hostile', (dir) => {
     const posts = path.join(dir, 'posts');
     const hostile = `"<script>alert(1)</script>" & <img src=x onerror=1>`;
-    writePost(posts, '2026/boese.md', `---\ntitle: ${JSON.stringify(hostile)}\ndate: 2026-09-01\nquote: ${JSON.stringify(hostile)}\nquoteSource: ${JSON.stringify(hostile)}\nsourceLink: ${JSON.stringify('https://x.example.test/a?b=1&c="><i>')}\nsourceTitle: ${JSON.stringify(hostile)}\n---\n\n${hostile}\n`);
+    writePost(posts, '2026/boese.md', `---\ntitle: ${JSON.stringify(hostile)}\ndate: 2026-09-01\nquote: ${JSON.stringify(hostile)}\nquoteSource: ${JSON.stringify(hostile)}\nsourceLink: ${JSON.stringify('https://x.example.test/a?b=1&c="><i>')}\nsourceTitle: ${JSON.stringify(hostile)}\n---\n\n${hostile}\n\n${BODY}\n`);
     buildBlog({ postsDir: posts, outDir: path.join(dir, 'out'), mode: 'preview' });
     for (const file of ['index.html', '2026/boese/index.html']) {
       const html = fs.readFileSync(path.join(dir, 'out', 'public', file), 'utf8');
@@ -98,13 +99,16 @@ await run(async () => {
     check('PR-5 the source link keeps its query as text: the ampersand and the quote are escaped in the attribute',
       fs.readFileSync(path.join(dir, 'out', 'public', '2026/boese/index.html'), 'utf8').includes('href="https://x.example.test/a?b=1&amp;c=&quot;&gt;&lt;i&gt;"'));
   });
+  // The render-time check of PR-6 sits behind the file rules now (a bad link never gets that far), so the build refuses it
+  // with the line of PF-7 and writes nothing; the render-time function itself is proved in unit/links.
   for (const [what, link] of [['javascript:', 'javascript:alert(1)'], ['http:', 'http://x.example.test/a'], ['a data: address', 'data:text/html,x']]) {
     withScratch('link', (dir) => {
       const posts = path.join(dir, 'posts');
       writePost(posts, '2026/link.md', post(`sourceLink: ${JSON.stringify(link)}\nsourceTitle: Titel\n`, 'Link Beitrag'));
       let message = '';
-      try { buildBlog({ postsDir: posts, outDir: path.join(dir, 'out'), mode: 'preview' }); } catch (error) { message = error.message; }
-      check(`PR-6 a source link with ${what} is refused at render time, naming the file`, /sourceLink/.test(message) && /link\.md/.test(message), message || 'no error');
+      try { buildBlog({ postsDir: posts, outDir: path.join(dir, 'out'), mode: 'preview', displayDir: 'posts' }); } catch (error) { message = error.message; }
+      same(`PR-6 a source link with ${what} is refused with the PF-7 line naming the file and the line`, message.split(':')[0], 'FAIL PF-7 posts/2026/link.md');
+      check(`PR-6 ... and nothing is written (${what})`, !fs.existsSync(path.join(dir, 'out')));
     });
   }
   withScratch('mode', (dir) => {

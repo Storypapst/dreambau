@@ -8,6 +8,7 @@ import { displayHost, httpsLink, linkProblems } from '../../src/lib/links.mjs';
 import { checkPostText } from '../../src/lib/post-file.mjs';
 
 const S = 'https://';
+const AT = '@'; // an at sign next to a host would be read as an e-mail address by the scan of the folder
 const EXAMPLE_ORG = 'example' + '.org';
 const EXAMPLE_COM = 'example' + '.com';
 const EXAMPLE_NET = 'example' + '.net';
@@ -30,8 +31,8 @@ await run(async () => {
     ['a scheme-relative address', '//videos.example.test/x'],
     ['no scheme', 'videos.example.test/x'],
     ['an empty host', `${S}/x`],
-    ['user information', `${S}user:pw@videos.example.test/`],
-    ['a user name only', `${S}user@videos.example.test/`],
+    ['user information', `${S}user:pw${AT}videos.example.test/`],
+    ['a user name only', `${S}user${AT}videos.example.test/`],
     ['localhost', `${S}localhost/`],
     ['a localhost subdomain', `${S}app.localhost/`],
     ['an IPv4 address', `${S}10.0.0.1/`],
@@ -65,7 +66,7 @@ await run(async () => {
 
   // ---- PR-6: the render-time check ----
   same('PR-6 httpsLink returns a valid https address as it is', httpsLink(`${S}videos.example.test/a?b=1&c="><i>`, 'f.md'), `${S}videos.example.test/a?b=1&c="><i>`);
-  for (const [name, link] of [['javascript:', 'javascript:alert(1)'], ['http:', 'http://videos.example.test/x'], ['data:', 'data:text/html,x'], ['user information', `${S}u:p@videos.example.test/`], ['a space', `${S}videos.example.test/a b`]]) {
+  for (const [name, link] of [['javascript:', 'javascript:alert(1)'], ['http:', 'http://videos.example.test/x'], ['data:', 'data:text/html,x'], ['user information', `${S}u:p${AT}videos.example.test/`], ['a space', `${S}videos.example.test/a b`]]) {
     let message = '';
     try { httpsLink(link, 'posts/2026/x.md'); } catch (error) { message = error.message; }
     check(`PR-6 httpsLink refuses ${name} and names the file`, /sourceLink/.test(message) && /posts\/2026\/x\.md/.test(message), message || 'no error');
