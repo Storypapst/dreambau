@@ -20,6 +20,7 @@
     "check:languages": "node tools/check-languages.mjs",
     "sheet:languages": "node tools/lang-sheet.mjs",
     "check:nginx": "node tools/nginx-check.mjs",
+    "check:mobile": "node tools/mobile-controls-check.mjs",
     "check:website": "npm run check --prefix ../website"
   },
   "devDependencies": {
