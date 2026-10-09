@@ -24,6 +24,11 @@ export const testAccessRecordSchema = z.object({
   shared: z.boolean(),
   rotationStatus: z.enum(["current", "due", "expired", "unknown"]),
   provisioningStatus: z.enum(["pending", "ready", "failed"]).optional(),
+  accountSetup: z.object({
+    inviteId: z.number().int().positive(),
+    provisionedUserId: z.string().min(1),
+    submittedAt: z.string().datetime()
+  }).strict().optional(),
   documentationUrl: z.string().url()
 }).strict();
 

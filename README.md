@@ -471,6 +471,9 @@ Maschinen-Bootstrap-Credential. Testkonto-Passwörter verbleiben in Infisical.
 
 ### ORISO PreDev self-service provisioning
 
+First-password setup for newly created counsellors can be completed inside
+Testmails. See [the setup flow and recovery constraints](docs/oriso-first-password-setup.md).
+
 Administrators can provision a real ORISO PreDev account for a free
 Springfield mailbox directly from the Testmails UI (issues #49 and #57). The
 server authenticates with the managed platform-admin record and supports

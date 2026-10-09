@@ -31,6 +31,36 @@ function record(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
 }
 
 describe("Infisical TOTP writer", () => {
+  it.each(["success", "changed-password", "already-submitted", "failed-readback"] as const)("stages one durable setup candidate with expected-state checks: %s", async (scenario) => {
+    const expected = record({ kind: "app-user", roles: ["consultant"], provisioningStatus: "failed" });
+    const binding = { inviteId: 119, provisionedUserId: "marge-id", submittedAt: "2026-07-29T10:00:00.000Z" };
+    let current = { ...expected, ...(scenario === "changed-password" ? { secret: "newer-credential" } : {}),
+      ...(scenario === "already-submitted" ? { accountSetup: binding } : {}) };
+    const patches: string[] = [];
+    const fetch: WriterFetch = async (url, init) => {
+      if (String(url).includes("/login")) return Response.json({ accessToken: "token", expiresIn: 60, accessTokenMaxTTL: 60, tokenType: "Bearer" });
+      if (init?.method === "PATCH") {
+        patches.push(String(init.body));
+        current = JSON.parse(JSON.parse(String(init.body)).secretValue);
+        if (scenario === "failed-readback") delete current.accountSetup;
+        return Response.json({ secret: { id: "updated" } });
+      }
+      return Response.json({ secret: { secretKey: secretNameForRecord(expected.id), secretValue: JSON.stringify(current) } });
+    };
+    const writer = createInfisicalRegistryWriter({ baseUrl: "https://secrets.dreambau.com", organizationSlug: "dreambau-test-access", clientId: "writer", clientSecret: writerSecret,
+      projectIds: { oriso: "project-oriso", orimo: "project-orimo", dreambau: "project-dreambau" }, fetch });
+    const attempt = writer.stageAccountSetup!(expected, "Different-New4*Password", binding);
+    if (scenario === "success") {
+      await expect(attempt).resolves.toMatchObject({ recordId: expected.id });
+      expect(current).toMatchObject({ secret: "Different-New4*Password", accountSetup: binding, provisioningStatus: "pending" });
+      await expect(writer.stageAccountSetup!(expected, "Another4*Password", binding)).rejects.toThrow("state changed");
+      expect(patches).toHaveLength(1);
+    } else {
+      await expect(attempt).rejects.toThrow(scenario === "failed-readback" ? "readback failed" : "state changed");
+      expect(patches).toHaveLength(scenario === "failed-readback" ? 1 : 0);
+    }
+  });
+
   it("reads the current scoped record and patches only a validated TOTP update", async () => {
     const calls: Array<{ url: URL; init?: RequestInit }> = [];
     let current = record();

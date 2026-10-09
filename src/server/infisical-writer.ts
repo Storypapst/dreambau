@@ -30,6 +30,11 @@ export interface RegistryWriter {
     applicationPassword: string,
     updatedAt: string
   ): Promise<{ recordId: string; updatedAt: string }>;
+  stageAccountSetup?(
+    expectedRecord: TestAccessRecord,
+    password: string,
+    binding: NonNullable<TestAccessRecord["accountSetup"]>
+  ): Promise<{ recordId: string; updatedAt: string }>;
 }
 
 interface WriterOptions {
@@ -214,6 +219,30 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
         return { recordId: record.id };
       });
     },
+    async stageAccountSetup(input, password, binding) {
+      const expected = testAccessRecordSchema.parse(input);
+      return serializeEnrollment(expected.id, async () => {
+        const headers = { Authorization: `Bearer ${await accessToken()}` };
+        const current = await readScopedRecord(expected, headers, "Infisical account setup lookup failed");
+        if (!["app-user", "admin"].includes(current.kind) || current.accountSetup || current.totpSecret
+          || current.provisioningStatus === "ready" || !creationFieldsMatch(current, expected)
+          || current.secret === password) throw new Error("Infisical account setup state changed");
+        const updated = testAccessRecordSchema.parse({ ...current, secret: password, accountSetup: binding,
+          provisioningStatus: "pending", updatedAt: binding.submittedAt });
+        const response = await fetch(new URL(`/api/v4/secrets/${secretNameForRecord(updated.id)}`, baseUrl), {
+          method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, signal: requestSignal(),
+          body: JSON.stringify({ projectId: options.projectIds[updated.project], environment: updated.environment,
+            secretPath: "/records", secretValue: JSON.stringify(updated), skipMultilineEncoding: true, type: "shared",
+            secretComment: "One-shot normal ORISO account setup staged by Test Access Hub" })
+        });
+        if (!response.ok) throw new Error("Infisical account setup staging failed");
+        const persisted = await readScopedRecord(updated, headers, "Infisical account setup readback failed");
+        if (!creationFieldsMatch(persisted, updated) || JSON.stringify(persisted.accountSetup) !== JSON.stringify(binding)) {
+          throw new Error("Infisical account setup readback failed");
+        }
+        return { recordId: updated.id, updatedAt: updated.updatedAt };
+      });
+    },
     async updateApplicationPassword(input, applicationPassword, updatedAt) {
       const expected = testAccessRecordSchema.parse(input);
       if (expected.kind !== "app-user" && expected.kind !== "admin") {
@@ -230,7 +259,7 @@ export function createInfisicalRegistryWriter(options: WriterOptions): RegistryW
         if (current.kind !== "app-user" && current.kind !== "admin") {
           throw new Error("Infisical application password update validation failed");
         }
-        if (current.totpSecret || current.provisioningStatus === "ready") {
+        if (current.accountSetup || current.totpSecret || current.provisioningStatus === "ready") {
           throw new Error("Infisical application password update validation failed");
         }
         const updated = testAccessRecordSchema.parse({

@@ -573,6 +573,7 @@ export function createApp(options: AppOptions = {}) {
     environment: z.enum(["local", "pre-dev", "dev", "production-test"]),
     role: z.enum(orisoProvisioningRoles),
     replaceStaleRole: z.boolean().optional().default(false),
+    completeAccountSetup: z.boolean().optional().default(false),
     applicationPassword: z.string().min(1).max(512)
       .refine((value) => value.trim().length > 0)
       .optional()
@@ -587,7 +588,8 @@ export function createApp(options: AppOptions = {}) {
   const orisoProvisioningHttpError = (error: unknown, res: express.Response) => {
     if (!(error instanceof OrisoProvisioningError)) return false;
     const status = error.code === "invite_template_missing" ? 409
-      : error.code === "account_credentials_mismatch" || error.code === "account_creation_conflict" || error.code === "record_username_incompatible" ? 409
+      : error.code === "account_credentials_mismatch" || error.code === "account_creation_conflict" || error.code === "record_username_incompatible"
+        || ["account_setup_required", "account_setup_binding_mismatch", "account_setup_mail_unavailable", "account_setup_outcome_unknown"].includes(error.code) ? 409
       : error.code === "admin_record_unavailable" || error.code === "provisioning_agency_unavailable" ? 503
       : 502;
     res.status(status).json({ error: error.code });
@@ -635,6 +637,8 @@ export function createApp(options: AppOptions = {}) {
       const managedState = linked?.totpSecret ? readyStateForProvisionedRecord(linked) : null;
       const state = linked && (database.isOrisoAdminDeleted(linked.id) || database.isOrisoAdminDeletionPending(linked.id)) ? null : managedState ?? await orisoProvisioning.status(email);
       const provisioningRole = state?.role ?? (linked ? provisioningRoleForRecord(linked) : null);
+      const requiresAccountSetup = Boolean(linked && linked.provisioningStatus !== "ready"
+        && (state?.nextStep === "complete-account-setup" || linked.accountSetup));
       res.json({
         configured: true,
         supportedRoles: [...orisoProvisioningRoles],
@@ -642,7 +646,10 @@ export function createApp(options: AppOptions = {}) {
         state,
         provisioningRole,
         linked: linked ? publicLinkedAccount(linked) : null,
+        requiresAccountSetup,
         requiresApplicationPassword: Boolean(
+          !requiresAccountSetup
+          &&
           provisioningRole
           && (
             !linked
@@ -675,7 +682,7 @@ export function createApp(options: AppOptions = {}) {
     if (viewProject(current) !== "oriso") return res.status(422).json({ error: "mailbox_project_mismatch" });
     const orisoProvisioning = orisoProvisioningServices[environment];
     if (!orisoProvisioning) return res.status(503).json({ error: "oriso_provisioning_unavailable" });
-    if (!registryWriter?.createRecord || !registryWriter.updateRecord) {
+    if (!registryWriter?.updateRecord || (!body.completeAccountSetup && !registryWriter.createRecord)) {
       return res.status(503).json({ error: "record_creation_unavailable" });
     }
     try {
@@ -687,6 +694,65 @@ export function createApp(options: AppOptions = {}) {
         ?? linkedApplicationRecordsForEmail(email, existingRecords)
           .find((record) => record.project === "oriso" && record.environment === environment) ?? null;
       const requestedRoles = recordRolesForProvisioningRole(body.role);
+      if (body.completeAccountSetup) {
+        res.set("Cache-Control", "no-store");
+        const origin = req.get("Origin");
+        if (origin && origin !== (options.expectedOrigin ?? "https://dreambau.com")) {
+          return res.status(403).json({ error: "origin_denied" });
+        }
+        if (!existingRecord || existingRecord.roles.join(",") !== requestedRoles.join(",")
+          || !["counsellor", "agency-admin"].includes(body.role)
+          || existingRecord.provisioningStatus === "ready"
+          || (existingRecord.totpSecret && !existingRecord.accountSetup)
+          || body.replaceStaleRole || body.applicationPassword
+          || database.isOrisoAdminDeleted(existingRecord.id) || database.isOrisoAdminDeletionPending(existingRecord.id)) {
+          return res.status(409).json({ error: "account_setup_binding_mismatch" });
+        }
+        if (!orisoProvisioning.completeAccountSetup || !registryWriter.stageAccountSetup) {
+          return res.status(503).json({ error: "account_setup_unavailable" });
+        }
+        let record = existingRecord;
+        const nowDate = options.now?.() ?? new Date();
+        try {
+          record = await orisoProvisioning.completeAccountSetup({ record,
+            readMail: async () => {
+              const message = await mailReader.latest(current, "counsellor-onboarding");
+              if (!message) throw new OrisoProvisioningError("account_setup_mail_unavailable");
+              return message.text;
+            },
+            storePassword: async (password, binding) => {
+              await registryWriter.stageAccountSetup!(record, password, binding);
+              record = { ...record, secret: password, accountSetup: binding, provisioningStatus: "pending", updatedAt: binding.submittedAt };
+              database.recordAccountAccess({ accountId: record.id, email, actorId: user.id,
+                action: "application_password_updated", createdAt: binding.submittedAt, context: { environment } });
+            }
+          });
+          const nameParts = current.displayName.trim().split(/\s+/);
+          const result = await orisoProvisioning.provision({ record, role: body.role,
+            firstName: nameParts[0], lastName: nameParts.slice(1).join(" ") || "-", existingAccountOnly: true,
+            storeTotp: async (secret) => {
+              await registryWriter.enrollTotp(record, secret, nowDate.toISOString());
+              record = { ...record, totpSecret: secret, updatedAt: nowDate.toISOString() };
+            }
+          });
+          if (result.created || result.state.state !== "ready" || !record.totpSecret) throw new OrisoProvisioningError("totp_verification_failed");
+          record = { ...record, provisioningStatus: "ready", updatedAt: nowDate.toISOString() };
+          await registryWriter.updateRecord(record);
+          const records = [...existingRecords.filter((item) => item.id !== record.id), record];
+          reconcileRecords(records);
+          database.recordAccountAccess({ accountId: record.id, email, actorId: user.id, action: "oriso_account_provisioned", createdAt: nowDate.toISOString(), context: { environment } });
+          return res.json({ created: false, recordCreated: false, state: result.state, provisioningRole: body.role,
+            linked: publicLinkedAccount(record), requiresApplicationPassword: false, requiresAccountSetup: false,
+            metadata: metadataWithLinkedRoles(database.getMetadata(email), linkedForAccountView(current, records, user)) });
+        } catch (error) {
+          // Keep the private candidate and attempt marker even when the remote
+          // password setup outcome is unknown. A retry only verifies this candidate.
+          if (record.accountSetup) {
+            try { await registryWriter.markProvisioningFailed?.(record, nowDate.toISOString()); } catch { /* Retain pending intent. */ }
+          }
+          throw error;
+        }
+      }
       if (existingRecord && existingRecord.roles.join(",") !== requestedRoles.join(",")) {
         if (!body.replaceStaleRole) {
           return res.status(409).json({ error: "record_role_conflict", linked: publicLinkedAccount(existingRecord) });

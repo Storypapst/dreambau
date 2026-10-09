@@ -39,6 +39,124 @@ describe("ORISO environment routing", () => {
   });
 });
 
+describe("bound first-password setup inside Testmails", () => {
+  function harness(patch: Record<string, unknown> = {}, setupOutcome: "completed" | "timeout" = "completed") {
+    const invite = {
+      id: 119, targetRole: "COUNSELLOR", onboardingPurpose: "EXISTING_ACCOUNT_SETUP",
+      tenantId: 7, recipientEmail: "marge.simpson@dreambau.de", provisionedUserId: "new-marge-id",
+      inviteStatus: "EMAIL_SENT", createDate: "2026-07-30T05:00:01", expiresAt: "2026-07-31T05:00:01"
+    };
+    const calls: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      calls.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`);
+      const json = (value: unknown) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("/protocol/openid-connect/token")) return json({ access_token: "admin-token", expires_in: 300 });
+      if (url.includes("/useradmin/account-invites")) return json({ content: [invite], totalPages: 1 });
+      if (url.endsWith("/users/account-invites/fixture-token") && !init?.method) return json({ ...invite, ...patch });
+      if (url.endsWith("/users/account-invites/fixture-token/setup") && init?.method === "POST") {
+        if (setupOutcome === "timeout") throw new Error("upstream network details must not escape");
+        return json({ phase: "COMPLETED" });
+      }
+      throw new Error("Unexpected setup request");
+    };
+    const subject = service(fetch);
+    const record = buildProvisionedRecord({ email: invite.recipientEmail, displayName: "Marge Simpson", role: "counsellor", adminBaseUrl: subject.target.adminBaseUrl, appBaseUrl: subject.target.appBaseUrl, responsiblePerson: "qa", now: new Date("2026-07-30T05:00:00Z"), secret: "Temporary-Initial4*" });
+    const readMail = vi.fn(async () => "Set up your account: https://admin.oriso-dev.site/counsellor-onboarding/fixture-token");
+    const storePassword = vi.fn(async () => { calls.push("STORE private password before POST"); });
+    return { subject, record, readMail, storePassword, calls };
+  }
+
+  it("classifies mandatory first-password setup without exposing the mailed token", () => {
+    const state = publicInviteState({ id: 119, targetRole: "COUNSELLOR", recipientEmail: "marge.simpson@dreambau.de", inviteStatus: "EMAIL_SENT", onboardingPurpose: "EXISTING_ACCOUNT_SETUP", provisionedUserId: "new-marge-id", tenantId: 7 });
+    expect(state.nextStep).toBe("complete-account-setup");
+    expect(state).not.toHaveProperty("rawToken");
+  });
+
+  it("stores a different permanent credential before the one-shot normal setup request", async () => {
+    const h = harness();
+    expect(h.subject.completeAccountSetup).toBeTypeOf("function");
+    const updated = await h.subject.completeAccountSetup!({ record: h.record, readMail: h.readMail, storePassword: h.storePassword });
+    expect(updated.secret).not.toBe(h.record.secret);
+    expect(updated.provisioningStatus).toBe("pending");
+    expect(updated.accountSetup).toMatchObject({ inviteId: 119, provisionedUserId: "new-marge-id" });
+    expect(h.calls.indexOf("STORE private password before POST")).toBeLessThan(h.calls.findIndex((call) => call.endsWith("/setup")));
+    expect(h.calls.filter((call) => call.startsWith("POST") && call.endsWith("/setup"))).toHaveLength(1);
+    expect(h.calls.some((call) => call.includes("/consultants") || call.includes("reset-password"))).toBe(false);
+  });
+
+  it.each([
+    { id: 120 }, { recipientEmail: "herb.powell@dreambau.de" }, { tenantId: 8 },
+    { provisionedUserId: "other-id" }, { targetRole: "AGENCY_ADMIN" },
+    { onboardingPurpose: "NEW_ACCOUNT" }, { inviteStatus: "ACCEPTED" }
+  ])("rejects a foreign or consumed setup binding before writing: %j", async (patch) => {
+    const h = harness(patch);
+    expect(h.subject.completeAccountSetup).toBeTypeOf("function");
+    await expect(h.subject.completeAccountSetup!({ record: h.record, readMail: h.readMail, storePassword: h.storePassword })).rejects.toMatchObject({ code: "account_setup_binding_mismatch" });
+    expect(h.storePassword).not.toHaveBeenCalled();
+    expect(h.calls.some((call) => call.endsWith("/setup"))).toBe(false);
+  });
+
+  it("rejects a foreign mail origin without fetching it or storing a credential", async () => {
+    const h = harness();
+    expect(h.subject.completeAccountSetup).toBeTypeOf("function");
+    await expect(h.subject.completeAccountSetup!({ record: h.record, readMail: async () => "https://evil.invalid/counsellor-onboarding/fixture-token", storePassword: h.storePassword })).rejects.toMatchObject({ code: "account_setup_mail_unavailable" });
+    expect(h.storePassword).not.toHaveBeenCalled();
+  });
+
+  it("never sends setup when the protected password write fails", async () => {
+    const h = harness();
+    await expect(h.subject.completeAccountSetup!({ record: h.record, readMail: h.readMail, storePassword: async () => { throw new Error("writer unavailable"); } })).rejects.toMatchObject({ code: "account_setup_store_failed" });
+    expect(h.calls.some((call) => call.endsWith("/setup"))).toBe(false);
+  });
+
+  it("never falls back to creation when an existing-only continuation cannot authenticate", async () => {
+    const h = harness();
+    const calls: string[] = [];
+    const subject = service(async (url) => {
+      calls.push(new URL(url).pathname);
+      return { ok: false, status: 401, async json() { return {}; } };
+    });
+    await expect(subject.provision({ record: h.record, role: "counsellor", firstName: "Marge", lastName: "Simpson", existingAccountOnly: true, storeTotp: vi.fn() })).rejects.toMatchObject({ code: "account_setup_outcome_unknown" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("openid-connect/token");
+  });
+
+  it("reports setup-required after a fresh counsellor is created with a temporary password", async () => {
+    const h = harness();
+    let creates = 0;
+    const subject = service(async (input, init) => {
+      const url = String(input);
+      const json = (value: unknown) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.includes("openid-connect/token")) return new URLSearchParams(init?.body).get("username") === "abe.simpson@dreambau.de"
+        ? json({ access_token: "admin-token", expires_in: 300 }) : { ok: false, status: 400, async json() { return {}; } };
+      if (url.endsWith("/agencyadmin/agencies/12")) return json({ _embedded: { id: 12, tenantId: 7, name: "Debt advice Berlin", consultingType: 1, topics: [{ id: 31 }], deleteDate: null } });
+      if (url.endsWith("/useradmin/consultants") && init?.method === "POST") { creates += 1; return json({ _embedded: { id: "new-marge-id" } }); }
+      if (url.endsWith("/new-marge-id/agencies") && init?.method === "PUT") return json({});
+      if (url.includes("/useradmin/account-invites")) return json({ content: [{ id: 119, targetRole: "COUNSELLOR", recipientEmail: h.record.email, inviteStatus: "EMAIL_SENT", onboardingPurpose: "EXISTING_ACCOUNT_SETUP" }], totalPages: 1 });
+      throw new Error("Unexpected fixture request");
+    });
+    const storeTotp = vi.fn();
+    await expect(subject.provision({ record: h.record, firstName: "Marge", lastName: "Simpson", role: "counsellor", storeTotp })).rejects.toMatchObject({ code: "account_setup_required" });
+    expect(creates).toBe(1);
+    expect(storeTotp).not.toHaveBeenCalled();
+  });
+
+  it("keeps the private staged credential and never repeats an uncertain setup POST", async () => {
+    const h = harness({}, "timeout");
+    expect(h.subject.completeAccountSetup).toBeTypeOf("function");
+    await expect(h.subject.completeAccountSetup!({ record: h.record, readMail: h.readMail, storePassword: h.storePassword })).rejects.toMatchObject({ code: "account_setup_outcome_unknown" });
+    expect(h.storePassword).toHaveBeenCalledTimes(1);
+    expect(h.calls.filter((call) => call.startsWith("POST") && call.endsWith("/setup"))).toHaveLength(1);
+    const [password, binding] = h.storePassword.mock.calls[0];
+    const staged = { ...h.record, secret: password, accountSetup: binding };
+    const resumed = await h.subject.completeAccountSetup!({ record: staged, readMail: h.readMail, storePassword: h.storePassword });
+    expect(resumed.secret).toBe(password);
+    expect(h.storePassword).toHaveBeenCalledTimes(1);
+    expect(h.calls.filter((call) => call.startsWith("POST") && call.endsWith("/setup"))).toHaveLength(1);
+  });
+});
+
 const adminSecret = "platform-admin-password-never-log";
 const adminTotpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 const generatedOrisoTotpSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";

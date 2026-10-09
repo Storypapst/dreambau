@@ -30,16 +30,18 @@ export interface OrisoProvisioningStateView {
   state: OrisoOnboardingState; role: OrisoProvisioningRole | null; targetRole: string;
   inviteId: number; inviteStatus: string; emailVerificationStatus: string | null; twoFactorStatus: string | null;
   accessGateStatus: string | null; createdAt: string | null; expiresAt: string | null; acceptedAt: string | null;
-  nextStep: "open-invitation-mail" | "complete-onboarding" | "store-totp" | "none";
+  nextStep: "open-invitation-mail" | "complete-account-setup" | "complete-onboarding" | "store-totp" | "none";
 }
 export interface OrisoProvisioningView {
   configured: boolean; supportedRoles: OrisoProvisioningRole[]; environment: "pre-dev" | "dev";
   state: OrisoProvisioningStateView | null; provisioningRole: OrisoProvisioningRole | null;
   linked: LinkedTestAccount | null; requiresApplicationPassword: boolean;
+  requiresAccountSetup?: boolean;
 }
 export interface OrisoProvisioningResult {
   created: boolean; recordCreated: boolean; recordReplaced?: boolean; state: OrisoProvisioningStateView | null;
   provisioningRole: OrisoProvisioningRole; linked: LinkedTestAccount; metadata?: AccountMetadata; requiresApplicationPassword: boolean;
+  requiresAccountSetup?: boolean;
 }
 export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
 export type OtpResponse = ({ source: "totp"; generatedAt: string; expiresAt: string } | { source: "mail"; receivedAt: string; messageId: string; subject: string }) & { accountId: string; code: string };

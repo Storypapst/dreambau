@@ -147,6 +147,7 @@ async function setup(options: {
   role?: "admin" | "member";
   projects?: Array<"oriso" | "orimo" | "dreambau">;
   grantEnvironments?: Array<"local" | "pre-dev" | "dev" | "production-test">;
+  mailReader?: import("../src/server/test-mail.js").TestMailReader;
 } = {}) {
   const lisa = mailbox("lisa.simpson@dreambau.de", "Lisa Simpson");
   const bart = mailbox("bart.simpson@oriso.org", "Bart Simpson");
@@ -212,6 +213,7 @@ async function setup(options: {
   const service = options.service ?? fakeService();
   const emailOtpCodes: string[] = [];
   const app = createApp({
+    mailReader: options.mailReader,
     passwordHash: "unused",
     secureCookies: false,
     loadAccounts: () => [lisa, bart, moe],
@@ -236,6 +238,72 @@ async function setup(options: {
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
+  it("completes a linked first-password setup through Testmails without creating another account", async () => {
+    const record = managedRecord({ kind: "app-user", roles: ["consultant"], totpSecret: undefined, provisioningStatus: "failed" });
+    const binding = { inviteId: 119, provisionedUserId: "new-marge-id", submittedAt: "2026-07-29T16:00:00.000Z" };
+    const stageAccountSetup = vi.fn(async () => ({ recordId: record.id, updatedAt: binding.submittedAt }));
+    const completeAccountSetup = vi.fn(async ({ record: current, readMail, storePassword }) => {
+      expect(await readMail()).toContain("fixture setup mail");
+      await storePassword("Different-New4*Password", binding);
+      return { ...current, secret: "Different-New4*Password", accountSetup: binding, provisioningStatus: "pending", updatedAt: binding.submittedAt };
+    });
+    const service = fakeService({ completeAccountSetup, provision: vi.fn(async ({ storeTotp }) => {
+      await storeTotp("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+      return { created: false, state: inviteFixture({ accessGateStatus: "READY" }) };
+    }) });
+    const writer = { enrollTotp: vi.fn(async () => ({ recordId: record.id, updatedAt: binding.submittedAt })), updateRecord: vi.fn(async () => ({ recordId: record.id, updatedAt: binding.submittedAt })), stageAccountSetup };
+    const mailReader = { latest: vi.fn(async () => ({ id: "mail1", subject: "Setup", from: "sender", preview: "", text: "fixture setup mail", receivedAt: binding.submittedAt })), otp: vi.fn(async () => null) };
+    const fixture = await setup({ records: [record], service, writer, mailReader });
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "counsellor", completeAccountSetup: true });
+    expect(response.status).toBe(200);
+    expect(stageAccountSetup).toHaveBeenCalledTimes(1);
+    expect(service.provision).toHaveBeenCalledWith(expect.objectContaining({ existingAccountOnly: true, record: expect.objectContaining({ accountSetup: binding }) }));
+    expect(writer.updateRecord).toHaveBeenCalledWith(expect.objectContaining({ provisioningStatus: "ready", accountSetup: binding }));
+    expect(JSON.stringify(response.body)).not.toContain("Different-New4*Password");
+    expect(JSON.stringify(response.body)).not.toContain("fixture setup mail");
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
+
+  it("does not create a record or call provisioning when setup has no linked record", async () => {
+    const fixture = await setup();
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "counsellor", completeAccountSetup: true });
+    expect(response.status).toBe(409);
+    expect(fixture.writer?.createRecord).not.toHaveBeenCalled();
+    expect(fixture.service.provision).not.toHaveBeenCalled();
+  });
+
+  it("shows the setup action instead of generic credential repair for a pending mailed setup", async () => {
+    const record = managedRecord({ kind: "app-user", roles: ["consultant"], totpSecret: undefined, provisioningStatus: "failed" });
+    const fixture = await setup({ records: [record], service: fakeService({ status: vi.fn(async () => inviteFixture({ targetRole: "COUNSELLOR", onboardingPurpose: "EXISTING_ACCOUNT_SETUP" })) }) });
+    const response = await fixture.agent.get(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`);
+    expect(response.body.requiresAccountSetup).toBe(true);
+    expect(response.body.requiresApplicationPassword).toBe(false);
+  });
+
+  it.each([
+    { provisioningStatus: "ready" }, { totpSecret: "existing-factor" }, { roles: ["asker"] }, { environment: "dev" }
+  ] as const)("refuses protected or mismatched records before setup: %j", async (patch) => {
+    const record = managedRecord({ kind: "app-user", roles: ["consultant"], totpSecret: undefined, provisioningStatus: "failed", ...patch, roles: patch.roles ? [...patch.roles] : ["consultant"] });
+    const completeAccountSetup = vi.fn();
+    const fixture = await setup({ records: [record], service: fakeService({ completeAccountSetup }) });
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "counsellor", completeAccountSetup: true });
+    expect(response.status).toBe(409);
+    expect(completeAccountSetup).not.toHaveBeenCalled();
+    expect(fixture.service.provision).not.toHaveBeenCalled();
+    expect(fixture.writer?.createRecord).not.toHaveBeenCalled();
+  });
+
+  it("rejects foreign Origin before performing setup", async () => {
+    const completeAccountSetup = vi.fn();
+    const fixture = await setup({ records: [managedRecord({ roles: ["consultant"], totpSecret: undefined, provisioningStatus: "failed" })], service: fakeService({ completeAccountSetup }) });
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`)
+      .set("Origin", "https://evil.invalid").send({ environment: "pre-dev", role: "counsellor", completeAccountSetup: true });
+    expect(response.status).toBe(403);
+    expect(completeAccountSetup).not.toHaveBeenCalled();
+  });
   it("links an existing onboarding account with its real password without direct provisioning", async () => {
     const existingState = inviteFixture({
       inviteStatus: "ACCEPTED",
