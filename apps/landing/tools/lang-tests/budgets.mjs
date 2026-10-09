@@ -6,7 +6,10 @@ import { ROOT } from '../lib.mjs';
 // Unchanged German baseline main 821a9d5; the source-file gzip sum is a conservative footprint proxy, not a server transfer measurement.
 const read=p=>fs.readFileSync(ROOT+'/site/'+p);
 test('shipped runtime, manifest, shell and restored styles stay within the recorded budgets',()=>{
- assert.ok(read('i18n.js').length<=20480);assert.ok(read('i18n/index.js').length<=4096);assert.ok(read('shell.js').length<=44473);
+ assert.ok(read('i18n.js').length<=20480);assert.ok(read('i18n/index.js').length<=4096);
+ // Issue156 adds 593 measured source bytes over main 62d02b2 for render scheduling.
+ // Bound the allowance to 600 bytes above the recorded 44473-byte shell cap.
+ assert.ok(read('shell.js').length<=44473+600,'shell source bytes '+read('shell.js').length);
  // Spec97 restores selected Raster A, adding 1762 measured source CSS bytes.
  // Keep the allowance explicit; moving CSS into another file must not hide its cost.
  const styles=[...read('index.html').toString().matchAll(/<style>([\s\S]*?)<\/style>/g)].reduce((n,m)=>n+Buffer.byteLength(m[1]),0);assert.ok(styles-5587<=5120,'new styles '+(styles-5587));

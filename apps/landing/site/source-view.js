@@ -40,6 +40,7 @@ function localise(){
 }
 function layout(){
  const stack=innerHeight>=innerWidth||innerWidth<760;view.classList.toggle('cv-stack',stack);view.classList.toggle('cv-tight',!stack&&innerWidth<1100);
+ view.classList.toggle('cv-phone',matchMedia('(max-width:600px),(pointer:coarse) and (max-height:520px)').matches);
  const follow=view.querySelector('#cv-follow'),copy=view.querySelector('#cv-copy'),bar=view.querySelector('.cv-actions'),held=doc.activeElement;
  if(stack){bar.prepend(copy);bar.prepend(follow);}else{view.querySelector('.cv-file').append(follow);view.querySelector('.cv-head').insertBefore(copy,view.querySelector('#cv-close'));}
  if(held===follow||held===copy)held.focus({preventScroll:true});
