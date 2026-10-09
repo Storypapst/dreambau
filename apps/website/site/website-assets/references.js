@@ -228,6 +228,43 @@ function refresh() {
 
 /* ---- modal helper (sheets and dialogs): inert background, focus in, focus back ---- */
 const Mo = { cur: null, opener: null };
+const gripCancels = new WeakMap();
+function wireGrip(modal, dismiss) {
+  const grip = $('.grab', modal), panel = $('.msheet', modal);
+  let drag = null, suppressClick = false;
+  const reset = () => {
+    const previous = drag; drag = null;
+    panel.classList.remove('dragging'); css(panel, '--drag-y', '0px');
+    if (previous && grip.hasPointerCapture(previous.id)) grip.releasePointerCapture(previous.id);
+  };
+  gripCancels.set(modal, reset);
+  grip.addEventListener('pointerdown', e => {
+    if (!e.isPrimary || e.button !== 0) return;
+    suppressClick = false;
+    drag = { id:e.pointerId, x:e.clientX, y:e.clientY, time:performance.now() };
+    grip.setPointerCapture(e.pointerId); panel.classList.add('dragging');
+  });
+  grip.addEventListener('pointermove', e => {
+    if (!drag || drag.id !== e.pointerId) return;
+    const dy = Math.max(0, e.clientY - drag.y);
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) suppressClick = true;
+    css(panel, '--drag-y', dy + 'px');
+  });
+  grip.addEventListener('pointerup', e => {
+    if (!drag || drag.id !== e.pointerId) return;
+    const dy = Math.max(0, e.clientY - drag.y), dx = Math.abs(e.clientX - drag.x);
+    const speed = dy / Math.max(1, performance.now() - drag.time);
+    const close = dy > dx && (dy >= 72 || (dy >= 24 && speed >= .45));
+    reset();
+    if (close) dismiss();
+  });
+  grip.addEventListener('pointercancel', reset);
+  grip.addEventListener('lostpointercapture', reset);
+  grip.addEventListener('click', e => {
+    if (suppressClick && e.detail !== 0) { suppressClick = false; e.preventDefault(); return; }
+    dismiss();
+  });
+}
 function modalShow(el, opener) {
   if (Mo.cur && Mo.cur !== el) modalHide(Mo.cur, false);
   Mo.cur = el; Mo.opener = opener || D.activeElement;
@@ -238,6 +275,7 @@ function modalShow(el, opener) {
   requestAnimationFrame(() => { try { f.focus({ preventScroll: true }); if (!el.contains(D.activeElement)) ($('.msheet', el) || el).focus({ preventScroll: true }); } catch (_) { /* */ } });
 }
 function modalHide(el, restore) {
+  gripCancels.get(el)?.();
   el.classList.remove('on'); el.inert = true; el.setAttribute('aria-hidden', 'true');
   if (Mo.cur === el) D.documentElement.classList.remove('modal-open');
   $$('#app > .top, #app > .filter, #app > .scroll').forEach(n => { n.inert = false; });
@@ -275,6 +313,7 @@ function placeFilter() {
 }
 function layoutAll() {
   if (!app) return;
+  $$('.modal').forEach(el => gripCancels.get(el)?.());
   placeFilter();
   absorbStyles(); if (V.layout) V.layout(); absorbStyles();
   redraw();
@@ -322,22 +361,24 @@ function wire() {
 }
 
 function skeleton() {
-  D.body.insertAdjacentHTML('afterbegin', `<div id="stage"><div id="frame"><div id="app" data-v="${V.id}">
+  D.body.insertAdjacentHTML('afterbegin', `<div id="stage" class="enhancing" inert><div id="frame"><div id="app" data-v="${V.id}">
 <canvas id="field" aria-hidden="true"></canvas>
 <header class="top"><a class="pill back" href="/">${svg(ICO.back, 16).replace('<svg ', '<svg class="flip" ')}<span>${esc(L('back'))}</span></a><h1 class="ttl"><span id="ttl">${esc(L('title'))}</span><i class="caret" aria-hidden="true"></i></h1><p class="kicker">${esc(L('sub'))}</p><p class="meta" id="meta" aria-hidden="true"></p></header>
 <section class="filter" role="search" aria-label="${esc(L('filter'))}">${filterHTML()}</section>
 <div class="scroll" id="scroll"><main id="content"></main><footer class="foot" aria-label="${esc(L('impressum'))}"><span class="pending" lang="de" dir="ltr">Impressum · Angaben noch offen</span><i aria-hidden="true">·</i><span class="pending" lang="de" dir="ltr">Datenschutz · Freigabe noch offen</span><i aria-hidden="true">·</i><a href="/teamwork/">${esc(L('teamwork'))}</a><i aria-hidden="true">·</i><a href="/glossar/">Glossar</a><i aria-hidden="true">·</i><a href="mailto:info@dreambau.com">Kontakt</a></footer></div>
-<div class="modal fs" id="fsheet" role="dialog" aria-modal="true" aria-labelledby="fs-t" aria-hidden="true" inert><div class="mbk"></div><section class="msheet" tabindex="-1"><span class="grab" aria-hidden="true"></span><header class="mh"><h2 id="fs-t">${esc(L('filterTitle'))}</h2><button type="button" class="pill" data-close data-autofocus>${esc(L('close'))}</button></header><div class="mb" id="fsbody"></div><footer class="mf"><button type="button" class="pill" id="fsreset">${esc(L('reset'))}</button><button type="button" class="pill pri" id="fsshow"></button></footer></section></div>
+<div class="modal fs" id="fsheet" role="dialog" aria-modal="true" aria-labelledby="fs-t" aria-hidden="true" inert><div class="mbk"></div><section class="msheet" id="fs-sheet" tabindex="-1"><button type="button" class="grab" aria-label="${esc(L('close'))}"></button><header class="mh"><h2 id="fs-t">${esc(L('filterTitle'))}</h2><button type="button" class="pill" data-close data-autofocus>${esc(L('close'))}</button></header><div class="mb" id="fsbody"></div><footer class="mf"><button type="button" class="pill" id="fsreset">${esc(L('reset'))}</button><button type="button" class="pill pri" id="fsshow"></button></footer></section></div>
 </div></div></div><p class="sr" id="live" role="status" aria-live="polite"></p>`);
   app = $('#app');
+  wireGrip($('#fsheet'), () => modalHide($('#fsheet')));
 }
 
 function start(Vv) {
+ try {
   V = Vv;
   R.dataset.v = V.id; R.classList.toggle('rm', RM());
 
-  D.title = `${L('title')} · dreambau.com`; document.querySelector('.nojs').remove();
-  skeleton(); wire();
+  D.title = `${L('title')} · dreambau.com`;
+  skeleton();
   V.mount($('#content'), app);
   if (Q.get('q') != null) S.q = Q.get('q');
   placeFilter();
@@ -349,11 +390,20 @@ function start(Vv) {
   sync(true);
   resizeObs = new ResizeObserver(() => layoutAll()); resizeObs.observe(app);
   layoutAll(); paintArts();
+  wire();
   loop();
   if (!RM()) decode($('#ttl'), L('title'), { dur: 600 });
+  document.querySelector('.nojs').remove();
+  $('#stage').classList.remove('enhancing'); $('#stage').inert = false;
+ } catch (error) {
+  resizeObs?.disconnect(); cancelAnimationFrame(raf); ARTS.clear();
+  $('#stage')?.remove(); $('#live')?.remove(); app = null;
+  R.classList.remove('modal-open');
+  console.warn('References enhancement unavailable; keeping the readable list.', error);
+ }
 }
 
-const controller = { E, byId, S, L, LANG, DIR, COL, NEU, MONO, RM_T, titleOf, scopeOf, vt, esc, EN, hl, hash, glyph, sty, mix, strHash, decode, fit, rel, drawField, drawArt, paintArts, artHTML, viewHTML, enChip, stChip, tagsHTML, linksHTML, sameHTML, tagL, secList, emptyHTML, openEntry, closeEntry, modalShow, modalHide, Mo, isPhone, RM, redraw, layoutAll, refresh, svg, ICO, start, $, $$,
+const controller = { E, byId, S, L, LANG, DIR, COL, NEU, MONO, RM_T, titleOf, scopeOf, vt, esc, EN, hl, hash, glyph, sty, mix, strHash, decode, fit, rel, drawField, drawArt, paintArts, artHTML, viewHTML, enChip, stChip, tagsHTML, linksHTML, sameHTML, tagL, secList, emptyHTML, openEntry, closeEntry, modalShow, modalHide, wireGrip, Mo, isPhone, RM, redraw, layoutAll, refresh, svg, ICO, start, $, $$,
 };
 referenceTimeline = controller;
 })();
@@ -526,7 +576,8 @@ const V = {
     c.innerHTML = `<div class="c-body"><section class="c-map" aria-label="${esc(L('axis'))}">${legendHTML()}<div class="c-empty" id="c-empty"></div><div class="c-stage" id="c-stage"><div class="c-band" aria-hidden="true">${bandHTML()}</div><svg class="c-links" id="c-links" aria-hidden="true"></svg><ol class="c-nodes" id="c-nodes"></ol></div></section>
 <aside class="c-side" id="c-side" aria-label="${esc(L('view'))}"><div class="c-hint" id="c-hint"><span class="gl" aria-hidden="true">◍</span><h2>${esc(L('view'))}</h2><p>${esc(L('hint'))}</p></div><div id="c-view" hidden><div class="sd-h"><span class="pd-k" id="sd-k"></span><button type="button" class="pill" data-closeview>${esc(L('close'))}</button></div><div class="sd-b" id="sd-b"></div></div></aside></div>`;
     nodesEl = $('#c-nodes');
-    a.insertAdjacentHTML('beforeend', `<div class="modal cs" id="cs" role="dialog" aria-modal="true" aria-hidden="true" inert><div class="mbk" id="cs-bk"></div><section class="msheet" tabindex="-1"><span class="grab" aria-hidden="true"></span><header class="mh"><p class="pd-k" id="cs-k"></p><button type="button" class="pill pd-x" data-closeview data-autofocus>${esc(L('close'))}</button></header><div class="mb" id="cs-b"></div><footer class="mf"><button type="button" class="pill pri" data-closeview>${esc(L('close'))}</button></footer></section></div>`);
+    a.insertAdjacentHTML('beforeend', `<div class="modal cs" id="cs" role="dialog" aria-modal="true" aria-hidden="true" inert><div class="mbk" id="cs-bk"></div><section class="msheet" id="cs-sheet" tabindex="-1"><button type="button" class="grab" aria-label="${esc(L('closeView'))}"></button><header class="mh"><p class="pd-k" id="cs-k"></p><button type="button" class="pill pd-x" data-closeview data-autofocus>${esc(L('close'))}</button></header><div class="mb" id="cs-b"></div><footer class="mf"><button type="button" class="pill pri" data-closeview>${esc(L('close'))}</button></footer></section></div>`);
+    M.wireGrip($('#cs'), closeEntry);
     c.addEventListener('click', ev => {
       const t = ev.target.closest('a.nd[data-id]');
       if (t) { if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button) return; ev.preventDefault(); openEntry(t.dataset.id); return; }
