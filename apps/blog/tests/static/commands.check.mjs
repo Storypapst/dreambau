@@ -51,4 +51,16 @@ await run(async () => {
     const wrong = npm(app, 'build', '--', '--publish');
     check('BD-3 an unknown option exits 2 and names the usage', wrong.status === 2 && /Usage/.test(wrong.stderr), `${wrong.status} ${wrong.stderr}`);
   });
+
+  // ---- a bad post in posts/: the build refuses it with the exact lines and writes nothing (BD-4) ----
+  withScratch('refuse', (dir) => {
+    const app = copyApp(ROOT, path.join(dir, 'blog'));
+    fs.mkdirSync(path.join(app, 'posts', '2026'), { recursive: true });
+    fs.writeFileSync(path.join(app, 'posts', '2026', 'schlecht.md'), '---\ntitle: Schlecht\ndate: 2026-02-30\nlang: fr\n---\n\nZu kurz.\n');
+    const result = npm(app, 'build');
+    same('BD-4 npm run build with a bad post exits 1', result.status, 1);
+    same('BD-4 ... and prints every failure with its line, in the shape FAIL <rule> <file>:<line>: <what>', result.stderr.split('\n').filter(Boolean).map((line) => line.split(': ')[0]),
+      ['FAIL PF-5 posts/2026/schlecht.md:3', 'FAIL PF-6 posts/2026/schlecht.md:4', 'FAIL PF-10 posts/2026/schlecht.md:7']);
+    same('BD-4 ... and writes no dist/', fs.existsSync(path.join(app, 'dist')), false);
+  });
 });
