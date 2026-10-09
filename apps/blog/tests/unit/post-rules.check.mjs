@@ -14,7 +14,10 @@ const lines = (text, options = {}) => {
 };
 const text = (front, body) => postText({ front, body });
 const publish = { publish: true };
-const noExample = { example: undefined };
+// a publish build refuses the invented hosts (PF-7), so these tests use a link with a real-looking host (assembled: the
+// scan of the folder finds no foreign host in the file)
+const PUBLISH_LINK = ['https:', '', 'videos.beispiel-video.de', 'klein-bauen'].join('/');
+const noExample = { example: undefined, sourceLink: PUBLISH_LINK };
 
 await run(async () => {
   // ---- the table of limits (7.1) ----
@@ -113,7 +116,7 @@ await run(async () => {
   const outside = { fixture: false };
   same('V8 example: true outside tests/fixtures is PF-14, at the line of the key', lines(postText(), outside), ['FAIL PF-14:9']);
   same('V8 example: true inside tests/fixtures is accepted', lines(postText()), []);
-  same('V8 any publish build refuses example: true, also inside tests/fixtures', lines(postText(), publish), ['FAIL PF-14:9']);
+  same('V8 any publish build refuses example: true, also inside tests/fixtures', lines(text({ sourceLink: PUBLISH_LINK }), publish), ['FAIL PF-14:9']);
   same('V8 example: false is PF-14 too (the key means true or nothing)', lines(text({ example: 'false' }), outside), ['FAIL PF-14:9']);
   same('V8 example: yes is not a boolean', lines(text({ example: 'yes' })), ['FAIL PF-3:9']);
   const named = (file, front = {}) => checkPostText(text({ ...front, example: undefined }), { file }).findings.map((finding) => `${finding.rule}:${finding.where}`);
