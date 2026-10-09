@@ -27,7 +27,7 @@ export const testAccessRecordSchema = z.object({
   accountSetup: z.object({
     inviteId: z.number().int().positive(),
     provisionedUserId: z.string().min(1),
-    submittedAt: z.string().datetime()
+    submittedAt: z.string().datetime().nullable()
   }).strict().optional(),
   documentationUrl: z.string().url()
 }).strict();

@@ -187,6 +187,11 @@ async function setup(options: {
       const index = records.findIndex((candidate) => candidate.id === record.id);
       if (index >= 0) records[index] = { ...records[index], secret, provisioningStatus: "pending", updatedAt };
       return { recordId: record.id, updatedAt };
+    }),
+    bindAccountSetup: vi.fn(async (record: TestAccessRecord, binding: NonNullable<TestAccessRecord["accountSetup"]>, updatedAt: string) => {
+      const index = records.findIndex((candidate) => candidate.id === record.id);
+      if (index >= 0) records[index] = { ...records[index], accountSetup: binding, updatedAt };
+      return { recordId: record.id, updatedAt };
     })
   };
   const root = mkdtempSync(path.join(tmpdir(), "oriso-provisioning-"));
@@ -238,8 +243,21 @@ async function setup(options: {
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
+  it("retains the exact new creation binding before reporting first-password setup required", async () => {
+    const binding = { inviteId: 119, provisionedUserId: "original-new-id", submittedAt: null };
+    const fixture = await setup({ service: fakeService({ provision: vi.fn(async ({ storeSetupBinding }) => {
+      await storeSetupBinding!(binding);
+      throw new OrisoProvisioningError("account_setup_required");
+    }) }) });
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "counsellor" });
+    expect(response.status).toBe(409);
+    expect(fixture.writer?.bindAccountSetup).toHaveBeenCalledWith(expect.objectContaining({ roles: ["consultant"] }), binding, expect.any(String));
+    expect(fixture.writer?.markProvisioningFailed).toHaveBeenCalledWith(expect.objectContaining({ accountSetup: binding }), expect.any(String));
+    expect(fixture.writer?.updateRecord).not.toHaveBeenCalled();
+  });
   it("completes a linked first-password setup through Testmails without creating another account", async () => {
-    const record = managedRecord({ kind: "app-user", roles: ["consultant"], totpSecret: undefined, provisioningStatus: "failed" });
+    const record = managedRecord({ kind: "app-user", roles: ["consultant"], totpSecret: undefined, provisioningStatus: "failed", accountSetup: { inviteId: 119, provisionedUserId: "new-marge-id", submittedAt: null } });
     const binding = { inviteId: 119, provisionedUserId: "new-marge-id", submittedAt: "2026-07-29T16:00:00.000Z" };
     const stageAccountSetup = vi.fn(async () => ({ recordId: record.id, updatedAt: binding.submittedAt }));
     const completeAccountSetup = vi.fn(async ({ record: current, readMail, storePassword }) => {

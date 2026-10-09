@@ -700,7 +700,7 @@ export function createApp(options: AppOptions = {}) {
         if (origin && origin !== (options.expectedOrigin ?? "https://dreambau.com")) {
           return res.status(403).json({ error: "origin_denied" });
         }
-        if (!existingRecord || existingRecord.roles.join(",") !== requestedRoles.join(",")
+        if (!existingRecord || !existingRecord.accountSetup || existingRecord.roles.join(",") !== requestedRoles.join(",")
           || !["counsellor", "agency-admin"].includes(body.role)
           || existingRecord.provisioningStatus === "ready"
           || (existingRecord.totpSecret && !existingRecord.accountSetup)
@@ -721,10 +721,12 @@ export function createApp(options: AppOptions = {}) {
               return message.text;
             },
             storePassword: async (password, binding) => {
+              const stagedAt = binding.submittedAt;
+              if (!stagedAt) throw new OrisoProvisioningError("account_setup_store_failed");
               await registryWriter.stageAccountSetup!(record, password, binding);
-              record = { ...record, secret: password, accountSetup: binding, provisioningStatus: "pending", updatedAt: binding.submittedAt };
+              record = { ...record, secret: password, accountSetup: binding, provisioningStatus: "pending", updatedAt: stagedAt };
               database.recordAccountAccess({ accountId: record.id, email, actorId: user.id,
-                action: "application_password_updated", createdAt: binding.submittedAt, context: { environment } });
+                action: "application_password_updated", createdAt: stagedAt, context: { environment } });
             }
           });
           const nameParts = current.displayName.trim().split(/\s+/);
@@ -941,6 +943,11 @@ export function createApp(options: AppOptions = {}) {
           role: body.role,
           rejectExistingAccount: Boolean(recordReplacementExpected),
           onCreationAttempt: (state) => { replacementMayHaveCreatedAccount = state === "started"; },
+          storeSetupBinding: async (binding) => {
+            if (!registryWriter.bindAccountSetup) throw new OrisoProvisioningError("account_setup_store_failed");
+            await registryWriter.bindAccountSetup(linkedRecord!, binding, nowDate.toISOString());
+            linkedRecord = { ...linkedRecord!, accountSetup: binding, updatedAt: nowDate.toISOString() };
+          },
           storeTotp: async (totpSecret) => {
             await registryWriter.enrollTotp(linkedRecord!, totpSecret, nowDate.toISOString());
             linkedRecord = {

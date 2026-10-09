@@ -20,10 +20,21 @@ An explicit foreign Origin is rejected. SameSite-Strict sessions remain in use.
 Read only the selected mailbox's most recent counsellor-onboarding message.
 Accept only the configured HTTPS Admin origin and exact onboarding path;
 do not follow redirects or take arbitrary URLs/tokens from the browser.
-Compare public GET /users/account-invites/{token} with the unique current
+Retain product-ID from the original create response and the exact matching
+setup invite in the protected record before reporting setup-required.
+Refuse setup without that original proof. A matching replacement invitation
+for the same email is insufficient. Existing incomplete records require an
+explicit protected operator reconciliation against original creation evidence.
+Compare public GET /users/account-invites/{token} with that retained proof and
+the unique current
 admin invitation: id, email, tenant, COUNSELLOR/AGENCY_ADMIN, provisionedUserId,
 EXISTING_ACCOUNT_SETUP and EMAIL_SENT. The product checks current identity,
 username, required action and single-use state again during the setup POST.
+Read protected product detail by retained product-ID before both initial setup
+and staged continuation; require its ID/email/username/tenant and active state.
+Compare raw username or exact canonical enc.Base32 form (padding '=' becomes '.').
+Send the verified tenantId header on public invite GET and setup POST; those
+endpoints do not need authentication or CSRF cookies.
 
 Stage a different permanent password and accountSetup proof together in the
 protected Infisical record, after checking expected credential/state and before
@@ -43,6 +54,8 @@ A lost response can mean that ORISO already changed the password. Testmails pres
 ```text
 accountSetup is an optional protected-record schema addition containing only
 inviteId, provisionedUserId and submittedAt, with the password in secret.
+submittedAt:null retains original creation proof without a password change;
+a timestamp records the staged one-shot setup request.
 It is not a public account field. A failed attempt retains both credential and
 marker; generic password linking cannot overwrite a staged setup attempt.
 The current deployment uses one Testmails instance. In-process serialization

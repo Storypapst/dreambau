@@ -14,6 +14,43 @@ const bindingSchema = z.object({
   recipientEmail: z.string().email(), provisionedUserId: z.string().min(1), inviteStatus: z.literal("EMAIL_SENT")
 });
 
+function encodedUsername(username: string) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const bits = [...Buffer.from(username, "utf8")].map((byte) => byte.toString(2).padStart(8, "0")).join("");
+  let encoded = "";
+  for (let offset = 0; offset < bits.length; offset += 5) encoded += alphabet[Number.parseInt(bits.slice(offset, offset + 5).padEnd(5, "0"), 2)];
+  return `enc.${encoded.padEnd(Math.ceil(encoded.length / 8) * 8, ".")}`;
+}
+
+export async function verifyBoundAccountSetupIdentity(input: {
+  record: TestAccessRecord; target: OrisoProvisioningTarget;
+  readIdentity(path: string): ReturnType<ProvisioningFetch>;
+}) {
+  const { record, target } = input;
+  const role = record.roles.join(",");
+  const binding = record.accountSetup;
+  if (!binding || record.project !== "oriso" || record.environment !== target.environment
+    || record.username.startsWith("enc.") || record.provisioningStatus === "ready"
+    || (role !== "consultant" && role !== "agency-admin")
+    || record.kind !== (role === "consultant" ? "app-user" : "admin")) {
+    throw new OrisoProvisioningError("account_setup_binding_mismatch");
+  }
+  try {
+    const path = role === "consultant" ? "consultants" : "agencyadmins";
+    const response = await input.readIdentity(`/useradmin/${path}/${encodeURIComponent(binding.provisionedUserId)}`);
+    if (!response.ok) throw new Error("Bound identity unavailable");
+    const { _embedded: identity } = z.object({ _embedded: z.object({
+      id: z.string(), username: z.string(), email: z.string().email(), tenantId: z.union([z.number(), z.string()]),
+      deleteDate: z.string().nullable().optional()
+    }).passthrough() }).parse(await response.json());
+    if (identity.id !== binding.provisionedUserId || identity.email.toLowerCase() !== record.email?.toLowerCase()
+      || String(identity.tenantId) !== String(target.defaultTenantId)
+      || (identity.username !== record.username && identity.username !== encodedUsername(record.username))
+      || (role === "consultant" && identity.deleteDate === undefined)
+      || (identity.deleteDate != null && identity.deleteDate !== "null")) throw new Error("Bound identity changed");
+  } catch { throw new OrisoProvisioningError("account_setup_binding_mismatch"); }
+}
+
 export async function completeBoundAccountSetup(input: AccountSetupInput & {
   invite: unknown; target: OrisoProvisioningTarget; fetch: ProvisioningFetch; now(): Date;
 }): Promise<TestAccessRecord> {
@@ -22,6 +59,9 @@ export async function completeBoundAccountSetup(input: AccountSetupInput & {
   const role = record.roles.join(",") === "consultant" ? "COUNSELLOR"
     : record.roles.join(",") === "agency-admin" ? "AGENCY_ADMIN" : null;
   if (!invite.success || !role || record.totpSecret || record.provisioningStatus === "ready"
+    || !record.accountSetup || record.accountSetup.submittedAt
+    || record.accountSetup.inviteId !== invite.data.id
+    || record.accountSetup.provisionedUserId !== invite.data.provisionedUserId
     || record.project !== "oriso" || record.environment !== target.environment
     || invite.data.targetRole !== role || invite.data.tenantId !== target.defaultTenantId
     || invite.data.recipientEmail.toLowerCase() !== record.email?.toLowerCase()) {
@@ -44,7 +84,7 @@ export async function completeBoundAccountSetup(input: AccountSetupInput & {
   const endpoint = `${target.apiBaseUrl.replace(/\/$/, "")}/users/account-invites/${encodeURIComponent([...tokens][0])}`;
   let verified: z.infer<typeof bindingSchema>;
   try {
-    const response = await input.fetch(endpoint, { signal: AbortSignal.timeout(15_000), redirect: "error" });
+    const response = await input.fetch(endpoint, { headers: { tenantId: String(target.defaultTenantId) }, signal: AbortSignal.timeout(15_000), redirect: "error" });
     if (!response.ok) throw new Error("Inactive setup token");
     verified = bindingSchema.parse(await response.json());
   } catch { throw new OrisoProvisioningError("account_setup_binding_mismatch"); }
@@ -61,7 +101,7 @@ export async function completeBoundAccountSetup(input: AccountSetupInput & {
   // response must never trigger a second password change, even after restart.
   try {
     const response = await input.fetch(`${endpoint}/setup`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }),
+      method: "POST", headers: { "Content-Type": "application/json", tenantId: String(target.defaultTenantId) }, body: JSON.stringify({ password }),
       signal: AbortSignal.timeout(15_000), redirect: "error"
     });
     if (!response.ok || !z.object({ phase: z.literal("COMPLETED") }).safeParse(await response.json()).success) throw new Error("Setup outcome uncertain");

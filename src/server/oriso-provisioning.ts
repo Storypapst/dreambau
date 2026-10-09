@@ -3,7 +3,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
 import { generateCompatibleOrisoTotp } from "./totp.js";
-import { completeBoundAccountSetup, type AccountSetupInput } from "./oriso-account-setup.js";
+import { completeBoundAccountSetup, verifyBoundAccountSetupIdentity, type AccountSetupInput } from "./oriso-account-setup.js";
 
 export const orisoProvisioningRoles = [
   "platform-admin",
@@ -355,6 +355,7 @@ export interface OrisoProvisioningService {
     lastName: string;
     role: OrisoProvisioningRole;
     storeTotp(secret: string): Promise<void>;
+    storeSetupBinding?(binding: NonNullable<TestAccessRecord["accountSetup"]>): Promise<void>;
     rejectExistingAccount?: boolean;
     existingAccountOnly?: boolean;
     // A dispatched mutation may have succeeded even if its response is lost.
@@ -743,7 +744,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       return { created: true, state: publicInviteState(invite) };
     },
     async completeAccountSetup(input) {
-      if (input.record.accountSetup) return input.record;
+      const binding = input.record.accountSetup;
+      if (!binding) throw new OrisoProvisioningError("account_setup_binding_mismatch");
+      await verifyBoundAccountSetupIdentity({ record: input.record, target: options, readIdentity: (path) => authorizedJson(path) });
+      if (binding.submittedAt) return input.record;
       const invite = await findInvite(input.record.email ?? "", true);
       return completeBoundAccountSetup({ ...input, invite, target: options, fetch, now });
     },
@@ -815,6 +819,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       }
       let userToken = initialProbe.kind === "authenticated" ? initialProbe.token : null;
       let created = false;
+      let createdProductId: string | null = null;
       let creationAgencyName: string | undefined;
       if (!userToken) {
         if (input.existingAccountOnly) throw new OrisoProvisioningError("account_setup_outcome_unknown");
@@ -846,6 +851,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           } catch {
             throw new OrisoProvisioningError("account_create_failed");
           }
+          createdProductId = createdId;
           const relation = input.role === "agency-admin"
             ? { path: `/useradmin/agencyadmins/${encodeURIComponent(createdId)}/agencies`, body: [{ agencyId: options.defaultAgencyId, role: "ADMIN_DEFAULT" }] }
             : { path: `/useradmin/consultants/${encodeURIComponent(createdId)}/agencies`, body: [{ agencyId: options.defaultAgencyId, roleSetKey: "CONSULTANT_DEFAULT" }] };
@@ -864,6 +870,13 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           const setup = input.record.email && ["counsellor", "agency-admin"].includes(input.role)
             ? await findInvite(input.record.email) : null;
           if (setup?.onboardingPurpose === "EXISTING_ACCOUNT_SETUP" && setup.inviteStatus === "EMAIL_SENT") {
+            if (!createdProductId || setup.provisionedUserId !== createdProductId
+              || setup.targetRole !== roleContract[input.role].targetRole || !input.storeSetupBinding) {
+              throw new OrisoProvisioningError("account_setup_binding_mismatch");
+            }
+            try {
+              await input.storeSetupBinding({ inviteId: setup.id, provisionedUserId: createdProductId, submittedAt: null });
+            } catch { throw new OrisoProvisioningError("account_setup_store_failed"); }
             throw new OrisoProvisioningError("account_setup_required");
           }
           throw new OrisoProvisioningError("account_credentials_mismatch");

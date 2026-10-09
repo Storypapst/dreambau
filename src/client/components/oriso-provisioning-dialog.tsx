@@ -344,7 +344,7 @@ export function OrisoProvisioningDialog({
           : <><MailPlusIcon data-icon="inline-start" />{locale === "de" ? "ORISO-Konto anlegen" : "Provision ORISO account"}</>}
       </Button>
     </DialogTrigger>
-    <DialogContent>
+    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto [&>*]:min-w-0 [&_button]:h-auto [&_button]:min-h-9 [&_button]:max-w-full [&_button]:whitespace-normal">
       <DialogHeader>
         <DialogTitle>{locale === "de" ? `ORISO ${environmentLabel} Konto` : `ORISO ${environmentLabel} account`}</DialogTitle>
         <DialogDescription>
@@ -486,7 +486,7 @@ export function OrisoProvisioningDialog({
           ? "Testmails prüft die Einrichtungsmail dieses Postfachs, speichert das endgültige Passwort geschützt und schließt die normale ORISO-Einrichtung mit 2FA ab."
           : "Testmails verifies this mailbox’s setup email, stores the permanent password securely, and completes normal ORISO setup with 2FA."}
       </p>}
-      <DialogFooter>
+      <DialogFooter className="sm:flex-wrap">
         <Button type="button" variant="outline" onClick={() => changeOpen(false)} disabled={busy}>
           {locale === "de" ? "Schließen" : "Close"}
         </Button>

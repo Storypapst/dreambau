@@ -40,11 +40,11 @@ describe("ORISO environment routing", () => {
 });
 
 describe("bound first-password setup inside Testmails", () => {
-  function harness(patch: Record<string, unknown> = {}, setupOutcome: "completed" | "timeout" = "completed") {
+  function harness(patch: Record<string, unknown> = {}, setupOutcome: "completed" | "timeout" = "completed", adminPatch: Record<string, unknown> = {}, identityPatch: Record<string, unknown> = {}) {
     const invite = {
       id: 119, targetRole: "COUNSELLOR", onboardingPurpose: "EXISTING_ACCOUNT_SETUP",
       tenantId: 7, recipientEmail: "marge.simpson@dreambau.de", provisionedUserId: "new-marge-id",
-      inviteStatus: "EMAIL_SENT", createDate: "2026-07-30T05:00:01", expiresAt: "2026-07-31T05:00:01"
+      inviteStatus: "EMAIL_SENT", createDate: "2026-07-30T05:00:01", expiresAt: "2026-07-31T05:00:01", ...adminPatch
     };
     const calls: string[] = [];
     const fetch: ProvisioningFetch = async (input, init) => {
@@ -53,6 +53,7 @@ describe("bound first-password setup inside Testmails", () => {
       const json = (value: unknown) => ({ ok: true, status: 200, async json() { return value; } });
       if (url.includes("/protocol/openid-connect/token")) return json({ access_token: "admin-token", expires_in: 300 });
       if (url.includes("/useradmin/account-invites")) return json({ content: [invite], totalPages: 1 });
+      if (url.endsWith("/useradmin/consultants/new-marge-id")) return json({ _embedded: { id: "new-marge-id", username: "marge.simpson_at_dreambau.de", email: "marge.simpson@dreambau.de", tenantId: 7, deleteDate: "null", ...identityPatch } });
       if (url.endsWith("/users/account-invites/fixture-token") && !init?.method) return json({ ...invite, ...patch });
       if (url.endsWith("/users/account-invites/fixture-token/setup") && init?.method === "POST") {
         if (setupOutcome === "timeout") throw new Error("upstream network details must not escape");
@@ -62,6 +63,7 @@ describe("bound first-password setup inside Testmails", () => {
     };
     const subject = service(fetch);
     const record = buildProvisionedRecord({ email: invite.recipientEmail, displayName: "Marge Simpson", role: "counsellor", adminBaseUrl: subject.target.adminBaseUrl, appBaseUrl: subject.target.appBaseUrl, responsiblePerson: "qa", now: new Date("2026-07-30T05:00:00Z"), secret: "Temporary-Initial4*" });
+    record.accountSetup = { inviteId: 119, provisionedUserId: "new-marge-id", submittedAt: null };
     const readMail = vi.fn(async () => "Set up your account: https://admin.oriso-dev.site/counsellor-onboarding/fixture-token");
     const storePassword = vi.fn(async () => { calls.push("STORE private password before POST"); });
     return { subject, record, readMail, storePassword, calls };
@@ -82,7 +84,37 @@ describe("bound first-password setup inside Testmails", () => {
     expect(updated.accountSetup).toMatchObject({ inviteId: 119, provisionedUserId: "new-marge-id" });
     expect(h.calls.indexOf("STORE private password before POST")).toBeLessThan(h.calls.findIndex((call) => call.endsWith("/setup")));
     expect(h.calls.filter((call) => call.startsWith("POST") && call.endsWith("/setup"))).toHaveLength(1);
-    expect(h.calls.some((call) => call.includes("/consultants") || call.includes("reset-password"))).toBe(false);
+    expect(h.calls.some((call) => (call.startsWith("POST") && call.includes("/consultants")) || call.includes("reset-password"))).toBe(false);
+  });
+
+  it("refuses setup without retained proof of the originally created product identity", async () => {
+    const h = harness();
+    const withoutProof = { ...h.record };
+    delete withoutProof.accountSetup;
+    await expect(h.subject.completeAccountSetup!({ record: withoutProof, readMail: h.readMail, storePassword: h.storePassword })).rejects.toMatchObject({ code: "account_setup_binding_mismatch" });
+    expect(h.storePassword).not.toHaveBeenCalled();
+  });
+
+  it("rejects a replacement identity even if its invitation and email metadata match each other", async () => {
+    const h = harness({}, "completed", { id: 120, provisionedUserId: "replacement-marge-id" });
+    await expect(h.subject.completeAccountSetup!({ record: h.record, readMail: h.readMail, storePassword: h.storePassword })).rejects.toMatchObject({ code: "account_setup_binding_mismatch" });
+    expect(h.storePassword).not.toHaveBeenCalled();
+    expect(h.readMail).not.toHaveBeenCalled();
+  });
+
+  it.each([{ id: "replacement-id" }, { username: "different-user" }, { tenantId: 8 }, { email: "herb.powell@dreambau.de" }, { deleteDate: "2026-10-09" }])("checks retained identity before a staged continuation: %j", async (identityPatch) => {
+    const h = harness({}, "completed", {}, identityPatch);
+    h.record.accountSetup!.submittedAt = "2026-07-30T05:01:00.000Z";
+    await expect(h.subject.completeAccountSetup!({ record: h.record, readMail: h.readMail, storePassword: h.storePassword })).rejects.toMatchObject({ code: "account_setup_binding_mismatch" });
+    expect(h.readMail).not.toHaveBeenCalled();
+    expect(h.storePassword).not.toHaveBeenCalled();
+  });
+
+  it("accepts the backend's exact RFC4648 encoded username without decoding other identities", async () => {
+    const h = harness({}, "completed", {}, { username: "enc.NVQXEZ3FFZZWS3LQONXW4X3BORPXI4TBNFWC42LTOQ......" });
+    h.record.username = "marge.simpson_at_trail.ist";
+    await expect(h.subject.completeAccountSetup!({ record: h.record, readMail: h.readMail, storePassword: h.storePassword })).resolves.toMatchObject({ username: h.record.username });
+    expect(h.storePassword).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -133,11 +165,13 @@ describe("bound first-password setup inside Testmails", () => {
       if (url.endsWith("/agencyadmin/agencies/12")) return json({ _embedded: { id: 12, tenantId: 7, name: "Debt advice Berlin", consultingType: 1, topics: [{ id: 31 }], deleteDate: null } });
       if (url.endsWith("/useradmin/consultants") && init?.method === "POST") { creates += 1; return json({ _embedded: { id: "new-marge-id" } }); }
       if (url.endsWith("/new-marge-id/agencies") && init?.method === "PUT") return json({});
-      if (url.includes("/useradmin/account-invites")) return json({ content: [{ id: 119, targetRole: "COUNSELLOR", recipientEmail: h.record.email, inviteStatus: "EMAIL_SENT", onboardingPurpose: "EXISTING_ACCOUNT_SETUP" }], totalPages: 1 });
+      if (url.includes("/useradmin/account-invites")) return json({ content: [{ id: 119, targetRole: "COUNSELLOR", recipientEmail: h.record.email, provisionedUserId: "new-marge-id", inviteStatus: "EMAIL_SENT", onboardingPurpose: "EXISTING_ACCOUNT_SETUP" }], totalPages: 1 });
       throw new Error("Unexpected fixture request");
     });
     const storeTotp = vi.fn();
-    await expect(subject.provision({ record: h.record, firstName: "Marge", lastName: "Simpson", role: "counsellor", storeTotp })).rejects.toMatchObject({ code: "account_setup_required" });
+    const storeSetupBinding = vi.fn(async () => {});
+    await expect(subject.provision({ record: h.record, firstName: "Marge", lastName: "Simpson", role: "counsellor", storeTotp, storeSetupBinding })).rejects.toMatchObject({ code: "account_setup_required" });
+    expect(storeSetupBinding).toHaveBeenCalledWith({ inviteId: 119, provisionedUserId: "new-marge-id", submittedAt: null });
     expect(creates).toBe(1);
     expect(storeTotp).not.toHaveBeenCalled();
   });
