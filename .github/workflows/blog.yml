@@ -1,0 +1,53 @@
+name: Blog
+
+# The root workflow (ci.yml) has no path filter and never looks at apps/*, so the Blog folder has its own, like
+# teamwork.yml. Pull request part only: it runs when a pull request changes the folder or this file. The push to main
+# (spec 5.12 BD-8, LE-9) comes with slice S8. It cannot be run locally; its first real run is the pull request that
+# introduces it.
+on:
+  pull_request:
+    paths:
+      - 'apps/blog/**'
+      - '.github/workflows/blog.yml'
+
+permissions:
+  contents: read
+
+# Its own group: with another workflow's group the two workflows of one branch would cancel each other.
+concurrency:
+  group: blog-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Blog checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/blog
+    steps:
+      # Actions are pinned to the same immutable commit SHAs as in teamwork.yml and the root workflow; tags are
+      # repointable. persist-credentials is off because no step here needs git write access.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # .nvmrc at the repository root is the single source of truth for the Node major. The npm cache is keyed by the
+      # lock file of this folder, which is not a workspace of the root package.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: apps/blog/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The page server of `npm run serve` and of the checks starts this image (tests/lib/image.mjs); pulling it first
+      # keeps the download out of the first check's time.
+      - name: Pull the nginx image
+        run: docker pull nginx:1.27-alpine
+
+      - name: Run the checks
+        run: npm run check
