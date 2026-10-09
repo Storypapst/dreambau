@@ -148,8 +148,8 @@ img{display:block;max-width:100%;height:auto}
      phone layout; the grid moves them into the sheet (PO-7). The two panels are drawn behind the items. */
   .post{position:relative;isolation:isolate;display:grid;grid-template-columns:minmax(0,700px) 340px;grid-auto-flow:row dense;column-gap:18px;justify-content:center;padding:0;border:0;background:none;border-radius:0}
   .post::before,.post::after{content:"";position:absolute;z-index:-1;grid-row:1/auto;inset:0;border:1px solid rgba(var(--fg),.14);border-radius:12px}
-  .post::before{grid-column:1;background:var(--bg)}
-  .post::after{grid-column:2;background:rgba(var(--fg),.04)}
+  .post::before{grid-column:1/2;background:var(--bg)}
+  .post::after{grid-column:2/3;background:rgba(var(--fg),.04)}
   .post>.ln,.post>section{grid-column:1}
   .post>.ln:first-child{padding-top:24px}
   .post>section:last-of-type{padding-bottom:10px}
@@ -163,6 +163,9 @@ img{display:block;max-width:100%;height:auto}
   .facts .shd{margin-bottom:12px}
   .post>.pic{grid-column:2;grid-row:span 2;align-self:start;padding:0 18px 16px}
   .post>.pn{grid-column:2;align-self:start;padding:0 18px 18px}
+  body>main{flex:0 0 auto}
+  .site{margin-top:auto;padding-top:22px}
+  .post{margin-top:16px}
   .dock{position:static;margin-top:16px;padding-block:0;padding-inline:max(24px,calc((100% - 1058px)/2));background:none;border:0}
   .dock .back{display:inline-flex;width:auto}
 }
