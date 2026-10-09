@@ -5,9 +5,9 @@ try{await run(async()=>{
  for(const [width,height,limit] of [[1280,720,4],[1920,1080,6]]){
   const {context,page}=await openObserved(browser,{viewport:{width,height}});
   await context.addInitScript(()=>{
-   window.__redraws=[];window.__clears=0;
+   window.__redraws=[];window.__clears=0;window.__orbClears=0;
    const clear=CanvasRenderingContext2D.prototype.clearRect;
-   CanvasRenderingContext2D.prototype.clearRect=function(...args){if(this.canvas.id==='characters')window.__clears++;return clear.apply(this,args);};
+   CanvasRenderingContext2D.prototype.clearRect=function(...args){if(this.canvas.id==='characters')window.__clears++;if(this.canvas.id==='orb-glyphs')window.__orbClears++;return clear.apply(this,args);};
    const raf=window.requestAnimationFrame.bind(window);
    window.requestAnimationFrame=(callback)=>raf((time)=>{const before=window.__clears,start=performance.now();callback(time);if(window.__clears>before)window.__redraws.push(performance.now()-start);});
   });
@@ -16,6 +16,7 @@ try{await run(async()=>{
   await page.waitForFunction(()=>window.__redraws.length>=40);
   const timing=await page.evaluate(()=>({mean:window.__redraws.slice(-40).reduce((a,b)=>a+b,0)/40,clears:window.__clears}));check('C49 forty measured redraws average within '+limit+'ms '+width,timing.mean<=limit,JSON.stringify(timing));
   const begin=await page.evaluate(()=>window.__clears);await new Promise((r)=>setTimeout(r,2000));const drawn=await page.evaluate(()=>window.__clears)-begin;check('C42 normal canvas draws at most forty times over two seconds '+width,drawn<=40&&drawn>0,String(drawn));
+  check('C42 the glyph overlay redraws once per background frame '+width,await page.evaluate(()=>window.__clears===window.__orbClears));
   if(width===1280){
    const brightness=[];const started=Date.now();
    for(let i=0;i<51;i++){
