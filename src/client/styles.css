@@ -85,3 +85,66 @@ button, input, textarea, select { font: inherit; }
 .md-body table { border-collapse: collapse; }
 .md-body th, .md-body td { border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: left; }
 .md-body hr { border-color: var(--border); }
+
+/* Programme guides reuse existing UI primitives with the approved website theme.
+   These tokens are scoped so the Testmails directory retains its own theme. */
+.teamwork-guide-theme {
+  color-scheme: dark;
+  --background: #06080d; --foreground: rgba(233,237,245,.9);
+  --card: #06080d; --card-foreground: var(--foreground);
+  --popover: var(--card); --popover-foreground: var(--foreground);
+  --primary: rgba(233,237,245,.9); --primary-foreground: #06080d;
+  --secondary: rgba(6,8,13,.55); --secondary-foreground: var(--foreground);
+  --muted: rgba(233,237,245,.1); --muted-foreground: rgba(233,237,245,.62);
+  --accent: rgba(233,237,245,.1); --accent-foreground: var(--foreground);
+  --border: rgba(233,237,245,.1); --input: rgba(233,237,245,.34); --ring: #fff;
+  min-height: 100svh;
+  background: radial-gradient(120% 90% at 50% 0%,#121a2b 0%,rgba(6,8,13,0) 70%) var(--background);
+  color: var(--foreground); font: 400 14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+.teamwork-guide-theme [data-slot="button"], .teamwork-guide-theme [data-slot="tabs-trigger"] {
+  min-height: 44px; padding: 0 16px; border: 1px solid rgba(233,237,245,.34);
+  border-radius: 24px; background: rgba(6,8,13,.55); color: var(--foreground); box-shadow: none;
+  white-space: normal; height: auto;
+}
+.teamwork-guide-theme [data-slot="tabs-trigger"][data-state="active"] { border-color: rgba(233,237,245,.9); }
+.teamwork-guide-theme [data-slot="tabs-list"] { height: auto; padding: 0; gap: 10px; flex-wrap: wrap; }
+.teamwork-guide-theme [data-slot="tabs-trigger"]::after { display: none; }
+.teamwork-guide-theme [data-slot="input"] { min-height: 48px; font-size: 16px; }
+.teamwork-guide-theme :focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.teamwork-guide-theme [data-slot="card"] { border: 0; box-shadow: none; background: transparent; }
+.teamwork-guide-theme [data-slot="card-title"], .programme-guide h1 {
+  font: 800 30px/1.1 system-ui,-apple-system,"Segoe UI",sans-serif; color: rgb(255,238,210);
+  text-shadow: 0 0 22px rgba(255,214,150,.4);
+}
+.guide-login-back { max-width: 800px; margin: auto; padding: 16px; }
+.teamwork-guide-theme .guide-login-back + main { min-height: auto; padding: 16px; }
+.programme-guide { max-width: 800px; margin: auto; padding: 16px 16px 48px; overflow-wrap: anywhere; }
+.guide-header { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+.guide-eyebrow, .guide-number { font: 500 11px/1.5 ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace; color: rgba(233,237,245,.62); }
+.guide-eyebrow { margin: 0 0 12px; letter-spacing: .08em; }
+.guide-caret { display: inline-block; width: .5em; height: .95em; margin-left: 9px; background: rgb(255,190,100); vertical-align: -.05em; }
+.guide-summary { max-width: 560px; margin: 16px 0 30px; font-size: 15px; color: rgba(233,237,245,.78); }
+.programme-guide h2 { font-size: 17px; font-weight: 700; line-height: 1.3; margin: 0 0 10px; }
+.guide-introduction { margin-bottom: 30px; }
+.guide-introduction ul { padding-left: 20px; margin: 0 0 16px; }
+.guide-introduction li { margin: 8px 0; }
+.guide-links { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.guide-links a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 4px; }
+.guide-steps { list-style: none; padding: 0; margin: 16px 0 24px; }
+.guide-steps > li { display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 16px; padding: 22px 0; border-top: 1px solid var(--border); }
+.guide-number { padding-top: 3px; font-size: 12.5px; }
+.guide-steps p { color: rgba(233,237,245,.78); margin: 0; }
+.guide-downloads { display: flex; gap: 10px; flex-wrap: wrap; }
+.guide-access-note { margin-top: 32px; color: var(--muted-foreground); font-size: 12px; }
+@media (min-width: 900px) {
+  .programme-guide { max-width: 980px; padding: 24px 32px 96px; }
+  .guide-header { margin-bottom: 52px; }
+  .guide-steps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 30px; }
+  .guide-steps > li { display: block; }
+  .guide-number { display: block; margin-bottom: 14px; }
+}
+.teamwork-guide-theme [data-slot="tabs-trigger"] { flex: none; white-space: nowrap; }
+.teamwork-guide-theme [data-slot="card"] { max-width: 400px; }
+.teamwork-guide-theme [data-slot="card-header"], .teamwork-guide-theme [data-slot="card-content"] { padding-inline: 0; }
+.teamwork-guide-theme label[for="stay-signed-in"] { min-height: 44px; }
