@@ -75,8 +75,12 @@ export function buildBlog({ postsDir, outDir, mode = 'preview' }) {
   });
   const manifest = { schema: 1, mode, posts: posts.map((post) => ({ address: post.address, number: post.number })), files };
 
-  // Only these two entries of outDir belong to the build; everything else in it stays as it is.
-  fs.rmSync(path.join(outDir, 'public'), { recursive: true, force: true });
+  // Only these two entries of outDir belong to the build; everything else in it stays as it is. public/ is emptied but
+  // never removed: a directory that is removed and created again just before `docker run` can show up empty in the
+  // container (measured on Docker Desktop, 7 of 25 starts; 0 of 50 when the directory stays).
+  const publicDir = path.join(outDir, 'public');
+  fs.mkdirSync(publicDir, { recursive: true });
+  for (const entry of fs.readdirSync(publicDir)) fs.rmSync(path.join(publicDir, entry), { recursive: true, force: true });
   fs.rmSync(path.join(outDir, 'blog.json'), { force: true });
   for (const [name, text] of pages) {
     const target = path.join(outDir, 'public', name);

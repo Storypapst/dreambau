@@ -14,6 +14,7 @@
 //   process) is removed by the next start, once that process no longer exists.
 import { execFile, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { nginxImage } from './image.mjs';
@@ -113,34 +114,59 @@ function hookProcess() {
   }
 }
 
+// Starts the container once. A directory that was created only milliseconds before `docker run` can show up EMPTY
+// in the container on Docker Desktop (measured on 2026-10-09: 7 of 25 starts when the directory had just been
+// removed and created again; none when it was older than a moment). The listing of /srv/blog from inside tells; an
+// empty listing of a host directory that is not empty is a failed mount, and the container is started again.
+async function launch(publicDir, name, image) {
+  const mounts = [[path.resolve(publicDir), SERVED_DIRECTORY], [path.join(ROOT, 'ops'), CONF_DIRECTORY]];
+  try {
+    await docker(['run', '-d', '--name', name, '--label', `${LABEL}=${process.pid}`, '-p', '127.0.0.1::8080',
+      ...mounts.flatMap(([source, target]) => ['--mount', `type=bind,source=${source},target=${target},readonly`]),
+      image, 'nginx', '-c', `${CONF_DIRECTORY}/nginx-test.conf`, '-g', 'daemon off;']);
+  } catch (error) {
+    throw new Error(`the page server could not start a container of the image ${image}: ${error.message}`);
+  }
+}
+
+async function mountIsEmpty(publicDir, name) {
+  if (fs.readdirSync(publicDir).length === 0) return false;
+  const listing = await docker(['exec', name, 'ls', '-A', SERVED_DIRECTORY]).catch(() => 'unknown');
+  return listing.trim() === '';
+}
+
+const MOUNT_ATTEMPTS = 3;
+
 export async function startPageServer({ publicDir }) {
   await removeStaleContainers();
   const image = nginxImage();
-  const name = `blog-test-${process.pid}-${crypto.randomBytes(3).toString('hex')}`;
+  const handle = { name: '', image, origin: '', url: '', stopSync: () => {}, stop: async () => {} };
+  const removeContainer = (name) => spawnSync('docker', ['rm', '-f', name], { stdio: 'ignore', timeout: 60000 });
   let stopped = false;
-  const stopSync = () => {
+  handle.stopSync = () => {
     if (stopped) return;
     stopped = true;
     running.delete(handle);
-    spawnSync('docker', ['rm', '-f', name], { stdio: 'ignore', timeout: 60000 });
+    removeContainer(handle.name);
   };
-  const handle = { name, image, origin: '', url: '', stopSync, stop: async () => stopSync() };
+  handle.stop = async () => handle.stopSync();
   running.add(handle);
   hookProcess();
   try {
-    const mounts = [[path.resolve(publicDir), SERVED_DIRECTORY], [path.join(ROOT, 'ops'), CONF_DIRECTORY]];
-    try {
-      await docker(['run', '-d', '--name', name, '--label', `${LABEL}=${process.pid}`, '-p', '127.0.0.1::8080',
-        ...mounts.flatMap(([source, target]) => ['--mount', `type=bind,source=${source},target=${target},readonly`]),
-        image, 'nginx', '-c', `${CONF_DIRECTORY}/nginx-test.conf`, '-g', 'daemon off;']);
-    } catch (error) {
-      throw new Error(`the page server could not start a container of the image ${image}: ${error.message}`);
+    for (let attempt = 1; ; attempt += 1) {
+      handle.name = `blog-test-${process.pid}-${crypto.randomBytes(3).toString('hex')}`;
+      await launch(publicDir, handle.name, image);
+      if (!(await mountIsEmpty(publicDir, handle.name))) break;
+      removeContainer(handle.name);
+      if (attempt === MOUNT_ATTEMPTS) throw new Error(`the container saw ${publicDir} as an empty directory in ${MOUNT_ATTEMPTS} starts in a row (a Docker Desktop file sharing problem)`);
+      console.error(`page server: the container saw ${SERVED_DIRECTORY} empty (attempt ${attempt} of ${MOUNT_ATTEMPTS}); starting it again`);
+      await sleep(1000);
     }
-    handle.origin = `http://127.0.0.1:${await publishedPort(name)}`;
+    handle.origin = `http://127.0.0.1:${await publishedPort(handle.name)}`;
     handle.url = `${handle.origin}/blog/`;
-    await waitUntilReady(handle.url, name, Number(process.env.BLOG_SERVER_START_TIMEOUT_MS || 60000));
+    await waitUntilReady(handle.url, handle.name, Number(process.env.BLOG_SERVER_START_TIMEOUT_MS || 60000));
   } catch (error) {
-    stopSync();
+    handle.stopSync();
     throw error;
   }
   return handle;

@@ -61,6 +61,23 @@ await run(async () => {
     same('AD-1 the list shows the newest post first', [...list.matchAll(/<a href="\/blog\/([^"]+)\/">/g)].map((match) => match[1]), ['2026/drei', '2026/zwei-eins', '2026/aaa-zwei', '2025/null']);
   });
 
+  // ---- a rebuild keeps the directory that is served (BD-11) ----
+  // Measured on 2026-10-09 (Docker Desktop, macOS): a bind-mounted directory that was removed and created again
+  // milliseconds before `docker run` showed up EMPTY in the container (7 of 25 starts); emptying the same directory and
+  // filling it again never did (0 of 50). So the build empties public/ and keeps the directory itself.
+  withScratch('inode', (dir) => {
+    const posts = path.join(dir, 'posts');
+    const out = path.join(dir, 'out');
+    writePost(posts, '2026/eins.md', post('', 'Eins Beitrag', '2026-09-01'));
+    writePost(posts, '2026/zwei.md', post('', 'Zwei Beitrag', '2026-09-02'));
+    buildBlog({ postsDir: posts, outDir: out, mode: 'preview' });
+    const before = fs.statSync(path.join(out, 'public')).ino;
+    fs.rmSync(path.join(posts, '2026', 'zwei.md'));
+    buildBlog({ postsDir: posts, outDir: out, mode: 'preview' });
+    same('BD-11 a rebuild keeps the very directory public/ (same inode): a container that mounts it keeps seeing it', fs.statSync(path.join(out, 'public')).ino, before);
+    same('BD-11 a rebuild removes the page of a post that is gone', digestTree(out).map((file) => file.path), ['blog.json', 'public/2026/eins/index.html', 'public/index.html']);
+  });
+
   // ---- no posts at all: a valid, empty list ----
   withScratch('empty', (dir) => {
     const manifest = buildBlog({ postsDir: path.join(dir, 'does-not-exist'), outDir: path.join(dir, 'out'), mode: 'preview' });
