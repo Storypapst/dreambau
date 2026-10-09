@@ -86,12 +86,24 @@ describe("Springfield account links", () => {
       shippedVersion: "2.02",
       lifecycleStatus: "active",
       project: "ORISO",
-      roles: ["Admin"],
+      roles: ["tenant-admin", "agency-admin"],
       topics: [],
       notes: "Dedicated reusable PreDev platform administrator."
     });
     expect(JSON.stringify(result)).not.toContain("not-written-anywhere");
     expect(JSON.stringify(result)).not.toContain("GEZDGNBV");
+  });
+
+  it.each([
+    [["platform-admin"], ["platform-admin"]],
+    [["tenant-admin"], ["tenant-admin"]],
+    [["agency-admin"], ["agency-admin"]],
+    [["admin", "platform-admin"], ["platform-admin"]],
+    [["admin"], ["Admin"]],
+    [["user-admin"], ["Admin"]],
+    [["agency-admin", "tenant-admin", "consultant"], ["tenant-admin", "agency-admin", "Berater"]]
+  ])("projects the actual qualified roles %j without inventing a privilege", (roles, expected) => {
+    expect(dashboardRoles(roles)).toEqual(expected);
   });
 
   it.each([

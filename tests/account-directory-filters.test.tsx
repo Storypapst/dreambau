@@ -61,6 +61,16 @@ describe("AccountDirectory filter state", () => {
   const rows = () => container.querySelector('[data-testid="table"]')?.textContent;
   const reset = () => container.querySelector('[data-testid="reset-filters"]') as HTMLButtonElement | null;
 
+  it("finds an account by documented agency without guessing unknown agencies", async () => {
+    await render([account("new@oriso.org", { agencies: ["Debt advice Berlin", "Family advice Hamburg"] }), account("old@oriso.org")]);
+    const search = container.querySelector<HTMLInputElement>('input[placeholder]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "Family advice Hamburg");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(rows()).toBe("rows:1");
+  });
+
   it.each(["de", "en"] as const)("accepts an expanded catalogue and derives encryption counts in %s", async (locale) => {
     const expanded = Array.from({ length: 272 }, (_, index) => ({
       ...account(`test.${index}@oriso.org`),

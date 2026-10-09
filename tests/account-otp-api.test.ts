@@ -164,7 +164,7 @@ describe("human Springfield OTP access", () => {
       loginUrl: "https://predev.oriso.org/admin",
       hasTotp: true
     }]);
-    expect(before.body[0].metadata.roles).toEqual(["Admin"]);
+    expect(before.body[0].metadata.roles).toEqual(["platform-admin"]);
     expect(before.body[0].access.latest).toBeNull();
     expect(JSON.stringify(before.body)).not.toContain(record.totpSecret);
     expect(JSON.stringify(before.body)).not.toContain(record.secret);

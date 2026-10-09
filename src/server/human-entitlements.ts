@@ -16,7 +16,7 @@ export function humanEntitlementsFor(
   grants: HumanGrantStore,
   sessionMethod: SessionPrincipal["method"]
 ): HumanEntitlements {
-  const grantedEnvironments = user.status === "active" && sessionMethod === "passkey"
+  const grantedEnvironments = user.status === "active" && (sessionMethod === "passkey" || sessionMethod === "email-otp")
     ? grants.effective(user.id).find((grant) => grant.project === "oriso")?.environments ?? []
     : [];
   return {

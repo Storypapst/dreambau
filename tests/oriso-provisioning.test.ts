@@ -450,6 +450,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -519,6 +520,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -568,7 +570,7 @@ describe("reusable ORISO PreDev account factory", () => {
       now: new Date("2026-07-30T05:00:00.000Z"),
       secret: "fixed-deleted-asker-password"
     });
-    Object.assign(record, { totpSecret: storedTotp, provisioningStatus: "ready" as const });
+    Object.assign(record, { username: "marge.simpson@dreambau.de", totpSecret: storedTotp, provisioningStatus: "ready" as const });
 
     const result = await subject.provision({
       record,
@@ -593,6 +595,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -640,6 +643,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -697,6 +701,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -732,7 +737,7 @@ describe("reusable ORISO PreDev account factory", () => {
       lastName: "Simpson",
       role: "tenant-admin",
       storeTotp: vi.fn()
-    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+    })).rejects.toMatchObject({ code: "account_creation_conflict" });
     expect(reactivateCalls).toBe(0);
     expect(tenantAdminCreateCalls).toBe(1);
   });
@@ -747,6 +752,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         return ok({ access_token: url.includes("admin") ? "admin-token" : "asker-token", expires_in: 300 });
       }
@@ -790,6 +796,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         return ok({ access_token: "token", expires_in: 300 });
       }
@@ -837,6 +844,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         return ok({ access_token: "verified-user-token", expires_in: 300 });
       }
@@ -883,6 +891,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -918,7 +927,7 @@ describe("reusable ORISO PreDev account factory", () => {
       lastName: "Simpson",
       role: "tenant-admin",
       storeTotp: vi.fn()
-    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+    })).rejects.toMatchObject({ code: "account_creation_conflict" });
     expect(createCalls).toBe(1);
   });
 
@@ -936,6 +945,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === devAdmin.username) {
@@ -1007,6 +1017,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -1070,6 +1081,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -1128,6 +1140,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -1189,6 +1202,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -1288,6 +1302,7 @@ describe("reusable ORISO PreDev account factory", () => {
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: init?.body, headers: init?.headers });
         const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, name: "Debt advice Berlin", tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
         if (url.includes("/protocol/openid-connect/token")) {
           const form = new URLSearchParams(init?.body);
           const isAdmin = form.get("username") === "abe.simpson@dreambau.de";
@@ -1346,13 +1361,15 @@ describe("reusable ORISO PreDev account factory", () => {
           nextStep: "none"
         }
       });
+      expect(result.agencyNames).toEqual(role === "platform-admin" || role === "tenant-admin" ? undefined : ["Debt advice Berlin"]);
       expect(record).toMatchObject({ kind: expectedKind, roles: expectedRoles });
       expect(storedTotp).toHaveLength(1);
       expect(storedTotp[0]).toBe(generatedOrisoTotpSecret);
       const create = calls.find((call) => call.method === "POST" && call.url.endsWith(expectedPath));
       expect(create).toBeDefined();
       expect(JSON.parse(String(create?.body))).toMatchObject(expectedPayload);
-      if (role === "advice-seeker") {
+      if (role === "advice-seeker" || role === "counsellor") {
+        expect(record.username).toBe("lisa.simpson_at_oriso.org");
         expect(JSON.parse(String(create?.body))).toMatchObject({
           username: "lisa.simpson_at_oriso.org"
         });
@@ -1361,6 +1378,8 @@ describe("reusable ORISO PreDev account factory", () => {
           return new URLSearchParams(call.body).get("username") === "lisa.simpson_at_oriso.org";
         });
         expect(postCreateToken).toBeDefined();
+      }
+      if (role === "advice-seeker") {
         expect(create?.headers?.Authorization).toBeUndefined();
         expect(create?.headers?.agencyId).toBe("12");
         expect(create?.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
@@ -1387,6 +1406,7 @@ describe("reusable ORISO PreDev account factory", () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
       if (url.includes("/protocol/openid-connect/token")) {
         const form = new URLSearchParams(init?.body);
         if (form.get("username") === "abe.simpson@dreambau.de") {
@@ -1500,7 +1520,7 @@ describe("reusable ORISO PreDev account factory", () => {
 
   it.each([
     ["admin-auth", [], "oriso_authentication_failed"],
-    ["create-conflict", ["started", "rejected"], "account_credentials_mismatch"],
+    ["create-conflict", ["started", "rejected"], "account_creation_conflict"],
     ["create-network", ["started"], undefined],
     ["post-create-auth", ["started"], "account_credentials_mismatch"]
   ] as const)("reports the creation safety boundary for %s", async (failure, expectedAttempts, code) => {
@@ -1560,7 +1580,7 @@ describe("reusable ORISO PreDev account factory", () => {
     expect(onCreationAttempt).not.toHaveBeenCalled();
   });
 
-  it("maps an existing unmanaged account to a credential conflict", async () => {
+  it("maps an existing unmanaged account to a creation conflict", async () => {
     const fetch: ProvisioningFetch = async (input, init) => {
       const url = String(input);
       if (url.includes("/protocol/openid-connect/token")) {
@@ -1592,7 +1612,7 @@ describe("reusable ORISO PreDev account factory", () => {
       lastName: "Simpson",
       role: "tenant-admin",
       storeTotp: vi.fn()
-    })).rejects.toMatchObject({ code: "account_credentials_mismatch" });
+    })).rejects.toMatchObject({ code: "account_creation_conflict" });
   });
 
   it.each([
@@ -1667,5 +1687,87 @@ describe("reusable ORISO PreDev account factory", () => {
       storeTotp: vi.fn()
     })).rejects.toMatchObject({ code: "account_create_failed" });
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("new-account provisioning prerequisites", () => {
+  const validAgency = { _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } };
+  const recordFor = (role: "counsellor" | "agency-admin" | "advice-seeker") => buildProvisionedRecord({
+    email: "New.Person+qa@oriso.org", displayName: "New Person", role,
+    adminBaseUrl: "https://admin.oriso-dev.site", appBaseUrl: "https://app.oriso-dev.site",
+    responsiblePerson: "qa", now: new Date(59_000), secret: "new-account-password"
+  });
+
+  it.each(["counsellor", "advice-seeker"] as const)("rejects incompatible legacy %s usernames before new product creation", async (role) => {
+    const mutations: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      if (init?.method !== "GET" && !String(input).includes("openid-connect/token")) mutations.push(String(input));
+      return { ok: false, status: 401, async json() { return {}; } };
+    };
+    const record = { ...recordFor(role), username: role === "counsellor" ? "old@oriso.org" : "another_safe_username" };
+    await expect(service(fetch).provision({ record, firstName: "New", lastName: "Person", role, storeTotp: vi.fn() })).rejects.toMatchObject({ code: "record_username_incompatible" });
+    expect(mutations).toEqual([]);
+    expect(record.username).toBe(role === "counsellor" ? "old@oriso.org" : "another_safe_username");
+  });
+
+  it.each(["counsellor", "advice-seeker"] as const)("keeps a new %s identity Matrix-safe without changing its email", (role) => {
+    expect(recordFor(role)).toMatchObject({ username: "new.person+qa_at_oriso.org", email: "new.person+qa@oriso.org" });
+  });
+
+  it.each([
+    [404, {}], [403, {}], [500, {}], [200, {}],
+    [200, { _embedded: { ...validAgency._embedded, id: 99 } }],
+    [200, { _embedded: { ...validAgency._embedded, tenantId: 99 } }],
+    [200, { _embedded: { ...validAgency._embedded, deleteDate: "2026-01-01" } }],
+    [200, { _embedded: { ...validAgency._embedded, consultingType: 99 } }],
+    [200, { _embedded: { ...validAgency._embedded, topics: [] } }]
+  ])("does not create a counsellor when agency lookup returns %i / %j", async (status, body) => {
+    const mutations: string[] = [];
+    const calls: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith("/agencyadmin/agencies/12")) {
+        expect(init?.method).toBe("GET");
+        expect(init?.headers?.Authorization).toBe("Bearer admin-token");
+        return { ok: status === 200, status, async json() { return body; } };
+      }
+      if (url.includes("/protocol/openid-connect/token")) {
+        const admin = new URLSearchParams(init?.body).get("username") === "abe.simpson@dreambau.de";
+        return { ok: admin, status: admin ? 200 : 401, async json() { return { access_token: "admin-token", expires_in: 300 }; } };
+      }
+      if (init?.method !== "GET") mutations.push(url);
+      return { ok: false, status: 409, async json() { return {}; } };
+    };
+    const storeTotp = vi.fn();
+    await expect(service(fetch).provision({ record: recordFor("counsellor"), firstName: "New", lastName: "Person", role: "counsellor", storeTotp }))
+      .rejects.toMatchObject({ code: "provisioning_agency_unavailable" });
+    expect(calls.some((url) => url.endsWith("/agencyadmin/agencies/12"))).toBe(true);
+    expect(mutations).toEqual([]);
+    expect(storeTotp).not.toHaveBeenCalled();
+  });
+
+  it.each(["counsellor", "agency-admin", "advice-seeker"] as const)("checks the configured agency before a %s creation conflict", async (role) => {
+    const calls: string[] = [];
+    const stages: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/protocol/openid-connect/token")) {
+        const admin = new URLSearchParams(init?.body).get("username") === "abe.simpson@dreambau.de";
+        return { ok: admin, status: admin ? 200 : 401, async json() { return { access_token: "admin-token", expires_in: 300 }; } };
+      }
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.endsWith("/agencyadmin/agencies/12")) return { ok: true, status: 200, async json() { return validAgency; } };
+      return { ok: false, status: 409, async json() { return {}; } };
+    };
+    const storeTotp = vi.fn();
+    await expect(service(fetch).provision({ record: recordFor(role), firstName: "New", lastName: "Person", role, storeTotp, onCreationAttempt: (stage) => stages.push(stage) }))
+      .rejects.toMatchObject({ code: "account_creation_conflict" });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toContain("GET https://api.oriso-dev.site/service/agencyadmin/agencies/12");
+    expect(calls[1]).toMatch(/^POST /);
+    expect(stages).toEqual(["started", "rejected"]);
+    expect(storeTotp).not.toHaveBeenCalled();
   });
 });

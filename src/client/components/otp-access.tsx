@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
-import { labelLinkedEnvironment, type Locale } from "@/i18n";
-import type { AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
+import { labelRole, labelLinkedEnvironment, type Locale } from "@/i18n";
+import type { AccountMetadata, AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "./copy-button";
@@ -45,7 +45,7 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
   compact?: boolean;
   canDeleteOrisoAdmin?: boolean;
   orisoProvisioningEnvironments?: HumanEntitlements["orisoProvisioning"]["environments"];
-  onProvisioned?: (email: string, linked: LinkedTestAccount) => void;
+  onProvisioned?: (email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) => void;
 }) {
   const linked = account.linkedAccess?.[0];
   const environment = orisoEnvironment(account);
@@ -157,10 +157,12 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
     }
   }
 
+  const hasQualifiedAdmin = linked.roles.some((role) => ["platform-admin", "tenant-admin", "agency-admin"].includes(role));
+  const displayedRoles = hasQualifiedAdmin ? linked.roles.filter((role) => role !== "admin" && role !== "Admin") : linked.roles;
   return <div className="flex min-w-0 flex-col gap-2">
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <Badge variant="secondary">{labelLinkedEnvironment(locale, [linked]) ?? linked.environment}</Badge>
-      {linked.roles.map((role) => <Badge key={role} variant="outline">{role}</Badge>)}
+      {displayedRoles.map((role) => <Badge key={role} variant="outline">{labelRole(locale, role)}</Badge>)}
       {!compact && <code className="min-w-0 truncate text-xs">{linked.username}</code>}
       {!compact && <Button asChild variant="ghost" size="sm"><a href={linked.loginUrl} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />{locale === "de" ? "App öffnen" : "Open app"}</a></Button>}
     </div>

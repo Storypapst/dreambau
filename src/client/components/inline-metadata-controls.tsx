@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/api";
-import { labelConversation, labelFixture, labelLifecycle, labelProject, labelRoleWithEnvironment, labelTopic, t, type Locale } from "@/i18n";
+import { distinctRoleOptions, labelConversation, labelFixture, labelLifecycle, labelProject, labelRoleWithEnvironment, labelTopic, t, type Locale } from "@/i18n";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AccountMetadata, AccountView, FixtureQuality, LifecycleStatus, Project } from "@/types";
 import { MultiSelect } from "./multi-select";
@@ -63,5 +63,5 @@ export function InlineTaxonomySelect({ account, locale, kind, options, onSaved }
       ? (value: string) => labelRoleWithEnvironment(locale, value, account.linkedAccess)
       : (value: string) => labelConversation(locale, value);
   const tone: Record<typeof kind, TagTone> = { roles: "role", topics: "topic", conversationTypes: "conversation" };
-  return <div className="flex min-w-0 flex-col gap-1.5"><MultiSelect compact disabled={busy} label={labels[kind]} options={options} value={account.metadata[kind]} onChange={(value) => save({ [kind]: value })} formatOption={format} locale={locale} /><SelectedTags values={account.metadata[kind]} formatOption={format} tone={tone[kind]} removeLabel={locale === "de" ? "entfernen" : "remove"} onRemove={(removed) => save({ [kind]: account.metadata[kind].filter((value) => value !== removed) })} /></div>;
+  return <div className="flex min-w-0 flex-col gap-1.5"><MultiSelect compact disabled={busy} label={labels[kind]} options={kind === "roles" ? distinctRoleOptions(options, account.metadata.roles) : options} value={account.metadata[kind]} onChange={(value) => save({ [kind]: value })} formatOption={format} locale={locale} /><SelectedTags values={account.metadata[kind]} formatOption={format} tone={tone[kind]} removeLabel={locale === "de" ? "entfernen" : "remove"} onRemove={(removed) => save({ [kind]: account.metadata[kind].filter((value) => value !== removed) })} /></div>;
 }

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { CircleCheckIcon, KeyRoundIcon, MailPlusIcon, RefreshCwIcon, ShieldCheckIcon } from "lucide-react";
 import { api } from "@/api";
-import type { Locale } from "@/i18n";
+import { labelRole, type Locale } from "@/i18n";
 import type {
+  AccountMetadata,
   AccountView,
   LinkedTestAccount,
   OrisoOnboardingState,
@@ -63,14 +64,6 @@ const nextStepLabels: Record<OrisoProvisioningStateView["nextStep"], { de: strin
   }
 };
 
-const roleLabels: Record<OrisoProvisioningRole, { de: string; en: string }> = {
-  "platform-admin": { de: "Plattform-Admin", en: "Platform admin" },
-  "tenant-admin": { de: "Träger-Admin", en: "Tenant admin" },
-  "agency-admin": { de: "Beratungsstellen-Admin", en: "Agency admin" },
-  counsellor: { de: "Berater:in", en: "Counsellor" },
-  "advice-seeker": { de: "Ratsuchende:r", en: "Advice seeker" }
-};
-
 function StateSummary({
   state,
   locale,
@@ -83,7 +76,7 @@ function StateSummary({
   return <div className="flex flex-col gap-2" data-testid="oriso-provisioning-state">
     <div className="flex flex-wrap items-center gap-2">
       <Badge>{stateLabels[state.state][locale]}</Badge>
-      {state.role && <Badge variant="outline">{roleLabels[state.role][locale]}</Badge>}
+      {state.role && <Badge variant="outline">{labelRole(locale, state.role)}</Badge>}
       <Badge variant="secondary">{environment}</Badge>
     </div>
     <p className="text-sm">{nextStepLabels[state.nextStep][locale]}</p>
@@ -98,6 +91,21 @@ function provisioningErrorMessage(code: string, locale: Locale) {
     return locale === "de"
       ? "Das bestehende ORISO-Konto muss mit dem Passwort verknüpft werden, das im Onboarding verwendet wurde."
       : "Link the existing ORISO account with the password used during onboarding.";
+  }
+  if (code === "record_username_incompatible") {
+    return locale === "de"
+      ? "Der gespeicherte Benutzername kann für diese Rolle nicht verwendet werden. Das bestehende Konto und seine Zugangsdaten wurden nicht geändert. Bitte ein neues Testkonto verwenden."
+      : "The stored username cannot be used for this role. The existing account and its credentials were not changed. Use a new test account.";
+  }
+  if (code === "account_creation_conflict") {
+    return locale === "de"
+      ? "Benutzername oder E-Mail-Adresse ist bereits vergeben oder kann nicht angelegt werden. Das vorhandene Konto wurde nicht geändert. Bitte die Kontozuordnung prüfen."
+      : "The username or email is already in use or cannot be created. The existing account was not changed. Check the account mapping.";
+  }
+  if (code === "provisioning_agency_unavailable") {
+    return locale === "de"
+      ? "Die konfigurierte Beratungsstelle konnte für diese Rolle und dieses Thema nicht bestätigt werden. Es wurde kein ORISO-Konto angelegt. Bitte die Konfiguration prüfen."
+      : "The configured counselling centre could not be verified for this role and topic. No ORISO account was created. Check the configuration.";
   }
   if (code === "account_credentials_mismatch") {
     return locale === "de"
@@ -133,7 +141,7 @@ export function OrisoProvisioningDialog({
   account: AccountView;
   locale: Locale;
   hasLinkedAccess: boolean;
-  onProvisioned: (email: string, linked: LinkedTestAccount) => void;
+  onProvisioned: (email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<OrisoProvisioningView | null>(null);
@@ -231,7 +239,7 @@ export function OrisoProvisioningDialog({
           linked: result.linked,
           requiresApplicationPassword: result.requiresApplicationPassword
         } : current);
-        onProvisioned(account.email, result.linked);
+        onProvisioned(account.email, result.linked, result.metadata);
         setApplicationPassword("");
       } catch (cause) {
         setError(provisioningErrorMessage(cause instanceof Error ? cause.message : "", locale));
@@ -284,7 +292,7 @@ export function OrisoProvisioningDialog({
       } : current);
       setLiveVerified(result.state?.state === "ready" && result.linked.hasTotp);
       setStaleRoleConflict(null);
-      onProvisioned(account.email, result.linked);
+      onProvisioned(account.email, result.linked, result.metadata);
       if (existingPassword) {
         setApplicationPassword("");
       }
@@ -419,14 +427,14 @@ export function OrisoProvisioningDialog({
       {otp?.expiresAt && <OtpValidity expiresAt={otp.expiresAt} locale={locale} />}
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
       {view?.configured && !view.state && !view.requiresApplicationPassword && <div className="flex flex-col gap-3">
-        <p className="text-sm">{locale === "de" ? "Noch kein ORISO-Konto. Rolle wählen und Konto vollständig anlegen:" : "No ORISO account yet. Choose a role and provision the complete account:"}</p>
+        <p className="text-sm">{locale === "de" ? "Kein verknüpfter Onboarding-Status gefunden. Ein bestehendes ORISO-Konto ist damit nicht ausgeschlossen. Rolle für die Anlage wählen:" : "No linked onboarding status was found. An existing ORISO account has not been ruled out. Choose the role to provision:"}</p>
         <Select value={role} onValueChange={(value) => {
           setRole(value as OrisoProvisioningRole);
           setStaleRoleConflict(null);
         }}>
           <SelectTrigger aria-label={locale === "de" ? "Rolle" : "Role"}><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>
-            {view.supportedRoles.map((value) => <SelectItem key={value} value={value}>{roleLabels[value][locale]}</SelectItem>)}
+            {view.supportedRoles.map((value) => <SelectItem key={value} value={value}>{labelRole(locale, value)}</SelectItem>)}
           </SelectGroup></SelectContent>
         </Select>
       </div>}
@@ -437,8 +445,8 @@ export function OrisoProvisioningDialog({
         <AlertDescription className="flex flex-col gap-2">
           <p>
             {locale === "de"
-              ? `Gespeichert: ${staleRoleConflict.linked.roles.map((value) => roleLabels[value as OrisoProvisioningRole]?.de ?? value).join(", ")}. Gewünscht: ${roleLabels[staleRoleConflict.requestedRole].de}.`
-              : `Stored: ${staleRoleConflict.linked.roles.map((value) => roleLabels[value as OrisoProvisioningRole]?.en ?? value).join(", ")}. Requested: ${roleLabels[staleRoleConflict.requestedRole].en}.`}
+              ? `Gespeichert: ${staleRoleConflict.linked.roles.map((value) => labelRole("de", value)).join(", ")}. Gewünscht: ${labelRole("de", staleRoleConflict.requestedRole)}.`
+              : `Stored: ${staleRoleConflict.linked.roles.map((value) => labelRole("en", value)).join(", ")}. Requested: ${labelRole("en", staleRoleConflict.requestedRole)}.`}
           </p>
           <p>
             {locale === "de"

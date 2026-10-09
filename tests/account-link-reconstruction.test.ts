@@ -103,10 +103,10 @@ describe("canonical ORISO login routing", () => {
 
 describe("dashboard role mapping", () => {
   it("maps application roles onto the dashboard vocabulary in a stable order", () => {
-    expect(dashboardRoles(["client", "platform-admin"])).toEqual(["Admin", "Ratsuchender"]);
+    expect(dashboardRoles(["client", "platform-admin"])).toEqual(["platform-admin", "Ratsuchender"]);
     expect(dashboardRoles(["counselor"])).toEqual(["Berater"]);
     expect(dashboardRoles(["carrier"])).toEqual(["Träger"]);
-    expect(dashboardRoles(["tenant-admin"])).toEqual(["Admin"]);
+    expect(dashboardRoles(["tenant-admin"])).toEqual(["tenant-admin"]);
   });
 
   it("ignores roles outside the dashboard vocabulary", () => {
@@ -114,6 +114,6 @@ describe("dashboard role mapping", () => {
   });
 
   it("does not repeat a role reached through several application roles", () => {
-    expect(dashboardRoles(["admin", "platform-admin", "tenant-admin"])).toEqual(["Admin"]);
+    expect(dashboardRoles(["admin", "platform-admin", "tenant-admin"])).toEqual(["platform-admin", "tenant-admin"]);
   });
 });
