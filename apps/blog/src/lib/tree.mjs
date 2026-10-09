@@ -8,7 +8,7 @@ import { at, fail, warn } from './findings.mjs';
 import { parsePostText } from './frontmatter.mjs';
 import { checkPostText } from './post-file.mjs';
 import { dateProblems } from './post-rules.mjs';
-import { nextFreeSlug } from './slug.mjs';
+import { nextFreeSlug, slugify } from './slug.mjs';
 
 const POST = /^(\d{4})\/([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
 const TOMBSTONE = /^(\d{4})\/([a-z0-9]+(?:-[a-z0-9]+)*) (\d{4}-\d{2}-\d{2})$/;
@@ -80,6 +80,12 @@ export function loadTreeFromGit({ ref, prefix, cwd }) {
   return treeFrom(entries, removed);
 }
 
+// readImage(name) for checkPostText: the bytes of a plain file name in `folder`, or null (a name with a path part never reads).
+export const safeImageReader = (folder) => (name) => {
+  const full = path.join(folder, name);
+  return /^[A-Za-z0-9._-]+$/.test(name) && fs.existsSync(full) && fs.statSync(full).isFile() ? fs.readFileSync(full) : null;
+};
+
 export const isFixtureTree = (dir) => /(^|[\\/])tests[\\/]fixtures([\\/]|$)/.test(path.resolve(dir));
 
 const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
@@ -137,7 +143,7 @@ export function checkAgainstBase({ head, base, displayDir = 'posts' }) {
     const fields = fieldsOf(post);
     if (fields.title && fields.title.value !== '') {
       const expected = nextFreeSlug(fields.title.value, post.year, taken);
-      if (expected !== '' && expected !== post.slug) findings.push(fail('PF-13', where(post.relative), `the file name is ${post.slug} but the slug of the title is ${expected}${/-\d+$/.test(expected) && !/-\d+$/.test(fields.title.value) ? ' (the plain slug is taken, so the first free suffix)' : ''}; a new post must be named by its title`));
+      if (expected !== '' && expected !== post.slug) findings.push(fail('PF-13', where(post.relative), `the file name is ${post.slug} but the slug of the title is ${expected}${expected !== slugify(fields.title.value) ? ' (the plain slug is taken, so the first free suffix)' : ''}; a new post must be named by its title`));
     }
     const date = fields.date;
     if (newest && date && dateProblems(date.value).length === 0 && (compare(date.value, newest.date) < 0 || (date.value === newest.date && compare(post.slug, newest.slug) < 0))) {
@@ -154,13 +160,16 @@ export function checkTree({ head, base, headDir, displayDir = 'posts', publish =
   for (const post of head.posts.values()) {
     const file = `${displayDir}/${post.relative}`;
     if (post.text === null) { findings.push(fail('PF-2', file, 'the file is not valid UTF-8')); continue; }
-    const readImage = (name) => {
-      const full = path.join(headDir, post.year, name);
-      return /^[A-Za-z0-9._-]+$/.test(name) && fs.existsSync(full) && fs.statSync(full).isFile() ? fs.readFileSync(full) : null;
-    };
-    findings.push(...checkPostText(post.text, { file, publish, now, fixture, readImage }).findings);
+    findings.push(...checkPostText(post.text, { file, publish, now, fixture, readImage: safeImageReader(path.join(headDir, post.year)) }).findings);
   }
   findings.push(...checkAgainstBase({ head, base, displayDir }));
   return sortFindings(findings);
 }
 
+
+// The default base of the tools: origin/main of the repository that holds `appRoot` (the folder apps/blog), below posts/.
+export function loadOriginMain(appRoot, ref = 'refs/remotes/origin/main') {
+  const prefix = spawnSync('git', ['rev-parse', '--show-prefix'], { cwd: appRoot, encoding: 'utf8' });
+  if (prefix.status !== 0) throw new Error(`cannot read ${ref}: ${appRoot} is not in a git repository; run "git fetch origin main" in the clone first`);
+  return loadTreeFromGit({ ref, prefix: `${prefix.stdout.trim()}posts`, cwd: appRoot });
+}
