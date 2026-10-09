@@ -105,18 +105,12 @@ html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06
 <link rel="stylesheet" href="navigation.css">
 </head>
 <body>
+<div class="home-controls">
 <details class="site-menu" id="site-menu" lang="de" dir="ltr"><summary>Menü</summary>
-<nav aria-label="Website"><a href="/">Startseite</a><a href="/referenzen/">Referenzen</a><a href="/teamwork/">Teamwork</a><a href="/glossar/">Glossar</a><a href="/bildungshaus/">Bildungshaus</a><a href="mailto:info@dreambau.com">Kontakt</a>
+<span class="menu-backdrop" aria-hidden="true"></span><nav aria-label="Website"><button type="button" class="menu-grip" aria-label="Menü herunterziehen oder schließen" hidden><span aria-hidden="true"></span></button><h2 class="menu-title">Menü</h2><div class="menu-links"><a href="/">Startseite</a><a href="/referenzen/">Referenzen</a><a href="/teamwork/">Teamwork</a><a href="/glossar/">Glossar</a><a href="/bildungshaus/">Bildungshaus</a><a href="mailto:info@dreambau.com">Kontakt</a>
 <span class="pending">Blog · Themen folgen</span><span class="pending">Impressum · Angaben noch offen</span><span class="pending">Datenschutz · Freigabe noch offen</span>
-<button type="button" class="site-pill menu-close" hidden>Schließen</button></nav></details>
+</div><button type="button" class="site-pill menu-close" hidden>Schließen</button></nav></details>
 <button class="site-pill" id="source-entry" type="button" aria-haspopup="dialog" lang="de" dir="ltr" hidden><span class="gl" aria-hidden="true">&lt;/&gt;</span><span class="source-entry-label">Quelltext</span><b id="source-entry-size"></b></button>
-<canvas id="c" aria-hidden="true"></canvas>
-<div id="dip"></div>
-
-<!-- data-lines: the three beats drawn in the animation, separated by | -->
-<h1 class="sr" id="tag" data-lines="Jeht nich…|jibs nich…|dreambau.com" aria-describedby="blind"><span>Jeht nich…</span> <span>jibs nich…</span> <span>dreambau.com</span></h1>
-<p id="blind" class="blind" data-i18n="blind.{anim}"></p>
-
 <button id="snd" type="button" role="switch" aria-checked="true" data-state="wait" aria-label="Ton" data-i18n-attr="aria-label:snd.aria" aria-keyshortcuts="M" title="Ton aus (M)">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M4 9.5v5h3.6L12.5 19V5L7.6 9.5z" fill="currentColor" stroke="none"/>
@@ -126,6 +120,15 @@ html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06
   </svg>
   <span class="lbl" aria-hidden="true" data-i18n="snd.on_label">Ton an</span>
 </button>
+</div>
+<canvas id="c" aria-hidden="true"></canvas>
+<div id="dip"></div>
+
+<!-- data-lines: the three beats drawn in the animation, separated by | -->
+<h1 class="sr" id="tag" data-lines="Jeht nich…|jibs nich…|dreambau.com" aria-describedby="blind"><span>Jeht nich…</span> <span>jibs nich…</span> <span>dreambau.com</span></h1>
+<p id="blind" class="blind" data-i18n="blind.{anim}"></p>
+
+
 <button id="skip" type="button" aria-keyshortcuts="Escape"><kbd aria-hidden="true">Esc</kbd><span data-i18n="skip.label">überspringen</span></button>
 <button id="play" type="button" data-i18n="play.label">Animation abspielen</button>
 

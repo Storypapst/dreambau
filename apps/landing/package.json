@@ -20,7 +20,9 @@
     "check:languages": "node tools/check-languages.mjs",
     "sheet:languages": "node tools/lang-sheet.mjs",
     "check:nginx": "node tools/nginx-check.mjs",
-    "check:website": "npm run check --prefix ../website"
+    "check:mobile": "node tools/mobile-controls-check.mjs",
+    "check:website": "npm run check --prefix ../website",
+    "check:performance": "node tools/check-performance.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

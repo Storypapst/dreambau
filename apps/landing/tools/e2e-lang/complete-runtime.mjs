@@ -24,7 +24,14 @@ export default async function(ctx){
    assert.equal(await t.page.locator('#cta .words').textContent(),texts['cta.words']);
    assert.match(await t.page.evaluate(()=>Dream.i18n.format(24415.5)),/\d/);assert.equal(await t.page.evaluate(()=>/[٠-٩۰-۹]/.test(Dream.i18n.format(24415.5))),false);
    const ink=await t.page.evaluate(()=>{const m=Dream.text.mask,w=Dream.text.W,h=Dream.text.H;let min=999;for(let i=0;i<m.length;i++)if(m[i])min=Math.min(min,i%w,w-1-i%w,Math.floor(i/w),h-1-Math.floor(i/w));return min;});assert.ok(ink>=7,code+': ink margin '+ink);
-   for(const {w,h} of ctx.sizes){await t.page.setViewportSize({width:w,height:h});await t.page.waitForTimeout(60);const layout=await t.page.evaluate(()=>{const r=document.querySelector('#cta').getBoundingClientRect();return {wide:document.documentElement.scrollWidth>innerWidth,left:r.left,right:r.right,top:r.top,height:innerHeight};});assert.equal(layout.wide,false,code+' '+w+' overflow');assert.ok(layout.left>=-1&&layout.right<=w+1,code+' contact outside '+w);assert.ok(layout.top>=h*.88-2,code+' contact above bottom12% '+w);}
+   for(const {w,h} of ctx.sizes){
+    await t.page.setViewportSize({width:w,height:h});await t.page.waitForTimeout(60);
+    const layout=await t.page.evaluate(()=>{const contact=document.querySelector('#cta'),r=contact.getBoundingClientRect(),css=getComputedStyle(contact);return {wide:document.documentElement.scrollWidth>innerWidth,left:r.left,right:r.right,top:r.top,bottom:r.bottom,visible:r.height>0&&css.display!=='none'&&css.visibility==='visible'&&Number(css.opacity)>0,phone:matchMedia('(max-width:600px),(pointer:coarse) and (max-height:520px)').matches,capsuleTop:document.querySelector('.home-controls').getBoundingClientRect().top};});
+    assert.equal(layout.wide,false,code+' '+w+' overflow');assert.ok(layout.left>=-1&&layout.right<=w+1,code+' contact outside '+w);
+    // Issue153 deliberately reserves the phone bottom edge for the shared controls.
+    if(layout.phone){assert.ok(layout.visible&&layout.top>=0&&layout.bottom<=h,code+' contact invisible/outside phone viewport '+w);assert.ok(layout.bottom<=layout.capsuleTop,code+' contact overlaps bottom controls '+w);}
+    else assert.ok(layout.top>=h*.88-2,code+' contact above bottom12% '+w);
+   }
    assert.equal(await t.page.evaluate(()=>document.cookie),'');assert.equal(await t.page.evaluate(()=>Object.keys(localStorage).filter(k=>k!=='dreambau.sound').length),0);
    const before=await t.page.evaluate(()=>({T:Dream.state.T,audio:Dream.state.audio,muted:Dream.state.muted}));
    await t.page.locator('#lang').click();assert.equal(await t.page.locator('#lang').getAttribute('aria-expanded'),'true');
