@@ -1,6 +1,7 @@
-// BD-1 and BD-11: apps/blog is a package of its own with no runtime dependency, the four commands that exist so far,
-// an ignore file for the two output directories, a lock file for `npm ci`, and no check that can be skipped.
-// Playwright (1.56.1, as the other apps) is added by the slice whose first check needs a browser, not before.
+// BD-1 and BD-11: apps/blog is a package of its own with no runtime dependency, the commands that exist so far, an
+// ignore file for the two output directories, a lock file for `npm ci`, and no check that can be skipped. The only
+// development dependency is Playwright, pinned exactly at 1.56.1 as in the other apps (slice S2: the first checks that
+// need a browser).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -16,12 +17,16 @@ await run(async () => {
   const printed = spawnSync(process.execPath, ['-e', "console.log(Object.keys(require('./package.json').dependencies||{}).length)"], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
   same('BD-1 node -e "...dependencies...length" prints 0', printed, '0');
   same('BD-1 the package is private, an ES module, and named dreambau-blog', [pkg.private, pkg.type, pkg.name], [true, 'module', 'dreambau-blog']);
-  same('BD-1 the commands that exist so far: build, build:demo, check, serve', Object.keys(pkg.scripts).sort(), ['build', 'build:demo', 'check', 'serve']);
-  check('BD-1 no development dependency before a check needs one', !pkg.devDependencies || Object.keys(pkg.devDependencies).length === 0, JSON.stringify(pkg.devDependencies));
+  same('BD-1 the commands that exist so far: build, build:demo, check, check:browser, check:tokens, serve', Object.keys(pkg.scripts).sort(), ['build', 'build:demo', 'check', 'check:browser', 'check:tokens', 'serve']);
+  same('BD-1 the one development dependency is playwright, pinned exactly at 1.56.1 (no ^, no ~, as in the other apps)', pkg.devDependencies, { playwright: '1.56.1' });
+  const others = ['teamwork', 'landing'].map((app) => JSON.parse(fs.readFileSync(path.join(REPO, 'apps', app, 'package.json'), 'utf8')).devDependencies.playwright);
+  same('BD-1 the other apps pin the same version', others, ['1.56.1', '1.56.1']);
   check('BD-1 the lock file exists, so that npm ci works', fs.existsSync(path.join(ROOT, 'package-lock.json')));
 
   const lock = JSON.parse(read('package-lock.json'));
-  same('BD-1 the lock file agrees: it lists the package and nothing else', Object.keys(lock.packages), ['']);
+  same('BD-1 the lock file agrees: it lists the package, playwright, playwright-core and the optional fsevents of playwright, and nothing else', Object.keys(lock.packages).sort(), ['', 'node_modules/fsevents', 'node_modules/playwright', 'node_modules/playwright-core']);
+  same('BD-1 the lock file has no runtime dependency: every package below the root is a development dependency', Object.entries(lock.packages).filter(([name, entry]) => name !== '' && !entry.dev).map(([name]) => name), []);
+  same('BD-1 the lock file pins playwright and playwright-core at 1.56.1', [lock.packages['node_modules/playwright'].version, lock.packages['node_modules/playwright-core'].version], ['1.56.1', '1.56.1']);
 
   const ignored = read('.gitignore').split('\n').map((line) => line.trim());
   check('BD-11 .gitignore lists dist/ and dist-demo/', ignored.includes('dist/') && ignored.includes('dist-demo/'), JSON.stringify(ignored));

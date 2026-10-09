@@ -8,6 +8,11 @@
     "build": "node src/cli.mjs",
     "build:demo": "node src/cli.mjs --demo",
     "check": "node tests/run.mjs",
+    "check:browser": "node tests/run.mjs browser/",
+    "check:tokens": "node tools/check-tokens.mjs",
     "serve": "node tests/serve.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
   }
 }

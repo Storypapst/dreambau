@@ -4,16 +4,20 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { esc } from './lib/escape.mjs';
-import { format, hasFailure } from './lib/findings.mjs';
-import { httpsLink } from './lib/links.mjs';
-import { formatNumber, newestFirst, numberPosts } from './lib/numbering.mjs';
+import { fileURLToPath } from 'node:url';
+import { fail, format, hasFailure } from './lib/findings.mjs';
+import { FOOTER_FILE, loadFooter, pendingKeys } from './lib/footer.mjs';
+import { LABELS_FILE, loadLabels } from './lib/labels.mjs';
+import { numberPosts } from './lib/numbering.mjs';
+import { listPage, postPage } from './lib/pages.mjs';
 import { checkPostText } from './lib/post-file.mjs';
+import { MARKER } from './lib/post-rules.mjs';
 import { checkForBuild, isFixtureTree, loadTreeFromDir, safeImageReader } from './lib/tree.mjs';
 
 const MODES = ['preview']; // `publish` comes with slice S8
 const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
-const number = formatNumber;
+export const ASSETS_DIR = path.dirname(fileURLToPath(import.meta.url)); // src/: tokens.css, blog.css, blog.js
+export const LIST_LIMIT = 128 * 1024; // LI-8
 
 // The posts of a folder were refused by the rules of the spec (PF-*, AD-7): `findings` holds every FAIL and WARN, the
 // message holds them one per line, as the validators print them (BD-4).
@@ -40,53 +44,41 @@ function readPosts(postsDir, { displayDir, publish, now }) {
   return numberPosts(posts);
 }
 
-const page = (lang, title, body) => `<!doctype html>
-<html lang="${esc(lang)}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)}</title>
-<link rel="icon" href="data:,">
-</head>
-<body>
-<main>
-${body}
-</main>
-</body>
-</html>
-`;
-
-function listPage(posts) {
-  const rows = newestFirst(posts).map((post) => `<li><span class="no">${number(post.number)}</span> <time datetime="${esc(post.date)}">${esc(post.date)}</time> <a href="/blog/${esc(post.address)}/">${esc(post.title)}</a></li>`);
-  const content = rows.length === 0 ? '<p>Noch keine Beiträge.</p>' : `<ol class="log">\n${rows.join('\n')}\n</ol>`;
-  return page('de', 'Blog · dreambau.com', `<h1>Blog</h1>\n${content}`);
-}
-
-function postPage(post) {
-  const parts = ['<p><a href="/blog/">Zurück zur Liste</a></p>', '<article>', `<h1>${esc(post.title)}</h1>`,
-    `<p><time datetime="${esc(post.date)}">${esc(post.date)}</time> · Nr. ${number(post.number)}</p>`];
-  if (post.quote !== undefined) parts.push(`<blockquote><p>${esc(post.quote)}</p><footer>${esc(post.quoteSource || '')}</footer></blockquote>`);
-  if (post.imageInfo) {
-    const { width, height } = post.imageInfo;
-    parts.push(`<p><img src="/blog/${esc(post.address)}/image.${post.imageInfo.format}" width="${width}" height="${height}" alt="${esc(post.imageAlt)}"></p>`);
+// The two files of the look, shipped as they are (the only stylesheet is tokens.css followed by blog.css, so that the
+// page loads one file, LI-1) and checked at build time: PF-12 holds for them too (no run of two opening or closing
+// square brackets, no marker text).
+function readAssets(assetsDir) {
+  const read = (name) => fs.readFileSync(path.join(assetsDir, name), 'utf8');
+  const css = `${read('tokens.css').replace(/\n$/, '')}\n${read('blog.css')}`;
+  const js = read('blog.js');
+  const findings = [];
+  for (const [name, text] of [['blog.css', css], ['blog.js', js]]) {
+    if (/\[\[|\]\]/.test(text) || text.includes(MARKER)) findings.push(fail('PF-12', name, 'the shipped file holds a run of two square brackets or the marker text of LE-1'));
   }
-  if (post.sourceLink !== undefined) {
-    const link = httpsLink(post.sourceLink, post.file); // PR-6: checked again at render time
-    parts.push(`<p class="source">Quelle: <a href="${esc(link)}" rel="noopener noreferrer">${esc(post.sourceTitle || link)}</a></p>`);
-  }
-  parts.push('<h2>Warum lesenswert</h2>', ...post.paragraphs.map((paragraph) => `<p class="why">${esc(paragraph)}</p>`), '</article>');
-  return page(post.lang, `${post.title} · Blog · dreambau.com`, parts.join('\n'));
+  if (findings.length > 0) throw new BuildRefused(findings);
+  return { css: Buffer.from(css, 'utf8'), js: Buffer.from(js, 'utf8') };
 }
 
 // Builds the posts of postsDir into outDir and returns the manifest that it wrote to <outDir>/blog.json. A tree that the
 // rules refuse (BuildRefused) is refused before anything is written. displayDir is how postsDir is written in the FAIL
 // lines. `now` matters only for the clock rule of a publish build (PF-5); a preview build reads no clock (BD-2).
-export function buildBlog({ postsDir, outDir, mode = 'preview', displayDir = postsDir, now = new Date() }) {
+// labelsFile, footerFile, assetsDir and listLimit are the places a check replaces; the defaults are the real ones.
+export function buildBlog({ postsDir, outDir, mode = 'preview', displayDir = postsDir, now = new Date(), labelsFile = LABELS_FILE, footerFile = FOOTER_FILE, assetsDir = ASSETS_DIR, listLimit = LIST_LIMIT }) {
   if (!MODES.includes(mode)) throw new Error(`unknown mode ${JSON.stringify(mode)}; expected one of ${MODES.join(', ')}`);
   const posts = readPosts(postsDir, { displayDir, publish: mode === 'publish', now });
-  const pages = new Map([['index.html', Buffer.from(listPage(posts), 'utf8')]]);
+  const labels = loadLabels(labelsFile);
+  const footer = loadFooter(footerFile);
+  const assets = readAssets(assetsDir);
+  const context = { labels, footer };
+
+  const list = Buffer.from(listPage({ ...context, posts }), 'utf8');
+  if (list.length > listLimit) {
+    throw new BuildRefused([fail('LI-8', 'index.html', `the list page is ${list.length} bytes, over the limit of ${listLimit} bytes (128 KiB); the list is never cut silently, the way out is pagination: see open point OP-11`)]);
+  }
+  const pages = new Map([['index.html', list], ['blog.css', assets.css], ['blog.js', assets.js]]);
   for (const post of posts) {
-    pages.set(`${post.address}/index.html`, Buffer.from(postPage(post), 'utf8'));
+    const html = postPage({ ...context, post, older: posts[post.number - 2], newer: posts[post.number] });
+    pages.set(`${post.address}/index.html`, Buffer.from(html, 'utf8'));
     if (post.imageInfo) pages.set(`${post.address}/image.${post.imageInfo.format}`, fs.readFileSync(path.join(postsDir, post.year, post.image)));
   }
 
@@ -94,7 +86,7 @@ export function buildBlog({ postsDir, outDir, mode = 'preview', displayDir = pos
     const buffer = pages.get(name);
     return { path: name, bytes: buffer.length, sha256: crypto.createHash('sha256').update(buffer).digest('hex') };
   });
-  const manifest = { schema: 1, mode, posts: posts.map((post) => ({ address: post.address, number: post.number })), files };
+  const manifest = { schema: 1, mode, footerPending: pendingKeys(footer), posts: posts.map((post) => ({ address: post.address, number: post.number })), files };
 
   // Only these two entries of outDir belong to the build; everything else in it stays as it is. public/ is emptied but
   // never removed: a directory that is removed and created again just before `docker run` can show up empty in the
