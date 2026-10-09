@@ -33,6 +33,7 @@ jobs:
       - run: npm run build:apex
       - run: npm run check:nginx
       - run: npm run check:mobile
+      - run: npm run check:performance
       - run: npm run e2e:lang -- --quick --allow-missing
       - run: npm run sheet:languages -- --all
       - run: npm run verify -- --quick

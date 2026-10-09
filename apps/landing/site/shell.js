@@ -22,7 +22,6 @@ const ER = 100;                                   // audio-energy envelope rate 
 const SR = 44100;                                 // sample rate of the generated music
 const TAIL = 2.5;                                 // seconds of reverb tail rendered after the production
 const AUDIO_PREF = 'dreambau.sound';
-const IDLE_STOP = +Q.get('idlestop') || 240;      // seconds after the end at which the loop stops for good (battery); ?idlestop=N is for tests
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -37,7 +36,8 @@ let W = 2, H = 2, scale = 1, maxPx = 2.4e6;
 let T = 0, last = 0, raf = 0, hidden = doc.hidden, running = false, skipping = false, finished = false;
 let drawProg = null;                              // set for `frag` productions
 const TT = [0, 0, 1, .4];                         // tagline block in p-space: centre x, y, half width, half height
-let ctaShown = false;
+let ctaShown = false, overlayPaused = false;
+const paused = () => hidden || overlayPaused;
 
 const A = {                                       // audio
   ctx: null, gain: null, src: null, buf: null, env: null, ready: false, failed: false,
@@ -493,7 +493,7 @@ function makeCtx() {
     A.gain = ctx.createGain(); A.gain.gain.value = A.muted ? 0 : 1; A.gain.connect(ctx.destination);
     ctx.onstatechange = () => {
       if (ctx.state === 'running') { if (A.ready) maybeStart(); else setSnd(A.muted ? 'off' : 'wait'); }
-      else if (ctx.state === 'suspended' && !hidden && !A.playing && !A.muted) setSnd('blocked');
+      else if (ctx.state === 'suspended' && !paused() && !A.playing && !A.muted) setSnd('blocked');
     };
     return ctx;
   } catch (e) { return null; }
@@ -501,7 +501,7 @@ function makeCtx() {
 
 function maybeStart() {                           // start playback as soon as the browser lets us and the music exists
   const ctx = A.ctx;
-  if (!ctx || A.playing || !A.ready) return;
+  if (!ctx || A.playing || !A.ready || paused()) return;
   if (ctx.state !== 'running') { if (!A.muted) setSnd('blocked'); else setSnd('off'); return; }
   if (T >= def.fin + .1 || skipping) { setSnd(A.muted ? 'off' : 'on'); return; }       // too late: the show is over
   const when = ctx.currentTime + .06, off = clamp(T + .06, 0, A.buf.duration - .01);
@@ -535,7 +535,7 @@ function setMuted(m, remember = true) {
 }
 
 function unlock() {                               // must run inside a user gesture
-  if (!A.ctx) return;
+  if (!A.ctx || paused()) return;
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* not supported */ }
   if (A.ctx.state !== 'running') { const p = A.ctx.resume(); if (p && p.catch) p.catch(() => {}); }
   maybeStart();
@@ -593,20 +593,26 @@ function fail(e) {
   ui.cta.classList.add('on');
 }
 
-let frames = 0, accum = 0, lastAdapt = 0, fpsT = 0, fpsN = 0;
+function scheduleFrame() { if (running && !paused() && !raf) raf = requestAnimationFrame(frame); }
+function pauseChanged() {
+  if (paused()) { cancelAnimationFrame(raf); raf = 0; if (A.ctx) A.ctx.suspend().catch(() => {}); }
+  else {
+    last = performance.now();
+    if (A.ctx && (A.playing || !A.muted)) A.ctx.resume().then(maybeStart).catch(() => {});
+    scheduleFrame();
+  }
+}
+let frames = 0, lastAdapt = 0, fpsT = 0, fpsN = 0;
 function frame(now) {
-  raf = requestAnimationFrame(frame);
-  if (hidden) { last = now; return; }
+  raf = 0;
+  if (!running || paused()) return;
   let dt = Math.min(2, Math.max(0, (now - last) / 1000)); last = now;   // wall-clock time; the cap only guards against a long stall (sleep)
-  // idle mode after the show: 30 fps, and stop completely after a few minutes (battery)
   const overT = T - def.dur;
-  if (overT > IDLE_STOP) { cancelAnimationFrame(raf); running = false; return; }   // the final frame stays; a resize redraws it
-  if (overT > 3) { accum += dt; if (accum < 1 / 30 - .004) return; dt = accum; accum = 0; }
   // clock: free-running, gently pulled towards the audio position when sound is playing
   const a = audioNow();
   let rate = 1;
   if (a != null) { const err = a - T; if (Math.abs(err) > .6) T = a; else rate = clamp(1 + err * .6, .6, 1.4); }
-  T += dt * rate;
+  T = Math.min(def.dur + TAIL, T + dt * rate);
   guard(() => draw());
   // finishing touches driven by the clock
   if (!ctaShown && T >= def.cta) showCta();
@@ -618,6 +624,9 @@ function frame(now) {
     if (fpsT >= 1) { D.state.fps = Math.round(fpsN / fpsT); if (fpsN / fpsT < 40 && frames > 90 && now - lastAdapt > 1500 && scale > .5) { scale = Math.max(.5, scale * .8); lastAdapt = now; layout(); } fpsT = 0; fpsN = 0; }
   }
   frames++;
+  // Keep all sixty seconds and the music tail, then retain this final frame without a polling loop.
+  if (T >= def.dur + TAIL) running = false;
+  scheduleFrame();
 }
 
 function showCta() { ctaShown = true; ui.cta.classList.add('on'); }
@@ -630,6 +639,8 @@ function skip() {
   setTimeout(() => {
     T = def.fin + .3; if (!ctaShown) showCta();
     finished = true; root.classList.add('done');
+    running = false; cancelAnimationFrame(raf); raf = 0;
+    D.state.T = T; guard(draw);
     ui.dip.classList.remove('on');
     setTimeout(() => { skipping = false; }, 300);
   }, 260);
@@ -687,9 +698,17 @@ function wire() {
   for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click']) addEventListener(ev, g, { capture: true, passive: true });
   doc.addEventListener('visibilitychange', () => {
     hidden = doc.hidden;
-    if (A.ctx) { if (hidden) A.ctx.suspend(); else if (A.playing || (!A.muted && A.ctx.state !== 'running')) A.ctx.resume().catch(() => {}); }
-    last = performance.now();
+    pauseChanged();
   });
+  const menu = $('site-menu'), languages = $('langsheet');
+  const overlaysChanged = () => {
+    const next = !!(menu?.open || languages && !languages.hidden);
+    if (next !== overlayPaused) { overlayPaused = next; pauseChanged(); }
+  };
+  const observer = new MutationObserver(overlaysChanged);
+  if (menu) observer.observe(menu, { attributes: true, attributeFilter: ['open'] });
+  if (languages) observer.observe(languages, { attributes: true, attributeFilter: ['hidden'] });
+  overlaysChanged();
   addEventListener('resize', () => { if (gl && !D.state.error) { layout(); guard(draw); } });   // resizing clears the canvas: always redraw
   canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); fail(new Error('webgl context lost')); });
 }
@@ -721,7 +740,7 @@ function go() {
   if (TEST) { running = false; D.test = makeTestApi(audioP); return; }
   T = 0; finished = false; ctaShown = false; skipping = false;
   ui.cta.classList.remove('on'); root.classList.remove('done', 'still');
-  running = true; last = performance.now(); raf = requestAnimationFrame(frame);
+  running = true; last = performance.now(); scheduleFrame();
 }
 
 async function boot() {
