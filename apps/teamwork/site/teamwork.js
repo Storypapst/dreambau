@@ -235,6 +235,7 @@ function initLayout(page) {
       page.placement = layout;
       page.position?.(layout);
     } else page.placement = null;
+    page.measure?.();
     page.draw?.(page.reduced ? 4.6 : performance.now() / 1000);
   };
   let timer;
@@ -329,14 +330,32 @@ export function noise(a, b, c) {
 const RGB = { cyan: '56,214,255', amber: '255,178,62', pink: '255,94,200', violet: '169,139,255', lime: '198,242,58', slate: '200,208,224' };
 function initCanvas(page) {
   const context = page.canvas.getContext('2d');
+  const discs = page.doc.getElementById('orb-glyphs'), discContext = discs.getContext('2d');
   const field = page.doc.createElement('canvas'), fieldContext = field.getContext('2d');
-  let fieldKey = '', cells = [];
+  let fieldKey = '', cells = [], geometry;
+  // Layout is read only after render/resize, never inside an animation frame.
+  // Measuring the actual circles also covers the phone and dense-list fallback.
+  page.measure = () => {
+    const map = page.map.getBoundingClientRect(), hub = page.doc.querySelector('.hub').getBoundingClientRect();
+    geometry = { width: page.map.clientWidth, height: page.map.clientHeight, dpr: Math.min(devicePixelRatio || 1, 2),
+      cx: hub.x + hub.width / 2 - map.x, cy: hub.y + hub.height / 2 - map.y, radius: hub.width / 2,
+      nodes: [...page.zones.querySelectorAll('.tile')].map(tile => {
+        const orb = tile.querySelector('.orb').getBoundingClientRect();
+        let seed = 7;
+        for (const letter of tile.dataset.id) seed = (Math.imul(seed, 31) + letter.charCodeAt(0)) | 0;
+        return { tile, seed, x: orb.x + orb.width / 2 - map.x, y: orb.y + orb.height / 2 - map.y,
+          scale: orb.width / 44, colour: RGB[tile.dataset.color] || RGB.slate };
+      }) };
+  };
+  page.measure();
   page.draw = (time) => {
     if (page.doc.hidden) return;
-    const width = page.map.clientWidth, height = page.map.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+    const { width, height, dpr, cx, cy, radius, nodes } = geometry;
     const pw = Math.round(width * dpr), ph = Math.round(height * dpr);
     if (page.canvas.width !== pw || page.canvas.height !== ph) { page.canvas.width = pw; page.canvas.height = ph; }
+    if (discs.width !== pw || discs.height !== ph) { discs.width = pw; discs.height = ph; }
     context.setTransform(dpr, 0, 0, dpr, 0, 0); context.clearRect(0, 0, width, height);
+    discContext.setTransform(dpr, 0, 0, dpr, 0, 0); discContext.clearRect(0, 0, width, height);
     const cluster = page.root.dataset.layout !== 'constellation', cw = cluster ? 15 : 16, ch = cluster ? 19 : 20;
     const colours = page.state.catalogue?.zones.filter((zone) => zone.ring !== 'inner').map((zone) => RGB[zone.color]) || [];
     context.font = '12px ui-monospace, monospace'; context.textAlign = 'center';
@@ -363,19 +382,31 @@ function initCanvas(page) {
       fieldContext.fillText(GLYPHS[Math.floor(noise(cell.col, cell.row, tick) * GLYPHS.length)], cell.x, cell.y);
     }
     context.drawImage(field, 0, 0, width, height);
-    if (page.placement) {
-      const { cx, cy, items } = page.placement;
-      for (let ring = 0; ring < 2; ring++) for (let i = 0; i < 34; i++) {
-        const a = i / 34 * Math.PI * 2 + time * .035 * (ring ? -1 : 1), radius = 65 + ring * 17;
-        context.fillStyle = `rgba(${RGB.slate},.16)`;
-        context.fillText(GLYPHS[Math.floor(noise(i, ring, Math.floor(time)) * GLYPHS.length)], cx + Math.cos(a) * radius, cy + Math.sin(a) * radius + 4);
-      }
-      for (const [index, item] of items.entries()) for (let i = 0; i < 10; i++) {
-        const a = i * 2.39996 + time * .12, r = Math.sqrt(i / 10) * 18;
-        const program = page.state.programs.find((entry) => entry.id === item.id);
-        const zone = page.state.catalogue.zones.find((entry) => entry.id === item.zone);
-        context.fillStyle = `rgba(${RGB[program.color || zone.color]},.38)`;
-        context.fillText(GLYPHS[Math.floor(noise(index, i, Math.floor(time * 2)) * GLYPHS.length)], item.x + Math.cos(a) * r, item.y + Math.sin(a) * r + 4);
+    // Approved mockup: two coloured rings, including on the stacked layout.
+    context.font = `${cluster ? 11 : 12}px ui-monospace, monospace`; context.textBaseline = 'middle';
+    const rings = cluster ? [[radius + 12, 26, .22, 1], [radius + 26, 34, .16, -1]] : [[radius + 14, 30, .22, 1], [radius + 30, 40, .16, -1]];
+    for (const [ring, [r, count, speed, direction]] of rings.entries()) for (let i = 0; i < count; i++) {
+      const angle = i / count * Math.PI * 2 + (page.reduced ? .35 : time * speed * direction), hv = noise(i, ring, 41);
+      const quadrant = Math.floor(((angle + Math.PI / 4) / (Math.PI / 2) % 4 + 4) % 4);
+      const alpha = page.reduced ? .5 + .25 * hv : .42 + .4 * (.5 + .5 * Math.sin(time * 1.6 + i * .8 + ring));
+      const tick = page.reduced ? Math.floor(hv * 30) : Math.floor(time * (1 + 3 * hv) + hv * 30);
+      context.fillStyle = `rgba(${colours[quadrant % colours.length] || RGB.slate},${ring ? alpha * .8 : alpha})`;
+      context.fillText(GLYPHS[Math.floor(noise(i + ring * 50, 3, tick) * GLYPHS.length)], cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+    }
+    // An overlay above the card fills keeps the 31-glyph discs visible. The
+    // unknown-state marker intentionally replaces them, as in the mockup.
+    discContext.textAlign = 'center'; discContext.textBaseline = 'middle';
+    if (page.state.kind !== 'normal' || page.state.unknown) return;
+    for (const node of nodes) {
+      const hot = node.tile.classList.contains('hot');
+      discContext.font = `${Math.max(8, 9.5 * node.scale).toFixed(1)}px ui-monospace, monospace`;
+      for (const [ring, [r, count]] of [[0, 1], [6.5, 5], [12.5, 10], [18, 15]].entries()) for (let i = 0; i < count; i++) {
+        const hv = noise(node.seed + ring, i, 3), angle = count === 1 ? 0 : i / count * 6.2832 + ring * .7 + (page.reduced ? 0 : time * .35 * (ring % 2 ? 1 : -1));
+        const alpha = page.reduced ? .55 + .3 * hv : .45 + .45 * (.5 + .5 * Math.sin(time * (2 + 3 * hv) + i));
+        const head = hot ? hv > .45 : hv > .88;
+        const tick = page.reduced ? Math.floor(hv * 30) : Math.floor(time * (1.5 + 5 * hv) + hv * 30);
+        discContext.fillStyle = `rgba(${head ? '240,246,255' : node.colour},${Math.min(1, alpha + (head ? .3 : hot ? .2 : 0))})`;
+        discContext.fillText(GLYPHS[Math.floor(noise(node.seed + ring, i, tick) * GLYPHS.length)], node.x + Math.cos(angle) * r * node.scale, node.y + Math.sin(angle) * r * node.scale);
       }
     }
   };
