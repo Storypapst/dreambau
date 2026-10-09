@@ -51,9 +51,9 @@ export async function verifyBoundAccountSetupIdentity(input: {
   } catch { throw new OrisoProvisioningError("account_setup_binding_mismatch"); }
 }
 
-export async function completeBoundAccountSetup(input: AccountSetupInput & {
-  invite: unknown; target: OrisoProvisioningTarget; fetch: ProvisioningFetch; now(): Date;
-}): Promise<TestAccessRecord> {
+export function validateAccountSetupInvite(input: {
+  record: TestAccessRecord; invite: unknown; target: OrisoProvisioningTarget;
+}) {
   const { record, target } = input;
   const invite = bindingSchema.safeParse(input.invite);
   const role = record.roles.join(",") === "consultant" ? "COUNSELLOR"
@@ -67,6 +67,14 @@ export async function completeBoundAccountSetup(input: AccountSetupInput & {
     || invite.data.recipientEmail.toLowerCase() !== record.email?.toLowerCase()) {
     throw new OrisoProvisioningError("account_setup_binding_mismatch");
   }
+  return invite.data;
+}
+
+export async function completeBoundAccountSetup(input: AccountSetupInput & {
+  invite: unknown; target: OrisoProvisioningTarget; fetch: ProvisioningFetch; now(): Date;
+}): Promise<TestAccessRecord> {
+  const { record, target } = input;
+  const invite = { data: validateAccountSetupInvite(input) };
   let mail: string;
   try { mail = await input.readMail(); } catch { throw new OrisoProvisioningError("account_setup_mail_unavailable"); }
   const base = new URL(target.adminBaseUrl);

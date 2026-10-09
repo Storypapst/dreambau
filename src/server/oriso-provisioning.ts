@@ -3,7 +3,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { testAccessRecordSchema, type RegistryProvider, type TestAccessRecord } from "./infisical-provider.js";
 import { generateCompatibleOrisoTotp } from "./totp.js";
-import { completeBoundAccountSetup, verifyBoundAccountSetupIdentity, type AccountSetupInput } from "./oriso-account-setup.js";
+import { completeBoundAccountSetup, validateAccountSetupInvite, verifyBoundAccountSetupIdentity, type AccountSetupInput } from "./oriso-account-setup.js";
 
 export const orisoProvisioningRoles = [
   "platform-admin",
@@ -343,6 +343,7 @@ export interface OrisoProvisioningService {
   target: OrisoProvisioningTarget;
   status(recipientEmail: string): Promise<OrisoProvisioningStateView | null>;
   completeAccountSetup?(input: AccountSetupInput): Promise<TestAccessRecord>;
+  verifyAccountSetup?(record: TestAccessRecord): Promise<void>;
   ensureInvite(input: {
     recipientEmail: string;
     firstName: string;
@@ -742,6 +743,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         throw new OrisoProvisioningError("invite_create_failed");
       }
       return { created: true, state: publicInviteState(invite) };
+    },
+    async verifyAccountSetup(record) {
+      await verifyBoundAccountSetupIdentity({ record, target: options, readIdentity: (path) => authorizedJson(path) });
+      if (!record.accountSetup?.submittedAt) validateAccountSetupInvite({ record, target: options, invite: await findInvite(record.email ?? "", true) });
     },
     async completeAccountSetup(input) {
       const binding = input.record.accountSetup;

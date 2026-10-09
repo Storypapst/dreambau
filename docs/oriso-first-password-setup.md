@@ -47,6 +47,27 @@ public metadata, audit entries, screenshots or logs.
 
 ## Uncertain outcomes and deployment
 
+The server operator command completes this same Testmails workflow without entering credentials in a browser. It defaults to a read-only preflight. Execution is restricted to new Springfield Dev counsellor or Agency Admin records created in the last 24 hours; it cannot repair older or ready accounts. Already-created records require the original creation evidence, supplied explicitly rather than inferred from a current email search.
+
+**For operators — run inside the deployed Testmails service, with its configured secrets and shared data volume:**
+
+```text
+node dist/server/oriso-setup-operator-cli.js \
+  --record-id oriso/dev/<springfield-record> \
+  --email <springfield-mailbox> \
+  --expected-created-at <original-record-ISO-time> \
+  --original-user-id <original-product-id> --invite-id <original-invitation-id>
+
+Default: validate original record, product identity, invitation, Dev routing,
+age, project metadata and deletion state. No registry, SQLite or mail-state writes.
+Add --execute only under the scoped operator authorization for that new record.
+Execution rereads prerequisites under the same data-volume lock as HTTP mutations.
+The existing Testmails service completes normal setup and factor verification;
+the command prints only record ID, email and status. No cookies, extra public
+machine grants, raw reset endpoints, password arguments or credential output.
+Audit actor: operator:codex-m4-oriso; metadata/links are synchronized on success.
+```
+
 A lost response can mean that ORISO already changed the password. Testmails preserves its private candidate and one-shot marker. A repeated action verifies the same credential and resumes second-factor setup; it never sends another setup request. If verification cannot establish the result, the account remains incomplete for operator review.
 
 **For operators — persistence and rollback constraints:**
@@ -58,9 +79,13 @@ submittedAt:null retains original creation proof without a password change;
 a timestamp records the staged one-shot setup request.
 It is not a public account field. A failed attempt retains both credential and
 marker; generic password linking cannot overwrite a staged setup attempt.
-The current deployment uses one Testmails instance. In-process serialization
-and expected-state rereads protect this boundary; this is not distributed CAS.
-Do not scale the mutation service to multiple writers without a shared lock.
+The current deployment uses one Testmails instance. HTTP provisioning/deletion,
+human/machine TOTP enrollment and the operator share per-environment/email
+directory locks on the writable SQLite data volume, plus expected-state rereads.
+These locks are not distributed CAS. Do not scale across separate data volumes.
+An interrupted owner leaves a stale lock and blocks further mutations. Review
+its outcome and ensure the original process is gone before operator recovery;
+never expire/remove an active lock just because a request is slow.
 
 Older strict record readers cannot parse a record carrying accountSetup.
 Once setup is used, roll back only to a reader-compatible image. Preserve

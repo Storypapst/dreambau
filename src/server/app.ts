@@ -10,6 +10,7 @@ import { loadAccounts as loadAccountsFile, type AccountRecord } from "./accounts
 import { createInfisicalAccountSource, type AccountSource } from "./infisical-accounts.js";
 import { loadConfig } from "./config.js";
 import { createDatabase, type RegistryDatabase } from "./db.js";
+import { acquireAccountMutationLock } from "./account-mutation-lock.js";
 import { lifecycleStatuses, metadataPatchSchema } from "./metadata.js";
 import { taxonomyKindSchema, taxonomyValuesSchema } from "./taxonomies.js";
 import { z } from "zod";
@@ -199,10 +200,17 @@ export function createApp(options: AppOptions = {}) {
   };
   const accountMutations = new Set<string>();
   const guardAccountMutation = (handler: express.RequestHandler): express.RequestHandler => async (req, res, next) => {
-    const key = `${String(req.body?.environment)}:${String(req.params.email).trim().toLowerCase()}`;
+    const email = String(req.params.email).trim().toLowerCase();
+    const key = `${environmentForOrisoEmail(email) ?? String(req.body?.environment)}:${email}`;
     if (accountMutations.has(key)) { res.status(409).json({ error: "oriso_account_mutation_in_progress" }); return; }
     accountMutations.add(key);
-    try { await handler(req, res, next); } finally { accountMutations.delete(key); }
+    let release: (() => Promise<void>) | null = null;
+    try {
+      release = await acquireAccountMutationLock(options.loadAccounts ? ":memory:" : config.databasePath, key);
+      if (!release) { res.status(409).json({ error: "oriso_account_mutation_in_progress" }); return; }
+      await handler(req, res, next);
+    } catch (error) { next(error); }
+    finally { accountMutations.delete(key); await release?.(); }
   };
 
   installPasskeyAuth(api, {
@@ -426,6 +434,7 @@ export function createApp(options: AppOptions = {}) {
     identities: machineIdentitySource,
     registryProvider,
     registryWriter,
+    databasePath: options.loadAccounts ? ":memory:" : config.databasePath,
     database,
     accounts: accountLoader,
     mailReader,
@@ -490,7 +499,7 @@ export function createApp(options: AppOptions = {}) {
     accountId: z.string().min(1).max(240),
     totpSecret: z.string().trim().min(16).max(256)
   }).strict();
-  api.post("/accounts/:email/totp", requireActiveHumanSession, async (req, res, next) => {
+  api.post("/accounts/:email/totp", requireActiveHumanSession, guardAccountMutation(async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
     const current = scopedAccountViews(user).find((account) => account.email.toLowerCase() === email);
@@ -525,7 +534,7 @@ export function createApp(options: AppOptions = {}) {
       if (mapped) return res.status(mapped.status).json(mapped.body);
       next(error);
     }
-  });
+  }));
   api.get("/accounts/:email/otp", requireActiveHumanSession, async (req, res, next) => {
     const user = res.locals.humanUser as HumanUser;
     const email = decodeURIComponent(String(req.params.email)).trim().toLowerCase();
