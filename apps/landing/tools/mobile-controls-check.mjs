@@ -47,6 +47,16 @@ try{
  const sourceBox=await sourceClose.boundingBox();assert(sourceBox.y>740&&sourceBox.height>=44,'153 source close lives at bottom with44px target');
  await capture(page,'phone-source-390x844');
  assert.equal(await page.locator('#cv-close').isVisible(),false,'153 tiny source cross is absent on phone');
+ for(const viewport of [{width:844,height:390},{width:390,height:844}]){
+  await page.setViewportSize(viewport);
+  await page.waitForFunction(()=>document.querySelector('.code-view').classList.contains('cv-stack')===(innerHeight>=innerWidth||innerWidth<760));
+  assert.equal(await page.locator('#cv-close').isVisible(),false,'153 phone rotation keeps the tiny source cross absent');
+  assert(await sourceClose.isVisible(),'153 phone rotation retains the labelled bottom close');
+  const rotatedClose=await sourceClose.boundingBox();assert(rotatedClose.height>=44&&rotatedClose.y+rotatedClose.height<=viewport.height,'153 rotated source close remains reachable with44px target');
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'153 rotated source view has no horizontal overflow');
+  await capture(page,'phone-source-rotated-'+viewport.width+'x'+viewport.height);
+ }
+ console.log('PASS153 source close survives portrait-landscape-portrait rotation');
  await sourceClose.click();await page.waitForFunction(()=>!document.querySelector('.code-view').open);
  assert(await page.locator('#source-entry').evaluate(el=>el===document.activeElement),'153 source close restores opener focus');
  console.log('PASS153 labelled source close');
@@ -88,6 +98,7 @@ try{
   const wide=await home(viewport,{reducedMotion:'reduce'});const w=wide.page;
   const tops=await w.locator('#site-menu summary,#source-entry,#snd').evaluateAll(els=>els.map(e=>e.getBoundingClientRect().top));assert(tops.every(t=>t===12),'153 desktop/tablet control positions unchanged');
   await w.locator('#site-menu summary').click();const wb=await w.locator('#site-menu nav').boundingBox();assert.equal(wb.width,340,'153 wide menu width unchanged');await capture(w,'menu-'+viewport.width+'x'+viewport.height);await w.keyboard.press('Escape');
+  if(viewport.width===1440){await w.locator('#source-entry').click();await w.getByRole('dialog',{name:'Wie klein ist das?'}).waitFor();assert(await w.locator('#cv-close').isVisible(),'153 desktop source header close remains visible');assert.equal(await w.locator('#cv-close-bottom').isVisible(),false,'153 desktop source close policy remains unchanged');await w.locator('#cv-close').click();}
   await wide.context.close();
  }
  console.log('PASS153 tablet/desktop unchanged');
