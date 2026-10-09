@@ -1,6 +1,7 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { createDatabase } from "../src/server/db.js";
 import { compareVersions, emptyMetadata, metadataPatchSchema } from "../src/server/metadata.js";
@@ -16,7 +17,7 @@ describe("metadata database", () => {
   it("seeds roles, conversation types, and the canonical ORISO topics", () => {
     const db = database();
     const taxonomies = db.getTaxonomies();
-    expect(taxonomies.roles).toEqual(["Admin", "Berater", "Ratsuchender", "Träger"]);
+    expect(taxonomies.roles).toEqual(expect.arrayContaining(["Admin", "Berater", "Ratsuchender", "Träger", "platform-admin", "tenant-admin", "agency-admin", "counsellor", "advice-seeker"]));
     expect(taxonomies.conversationTypes).toEqual(["Chat", "Dateiaustausch", "E-Mail", "Langzeitdialog", "Termin", "Video"]);
     expect(taxonomies.topics).toHaveLength(16);
     expect(taxonomies.topics).toEqual(expect.arrayContaining(["debt", "pregnancy", "living-in-old-age", "u25-suicide-prevention"]));
@@ -34,6 +35,23 @@ describe("metadata database", () => {
     expect(value.shippedVersion).toBe("3.1");
     expect(JSON.stringify(value)).not.toContain("password");
     expect(() => db.upsertMetadata("homer.simpson@dreambau.com", { lifecycleStatus: "gone" as never })).toThrow();
+    db.close();
+  });
+  it("migrates legacy metadata without inventing an agency and persists multiple documented agencies", () => {
+    const file = path.join(mkdtempSync(path.join(tmpdir(), "testmails-agencies-")), "test.sqlite");
+    const previous = new Database(file);
+    previous.exec(`CREATE TABLE account_metadata (email TEXT PRIMARY KEY, shipped_version TEXT NOT NULL DEFAULT '', lifecycle_status TEXT NOT NULL DEFAULT 'unused', project TEXT NOT NULL DEFAULT 'NONE', roles TEXT NOT NULL DEFAULT '[]', topics TEXT NOT NULL DEFAULT '[]', conversation_types TEXT NOT NULL DEFAULT '[]', fixture_quality TEXT NOT NULL DEFAULT 'empty', sample_file_count INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL);
+      INSERT INTO account_metadata(email,roles,notes,updated_at) VALUES('legacy@oriso.org','["Träger"]','Keep me','2026-01-01');`);
+    previous.close();
+    const db = createDatabase(file);
+    expect(db.getMetadata("legacy@oriso.org")).toMatchObject({ agencies: [], roles: ["Träger"], notes: "Keep me" });
+    db.upsertMetadata("legacy@oriso.org", { agencies: ["Debt advice Berlin", "Family advice Hamburg"] });
+    expect(db.getMetadata("legacy@oriso.org").agencies).toEqual(["Debt advice Berlin", "Family advice Hamburg"]);
+    db.upsertMetadata("legacy@oriso.org", { notes: "Updated" });
+    expect(db.getAllMetadata()[0].agencies).toHaveLength(2);
+    expect(db.upsertMetadata("legacy@oriso.org", { agencies: [] }).agencies).toEqual([]);
+    expect(emptyMetadata("new@oriso.org")).toMatchObject({ agencies: [] });
+    expect(() => metadataPatchSchema.parse({ agencies: [""] })).toThrow();
     db.close();
   });
   it("records machine identity usage without storing token values", () => {

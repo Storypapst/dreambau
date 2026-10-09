@@ -2,10 +2,12 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "@/api";
 import { MetadataEditor } from "../src/client/components/metadata-editor.js";
 import type { AccountView } from "../src/client/types.js";
 
+vi.mock("@/api", () => ({ api: vi.fn() }));
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const account: AccountView = {
@@ -39,6 +41,7 @@ describe("MetadataEditor", () => {
   let root: ReturnType<typeof createRoot>;
 
   beforeEach(() => {
+    vi.mocked(api).mockReset();
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -48,6 +51,23 @@ describe("MetadataEditor", () => {
     await act(async () => root.unmount());
     document.querySelectorAll("[data-slot=sheet-portal]").forEach((node) => node.remove());
     container.remove();
+  });
+
+  it.each(["Debt advice Berlin\nFamily advice Hamburg\nDebt advice Berlin", ""])("saves documented agencies from the editor: %s", async (names) => {
+    const saved = vi.fn();
+    vi.mocked(api).mockResolvedValue({ ...account.metadata, agencies: names ? ["Debt advice Berlin", "Family advice Hamburg"] : [] });
+    await act(async () => root.render(<MetadataEditor account={{ ...account, metadata: { ...account.metadata, agencies: ["Previous agency"] } }} taxonomies={{ roles: ["Träger"], topics: [], conversationTypes: [] }} locale="en" open onOpenChange={() => undefined} onSaved={saved} />));
+    const input = document.querySelector<HTMLTextAreaElement>("#agencies");
+    expect(input).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, names);
+      input!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    const patch = JSON.parse(vi.mocked(api).mock.calls[0][1]!.body as string);
+    expect(patch.agencies).toEqual(names ? ["Debt advice Berlin", "Family advice Hamburg"] : []);
+    expect(patch.roles).toEqual(["Träger"]);
+    expect(saved).toHaveBeenCalledOnce();
   });
 
   it("places the save action before the first editable field", async () => {

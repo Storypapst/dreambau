@@ -4,7 +4,7 @@ export type LifecycleStatus = "unused" | "active" | "needs_review" | "delete_can
 export type FixtureQuality = "empty" | "synthetic" | "realistic" | "gold";
 export type Project = "NONE" | "ORI" | "ORISO" | "ORIMO" | "TRAIL.IST" | "DREAMBAU" | "OTHER";
 export interface AccountMetadata {
-  email: string; shippedVersion: string; lifecycleStatus: LifecycleStatus; project: Project; roles: string[]; topics: string[];
+  email: string; shippedVersion: string; lifecycleStatus: LifecycleStatus; project: Project; roles: string[]; topics: string[]; agencies?: string[];
   conversationTypes: string[]; fixtureQuality: FixtureQuality; sampleFileCount: number; notes: string; updatedAt: string;
 }
 export interface AccountView {
@@ -39,7 +39,7 @@ export interface OrisoProvisioningView {
 }
 export interface OrisoProvisioningResult {
   created: boolean; recordCreated: boolean; recordReplaced?: boolean; state: OrisoProvisioningStateView | null;
-  provisioningRole: OrisoProvisioningRole; linked: LinkedTestAccount; requiresApplicationPassword: boolean;
+  provisioningRole: OrisoProvisioningRole; linked: LinkedTestAccount; metadata?: AccountMetadata; requiresApplicationPassword: boolean;
 }
 export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
 export type OtpResponse = ({ source: "totp"; generatedAt: string; expiresAt: string } | { source: "mail"; receivedAt: string; messageId: string; subject: string }) & { accountId: string; code: string };

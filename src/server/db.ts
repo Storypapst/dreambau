@@ -18,7 +18,7 @@ import type { TestAccessRecord } from "./infisical-provider.js";
 import { secretNameForRecord } from "./infisical-import.js";
 
 const seeds = {
-  roles: ["Träger", "Berater", "Ratsuchender", "Admin"],
+  roles: ["Träger", "Berater", "Ratsuchender", "Admin", "platform-admin", "tenant-admin", "agency-admin", "counsellor", "advice-seeker"],
   topics: topicKeys,
   conversationTypes: ["Chat", "E-Mail", "Video", "Termin", "Dateiaustausch", "Langzeitdialog"]
 };
@@ -145,13 +145,14 @@ export function createDatabase(path: string): RegistryDatabase {
   `);
   const metadataColumns = new Set((sqlite.prepare("PRAGMA table_info(account_metadata)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!metadataColumns.has("project")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN project TEXT NOT NULL DEFAULT 'NONE'");
+  if (!metadataColumns.has("agencies")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN agencies TEXT NOT NULL DEFAULT '[]'");
   const seed = sqlite.prepare("INSERT OR IGNORE INTO taxonomy_values(kind,value) VALUES (?,?)");
   const seedTransaction = sqlite.transaction(() => { for (const [kind, values] of Object.entries(seeds)) for (const value of values) seed.run(kind, value); });
   seedTransaction();
 
   const rowToMetadata = (row: any): AccountMetadata => ({
     email: row.email, shippedVersion: row.shipped_version, lifecycleStatus: row.lifecycle_status, project: row.project,
-    roles: JSON.parse(row.roles), topics: JSON.parse(row.topics), conversationTypes: JSON.parse(row.conversation_types),
+    roles: JSON.parse(row.roles), agencies: JSON.parse(row.agencies), topics: JSON.parse(row.topics), conversationTypes: JSON.parse(row.conversation_types),
     fixtureQuality: row.fixture_quality, sampleFileCount: row.sample_file_count, notes: row.notes, updatedAt: row.updated_at
   });
   if (!(sqlite.pragma("table_info(oriso_admin_deletions)") as Array<{ name: string }>).some((column) => column.name === "state")) {
@@ -170,9 +171,9 @@ export function createDatabase(path: string): RegistryDatabase {
     getAllMetadata: () => (sqlite.prepare("SELECT * FROM account_metadata ORDER BY email").all() as any[]).map(rowToMetadata),
     upsertMetadata(email, input) {
       const patch = metadataPatchSchema.parse(input); const current = api.getMetadata(email); const next = { ...current, ...patch, email, updatedAt: new Date().toISOString() };
-      sqlite.prepare(`INSERT INTO account_metadata(email,shipped_version,lifecycle_status,project,roles,topics,conversation_types,fixture_quality,sample_file_count,notes,updated_at)
-        VALUES(@email,@shippedVersion,@lifecycleStatus,@project,@roles,@topics,@conversationTypes,@fixtureQuality,@sampleFileCount,@notes,@updatedAt)
-        ON CONFLICT(email) DO UPDATE SET shipped_version=excluded.shipped_version,lifecycle_status=excluded.lifecycle_status,project=excluded.project,roles=excluded.roles,topics=excluded.topics,conversation_types=excluded.conversation_types,fixture_quality=excluded.fixture_quality,sample_file_count=excluded.sample_file_count,notes=excluded.notes,updated_at=excluded.updated_at`).run({ ...next, roles: JSON.stringify(next.roles), topics: JSON.stringify(next.topics), conversationTypes: JSON.stringify(next.conversationTypes) });
+      sqlite.prepare(`INSERT INTO account_metadata(email,shipped_version,lifecycle_status,project,roles,agencies,topics,conversation_types,fixture_quality,sample_file_count,notes,updated_at)
+        VALUES(@email,@shippedVersion,@lifecycleStatus,@project,@roles,@agencies,@topics,@conversationTypes,@fixtureQuality,@sampleFileCount,@notes,@updatedAt)
+        ON CONFLICT(email) DO UPDATE SET shipped_version=excluded.shipped_version,lifecycle_status=excluded.lifecycle_status,project=excluded.project,roles=excluded.roles,agencies=excluded.agencies,topics=excluded.topics,conversation_types=excluded.conversation_types,fixture_quality=excluded.fixture_quality,sample_file_count=excluded.sample_file_count,notes=excluded.notes,updated_at=excluded.updated_at`).run({ ...next, roles: JSON.stringify(next.roles), agencies: JSON.stringify(next.agencies), topics: JSON.stringify(next.topics), conversationTypes: JSON.stringify(next.conversationTypes) });
       return next;
     },
     bulkStatus(emails, status) { const parsed = metadataPatchSchema.pick({ lifecycleStatus: true }).parse({ lifecycleStatus: status }); const transaction = sqlite.transaction(() => { for (const email of [...new Set(emails)]) api.upsertMetadata(email, parsed); }); transaction(); return new Set(emails).size; },

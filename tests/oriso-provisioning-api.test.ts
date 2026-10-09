@@ -510,6 +510,70 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(JSON.stringify(access)).not.toContain(secret);
   });
 
+  it.each([true, false])("documents the verified creation agency only for a newly created product account: %s", async (created) => {
+    const base = fakeService();
+    const service = fakeService({ provision: vi.fn(async (input) => ({ ...await base.provision(input), created, agencyNames: ["Debt advice Berlin"] })) });
+    const fixture = await setup({ service });
+    fixture.database.upsertMetadata(fixture.lisa.email, { agencies: ["Documented elsewhere"] });
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "counsellor" });
+    expect(response.status).toBe(created ? 201 : 200);
+    const agencies = created ? ["Documented elsewhere", "Debt advice Berlin"] : ["Documented elsewhere"];
+    expect(fixture.database.getMetadata(fixture.lisa.email).agencies).toEqual(agencies);
+    expect(response.body.metadata.agencies).toEqual(agencies);
+  });
+
+  it("never documents an agency for a failed or pre-existing record", async () => {
+    const existing = managedRecord({ roles: ["consultant"], kind: "app-user", provisioningStatus: "pending", totpSecret: undefined });
+    const base = fakeService();
+    const service = fakeService({ provision: vi.fn(async (input) => ({ ...await base.provision(input), created: true, agencyNames: ["Debt advice Berlin"] })) });
+    const fixture = await setup({ service, records: [existing] });
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "counsellor" });
+    expect(response.status).toBe(201);
+    expect(fixture.database.getMetadata(fixture.lisa.email).agencies).toEqual([]);
+    const failed = await setup({ service: fakeService({ provision: vi.fn(async () => { throw new OrisoProvisioningError("account_create_failed"); }) }) });
+    expect((await failed.agent.post(`/testmails/api/accounts/${encodeURIComponent(failed.lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "counsellor" })).status).toBe(502);
+    expect(failed.database.getMetadata(failed.lisa.email).agencies).toEqual([]);
+  });
+
+  it.each(["counsellor", "advice-seeker"] as const)("rejects an incompatible retained username before replacing roles for %s", async (role) => {
+    const existing = managedRecord({ roles: ["tenant-admin"], username: "lisa.simpson@dreambau.de", provisioningStatus: "failed", totpSecret: undefined });
+    const fixture = await setup({ records: [existing] });
+    const original = { ...existing };
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role, replaceStaleRole: true });
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe("record_username_incompatible");
+    expect(fixture.writer?.replaceRecord).not.toHaveBeenCalled();
+    expect(fixture.service.provision).not.toHaveBeenCalled();
+    expect(existing).toEqual(original);
+  });
+
+  it("keeps successful creation ready when existing documentation already contains twenty agencies", async () => {
+    const base = fakeService();
+    const service = fakeService({ provision: vi.fn(async (input) => ({ ...await base.provision(input), agencyNames: ["Verified new agency"] })) });
+    const fixture = await setup({ service });
+    const documented = Array.from({ length: 20 }, (_, index) => `Documented agency ${index + 1}`);
+    fixture.database.upsertMetadata(fixture.lisa.email, { agencies: documented });
+    const response = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "counsellor" });
+    expect(response.status).toBe(201);
+    expect(response.body.state.state).toBe("ready");
+    expect(response.body.metadata.agencies).toEqual([...documented, "Verified new agency"]);
+  });
+
+  it.each([
+    [["admin", "platform-admin"], ["platform-admin"]],
+    [["tenant-admin"], ["tenant-admin"]],
+    [["agency-admin"], ["agency-admin"]],
+    [["admin"], ["Admin"]]
+  ])("shows linked role %j on account rows while preserving saved legacy metadata", async (roles, expected) => {
+    const fixture = await setup({ records: [managedRecord({ roles })] });
+    fixture.database.upsertMetadata(fixture.lisa.email, { roles: ["Admin"] });
+    const response = await fixture.agent.get("/testmails/api/accounts");
+    expect(response.status).toBe(200);
+    const account = response.body.find((row: { email: string }) => row.email === fixture.lisa.email);
+    expect(account.metadata.roles).toEqual(expected);
+    expect(fixture.database.getMetadata(fixture.lisa.email).roles).toEqual(["Admin"]);
+  });
+
   it("is idempotent: reports the existing ready account and record instead of duplicating them", async () => {
     const { agent, lisa, service, writer } = await setup();
     await agent
@@ -1147,7 +1211,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(devOnly.service.provision).not.toHaveBeenCalled();
   });
 
-  it("keeps email-OTP sessions read-only and hides the provisioning entitlement", async () => {
+  it("allows a scoped email-OTP human to provision and keeps unrelated privileged actions passkey-only", async () => {
     const member = await setup({ role: "member", projects: ["oriso"] });
     const emailOtp = request.agent(member.app);
     expect((await emailOtp.post("/testmails/api/auth/email-otp/request").send({ email: member.user.email })).status).toBe(202);
@@ -1158,18 +1222,45 @@ describe("human self-service ORISO PreDev provisioning", () => {
     })).status).toBe(200);
 
     const currentUser = await emailOtp.get("/testmails/api/auth/me");
-    expect(currentUser.body.entitlements).toEqual({ orisoProvisioning: { environments: [] } });
+    expect(currentUser.body.entitlements).toEqual({ orisoProvisioning: { environments: ["pre-dev", "dev"] } });
     const status = await emailOtp.get(
       `/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`
     );
-    expect(status.status).toBe(403);
-    expect(status.body).toEqual({ error: "passkey_required" });
+    expect(status.status).toBe(200);
     const mutation = await emailOtp
       .post(`/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`)
       .send({ environment: "pre-dev", role: "tenant-admin" });
-    expect(mutation.status).toBe(403);
-    expect(mutation.body).toEqual({ error: "passkey_required" });
-    expect(member.service.provision).not.toHaveBeenCalled();
+    expect(mutation.status).toBe(201);
+    expect(member.service.provision).toHaveBeenCalledOnce();
+    expect(member.database.getAccountAccess(member.lisa.email).events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actorId: member.user.id, action: "oriso_account_provisioned", context: { environment: "pre-dev" } })
+    ]));
+    for (const response of [
+      await emailOtp.get("/testmails/api/machine-identities/usage"),
+      await emailOtp.get("/testmails/api/auth/passkeys"),
+      await emailOtp.post(`/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-admin-deletion`).send({ environment: "pre-dev" })
+    ]) {
+      expect(response.status).toBe(403);
+      expect(response.body).toEqual({ error: "passkey_required" });
+    }
+    member.passkeyStore.setUserStatus(member.user.id, "disabled");
+    const disabled = await emailOtp.post(`/testmails/api/accounts/${encodeURIComponent(member.lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(disabled.status).toBe(403);
+    expect(disabled.body).toEqual({ error: "user_disabled" });
+  });
+
+  it.each(["foreign", "wrong-environment", "revoked"] as const)("email-OTP creation preserves the %s grant boundary", async (boundary) => {
+    const fixture = await setup({ role: "member", projects: boundary === "foreign" ? ["orimo"] : ["oriso"], grantEnvironments: boundary === "wrong-environment" ? ["dev"] : ["pre-dev", "dev"] });
+    const human = request.agent(fixture.app);
+    await human.post("/testmails/api/auth/email-otp/request").send({ email: fixture.user.email });
+    await vi.waitFor(() => expect(fixture.emailOtpCodes).toHaveLength(1));
+    expect((await human.post("/testmails/api/auth/email-otp/verify").send({ email: fixture.user.email, code: fixture.emailOtpCodes[0] })).status).toBe(200);
+    if (boundary === "revoked") fixture.passkeyStore.grants.replaceLocal(fixture.user.id, []);
+    const response = await human.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe(boundary === "wrong-environment" ? "oriso_provisioning_environment_denied" : "oriso_provisioning_required");
+    expect(fixture.service.provision).not.toHaveBeenCalled();
+    expect(fixture.writer?.createRecord).not.toHaveBeenCalled();
   });
 
   it("fails closed when an entitled human is disabled after authentication", async () => {

@@ -1302,7 +1302,7 @@ describe("reusable ORISO PreDev account factory", () => {
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: init?.body, headers: init?.headers });
         const ok = (value: unknown = {}) => ({ ok: true, status: 200, async json() { return value; } });
-      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
+      if (url.endsWith("/agencyadmin/agencies/12")) return ok({ _embedded: { id: 12, name: "Debt advice Berlin", tenantId: 7, consultingType: 1, topics: [{ id: 31 }], deleteDate: "null" } });
         if (url.includes("/protocol/openid-connect/token")) {
           const form = new URLSearchParams(init?.body);
           const isAdmin = form.get("username") === "abe.simpson@dreambau.de";
@@ -1361,6 +1361,7 @@ describe("reusable ORISO PreDev account factory", () => {
           nextStep: "none"
         }
       });
+      expect(result.agencyNames).toEqual(role === "platform-admin" || role === "tenant-admin" ? undefined : ["Debt advice Berlin"]);
       expect(record).toMatchObject({ kind: expectedKind, roles: expectedRoles });
       expect(storedTotp).toHaveLength(1);
       expect(storedTotp[0]).toBe(generatedOrisoTotpSecret);
@@ -1696,6 +1697,18 @@ describe("new-account provisioning prerequisites", () => {
     email: "New.Person+qa@oriso.org", displayName: "New Person", role,
     adminBaseUrl: "https://admin.oriso-dev.site", appBaseUrl: "https://app.oriso-dev.site",
     responsiblePerson: "qa", now: new Date(59_000), secret: "new-account-password"
+  });
+
+  it.each(["counsellor", "advice-seeker"] as const)("rejects incompatible legacy %s usernames before new product creation", async (role) => {
+    const mutations: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      if (init?.method !== "GET" && !String(input).includes("openid-connect/token")) mutations.push(String(input));
+      return { ok: false, status: 401, async json() { return {}; } };
+    };
+    const record = { ...recordFor(role), username: role === "counsellor" ? "old@oriso.org" : "another_safe_username" };
+    await expect(service(fetch).provision({ record, firstName: "New", lastName: "Person", role, storeTotp: vi.fn() })).rejects.toMatchObject({ code: "record_username_incompatible" });
+    expect(mutations).toEqual([]);
+    expect(record.username).toBe(role === "counsellor" ? "old@oriso.org" : "another_safe_username");
   });
 
   it.each(["counsellor", "advice-seeker"] as const)("keeps a new %s identity Matrix-safe without changing its email", (role) => {

@@ -150,13 +150,16 @@ export function isKnownSyntheticEmail(email: string, accounts: AccountRecord[]) 
   return accounts.some((account) => normalizeEmail(account.email) === normalized);
 }
 
+export const qualifiedAdminRoles: readonly string[] = ["platform-admin", "tenant-admin", "agency-admin"];
+
 export function dashboardRoles(roles: string[]) {
   const result = new Set<string>();
-  if (roles.some((role) => role === "admin" || role === "platform-admin" || role.endsWith("-admin"))) result.add("Admin");
+  for (const role of qualifiedAdminRoles) if (roles.includes(role)) result.add(role);
+  if (result.size === 0 && roles.some((role) => role === "admin" || role.endsWith("-admin"))) result.add("Admin");
   if (roles.some((role) => role === "consultant" || role === "counselor")) result.add("Berater");
   if (roles.some((role) => role === "user" || role === "asker" || role === "client")) result.add("Ratsuchender");
   if (roles.some((role) => role === "tenant" || role === "carrier")) result.add("Träger");
-  const order = ["Admin", "Berater", "Ratsuchender", "Träger"];
+  const order = [...qualifiedAdminRoles, "Admin", "Berater", "Ratsuchender", "Träger"];
   return order.filter((role) => result.has(role));
 }
 

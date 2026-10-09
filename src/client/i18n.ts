@@ -175,8 +175,36 @@ const fixtureLabels: Record<FixtureQuality, Record<Locale, string>> = {
   empty: { de: "Leer", en: "Empty" }, synthetic: { de: "Synthetisch", en: "Synthetic" }, realistic: { de: "Realistisch", en: "Realistic" }, gold: { de: "Goldstandard", en: "Gold standard" }
 };
 const roleLabels: Record<string, Record<Locale, string>> = {
-  "Träger": { de: "Träger", en: "Provider" }, "Berater": { de: "Berater", en: "Counselor" }, "Ratsuchender": { de: "Ratsuchender", en: "Client" }, Admin: { de: "Admin", en: "Admin" }
+  "platform-admin": { de: "Platform Admin", en: "Platform Admin" },
+  "tenant-admin": { de: "Tenant Admin", en: "Tenant Admin" },
+  "agency-admin": { de: "Agency Admin", en: "Agency Admin" },
+  counsellor: { de: "Counselor", en: "Counselor" },
+  "advice-seeker": { de: "Client", en: "Client" },
+  Admin: { de: "Admin", en: "Admin" }
 };
+const roleAliases: Record<string, string> = {
+  "Träger": "tenant-admin", tenant: "tenant-admin", carrier: "tenant-admin",
+  "Berater": "counsellor", consultant: "counsellor", counselor: "counsellor",
+  "Ratsuchender": "advice-seeker", user: "advice-seeker", asker: "advice-seeker", client: "advice-seeker",
+  admin: "Admin"
+};
+export const canonicalRole = (value: string) => roleAliases[value] ?? value;
+
+// Keep legacy selections intact while avoiding duplicate translated choices.
+export function distinctRoleOptions(options: string[], selected: string[] = []) {
+  const groups = new Map<string, string[]>();
+  for (const key of [...options, ...selected]) {
+    const canonical = canonicalRole(key);
+    const group = groups.get(canonical) ?? [];
+    if (!group.includes(key)) group.push(key);
+    groups.set(canonical, group);
+  }
+  return [...groups].flatMap(([canonical, keys]) => {
+    const retained = keys.filter((key) => selected.includes(key));
+    return retained.length ? retained : [keys.includes(canonical) ? canonical : keys[0]];
+  });
+}
+
 const conversationLabels: Record<string, Record<Locale, string>> = {
   Chat: { de: "Chat", en: "Chat" }, "E-Mail": { de: "E-Mail", en: "Email" }, Video: { de: "Video", en: "Video" }, Termin: { de: "Termin", en: "Appointment" },
   Dateiaustausch: { de: "Dateiaustausch", en: "File exchange" }, Langzeitdialog: { de: "Langzeitdialog", en: "Long-term dialog" }
@@ -184,7 +212,7 @@ const conversationLabels: Record<string, Record<Locale, string>> = {
 
 export const labelLifecycle = (locale: Locale, value: LifecycleStatus) => lifecycleLabels[value][locale];
 export const labelFixture = (locale: Locale, value: FixtureQuality) => fixtureLabels[value][locale];
-export const labelRole = (locale: Locale, value: string) => roleLabels[value]?.[locale] ?? value;
+export const labelRole = (locale: Locale, value: string) => roleLabels[canonicalRole(value)]?.[locale] ?? value;
 export const labelConversation = (locale: Locale, value: string) => conversationLabels[value]?.[locale] ?? value;
 export const labelProject = (locale: Locale, value: Project) => value === "NONE" ? (locale === "de" ? "Keines" : "None") : value === "OTHER" ? (locale === "de" ? "Sonstiges" : "Other") : value;
 

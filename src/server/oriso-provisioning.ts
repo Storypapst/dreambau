@@ -70,6 +70,7 @@ export type OrisoProvisioningErrorCode =
   | "account_create_failed"
   | "account_credentials_mismatch"
   | "account_creation_conflict"
+  | "record_username_incompatible"
   | "provisioning_agency_unavailable"
   | "totp_store_failed"
   | "totp_setup_failed"
@@ -186,6 +187,13 @@ function appRegistrationUsername(email: string) {
     .toLowerCase()
     .replace("@", "_at_")
     .replace(/[^a-z0-9=_\-./+]/g, "_");
+}
+
+/** Preserve existing identities: reject creation when the target API cannot use the stored username. */
+export function isProvisioningUsernameCompatible(record: Pick<TestAccessRecord, "username" | "email">, role: OrisoProvisioningRole) {
+  if (role === "counsellor") return /^[a-z0-9=_\-./+]+$/.test(record.username);
+  if (role === "advice-seeker") return record.username === appRegistrationUsername(record.email ?? record.username);
+  return true;
 }
 
 /**
@@ -327,7 +335,7 @@ export interface OrisoProvisioningService {
     firstName: string;
     lastName: string;
     role: OrisoProvisioningRole;
-  }): Promise<{ created: boolean; state: OrisoProvisioningStateView }>;
+  }): Promise<{ created: boolean; state: OrisoProvisioningStateView; agencyNames?: string[] }>;
   provision(input: {
     record: TestAccessRecord;
     firstName: string;
@@ -338,7 +346,7 @@ export interface OrisoProvisioningService {
     // A dispatched mutation may have succeeded even if its response is lost.
     // Only an explicit conflict proves that this attempt made no change.
     onCreationAttempt?(state: "started" | "rejected"): void;
-  }): Promise<{ created: boolean; state: OrisoProvisioningStateView }>;
+  }): Promise<{ created: boolean; state: OrisoProvisioningStateView; agencyNames?: string[] }>;
 }
 
 const defaultFetch: ProvisioningFetch = (input, init) =>
@@ -454,6 +462,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       const agency = z.object({
         _embedded: z.object({
           id: z.number().int(),
+          name: z.string().trim().min(1).max(255).optional(),
           tenantId: z.number().int(),
           deleteDate: z.string().nullish(),
           consultingType: z.number().int(),
@@ -465,6 +474,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
           || !agency.topics.some((topic) => topic.id === options.defaultMainTopicId)))) {
         throw new Error("Agency does not match the configured provisioning target");
       }
+      return agency.name;
     } catch {
       throw new OrisoProvisioningError("provisioning_agency_unavailable");
     }
@@ -785,8 +795,10 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       }
       let userToken = initialProbe.kind === "authenticated" ? initialProbe.token : null;
       let created = false;
+      let creationAgencyName: string | undefined;
       if (!userToken) {
-        await verifyCreationAgency(input.role);
+        if (!isProvisioningUsernameCompatible(input.record, input.role)) throw new OrisoProvisioningError("record_username_incompatible");
+        creationAgencyName = await verifyCreationAgency(input.role);
         const request = creationRequest(input);
         const createResponse = input.role === "advice-seeker"
           ? await publicRegistrationJson(request.path, options.defaultAgencyId, {
@@ -867,6 +879,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       }
       return {
         created,
+        ...(created && creationAgencyName ? { agencyNames: [creationAgencyName] } : {}),
         state: directStateView(input.record, input.role, created ? "DIRECT_CREATED" : "DIRECT_RECONCILED")
       };
     }

@@ -89,7 +89,7 @@ describe("OrisoProvisioningDialog", () => {
     return onProvisioned;
   }
 
-  it.each(["account_creation_conflict", "provisioning_agency_unavailable"])("keeps %s failures separate from password repair", async (code) => {
+  it.each(["account_creation_conflict", "provisioning_agency_unavailable", "record_username_incompatible"])("keeps %s failures separate from password repair", async (code) => {
     vi.mocked(api).mockResolvedValueOnce({ configured: true, supportedRoles: ["counsellor"], environment: "pre-dev", state: null, linked: null });
     vi.mocked(api).mockRejectedValueOnce(new Error(code));
     const onProvisioned = await openDialog();
@@ -97,7 +97,7 @@ describe("OrisoProvisioningDialog", () => {
     expect(document.body.textContent).not.toContain("Noch kein ORISO-Konto");
     const submit = Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Konto anlegen & prüfen"));
     await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    await vi.waitFor(() => expect(document.querySelector("[role=alert]")?.textContent).toContain(code === "account_creation_conflict" ? "bereits vergeben" : "Beratungsstelle"));
+    await vi.waitFor(() => expect(document.querySelector("[role=alert]")?.textContent).toContain(code === "account_creation_conflict" ? "bereits vergeben" : code === "record_username_incompatible" ? "gespeicherte Benutzername" : "Beratungsstelle"));
     expect(document.body.textContent).not.toContain("tatsächlich verwendete Passwort");
     expect(onProvisioned).not.toHaveBeenCalled();
     expect(api).toHaveBeenCalledTimes(2);
@@ -112,6 +112,7 @@ describe("OrisoProvisioningDialog", () => {
       created: true,
       recordCreated: true,
       state: readyStateFixture(),
+      metadata: { ...account().metadata, agencies: ["Debt advice Berlin"] },
       linked: { ...linkedFixture, hasTotp: true }
     });
     vi.mocked(api).mockResolvedValueOnce({
@@ -130,7 +131,8 @@ describe("OrisoProvisioningDialog", () => {
 
     await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith(
       "lisa.simpson@dreambau.de",
-      { ...linkedFixture, hasTotp: true }
+      { ...linkedFixture, hasTotp: true },
+      { ...account().metadata, agencies: ["Debt advice Berlin"] }
     ));
     expect(api).toHaveBeenCalledWith(
       `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
@@ -175,7 +177,7 @@ describe("OrisoProvisioningDialog", () => {
     const roleTrigger = document.querySelector<HTMLElement>("[aria-label=Rolle]")!;
     await act(async () => roleTrigger.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     const agencyOption = Array.from(document.querySelectorAll<HTMLElement>("[role=option]"))
-      .find((option) => option.textContent?.includes("Beratungsstellen-Admin"));
+      .find((option) => option.textContent?.includes("Agency Admin"));
     await act(async () => agencyOption?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     const submit = Array.from(document.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("Konto anlegen & prüfen"));
@@ -183,7 +185,7 @@ describe("OrisoProvisioningDialog", () => {
 
     await vi.waitFor(() => expect(document.body.textContent).toContain("Veraltete Rollen"));
     expect(document.body.textContent).toContain("Plattform-Admin");
-    expect(document.body.textContent).toContain("Beratungsstellen-Admin");
+    expect(document.body.textContent).toContain("Agency Admin");
     expect(document.body.textContent).toContain("Passwort und TOTP bleiben unverändert");
     expect(document.body.textContent).not.toContain("Details stehen im Server-Log");
     expect(Array.from(document.querySelectorAll("button"))
@@ -366,7 +368,7 @@ describe("OrisoProvisioningDialog", () => {
     expect(link?.disabled).toBe(false);
     await act(async () => link?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-    await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@dreambau.de", linkedFixture));
+    await vi.waitFor(() => expect(onProvisioned).toHaveBeenCalledWith("lisa.simpson@dreambau.de", linkedFixture, undefined));
     expect(api).toHaveBeenCalledWith(
       `/accounts/${encodeURIComponent("lisa.simpson@dreambau.de")}/oriso-provisioning`,
       expect.objectContaining({

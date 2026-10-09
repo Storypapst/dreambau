@@ -30,7 +30,7 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
-import { dashboardRoles, linkedApplicationRecordsForEmail, publicLinkedAccount as projectLinkedAccount } from "./account-link.js";
+import { dashboardRoles, qualifiedAdminRoles, linkedApplicationRecordsForEmail, publicLinkedAccount as projectLinkedAccount } from "./account-link.js";
 import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { createDeadlineQueue } from "./deadline-queue.js";
@@ -43,6 +43,7 @@ import {
   createOrisoProvisioningService,
   environmentForOrisoEmail,
   generateApplicationPassword,
+  isProvisioningUsernameCompatible,
   orisoProvisioningRoles,
   provisioningRoleForRecord,
   readyStateForProvisionedRecord,
@@ -274,9 +275,6 @@ export function createApp(options: AppOptions = {}) {
     requireActiveHumanSession(req, res, () => {
       const user = res.locals.humanUser as HumanUser;
       const principal = res.locals.session as SessionPrincipal;
-      if (principal.method !== "passkey") {
-        return res.status(403).json({ error: "passkey_required" });
-      }
       const entitlements = humanEntitlementsFor(user, passkeyStore.grants, principal.method);
       if (entitlements.orisoProvisioning.environments.length === 0) {
         return res.status(403).json({ error: "oriso_provisioning_required" });
@@ -444,11 +442,13 @@ export function createApp(options: AppOptions = {}) {
         // roles recorded in the catalog. Recovered from the running image
         // (Package A run-state §5.3).
         const linkedRoles = dashboardRoles(linked.flatMap((record) => record.roles));
+        const combinedRoles = [...new Set([...account.metadata.roles, ...linkedRoles])];
+        const hasQualifiedAdmin = combinedRoles.some((role) => qualifiedAdminRoles.includes(role));
         return {
           ...account,
           metadata: {
             ...account.metadata,
-            roles: [...new Set([...account.metadata.roles, ...linkedRoles])]
+            roles: hasQualifiedAdmin ? combinedRoles.filter((role) => role !== "Admin" && role !== "admin") : combinedRoles
           },
           linkedAccess: linked
             .map(publicLinkedAccount)
@@ -593,7 +593,7 @@ export function createApp(options: AppOptions = {}) {
   const orisoProvisioningHttpError = (error: unknown, res: express.Response) => {
     if (!(error instanceof OrisoProvisioningError)) return false;
     const status = error.code === "invite_template_missing" ? 409
-      : error.code === "account_credentials_mismatch" || error.code === "account_creation_conflict" ? 409
+      : error.code === "account_credentials_mismatch" || error.code === "account_creation_conflict" || error.code === "record_username_incompatible" ? 409
       : error.code === "admin_record_unavailable" || error.code === "provisioning_agency_unavailable" ? 503
       : 502;
     res.status(status).json({ error: error.code });
@@ -696,6 +696,9 @@ export function createApp(options: AppOptions = {}) {
       if (existingRecord && existingRecord.roles.join(",") !== requestedRoles.join(",")) {
         if (!body.replaceStaleRole) {
           return res.status(409).json({ error: "record_role_conflict", linked: publicLinkedAccount(existingRecord) });
+        }
+        if (!isProvisioningUsernameCompatible(existingRecord, body.role)) {
+          return res.status(409).json({ error: "record_username_incompatible" });
         }
         const liveState = await orisoProvisioning.status(email);
         if (liveState) {
@@ -957,6 +960,14 @@ export function createApp(options: AppOptions = {}) {
           context: { environment }
         });
       }
+      // Only a brand-new, fully verified product account documents the agency
+      // returned by its creation preflight. Existing/failed records stay unknown.
+      if (recordCreated && provisioned.created && provisioned.state.state === "ready"
+        && linkedRecord.totpSecret && provisioned.agencyNames?.length
+        && ["counsellor", "agency-admin", "advice-seeker"].includes(body.role)) {
+        const current = database.getMetadata(email);
+        database.upsertMetadata(email, { agencies: [...new Set([...current.agencies, ...provisioned.agencyNames])] });
+      }
       database.clearOrisoAdminDeletion(linkedRecord.id);
       const linkedView = publicLinkedAccount(linkedRecord);
       if (!linkedView) return res.status(500).json({ error: "record_projection_failed" });
@@ -967,6 +978,7 @@ export function createApp(options: AppOptions = {}) {
         recordReplaced,
         state: provisioned.state,
         provisioningRole: body.role,
+        metadata: database.getMetadata(email),
         linked: linkedView,
         requiresApplicationPassword: false
       });

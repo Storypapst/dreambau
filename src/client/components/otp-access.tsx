@@ -4,7 +4,7 @@ import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIco
 import { toast } from "sonner";
 import { api } from "@/api";
 import { labelLinkedEnvironment, type Locale } from "@/i18n";
-import type { AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
+import type { AccountMetadata, AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "./copy-button";
@@ -45,7 +45,7 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
   compact?: boolean;
   canDeleteOrisoAdmin?: boolean;
   orisoProvisioningEnvironments?: HumanEntitlements["orisoProvisioning"]["environments"];
-  onProvisioned?: (email: string, linked: LinkedTestAccount) => void;
+  onProvisioned?: (email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) => void;
 }) {
   const linked = account.linkedAccess?.[0];
   const environment = orisoEnvironment(account);

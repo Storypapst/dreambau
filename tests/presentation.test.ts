@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { labelTopic, t } from "../src/client/i18n.js";
+import { labelTopic, labelRole, distinctRoleOptions, t } from "../src/client/i18n.js";
 import { domainClass, sortAccountsForWork } from "../src/client/presentation.js";
 import type { AccountView } from "../src/client/types.js";
 
@@ -19,6 +19,21 @@ describe("bilingual presentation", () => {
     expect(labelTopic("de", "debt")).toBe("Schulden");
     expect(labelTopic("en", "debt")).toBe("Debt");
     expect(labelTopic("en", "custom-topic")).toBe("custom-topic");
+  });
+
+  it.each([
+    ["platform-admin", "Platform Admin"], ["tenant-admin", "Tenant Admin"],
+    ["agency-admin", "Agency Admin"], ["counsellor", "Counselor"], ["advice-seeker", "Client"],
+    ["Träger", "Tenant Admin"], ["Berater", "Counselor"], ["Ratsuchender", "Client"], ["Admin", "Admin"]
+  ])("labels %s without changing its stored key", (key, label) => {
+    expect(labelRole("en", key)).toBe(label);
+    expect(labelRole("de", key)).toBe(label);
+  });
+
+  it("offers one choice per role while retaining selected legacy keys", () => {
+    const options = ["Träger", "Berater", "tenant-admin", "counsellor", "agency-admin", "custom"];
+    expect(distinctRoleOptions(options)).toEqual(["tenant-admin", "counsellor", "agency-admin", "custom"]);
+    expect(distinctRoleOptions(options, ["Berater"])).toEqual(["tenant-admin", "Berater", "agency-admin", "custom"]);
   });
 
   it("maps every mail domain to a distinct semantic class", () => {
