@@ -30,7 +30,7 @@ import {
   type CoordinationProject
 } from "./coordination.js";
 import { loadRuntimeStatuses, type RuntimeStatus } from "./runtime-status.js";
-import { dashboardRoles, qualifiedAdminRoles, linkedApplicationRecordsForEmail, publicLinkedAccount as projectLinkedAccount } from "./account-link.js";
+import { metadataWithLinkedRoles, linkedApplicationRecordsForEmail, publicLinkedAccount as projectLinkedAccount } from "./account-link.js";
 import { generateCompatibleOrisoTotp, generateTotp } from "./totp.js";
 import { createInfisicalHumanAccessProvider, type HumanAccessProvider } from "./infisical-human-access.js";
 import { createDeadlineQueue } from "./deadline-queue.js";
@@ -441,15 +441,9 @@ export function createApp(options: AppOptions = {}) {
         // The roles a mailbox can actually sign in with are shown alongside the
         // roles recorded in the catalog. Recovered from the running image
         // (Package A run-state §5.3).
-        const linkedRoles = dashboardRoles(linked.flatMap((record) => record.roles));
-        const combinedRoles = [...new Set([...account.metadata.roles, ...linkedRoles])];
-        const hasQualifiedAdmin = combinedRoles.some((role) => qualifiedAdminRoles.includes(role));
         return {
           ...account,
-          metadata: {
-            ...account.metadata,
-            roles: hasQualifiedAdmin ? combinedRoles.filter((role) => role !== "Admin" && role !== "admin") : combinedRoles
-          },
+          metadata: metadataWithLinkedRoles(account.metadata, linked),
           linkedAccess: linked
             .map(publicLinkedAccount)
             .filter((record) => record !== null),
@@ -978,7 +972,7 @@ export function createApp(options: AppOptions = {}) {
         recordReplaced,
         state: provisioned.state,
         provisioningRole: body.role,
-        metadata: database.getMetadata(email),
+        metadata: metadataWithLinkedRoles(database.getMetadata(email), linkedForAccountView(current, [...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord], user)),
         linked: linkedView,
         requiresApplicationPassword: false
       });
@@ -995,9 +989,11 @@ export function createApp(options: AppOptions = {}) {
       const patch = metadataPatchSchema.parse(req.body);
       const destination = viewProject({ ...current, metadata: { ...current.metadata, ...patch } });
       if (!res.locals.humanUser.projects.includes(destination)) return res.status(403).json({ error: "scope_denied" });
+      const records = await registryProvider.list();
+      reconcileRecords(records);
       const value = database.upsertMetadata(email, patch);
       await regenerate();
-      res.json(value);
+      res.json(metadataWithLinkedRoles(value, linkedForAccountView({ ...current, metadata: value }, records, res.locals.humanUser)));
     } catch (error) { handleValidation(error, res); }
   });
   api.post("/accounts/bulk-status", requireActiveHumanSession, async (req, res) => {

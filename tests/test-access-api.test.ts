@@ -128,11 +128,11 @@ describe("test access API v1", () => {
     expect(response.body).toMatchObject({
       id: record.id,
       email: abe.email,
-      metadata: { project: "ORISO", roles: ["Admin"], shippedVersion: "2.02", lifecycleStatus: "active" }
+      metadata: { project: "ORISO", roles: ["platform-admin", "tenant-admin"], shippedVersion: "2.02", lifecycleStatus: "active" }
     });
     expect(JSON.stringify(response.body)).not.toContain(record.secret);
     expect(JSON.stringify(response.body)).not.toContain(record.totpSecret);
-    expect(database.getMetadata(abe.email)).toMatchObject({ project: "ORISO", roles: ["Admin"], shippedVersion: "2.02" });
+    expect(database.getMetadata(abe.email)).toMatchObject({ project: "ORISO", roles: ["platform-admin", "tenant-admin"], shippedVersion: "2.02" });
     expect(database.getAccountAccess(abe.email).latest).toMatchObject({
       accountId: record.id,
       actorId: "codex-m4-oriso",

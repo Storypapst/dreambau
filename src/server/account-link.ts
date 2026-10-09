@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AccountRecord } from "./accounts.js";
 import type { TestAccessRecord } from "./infisical-provider.js";
-import { lifecycleStatuses, type MetadataPatch } from "./metadata.js";
+import { lifecycleStatuses, type AccountMetadata, type MetadataPatch } from "./metadata.js";
 
 const dashboardProjects = {
   oriso: "ORISO",
@@ -150,7 +150,7 @@ export function isKnownSyntheticEmail(email: string, accounts: AccountRecord[]) 
   return accounts.some((account) => normalizeEmail(account.email) === normalized);
 }
 
-export const qualifiedAdminRoles: readonly string[] = ["platform-admin", "tenant-admin", "agency-admin"];
+const qualifiedAdminRoles: readonly string[] = ["platform-admin", "tenant-admin", "agency-admin"];
 
 export function dashboardRoles(roles: string[]) {
   const result = new Set<string>();
@@ -161,6 +161,13 @@ export function dashboardRoles(roles: string[]) {
   if (roles.some((role) => role === "tenant" || role === "carrier")) result.add("Träger");
   const order = [...qualifiedAdminRoles, "Admin", "Berater", "Ratsuchender", "Träger"];
   return order.filter((role) => result.has(role));
+}
+
+/** Read-only display projection; catalog role keys are never rewritten here. */
+export function metadataWithLinkedRoles(metadata: AccountMetadata, linked: Pick<TestAccessRecord, "roles">[]) {
+  const combined = [...new Set([...metadata.roles, ...dashboardRoles(linked.flatMap((record) => record.roles))])];
+  const hasQualifiedAdmin = combined.some((role) => qualifiedAdminRoles.includes(role));
+  return { ...metadata, roles: hasQualifiedAdmin ? combined.filter((role) => role !== "Admin" && role !== "admin") : combined };
 }
 
 export function derivedCatalogPatch(record: TestAccessRecord, input: unknown): {

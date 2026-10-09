@@ -574,6 +574,29 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(fixture.database.getMetadata(fixture.lisa.email).roles).toEqual(["Admin"]);
   });
 
+  it.each([true, false])("returns the same projected roles after provisioning and reload for a new account: %s", async (isNew) => {
+    const fixture = await setup({ records: isNew ? [] : [managedRecord()] });
+    fixture.database.upsertMetadata(fixture.lisa.email, { roles: isNew ? [] : ["Admin"] });
+    const result = await fixture.agent.post(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}/oriso-provisioning`).send({ environment: "pre-dev", role: "tenant-admin" });
+    expect(result.status).toBe(isNew ? 201 : 200);
+    const reload = await fixture.agent.get("/testmails/api/accounts");
+    const account = reload.body.find((row: { email: string }) => row.email === fixture.lisa.email);
+    expect(result.body.metadata.roles).toEqual(["tenant-admin"]);
+    expect(result.body.metadata.roles).toEqual(account.metadata.roles);
+    expect(fixture.database.getMetadata(fixture.lisa.email).roles).toEqual(isNew ? [] : ["Admin"]);
+  });
+
+  it("returns projected roles after an agency-only edit without persisting derived roles", async () => {
+    const fixture = await setup({ records: [managedRecord()] });
+    fixture.database.upsertMetadata(fixture.lisa.email, { roles: ["Admin"] });
+    const result = await fixture.agent.patch(`/testmails/api/accounts/${encodeURIComponent(fixture.lisa.email)}`).send({ agencies: ["Documented agency"] });
+    expect(result.status).toBe(200);
+    expect(result.body.roles).toEqual(["tenant-admin"]);
+    expect(fixture.database.getMetadata(fixture.lisa.email)).toMatchObject({ roles: ["Admin"], agencies: ["Documented agency"] });
+    const reload = await fixture.agent.get("/testmails/api/accounts");
+    expect(reload.body.find((row: { email: string }) => row.email === fixture.lisa.email).metadata.roles).toEqual(result.body.roles);
+  });
+
   it("is idempotent: reports the existing ready account and record instead of duplicating them", async () => {
     const { agent, lisa, service, writer } = await setup();
     await agent

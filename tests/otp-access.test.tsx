@@ -52,7 +52,26 @@ describe("OtpAccess", () => {
     await vi.waitFor(() => expect(container.textContent).toContain("287082"));
     expect(api).toHaveBeenCalledWith(`/accounts/${encodeURIComponent(account.email)}/otp?accountId=${encodeURIComponent(account.linkedAccess![0].id)}`);
     expect(container.textContent).not.toContain("mailbox-password");
-    expect(container.textContent).toContain("platform-admin");
+    expect(container.textContent).toContain("Platform Admin");
+  });
+
+  it.each(["de", "en"] as const)("uses readable linked-role badges without changing stored keys in %s", async (locale) => {
+    const roles = ["platform-admin", "tenant-admin", "agency-admin", "consultant", "asker"];
+    const linked = { ...account.linkedAccess![0], roles };
+    await act(async () => root.render(<OtpAccess account={{ ...account, linkedAccess: [linked] }} locale={locale} />));
+    for (const label of ["Platform Admin", "Tenant Admin", "Agency Admin", "Counselor", "Client"]) expect(container.textContent).toContain(label);
+    for (const key of roles) expect(container.textContent).not.toContain(key);
+    expect(linked.roles).toEqual(roles);
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it("avoids a redundant generic admin badge when the linked role is qualified", async () => {
+    const roles = ["admin", "platform-admin"];
+    await act(async () => root.render(<OtpAccess account={{ ...account, linkedAccess: [{ ...account.linkedAccess![0], roles }] }} locale="en" />));
+    const badges = [...container.querySelectorAll('[data-slot="badge"]')].map((node) => node.textContent);
+    expect(badges).toContain("Platform Admin");
+    expect(badges).not.toContain("Admin");
+    expect(roles).toEqual(["admin", "platform-admin"]);
   });
 
   it("labels a mailbox-only identity and does not offer a misleading OTP action", async () => {

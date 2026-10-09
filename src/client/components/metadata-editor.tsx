@@ -18,10 +18,12 @@ export function MetadataEditor({ account, taxonomies, locale, open, onOpenChange
   if (!account || !value) return null;
   const email = account.email;
   const currentValue = value;
+  const originalRoles = account.metadata.roles;
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true);
-    const { email: _email, updatedAt: _updatedAt, ...patch } = currentValue;
-    patch.agencies = [...new Set(agencyText.split("\n").map((name) => name.trim()).filter(Boolean))];
+    const { email: _email, updatedAt: _updatedAt, roles, ...fields } = currentValue;
+    const rolesChanged = roles.length !== originalRoles.length || roles.some((role, index) => role !== originalRoles[index]);
+    const patch = { ...fields, ...(rolesChanged ? { roles } : {}), agencies: [...new Set(agencyText.split("\n").map((name) => name.trim()).filter(Boolean))] };
     try { const saved = await api<AccountMetadata>(`/accounts/${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify(patch) }); onSaved(saved); toast.success(locale === "de" ? "Metadaten gespeichert" : "Metadata saved"); onOpenChange(false); }
     catch { toast.error(locale === "de" ? "Speichern fehlgeschlagen" : "Could not save"); } finally { setBusy(false); }
   }

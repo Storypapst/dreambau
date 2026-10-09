@@ -66,8 +66,29 @@ describe("MetadataEditor", () => {
     await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     const patch = JSON.parse(vi.mocked(api).mock.calls[0][1]!.body as string);
     expect(patch.agencies).toEqual(names ? ["Debt advice Berlin", "Family advice Hamburg"] : []);
-    expect(patch.roles).toEqual(["Träger"]);
+    expect(patch).not.toHaveProperty("roles");
     expect(saved).toHaveBeenCalledOnce();
+  });
+
+  it("persists role keys when the user explicitly changes the selection", async () => {
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+    try {
+      vi.mocked(api).mockResolvedValue({ ...account.metadata, roles: ["Träger", "counsellor"] });
+      await act(async () => root.render(<MetadataEditor account={account} taxonomies={{ roles: ["Träger", "counsellor"], topics: [], conversationTypes: [] }} locale="en" open onOpenChange={() => undefined} onSaved={() => undefined} />));
+      const choose = [...document.querySelectorAll("button")].find((button) => button.textContent === "Choose roles")!;
+      await act(async () => choose.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      const option = [...document.querySelectorAll('[role="option"]')].find((node) => node.textContent?.includes("Counselor"))!;
+      expect(option).toBeTruthy();
+      await act(async () => option.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+      expect(JSON.parse(vi.mocked(api).mock.calls[0][1]!.body as string).roles).toEqual(["Träger", "counsellor"]);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousScroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScroll);
+      else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
   });
 
   it("places the save action before the first editable field", async () => {
