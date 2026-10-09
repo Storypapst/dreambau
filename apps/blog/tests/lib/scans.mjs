@@ -33,7 +33,7 @@ export function skipLines(files) {
 
 // The hosts of all addresses (a scheme, two slashes and a host) of a text.
 export function hostsOf(text) {
-  return [...text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/(?:[^\s/@"'<>`]*@)?([^\s/:?#"'<>`]+)/gi)].map((match) => match[1].toLowerCase());
+  return [...text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/(?:[^\s/@"'<>`]*@)?([^\s/:?#"'<>`;]+)/gi)].map((match) => match[1].toLowerCase());
 }
 
 // The e-mail addresses of a text.

@@ -1,4 +1,4 @@
-// BD-11 and the serve command of the ticket: `node tests/serve.mjs` (what `npm run serve` runs) prints
+// BD-11 and the serve command of the ticket (with the rules of 7.4 since slice S4): `node tests/serve.mjs` (what `npm run serve` runs) prints
 // http://127.0.0.1:<port>/blog/, the list and the fixture post answer 200 there, the container is the pinned image with
 // the demo output mounted read-only as a directory, and after Ctrl-C (SIGINT) or SIGTERM no container named
 // blog-test-* is left (`docker ps --filter name=blog-test-` is empty, also with -a). Needs Docker.
@@ -7,6 +7,7 @@ import path from 'node:path';
 import { check, same, run } from '../lib/check.mjs';
 import { ROOT } from '../lib/paths.mjs';
 import { DEFAULT_IMAGE } from '../lib/image.mjs';
+import { ask, modesInContainer } from '../lib/nginx.mjs';
 
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8' }).trim();
 const containers = (all) => docker('ps', ...(all ? ['-a'] : []), '--filter', 'name=blog-test-', '--format', '{{.Names}}').split('\n').filter(Boolean);
@@ -47,6 +48,15 @@ await run(async () => {
       const html = await (await fetch(serve.url)).text();
       check(`serve (${signal}) the list shows the title of the fixture post`, html.includes('Ein Film, der in eine Mail passt'));
 
+      // The rules of 7.4 (slice S4): the 308, and the real 404 for a missing address and for a year folder without an index.
+      const origin = new URL(serve.url).origin;
+      const bare = await ask(origin, '/blog', { method: 'HEAD' });
+      same(`serve (${signal}) /blog answers 308 to https://dreambau.com/blog/`, [bare.status, bare.headers.location], [308, 'https://dreambau.com/blog/']);
+      for (const address of ['/blog/nope', '/blog/2026/']) {
+        const missing = await ask(origin, address);
+        check(`serve (${signal}) ${address} answers 404 with the styled page`, missing.status === 404 && missing.text.includes('>Diesen Beitrag gibt es nicht</h1>'), `${missing.status}`);
+      }
+
       const running = containers(false).filter((name) => !before.includes(name));
       check(`serve (${signal}) exactly one new container named blog-test-* is running`, running.length === 1 && /^blog-test-[a-z0-9-]+$/.test(running[0]), JSON.stringify(running));
       const name = running[0];
@@ -55,7 +65,9 @@ await run(async () => {
         same(`serve (${signal}) the container runs the pinned image`, info.Config.Image, DEFAULT_IMAGE);
         const mounts = info.Mounts.map((mount) => ({ type: mount.Type, writable: mount.RW, to: mount.Destination, from: path.basename(mount.Source) }));
         check(`serve (${signal}) every mount is a read-only bind of a directory`, mounts.length > 0 && mounts.every((mount) => mount.type === 'bind' && mount.writable === false), JSON.stringify(mounts));
-        check(`serve (${signal}) the demo output public/ is mounted as a directory at /srv/blog`, info.Mounts.some((mount) => mount.Destination === '/srv/blog' && /dist-demo[\\/]public$/.test(mount.Source)), JSON.stringify(info.Mounts.map((mount) => mount.Source)));
+        check(`serve (${signal}) the demo output public/ is mounted as a directory at /blog, where the live container has it`, info.Mounts.some((mount) => mount.Destination === '/blog' && /dist-demo[\\/]public$/.test(mount.Source)), JSON.stringify(info.Mounts.map((mount) => mount.Source)));
+        const wrong = [...modesInContainer(name, '/blog', 'd').filter((line) => !line.startsWith('755 ')), ...modesInContainer(name, '/blog', 'f').filter((line) => !line.startsWith('644 '))];
+        same(`serve (${signal}) the container sees directories as 755 and files as 644 (DL-2)`, wrong, []);
         const ports = docker('port', name);
         check(`serve (${signal}) the port is published on 127.0.0.1 only`, ports.split('\n').filter(Boolean).every((line) => line.includes('127.0.0.1:')), ports);
       }

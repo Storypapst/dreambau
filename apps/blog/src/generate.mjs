@@ -1,6 +1,6 @@
 // The generator: the posts of one folder -> <outDir>/public/index.html, <outDir>/public/<year>/<slug>/index.html and
 // <outDir>/blog.json (spec 7.2). Plain Node, no dependency, no clock, no random value, no network (BD-1, BD-2): the same
-// posts give byte-identical files. Slice S0 writes plain, valid HTML; the look is slice S2, the feed S3, the 404 S4.
+// posts give byte-identical files. Slice S0 writes plain, valid HTML; the look is slice S2, the feed S3, the 404 S4 (ER-1).
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,7 +9,7 @@ import { fail, format, hasFailure } from './lib/findings.mjs';
 import { FOOTER_FILE, loadFooter, pendingKeys } from './lib/footer.mjs';
 import { LABELS_FILE, loadLabels } from './lib/labels.mjs';
 import { numberPosts } from './lib/numbering.mjs';
-import { listPage, postPage } from './lib/pages.mjs';
+import { errorPage, listPage, postPage } from './lib/pages.mjs';
 import { checkPostText } from './lib/post-file.mjs';
 import { MARKER } from './lib/post-rules.mjs';
 import { checkForBuild, isFixtureTree, loadTreeFromDir, safeImageReader } from './lib/tree.mjs';
@@ -75,7 +75,7 @@ export function buildBlog({ postsDir, outDir, mode = 'preview', displayDir = pos
   if (list.length > listLimit) {
     throw new BuildRefused([fail('LI-8', 'index.html', `the list page is ${list.length} bytes, over the limit of ${listLimit} bytes (128 KiB); the list is never cut silently, the way out is pagination: see open point OP-11`)]);
   }
-  const pages = new Map([['index.html', list], ['blog.css', assets.css], ['blog.js', assets.js]]);
+  const pages = new Map([['index.html', list], ['404.html', Buffer.from(errorPage(context), 'utf8')], ['blog.css', assets.css], ['blog.js', assets.js]]);
   for (const post of posts) {
     const html = postPage({ ...context, post, older: posts[post.number - 2], newer: posts[post.number] });
     pages.set(`${post.address}/index.html`, Buffer.from(html, 'utf8'));

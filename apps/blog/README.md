@@ -12,10 +12,13 @@ npm run serve
 npm run check
 ```
 
-- `npm run serve` baut die Vorschau aus dem erfundenen Beispiel, startet einen nginx-Container und gibt die Adresse von `/blog/` aus. Strg-C stoppt und entfernt den Container.
+- `npm run serve` baut die Vorschau aus dem erfundenen Beispiel, startet einen nginx-Container mit den Regeln aus Abschnitt 7.4 der Spezifikation (`ops/nginx-blog-test.conf`) und gibt die Adresse von `/blog/` aus: `/blog` leitet mit 308 auf `/blog/` um, eine fehlende Adresse und ein Jahresordner ohne Startseite (`/blog/2026/`) zeigen die echte 404-Seite mit Status 404. Das Verzeichnis ist schreibgeschützt als Ordner unter `/blog` eingehängt (Ordner 0755, Dateien 0644). Strg-C stoppt und entfernt den Container.
 - `npm run check` führt alle Prüfungen aus (`npm run check -- <Filter>` nur die passenden, `npm run check:browser` nur die im echten Chromium).
+- `npm run check:server` startet den nginx-Container (Image `nginx:1.27-alpine`, ersetzbar durch `BLOG_NGINX_IMAGE`) und prüft die Antworten von `/blog/` (V19 bis V25): Umleitungen, Typen, die echte 404-Seite, versteckte Pfade, Header und den Fall eines leeren Verzeichnisses (404 statt 403). Jeder Container heißt `blog-test-…` und wird am Ende entfernt (`docker ps --filter name=blog-test-` zeigt danach keinen).
 - `npm run check:tokens` vergleicht die Farb-Tokens in `src/tokens.css` mit denen von `/referenzen/` (`FAIL AC-1 ...`) und sucht von Hand getippte Farben in `src/blog.css`.
 - `npm run build` und `npm run build:demo` bauen nach `dist/` bzw. `dist-demo/`; beide Ordner sind nicht im Git.
+
+Für den Betreiber: `ops/nginx-blog.additions.conf` ist der Text aus Abschnitt 7.4 für den echten nginx (eine Zeile in der `map`, dazu die Regeln im Server-Block); `ops/nginx-blog-test.conf` ist der Test-Text von Teamwork plus genau diese Zeilen und dient nur den Tests und `npm run serve`. Die Prüfung `static/nginx-text` (Teil von `npm run check`) stellt sicher, dass beide Blöcke Zeichen für Zeichen gleich sind.
 
 Wo was liegt: `labels.de.json` (die 29 Texte `blog.*`, die einzige Quelle der Beschriftungen), `footer.json` (Impressum und Datenschutz, `null` solange die Seite fehlt), `src/tokens.css`, `src/blog.css` (ausgeliefert als eine Datei `blog.css`: Tokens zuerst), `src/blog.js` (nur der Titel-Effekt auf Beitragsseiten), `src/lib/pages.mjs` (die Markup-Bausteine).
 
