@@ -10,3 +10,36 @@
 
 /* Selected Quelltext B entry: glyph and measurement are separate from its label. */
 #source-entry{gap:8px}#source-entry .gl{color:rgb(var(--cur,255,190,100));font:400 12px ui-monospace,monospace;letter-spacing:-.04em}#source-entry b{font:500 12px ui-monospace,monospace;color:rgb(var(--cur,255,190,100));padding-inline-start:9px;margin-inline-start:1px;border-inline-start:1px solid rgba(var(--fg),.25)}#source-entry b:empty{display:none}
+
+/* Issue153: approved B capsule; B2 keeps labels left-aligned with more inner space. */
+@media(max-width:600px),(pointer:coarse) and (max-height:520px){
+ .home-controls{position:fixed;z-index:5;left:max(16px,env(safe-area-inset-left));right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:0;min-height:56px;padding:3px;border:1px solid rgba(var(--fg),.16);border-radius:30px;background:rgba(6,8,13,.94)}
+ .home-controls .site-menu{position:static;flex:0 0 auto}
+ .home-controls .site-menu summary{width:78px;min-height:48px;border:0;background:none;padding:0;font-size:14px}
+ .home-controls #source-entry{position:static;flex:1 1 auto;min-width:0;min-height:48px;border:0;border-inline:1px solid rgba(var(--fg),.12);border-radius:0;background:none;padding:0 10px;gap:8px}
+ .home-controls #source-entry b{font-size:11px;padding-inline-start:8px}
+ .home-controls #source-entry .source-entry-label{overflow-wrap:anywhere;font-size:14px;line-height:1.2}
+ .home-controls #snd{position:static;flex:0 0 52px;height:48px;min-width:52px;padding:0;background:none;animation:none}
+ .home-controls #snd .lbl{display:none}
+ #cta{bottom:max(88px,calc(env(safe-area-inset-bottom) + 72px));font-size:12px;line-height:1.5}
+ #skip{bottom:max(132px,calc(env(safe-area-inset-bottom) + 116px));right:16px}
+ html.still #play{top:auto;bottom:max(132px,calc(env(safe-area-inset-bottom) + 116px));right:16px;left:auto;transform:none;max-width:calc(100vw - 32px)}
+}
+
+.site-menu .menu-title,.site-menu .menu-grip,.site-menu .menu-backdrop{display:none}
+@media(max-width:600px),(pointer:coarse) and (max-height:520px){
+ .site-menu[open] .menu-backdrop{display:block;position:fixed;inset:0;background:rgba(2,4,8,.74);z-index:6}
+ .site-menu nav{position:fixed;z-index:7;inset:auto max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));width:auto;height:556px;max-height:calc(100dvh - max(16px,env(safe-area-inset-top)) - max(16px,env(safe-area-inset-bottom)));padding:0 16px 16px;display:flex;flex-direction:column;overflow:hidden}
+ .site-menu .menu-grip:not([hidden]){display:flex;align-items:center;justify-content:center;flex:none;width:100%;min-height:44px;padding:0;border:0;background:none;touch-action:none;cursor:grab}
+ .menu-grip span{width:38px;height:4px;border-radius:2px;background:rgba(var(--fg),.28);pointer-events:none}
+ .site-menu .menu-title{display:block;flex:none;padding-inline:32px;margin:0 0 6px;font-size:16px;line-height:24px;font-weight:600}
+ .site-menu .menu-links{font-size:14px;padding-bottom:8px;scroll-padding-block:8px;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+ .site-menu nav a{min-height:48px;padding:10px 32px}
+ .site-menu nav .pending{min-height:44px;padding:8px 32px;font-size:12px;line-height:1.4}
+ .site-menu nav .menu-close{justify-content:center;flex:none;min-height:52px;margin-top:12px;padding:0 16px;border:1px solid rgba(var(--fg),.34);border-radius:26px}
+}
+.home-controls :focus-visible{outline:3px solid #fff;outline-offset:3px}
+
+@media(max-width:360px){.home-controls #source-entry b{display:none}.home-controls .site-menu summary{width:70px}.home-controls #snd{flex-basis:48px;min-width:48px}}
+
+.site-menu [hidden]{display:none!important}
