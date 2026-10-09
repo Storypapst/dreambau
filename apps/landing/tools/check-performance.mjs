@@ -30,10 +30,13 @@ try {
    results.push({id,menuDraws:menuEnd.draws-menuStart.draws,resumedDraws:resumed.draws-menuEnd.draws,settledDraws:settled.draws-skipped.draws,settledTime:settled.T});
    // Browser time is a system boundary: accelerate normal autoplay-blocked playback, not the manual seek API.
    await page.addInitScript(()=>{localStorage.setItem('dreambau.sound','off');window.AudioContext=undefined;window.webkitAudioContext=undefined;});
-   await page.reload();await page.waitForFunction(()=>window.Dream?.state.mode==='play');
+   // Install before boot schedules its first RAF, so the clock owns that callback.
    await page.clock.install();
-   for(let step=0;step<100;step++){await page.clock.fastForward(2000);await page.clock.runFor(20);if((await sample()).T===62.5)break;}
-   const end=await sample();await page.clock.fastForward(2000);const quiet=await sample();
+   await page.reload();await page.waitForFunction(()=>window.Dream?.state.mode==='play');
+   // runFor preserves normal RAF cadence; fastForward may skip callbacks like a
+   // sleeping tab, which the runtime deliberately clamps to two seconds/frame.
+   await page.clock.runFor(65000);
+   const end=await sample();await page.clock.runFor(2000);const quiet=await sample();
    check(id+' natural ending keeps full show and music tail',()=>assert.equal(end.T,62.5));
    check(id+' natural ending stops repeated GPU work',()=>assert.equal(quiet.draws,end.draws));
    results[results.length-1].naturalTime=end.T;results[results.length-1].naturalIdleDraws=quiet.draws-end.draws;
