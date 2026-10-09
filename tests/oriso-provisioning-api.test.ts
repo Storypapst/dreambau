@@ -652,6 +652,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
     const existing = managedRecord({
       id: "oriso/pre-dev/lisa.simpson-dreambau.de",
       displayName: "Lisa Simpson — ORISO PreDev platform-admin",
+      username: "retained-identity",
       roles: ["platform-admin", "tenant-admin", "user-admin", "topic-admin"],
       secret: "fixed-application-password",
       totpSecret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
@@ -687,6 +688,7 @@ describe("human self-service ORISO PreDev provisioning", () => {
       record: expect.objectContaining({
         id: existing.id,
         roles: ["agency-admin"],
+        username: "retained-identity",
         secret: existing.secret,
         totpSecret: existing.totpSecret,
         createdAt: existing.createdAt
@@ -1189,6 +1191,20 @@ describe("human self-service ORISO PreDev provisioning", () => {
     expect(noWriter.status).toBe(503);
     expect(noWriter.body).toEqual({ error: "record_creation_unavailable" });
   });
+
+  it.each([["account_creation_conflict", 409], ["provisioning_agency_unavailable", 503]] as const)(
+    "retains a failed new record for %s without reporting ready", async (code, status) => {
+      const { agent, lisa, writer } = await setup({
+        service: fakeService({ provision: vi.fn(async () => { throw new OrisoProvisioningError(code); }) })
+      });
+      const response = await agent.post(`/testmails/api/accounts/${encodeURIComponent(lisa.email)}/oriso-provisioning`)
+        .send({ environment: "pre-dev", role: "counsellor" });
+      expect(response.status).toBe(status);
+      expect(response.body).toEqual({ error: code });
+      expect(writer?.markProvisioningFailed).toHaveBeenCalledWith(expect.objectContaining({ provisioningStatus: "pending", username: "lisa.simpson_at_dreambau.de" }), expect.any(String));
+      expect(writer?.updateRecord).not.toHaveBeenCalled();
+    }
+  );
 
   it("maps provisioning failures to safe machine-readable errors", async () => {
     const { agent, lisa } = await setup({

@@ -99,6 +99,16 @@ function provisioningErrorMessage(code: string, locale: Locale) {
       ? "Das bestehende ORISO-Konto muss mit dem Passwort verknüpft werden, das im Onboarding verwendet wurde."
       : "Link the existing ORISO account with the password used during onboarding.";
   }
+  if (code === "account_creation_conflict") {
+    return locale === "de"
+      ? "Benutzername oder E-Mail-Adresse ist bereits vergeben oder kann nicht angelegt werden. Das vorhandene Konto wurde nicht geändert. Bitte die Kontozuordnung prüfen."
+      : "The username or email is already in use or cannot be created. The existing account was not changed. Check the account mapping.";
+  }
+  if (code === "provisioning_agency_unavailable") {
+    return locale === "de"
+      ? "Die konfigurierte Beratungsstelle konnte für diese Rolle und dieses Thema nicht bestätigt werden. Es wurde kein ORISO-Konto angelegt. Bitte die Konfiguration prüfen."
+      : "The configured counselling centre could not be verified for this role and topic. No ORISO account was created. Check the configuration.";
+  }
   if (code === "account_credentials_mismatch") {
     return locale === "de"
       ? "Das gespeicherte ORISO-App-Passwort passt nicht zum bestehenden Konto. Bitte das tatsächlich verwendete Passwort erneut hinterlegen."
@@ -419,7 +429,7 @@ export function OrisoProvisioningDialog({
       {otp?.expiresAt && <OtpValidity expiresAt={otp.expiresAt} locale={locale} />}
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
       {view?.configured && !view.state && !view.requiresApplicationPassword && <div className="flex flex-col gap-3">
-        <p className="text-sm">{locale === "de" ? "Noch kein ORISO-Konto. Rolle wählen und Konto vollständig anlegen:" : "No ORISO account yet. Choose a role and provision the complete account:"}</p>
+        <p className="text-sm">{locale === "de" ? "Kein verknüpfter Onboarding-Status gefunden. Ein bestehendes ORISO-Konto ist damit nicht ausgeschlossen. Rolle für die Anlage wählen:" : "No linked onboarding status was found. An existing ORISO account has not been ruled out. Choose the role to provision:"}</p>
         <Select value={role} onValueChange={(value) => {
           setRole(value as OrisoProvisioningRole);
           setStaleRoleConflict(null);

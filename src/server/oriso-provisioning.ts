@@ -69,6 +69,8 @@ export type OrisoProvisioningErrorCode =
   | "invite_create_failed"
   | "account_create_failed"
   | "account_credentials_mismatch"
+  | "account_creation_conflict"
+  | "provisioning_agency_unavailable"
   | "totp_store_failed"
   | "totp_setup_failed"
   | "totp_verification_failed";
@@ -178,7 +180,7 @@ const passwordAlphabets = [
   "!$%*+-=?"
 ];
 
-function adviceSeekerRegistrationUsername(email: string) {
+function appRegistrationUsername(email: string) {
   return email
     .trim()
     .toLowerCase()
@@ -267,7 +269,9 @@ export function buildProvisionedRecord(input: {
     environment,
     kind: contract.recordKind,
     displayName: `${input.displayName} — ORISO ${environmentLabel} ${input.role}`,
-    username: input.email.trim().toLowerCase(),
+    username: contract.recordKind === "app-user"
+      ? appRegistrationUsername(input.email)
+      : input.email.trim().toLowerCase(),
     email: input.email.trim().toLowerCase(),
     roles: [...contract.recordRoles],
     permissionsDescription: `Self-service provisioned ORISO ${environmentLabel} ${input.role}`,
@@ -442,6 +446,30 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     }
   }
 
+  async function verifyCreationAgency(role: OrisoProvisioningRole) {
+    if (role !== "counsellor" && role !== "agency-admin" && role !== "advice-seeker") return;
+    try {
+      const response = await authorizedJson(`/agencyadmin/agencies/${options.defaultAgencyId}`);
+      if (!response.ok) throw new Error("Agency lookup failed");
+      const agency = z.object({
+        _embedded: z.object({
+          id: z.number().int(),
+          tenantId: z.number().int(),
+          deleteDate: z.string().nullish(),
+          consultingType: z.number().int(),
+          topics: z.array(z.object({ id: z.number().int() }).passthrough())
+        }).passthrough()
+      }).passthrough().parse(await response.json())._embedded;
+      if (agency.id !== options.defaultAgencyId || agency.tenantId !== options.defaultTenantId || (agency.deleteDate != null && agency.deleteDate !== "null")
+        || (role !== "agency-admin" && (agency.consultingType !== Number(options.defaultConsultingType)
+          || !agency.topics.some((topic) => topic.id === options.defaultMainTopicId)))) {
+        throw new Error("Agency does not match the configured provisioning target");
+      }
+    } catch {
+      throw new OrisoProvisioningError("provisioning_agency_unavailable");
+    }
+  }
+
   async function userJson(accessTokenValue: string, path: string, init: { method?: string; body?: string } = {}) {
     const method = init.method ?? "GET";
     const csrfToken = ["GET", "HEAD", "OPTIONS", "TRACE"].includes(method)
@@ -591,7 +619,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         return {
           path: "/users/askers/new",
           body: {
-            username: adviceSeekerRegistrationUsername(input.record.email ?? input.record.username),
+            username: appRegistrationUsername(input.record.email ?? input.record.username),
             password: encodeURIComponent(input.record.secret),
             postcode: options.defaultPostcode,
             agencyId: options.defaultAgencyId,
@@ -758,6 +786,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
       let userToken = initialProbe.kind === "authenticated" ? initialProbe.token : null;
       let created = false;
       if (!userToken) {
+        await verifyCreationAgency(input.role);
         const request = creationRequest(input);
         const createResponse = input.role === "advice-seeker"
           ? await publicRegistrationJson(request.path, options.defaultAgencyId, {
@@ -771,7 +800,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         if (!createResponse.ok) {
           if (createResponse.status === 409) {
             input.onCreationAttempt?.("rejected");
-            throw new OrisoProvisioningError("account_credentials_mismatch");
+            throw new OrisoProvisioningError("account_creation_conflict");
           }
           throw new OrisoProvisioningError("account_create_failed");
         }
@@ -795,7 +824,7 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
         }
         created = true;
         const postCreateUsername = input.role === "advice-seeker"
-          ? adviceSeekerRegistrationUsername(input.record.email ?? input.record.username)
+          ? appRegistrationUsername(input.record.email ?? input.record.username)
           : input.record.username;
         const postCreateToken = await retryAuthenticatedToken(input.record, input.record.totpSecret, postCreateUsername);
         if (!postCreateToken) {

@@ -593,8 +593,8 @@ export function createApp(options: AppOptions = {}) {
   const orisoProvisioningHttpError = (error: unknown, res: express.Response) => {
     if (!(error instanceof OrisoProvisioningError)) return false;
     const status = error.code === "invite_template_missing" ? 409
-      : error.code === "account_credentials_mismatch" ? 409
-      : error.code === "admin_record_unavailable" ? 503
+      : error.code === "account_credentials_mismatch" || error.code === "account_creation_conflict" ? 409
+      : error.code === "admin_record_unavailable" || error.code === "provisioning_agency_unavailable" ? 503
       : 502;
     res.status(status).json({ error: error.code });
     return true;
@@ -850,7 +850,6 @@ export function createApp(options: AppOptions = {}) {
           ...linkedRecord,
           kind: roleRecord.kind,
           displayName: roleRecord.displayName,
-          username: roleRecord.username,
           roles: roleRecord.roles,
           permissionsDescription: roleRecord.permissionsDescription,
           loginUrl: roleRecord.loginUrl,

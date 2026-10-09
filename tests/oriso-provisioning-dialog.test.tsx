@@ -89,6 +89,20 @@ describe("OrisoProvisioningDialog", () => {
     return onProvisioned;
   }
 
+  it.each(["account_creation_conflict", "provisioning_agency_unavailable"])("keeps %s failures separate from password repair", async (code) => {
+    vi.mocked(api).mockResolvedValueOnce({ configured: true, supportedRoles: ["counsellor"], environment: "pre-dev", state: null, linked: null });
+    vi.mocked(api).mockRejectedValueOnce(new Error(code));
+    const onProvisioned = await openDialog();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("nicht ausgeschlossen"));
+    expect(document.body.textContent).not.toContain("Noch kein ORISO-Konto");
+    const submit = Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.includes("Konto anlegen & prüfen"));
+    await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.querySelector("[role=alert]")?.textContent).toContain(code === "account_creation_conflict" ? "bereits vergeben" : "Beratungsstelle"));
+    expect(document.body.textContent).not.toContain("tatsächlich verwendete Passwort");
+    expect(onProvisioned).not.toHaveBeenCalled();
+    expect(api).toHaveBeenCalledTimes(2);
+  });
+
   it("provisions with the selected role and reports the ready state", async () => {
     vi.mocked(api).mockResolvedValueOnce({
       configured: true, supportedRoles: ["tenant-admin", "agency-admin", "counsellor"],
@@ -108,7 +122,7 @@ describe("OrisoProvisioningDialog", () => {
       expiresAt: "2026-07-29T16:00:30.000Z"
     });
     const onProvisioned = await openDialog();
-    await vi.waitFor(() => expect(document.body.textContent).toContain("Noch kein ORISO-Konto"));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("nicht ausgeschlossen"));
 
     const submit = Array.from(document.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("Konto anlegen & prüfen"));
@@ -157,7 +171,7 @@ describe("OrisoProvisioningDialog", () => {
     });
 
     await openDialog();
-    await vi.waitFor(() => expect(document.body.textContent).toContain("Noch kein ORISO-Konto"));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("nicht ausgeschlossen"));
     const roleTrigger = document.querySelector<HTMLElement>("[aria-label=Rolle]")!;
     await act(async () => roleTrigger.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     const agencyOption = Array.from(document.querySelectorAll<HTMLElement>("[role=option]"))
@@ -397,7 +411,7 @@ describe("OrisoProvisioningDialog", () => {
     });
     const onProvisioned = await openDialog();
     await vi.waitFor(() => expect(document.body.textContent).toContain("2FA direkt hier abschließen"));
-    expect(document.body.textContent).not.toContain("Noch kein ORISO-Konto");
+    expect(document.body.textContent).not.toContain("nicht ausgeschlossen");
     expect(Array.from(document.querySelectorAll("button")).some(
       (button) => button.textContent?.includes("Konto anlegen & prüfen")
     )).toBe(false);
