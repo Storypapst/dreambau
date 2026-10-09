@@ -32,7 +32,6 @@ export const TEXTS = Object.freeze({
   legendLabel: 'Zonen',
   newTabSuffix: ', öffnet in neuem Tab',
   zoneCount: (count) => (count === 1 ? '1 Zone' : `${count} Zonen`),
-  innerZone: (name) => `+ ${name}`,
   ageSeconds: (seconds) => `Stand: vor ${seconds} s`,
   ageMinutes: (minutes) => `Stand: vor ${minutes} min`,
   ageHours: (hours) => `Stand: vor ${hours} h`,
@@ -173,12 +172,9 @@ export function buildZone(doc, zone, programs, unknown = false) {
     ...(!programs.length ? [make(doc, 'div', { class: 'resting' }, make(doc, 'b', {}, TEXTS.resting), make(doc, 'p', {}, TEXTS.restingNow), make(doc, 'p', {}, TEXTS.restingBack))] : []));
 }
 
-// The hub's second text: the number of outer zones, and the inner zone's name on a second line when there is one.
+// The hub's second text: the number of zones in the catalogue, the inner zone counted like the others (spec M2, 5.1).
 function hubLines(doc, zones) {
-  const inner = zones.find((zone) => zone.ring === 'inner');
-  const lines = [make(doc, 'span', {}, TEXTS.zoneCount(zones.filter((zone) => zone.ring !== 'inner').length))];
-  if (inner) lines.push(make(doc, 'span', { class: 'inner', 'data-color': colorOf(inner) }, TEXTS.innerZone(inner.name)));
-  return lines;
+  return [make(doc, 'span', {}, TEXTS.zoneCount(zones.length))];
 }
 
 // Draws the whole catalogue again: the hub's lines and one panel per zone with the Kacheln of its programs, in file order.
@@ -245,48 +241,152 @@ function initLayout(page) {
 // ==== end region: layout ====
 
 // ==== region: place ====
-// Slice 8 fills this region: the placement function of the constellation.
-// Deterministic ellipse sectors. If measured box clearance cannot be met, use the safe panel layout.
+// Slice 8 fills this region: the placement function of the constellation (spec M2 to M9, Appendix D).
+// The rule starts from the mockup's fan. Every outer zone owns a sector of equal size around its axis (the first at the top,
+// then clockwise). Its programs sit in a fan around the axis, in turn on the outer ellipse B and on a middle ellipse A
+// (a "zigzag", which lets neighbours overlap in height) or, when that does not fit, all on B. The inner zone sits on a small
+// ring around the hub whose size grows with its count. The rule places the inner ring first, then the outer zones in file
+// order, each with the widest fan that clears everything placed so far, and it proves M5a to M5f on every tile it places.
+// When some setting of the whole ladder holds, that placement is the answer; when none does, the answer is null and the page
+// uses the cluster layout (M8). A pure function of its four arguments (M6): no random number, no clock, no measurement.
+const TILE_W = 120, TILE_H = 46, ORB_R = 22, HUB_R = 56;
+const EDGE_X = 32, EDGE_Y = 30;   // a tile keeps this far from the map's edge, where the zone names stand
+const TILE_GAP = 3;               // M5a asks for 2 px; one more pixel is the margin for rounding in the browser
+const RING_A = [.76, .7, .82, .66, .88];   // the middle ring as a share of the outer ring (the mockup's is .76)
+const RING_B = [1, .92, .84];              // the outer ring as a share of the widest one (zones on a diagonal need it smaller: their name stands on it)
+const SECTOR_MARGIN = [6, 10, 14, 18];     // degrees kept free at both edges of a sector, so that neighbouring zones keep apart
+const FAN_STEP = [30, 26, 22, 18, 14, 10]; // the widest angle between two neighbours of a fan, in degrees (the mockup's is about 27)
+const INNER_START = [[116, 108], [96, 92]]; // the inner ring starts outside the turning glyph rings, or tighter when the map is full
+const INNER_STEPS = 13;                    // and grows by 14 x 12 px per step
+const rad = (degrees) => degrees * Math.PI / 180;
+const wrap = (degrees) => ((degrees + 540) % 360) - 180;
+const gapBetween = (a, b) => Math.hypot(Math.max(a.left - b.right, b.left - a.right, 0), Math.max(a.top - b.bottom, b.top - a.bottom, 0));
+const boxAround = (x, y, width, height) => ({ left: x - width / 2, top: y - height / 2, right: x + width / 2, bottom: y + height / 2 });
+
+// A tile at an orb centre; the name goes to the left of the orb on the left half of the map, else to the right.
+function tileAt(x, y, degrees, id, zone) {
+  const leftLabel = Math.cos(rad(degrees)) < -.001;
+  const left = leftLabel ? x - (TILE_W - ORB_R) : x - ORB_R;
+  return { id, zone, x, y, left, top: y - TILE_H / 2, leftLabel, right: left + TILE_W, bottom: y + TILE_H / 2 };
+}
+
+// The angles of the programs of the inner ring, clockwise from the top; the lower middle stays free for the zone's name.
+function innerAngles(count) {
+  if (count === 1) return [-90];
+  if (count === 2) return [-135, -45];
+  const start = count % 2 ? -90 : -90 + 180 / count;
+  return Array.from({ length: count }, (_, index) => start + index * 360 / count);
+}
+
+// The zone name at the map's edge (an estimate of its size: 11.5 px monospace capitals with a letter space, then the count).
+function zoneName(zone, count, axis, cx, cy) {
+  const long = zone.name.length * 10 + 8 + String(count).length * 8 + 6;
+  const vertical = Math.abs(Math.cos(rad(axis))) > .7;
+  const x = cx + Math.cos(rad(axis)) * (cx - 18), y = cy + Math.sin(rad(axis)) * (cy - 14);
+  return { zone: zone.id, x, y, vertical, flip: vertical && Math.cos(rad(axis)) < 0, ...boxAround(x, y, vertical ? 18 : long, vertical ? long : 18) };
+}
+
+// The fans to try for a zone with `count` programs, widest first: [{ offset, ring }] per program, `ring` 1 = B, else the share of A.
+function fansFor(count, usable, ringA) {
+  if (count === 1) return [[{ offset: 0, ring: ringA }], [{ offset: 0, ring: 1 }]];
+  const fans = [], seen = new Set();
+  for (const maxStep of FAN_STEP) {
+    const step = Math.min(maxStep, 2 * usable / (count - 1));
+    if (seen.has(step)) continue;
+    seen.add(step);
+    const offset = (number) => (number - (count - 1) / 2) * step;
+    fans.push(Array.from({ length: count }, (_, number) => ({ offset: offset(number), ring: number % 2 ? ringA : 1 })));
+    fans.push(Array.from({ length: count }, (_, number) => ({ offset: offset(number), ring: 1 })));
+  }
+  return fans;
+}
+
+function tryPlace(ordered, byZone, width, height, ringB, ringA, margin, innerStart) {
+  const cx = width / 2, cy = height / 2;
+  const rx = cx - EDGE_X - (TILE_W - ORB_R), ry = cy - EDGE_Y - TILE_H / 2;
+  if (rx < 120 || ry < 120) return null;
+  const outer = ordered.filter((zone) => zone.ring !== 'inner'), inner = ordered.find((zone) => zone.ring === 'inner');
+  const items = [], obstacles = [], names = [], rests = {}, spokes = [], links = [];
+  const hub = boxAround(cx, cy, HUB_R * 2, HUB_R * 2);
+  const inside = (box) => box.left >= 0 && box.top >= 0 && box.right <= width && box.bottom <= height;
+  const scaled = (tile) => Math.atan2((tile.y - cy) / cy, (tile.x - cx) / cx) * 180 / Math.PI;
+  const at = (ring, degrees) => ({ x: cx + ring * ringB * rx * Math.cos(rad(degrees)), y: cy + ring * ringB * ry * Math.sin(rad(degrees)) });
+
+  // The proof for the tiles of one zone: inside the map, clear of the hub, of each other, of everything placed before and of
+  // every zone name and empty-zone box (M5a to M5c), in list order clockwise (M5e) and, for an outer zone, inside its sector (M5d).
+  const fits = (tiles, sector) => {
+    if (!tiles.every(inside)) return false;
+    if (tiles.some((tile) => Math.hypot(tile.x - cx, tile.y - cy) - ORB_R - HUB_R < 13 || gapBetween(tile, hub) < 4)) return false;
+    for (const [index, tile] of tiles.entries()) {
+      if (tiles.slice(index + 1).some((other) => gapBetween(tile, other) < TILE_GAP)) return false;
+      if (items.some((other) => gapBetween(tile, other) < TILE_GAP) || obstacles.some((box) => gapBetween(tile, box) < 2)) return false;
+    }
+    if (tiles.slice(1).some((tile, number) => wrap(scaled(tile) - scaled(tiles[number])) < 1)) return false;
+    return !sector || tiles.every((tile) => Math.abs(wrap(scaled(tile) - sector.axis)) <= sector.half);
+  };
+
+  // The zone names and the boxes of the empty outer zones are fixed by their axes; they are obstacles for every tile.
+  const sectors = outer.map((zone, index) => {
+    const axis = -90 + index * 360 / outer.length, list = byZone.get(zone.id);
+    const name = zoneName(zone, list.length, axis, cx, cy);
+    names.push(name); obstacles.push(name);
+    if (!list.length) { const point = at(ringA, axis); rests[zone.id] = point; obstacles.push(boxAround(point.x, point.y, 160, 80)); spokes.push({ zone: zone.id, x: point.x, y: point.y, trim: 0 }); }
+    return { zone, axis, list, half: outer.length === 1 ? 181 : 180 / outer.length - margin, usable: outer.length === 1 ? 168 : 180 / outer.length - margin };
+  });
+  if (!obstacles.every(inside)) return null;
+  // The inner ring comes before the outer fans: the smallest ring on which its programs fit, then its name under it.
+  let innerLabel = null;
+  if (inner) {
+    const list = byZone.get(inner.id), labelWidth = 160;
+    if (list.length) {
+      let tiles = null;
+      for (let step = 0; step < INNER_STEPS && !tiles; step += 1) {
+        const rxi = innerStart[0] + 14 * step, ryi = innerStart[1] + 12 * step;
+        const candidate = innerAngles(list.length).map((degrees, number) => tileAt(cx + rxi * Math.cos(rad(degrees)), cy + ryi * Math.sin(rad(degrees)), degrees, list[number].id, inner.id));
+        if (fits(candidate, null)) tiles = candidate;
+      }
+      if (!tiles) return null;
+      items.push(...tiles);
+      for (const tile of tiles) spokes.push({ zone: inner.id, x: tile.x, y: tile.y, trim: ORB_R + 4 });
+      const below = tiles.filter((tile) => tile.right > cx - labelWidth / 2 && tile.left < cx + labelWidth / 2).map((tile) => tile.bottom);
+      innerLabel = { zone: inner.id, x: cx, top: Math.max(cy + HUB_R + 10, ...below) + 4 };
+    } else {
+      innerLabel = { zone: inner.id, x: cx, top: cy + HUB_R + 8 };
+      rests[inner.id] = { x: cx, y: cy + HUB_R + 8 + 16 + 6 + 40 }; obstacles.push(boxAround(rests[inner.id].x, rests[inner.id].y, 160, 80));
+    }
+    const labelBox = { left: cx - labelWidth / 2, top: innerLabel.top, right: cx + labelWidth / 2, bottom: innerLabel.top + 16 };
+    if (!inside(labelBox) || obstacles.some((box) => gapBetween(labelBox, box) < 2)) return null;
+    obstacles.push(labelBox);
+  }
+
+  for (const sector of sectors) {
+    if (!sector.list.length) continue;
+    let placed = null;
+    for (const fan of fansFor(sector.list.length, sector.usable, ringA)) {
+      const tiles = fan.map((slot, number) => { const degrees = sector.axis + slot.offset, point = at(slot.ring, degrees); return tileAt(point.x, point.y, degrees, sector.list[number].id, sector.zone.id); });
+      if (fits(tiles, outer.length > 1 ? sector : null)) { placed = tiles; break; }
+    }
+    if (!placed) return null;
+    items.push(...placed);
+    for (let number = 1; number < placed.length; number += 1) links.push({ zone: sector.zone.id, x1: placed[number - 1].x, y1: placed[number - 1].y, x2: placed[number].x, y2: placed[number].y });
+    const middle = (placed.length - 1) / 2, nearest = placed.reduce((best, tile, number) => (Math.abs(number - middle) < Math.abs(best.number - middle) ? { tile, number } : best), { tile: placed[0], number: 0 }).tile;
+    spokes.push({ zone: sector.zone.id, x: nearest.x, y: nearest.y, trim: ORB_R + 4 });
+  }
+  return { width, height, cx, cy, rx: rx * ringB, ry: ry * ringB, ringA, items: items.map(({ id, zone, x, y, left, top, leftLabel }) => ({ id, zone, x, y, left, top, leftLabel })), outer, names, rests, innerLabel, spokes, links, reserved: obstacles.map(({ left, top, right, bottom }) => ({ left, top, right, bottom })) };
+}
+
 export function placePrograms(zones, programs, width, height) {
   if (width < 650 || height < 470) return null;
-  const cx = width / 2, cy = height / 2, rx = cx - 50, ry = cy - 50;
-  const outer = zonesInOrder(zones).filter((zone) => zone.ring !== 'inner');
-  const placed = [];
-  for (const zone of zonesInOrder(zones)) {
-    const items = programs.filter((program) => program.zone === zone.id);
-    if (zone.ring === 'inner' && items.length > 6) return null;
-    const axis = outer.indexOf(zone) * 2 * Math.PI / outer.length - Math.PI / 2;
-    const fan = Math.min(Math.PI / Math.max(1, outer.length) * .9, Math.abs(Math.sin(axis)) > .7 ? .7 : .55);
-    for (let i = 0; i < items.length; i++) {
-      const angle = zone.ring === 'inner' ? -Math.PI / 2 + i * 2 * Math.PI / items.length : axis + (items.length < 2 ? 0 : (i / (items.length - 1) * 2 - 1) * fan);
-      const x = cx + Math.cos(angle) * (zone.ring === 'inner' ? 118 : rx);
-      const y = cy + Math.sin(angle) * (zone.ring === 'inner' ? 118 : ry);
-      const leftLabel = Math.cos(angle) > .7;
-      const item = { id: items[i].id, zone: zone.id, x, y, left: x - (leftLabel ? 98 : 22), top: y - 23, leftLabel };
-      if (item.left < 0 || item.left + 120 > width || item.top < 0 || item.top + 46 > height || Math.hypot(x - cx, y - cy) < 90) return null;
-      if (placed.some((other) => {
-        const dx = Math.max(other.left - item.left - 120, item.left - other.left - 120, 0);
-        const dy = Math.max(other.top - item.top - 46, item.top - other.top - 46, 0);
-        return Math.hypot(dx, dy) < 2;
-      })) return null;
-      placed.push(item);
-    }
+  const ordered = zonesInOrder(zones);
+  const outer = ordered.filter((zone) => zone.ring !== 'inner'), inner = ordered.find((zone) => zone.ring === 'inner');
+  const byZone = new Map(ordered.map((zone) => [zone.id, programs.filter((program) => program.zone === zone.id)]));
+  if (outer.length > 6 || (inner && byZone.get(inner.id).length > 6)) return null;
+  if (programs.length * TILE_W * TILE_H > width * height * .4) return null;   // far too many for the map: do not even try
+  for (const margin of SECTOR_MARGIN) for (const ringB of RING_B) for (const ringA of RING_A) for (const innerStart of INNER_START) {
+    const layout = tryPlace(ordered, byZone, width, height, ringB, ringA, margin, innerStart);
+    if (layout) return layout;
   }
-  // Reserve the written inner-zone heading and empty-zone boxes too; a safe
-  // fallback is preferable to labels or resting messages covering programs.
-  const boxes = placed.map((item) => ({ left: item.left, top: item.top, width: 120, height: 46 }));
-  if (zones.some((zone) => zone.ring === 'inner')) boxes.push({ left: cx - 80, top: cy + 90, width: 160, height: 14 });
-  for (const zone of zones) if (!programs.some((program) => program.zone === zone.id)) {
-    const axis = outer.indexOf(zone) * 2 * Math.PI / Math.max(1, outer.length) - Math.PI / 2;
-    const x = zone.ring === 'inner' ? cx : cx + Math.cos(axis) * rx * .65;
-    const y = zone.ring === 'inner' ? cy + 145 : cy + Math.sin(axis) * ry * .65;
-    boxes.push({ left: x - 80, top: y - 40, width: 160, height: 80 });
-  }
-  for (const [i, box] of boxes.entries()) {
-    if (box.left < 0 || box.top < 0 || box.left + box.width > width || box.top + box.height > height) return null;
-    if (boxes.slice(i + 1).some((other) => Math.hypot(Math.max(other.left - box.left - box.width, box.left - other.left - other.width, 0), Math.max(other.top - box.top - box.height, box.top - other.top - other.height, 0)) < 2)) return null;
-  }
-  return { width, height, cx, cy, rx, ry, items: placed, outer };
+  return null;
 }
 function initPlace(page) {
   const sheet = [...page.doc.styleSheets].find((value) => value.href?.endsWith('teamwork.css'));
@@ -303,18 +403,21 @@ function initPlace(page) {
     const ns = page.lines.namespaceURI;
     page.lines.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
     const svg = (tag, values) => { const node = page.doc.createElementNS(ns, tag); for (const [key, value] of Object.entries(values)) node.setAttribute(key, String(value)); page.lines.append(node); };
-    for (const scale of [1, .76]) svg('ellipse', { cx: layout.cx, cy: layout.cy, rx: layout.rx * scale, ry: layout.ry * scale, class: 'orbit' });
-    for (let i = 0; i < layout.outer.length; i++) {
-      const zone = layout.outer[i], angle = i * 2 * Math.PI / layout.outer.length - Math.PI / 2;
-      const vertical = Math.abs(Math.cos(angle)) > .7;
-      const x = layout.cx + Math.cos(angle) * (layout.cx - 18), y = layout.cy + Math.sin(angle) * (layout.cy - 14);
-      rule(`[data-layout="constellation"] [data-zone="${zone.id}"] .zl{left:${x}px;top:${y}px;width:auto;writing-mode:${vertical ? 'vertical-rl' : 'horizontal-tb'};transform:translate(-50%,-50%)${vertical && Math.cos(angle) < 0 ? ' rotate(180deg)' : ''}}`);
-      const vx = layout.cx + Math.cos(angle) * layout.rx * .65, vy = layout.cy + Math.sin(angle) * layout.ry * .65;
-      rule(`[data-layout="constellation"] [data-zone="${zone.id}"] .resting{left:${vx}px;top:${vy}px}`);
-      const points = layout.items.filter((item) => item.zone === zone.id);
-      for (let j = 1; j < points.length; j++) svg('line', { x1: points[j-1].x, y1: points[j-1].y, x2: points[j].x, y2: points[j].y, 'data-color': zone.color, class: 'spoke', 'data-zone': zone.id });
-      svg('line', { x1: layout.cx, y1: layout.cy, x2: vx, y2: vy, 'data-color': zone.color, class: 'spoke', 'data-zone': zone.id });
+    for (const scale of [1, layout.ringA]) svg('ellipse', { cx: layout.cx, cy: layout.cy, rx: layout.rx * scale, ry: layout.ry * scale, class: 'orbit' });
+    const colourOf = (zoneId) => page.state.catalogue.zones.find((zone) => zone.id === zoneId)?.color;
+    // A dotted line between two points, shortened at both ends so that it starts and ends at the edge of a circle (an orb or the hub).
+    const segment = (zoneId, from, to, startTrim, endTrim) => {
+      const length = Math.hypot(to.x - from.x, to.y - from.y) || 1, ux = (to.x - from.x) / length, uy = (to.y - from.y) / length;
+      if (length <= startTrim + endTrim) return;
+      svg('line', { x1: from.x + ux * startTrim, y1: from.y + uy * startTrim, x2: to.x - ux * endTrim, y2: to.y - uy * endTrim, 'data-color': colourOf(zoneId), class: 'spoke', 'data-zone': zoneId });
+    };
+    for (const name of layout.names) {
+      rule(`[data-layout="constellation"] [data-zone="${name.zone}"] .zl{left:${name.x}px;top:${name.y}px;width:auto;writing-mode:${name.vertical ? 'vertical-rl' : 'horizontal-tb'};transform:translate(-50%,-50%)${name.flip ? ' rotate(180deg)' : ''}}`);
     }
+    for (const [zoneId, point] of Object.entries(layout.rests)) rule(`[data-layout="constellation"] [data-zone="${zoneId}"] .resting{left:${point.x}px;top:${point.y}px}`);
+    if (layout.innerLabel) rule(`[data-layout="constellation"] [data-zone="${layout.innerLabel.zone}"] .zl{left:${layout.innerLabel.x}px;top:${layout.innerLabel.top}px;transform:translateX(-50%)}`);
+    for (const link of layout.links) segment(link.zone, { x: link.x1, y: link.y1 }, { x: link.x2, y: link.y2 }, ORB_R + 4, ORB_R + 4);
+    for (const spoke of layout.spokes) segment(spoke.zone, { x: layout.cx, y: layout.cy }, spoke, HUB_R + 4, spoke.trim);
   };
 }
 
