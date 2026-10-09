@@ -31,3 +31,20 @@ export function bodyOf(count) {
   while (text.length < count) text += text.length % 10 === 9 ? ' ' : 'a';
   return text.replace(/ $/, 'a').slice(0, count);
 }
+
+// A post without optional keys (valid outside tests/fixtures: no `example`).
+export const plainPost = ({ title, date, extra = '', body = BODY }) => `---\ntitle: ${title}\ndate: ${date}\n${extra}---\n\n${body}\n`;
+
+// Writes a tree like apps/blog/posts: specs = [{ year, slug, title, date, ... }], tombstones = ['2026/x 2026-10-09', ...].
+import fs from 'node:fs';
+import path from 'node:path';
+export function writeTree(dir, specs, tombstones) {
+  fs.mkdirSync(dir, { recursive: true });
+  for (const spec of specs) {
+    const file = path.join(dir, spec.year, `${spec.slug}.md`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, spec.text || plainPost(spec));
+  }
+  if (tombstones !== undefined) fs.writeFileSync(path.join(dir, 'removed.txt'), tombstones.length === 0 ? '' : `${tombstones.join('\n')}\n`);
+  return dir;
+}
