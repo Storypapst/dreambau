@@ -273,6 +273,7 @@ export function buildProvisionedRecord(input: {
   now: Date;
   secret: string;
   environment?: OrisoProvisioningEnvironment;
+  username?: string;
 }): TestAccessRecord {
   const contract = roleContract[input.role];
   const [localPart, domain] = input.email.trim().toLowerCase().split("@");
@@ -288,9 +289,9 @@ export function buildProvisionedRecord(input: {
     environment,
     kind: contract.recordKind,
     displayName: `${input.displayName} — ORISO ${environmentLabel} ${input.role}`,
-    username: contract.recordKind === "app-user"
+    username: input.username ?? (contract.recordKind === "app-user"
       ? appRegistrationUsername(input.email)
-      : input.email.trim().toLowerCase(),
+      : input.email.trim().toLowerCase()),
     email: input.email.trim().toLowerCase(),
     roles: [...contract.recordRoles],
     permissionsDescription: `Self-service provisioned ORISO ${environmentLabel} ${input.role}`,

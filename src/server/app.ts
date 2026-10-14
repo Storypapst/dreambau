@@ -583,10 +583,11 @@ export function createApp(options: AppOptions = {}) {
     role: z.enum(orisoProvisioningRoles),
     replaceStaleRole: z.boolean().optional().default(false),
     completeAccountSetup: z.boolean().optional().default(false),
+    applicationUsername: z.string().trim().min(1).max(255).refine((value) => !/\s/.test(value)).optional(),
     applicationPassword: z.string().min(1).max(512)
       .refine((value) => value.trim().length > 0)
       .optional()
-  }).strict();
+  }).strict().refine((body) => body.applicationUsername === undefined || (body.applicationPassword !== undefined && !body.completeAccountSetup && !body.replaceStaleRole));
   const orisoLinkedRecord = (
     email: string,
     records: TestAccessRecord[],
@@ -702,6 +703,9 @@ export function createApp(options: AppOptions = {}) {
       const existingRecord = orisoLinkedRecord(email, existingRecords, environment)
         ?? linkedApplicationRecordsForEmail(email, existingRecords)
           .find((record) => record.project === "oriso" && record.environment === environment) ?? null;
+      if (body.applicationUsername !== undefined && existingRecord && body.applicationUsername !== existingRecord.username) {
+        return res.status(409).json({ error: "record_username_conflict" });
+      }
       const requestedRoles = recordRolesForProvisioningRole(body.role);
       if (body.completeAccountSetup) {
         res.set("Cache-Control", "no-store");
@@ -803,7 +807,8 @@ export function createApp(options: AppOptions = {}) {
           responsiblePerson: user.email,
           now: nowDate,
           secret,
-          environment
+          environment,
+          username: body.applicationUsername
         });
         try {
           await registryWriter.createRecord!(record);
