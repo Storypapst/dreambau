@@ -36,7 +36,23 @@ export interface BrowserLoginRequest {
     cookieNames: string[];
     localStorageKeys: string[];
   };
+  // ORISO unlocks encrypted chat history right after login, with the password
+  // it only holds for that moment. Saving before that leaves a session whose
+  // browser never unlocked and asks for a recovery key (ORISO-Frontend#1741).
+  awaitChatUnlock?: ChatUnlockWait;
 }
+
+export interface ChatUnlockWait {
+  appPath: RegExp;
+  quietMs: number;
+  maxMs: number;
+}
+
+export const ORISO_CHAT_UNLOCK_WAIT: ChatUnlockWait = {
+  appPath: /^\/(app|sessions)(\/|$)/,
+  quietMs: 4_000,
+  maxMs: 45_000
+};
 
 // The counselling app keeps its session in `keycloak`. The Admin shares that
 // host (/app next to /admin) and keeps its own httpOnly session in
@@ -293,6 +309,31 @@ export async function describeLoginFailure(page: Page): Promise<string> {
   }
 }
 
+/**
+ * Best effort and bounded: waits until the app's Matrix traffic (sync, key
+ * backup restore) has been quiet for a moment, or its recovery notice shows.
+ * Never fails the login; a session that did not unlock is still a session.
+ */
+async function waitForChatUnlock(page: Page, wait: ChatUnlockWait): Promise<void> {
+  if (!wait.appPath.test(new URL(page.url()).pathname)) return;
+  const started = Date.now();
+  let lastMatrixRequest = 0;
+  const onRequest = (request: { url: () => string }) => {
+    if (new URL(request.url()).pathname.startsWith("/_matrix/client/")) lastMatrixRequest = Date.now();
+  };
+  page.on("request", onRequest);
+  try {
+    while (Date.now() - started < wait.maxMs) {
+      const notice = await page.getByTestId("key-backup-recovery-action").isVisible().catch(() => false);
+      if (notice) return;
+      if (lastMatrixRequest && Date.now() - lastMatrixRequest >= wait.quietMs) return;
+      await delay(250);
+    }
+  } finally {
+    page.off("request", onRequest);
+  }
+}
+
 export async function playwrightLogin(request: BrowserLoginRequest) {
   const { chromium } = await import("@playwright/test");
   const browser = await chromium.launch({ headless: true });
@@ -415,7 +456,9 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
         request.requiredAuthState
       );
     }
-    await context.storageState({ path: request.statePath });
+    if (request.awaitChatUnlock) await waitForChatUnlock(page, request.awaitChatUnlock);
+    // IndexedDB carries the unlocked chat keys into the reused session.
+    await context.storageState({ path: request.statePath, indexedDB: Boolean(request.awaitChatUnlock) });
   } finally {
     await context.close();
     await browser.close();
@@ -468,7 +511,8 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       statePath,
       ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
       getOtp,
-      requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined
+      requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined,
+      awaitChatUnlock: account.project === "oriso" ? ORISO_CHAT_UNLOCK_WAIT : undefined
     });
     await chmod(statePath, 0o600);
     (dependencies.scheduleCleanup ?? scheduleCleanup)(stateDirectory, STATE_TTL_MS);
