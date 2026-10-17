@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { CircleCheckIcon, KeyRoundIcon, MailPlusIcon, RefreshCwIcon, ShieldCheckIcon } from "lucide-react";
 import { api } from "@/api";
 import { labelRole, type Locale } from "@/i18n";
@@ -26,6 +26,7 @@ import {
   DialogTrigger
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
   Select,
   SelectContent,
@@ -91,6 +92,9 @@ function StateSummary({
 }
 
 function provisioningErrorMessage(code: string, locale: Locale) {
+  if (code === "record_username_conflict") return locale === "de"
+    ? "Das Konto ist bereits mit einem anderen Benutzernamen verknüpft. Der bestehende Zugang wurde nicht geändert."
+    : "This account is already linked with another username. The existing access was not changed.";
   if (code === "account_setup_required") return locale === "de"
     ? "Das Konto wurde angelegt. Bitte jetzt die Ersteinrichtung aus der E-Mail abschließen."
     : "The account was created. Complete the first-time setup from its email now.";
@@ -165,6 +169,9 @@ export function OrisoProvisioningDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [applicationPassword, setApplicationPassword] = useState("");
+  const [applicationUsername, setApplicationUsername] = useState("");
+  const usernameInputId = useId();
+  const passwordInputId = useId();
   const [totpSecret, setTotpSecret] = useState("");
   const [enrollBusy, setEnrollBusy] = useState(false);
   const [enrollError, setEnrollError] = useState(false);
@@ -184,6 +191,7 @@ export function OrisoProvisioningDialog({
   async function load() {
     setError(null);
     setApplicationPassword("");
+    setApplicationUsername("");
     try {
       setView(await api<OrisoProvisioningView>(`/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`));
     } catch {
@@ -195,6 +203,7 @@ export function OrisoProvisioningDialog({
     setOpen(value);
     setError(null);
     setApplicationPassword("");
+    setApplicationUsername("");
     setTotpSecret("");
     setEnrollError(false);
     setOtp(null);
@@ -296,7 +305,9 @@ export function OrisoProvisioningDialog({
             role: selectedRole,
             ...(replaceStaleRole ? { replaceStaleRole: true } : {}),
             ...(completeAccountSetup ? { completeAccountSetup: true } : {}),
-            ...(existingPassword ? { applicationPassword: existingPassword } : {})
+            ...(existingPassword ? { applicationPassword: existingPassword } : {}),
+            ...(existingPassword && !view?.linked && applicationUsername.trim()
+              ? { applicationUsername: applicationUsername.trim() } : {})
           })
         }
       );
@@ -313,6 +324,7 @@ export function OrisoProvisioningDialog({
       onProvisioned(account.email, result.linked, result.metadata);
       if (existingPassword) {
         setApplicationPassword("");
+        setApplicationUsername("");
       }
     } catch (cause) {
       if (cause instanceof Error && cause.message === "record_role_conflict" && view?.linked) {
@@ -348,9 +360,13 @@ export function OrisoProvisioningDialog({
       <DialogHeader>
         <DialogTitle>{locale === "de" ? `ORISO ${environmentLabel} Konto` : `ORISO ${environmentLabel} account`}</DialogTitle>
         <DialogDescription>
-          {locale === "de"
-            ? "Legt ein ORISO-Testkonto für dieses Springfield-Postfach an und prüft Passwort und 2FA. Wenn ORISO eine Ersteinrichtung verlangt, wird das endgültige Passwort dabei geschützt in Infisical gespeichert."
-            : "Creates an ORISO test account for this Springfield mailbox and verifies its password and 2FA. When ORISO requires first-time setup, the permanent password is stored securely in Infisical during that step."}
+          {view?.requiresApplicationPassword && !view.linked && !view.requiresAccountSetup
+            ? (locale === "de"
+              ? "Verknüpft das vorhandene ORISO-Konto mit diesem Springfield-Postfach. Hinterlegen Sie hier die Anmeldedaten und prüfen Sie danach die Anmeldung und die Zwei-Faktor-Authentifizierung."
+              : "Links the existing ORISO account with this Springfield mailbox. Save its login details here, then verify its sign-in and two-factor authentication.")
+            : (locale === "de"
+              ? "Legt ein ORISO-Testkonto für dieses Springfield-Postfach an und prüft Passwort und 2FA. Wenn ORISO eine Ersteinrichtung verlangt, wird das endgültige Passwort dabei geschützt in Infisical gespeichert."
+              : "Creates an ORISO test account for this Springfield mailbox and verifies its password and 2FA. When ORISO requires first-time setup, the permanent password is stored securely in Infisical during that step.")}
         </DialogDescription>
       </DialogHeader>
       {!view && !error && <p className="text-sm text-muted-foreground">{locale === "de" ? "Status wird geladen…" : "Loading status…"}</p>}
@@ -388,18 +404,34 @@ export function OrisoProvisioningDialog({
             ? "Exakt das Passwort eintragen, das im ORISO-Onboarding verwendet wurde oder dort verwendet werden soll. Es wird nur im geschützten Infisical-Record gespeichert und nie in der Antwort ausgegeben."
             : "Enter exactly the password used during ORISO onboarding, or the one that will be used there. It is stored only in the protected Infisical record and is never returned in the response."}
         </p>
-        <Input
-          aria-label={locale === "de" ? "Bestehendes ORISO-App-Passwort" : "Existing ORISO app password"}
-          name="existingOrisoPassword"
-          type="password"
-          autoComplete="off"
-          data-1p-ignore="true"
-          data-lpignore="true"
-          data-bwignore="true"
-          value={applicationPassword}
-          onChange={(event) => setApplicationPassword(event.target.value)}
-          disabled={busy || enrollBusy}
-        />
+        <FieldGroup>
+          {!view.linked && <Field data-disabled={busy || enrollBusy}>
+            <FieldLabel htmlFor={usernameInputId}>{locale === "de" ? "Bestehender ORISO-Benutzername (optional)" : "Existing ORISO username (optional)"}</FieldLabel>
+            <Input id={usernameInputId} name="existingOrisoUsername" autoComplete="off" maxLength={255}
+              data-1p-ignore="true" data-lpignore="true" data-bwignore="true"
+              aria-describedby={`${usernameInputId}-description`} value={applicationUsername}
+              onChange={(event) => setApplicationUsername(event.target.value)} disabled={busy || enrollBusy} />
+            <FieldDescription id={`${usernameInputId}-description`}>{locale === "de"
+              ? "Den bei der Kontoanlage gewählten Benutzernamen eintragen. Ohne Angabe bleibt der bisherige Standard bestehen."
+              : "Enter the username chosen when creating the account. Leave blank to keep the existing default."}</FieldDescription>
+          </Field>}
+          <Field data-disabled={busy || enrollBusy}>
+            <FieldLabel htmlFor={passwordInputId}>{locale === "de" ? "Bestehendes ORISO-App-Passwort" : "Existing ORISO app password"}</FieldLabel>
+            <Input
+              id={passwordInputId}
+              aria-label={locale === "de" ? "Bestehendes ORISO-App-Passwort" : "Existing ORISO app password"}
+              name="existingOrisoPassword"
+              type="password"
+              autoComplete="off"
+              data-1p-ignore="true"
+              data-lpignore="true"
+              data-bwignore="true"
+              value={applicationPassword}
+              onChange={(event) => setApplicationPassword(event.target.value)}
+              disabled={busy || enrollBusy}
+            />
+          </Field>
+        </FieldGroup>
       </div>}
       {view?.configured && !view.requiresAccountSetup && view.linked && !view.linked.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
         <p className="text-sm font-medium">{locale === "de" ? "2FA direkt hier abschließen" : "Finish 2FA right here"}</p>
