@@ -880,9 +880,11 @@ describe("ORISO chat unlock before saving the session", () => {
     const result = await loginToApp(`
       fetch('/_matrix/client/v3/sync');
       setTimeout(() => { unlock(); fetch('/_matrix/client/v3/room_keys/keys'); }, 1500);
-    `, () => 0, { quietMs: 2_500, maxMs: 15_000 });
+    `, (path) => path.includes("/sync") ? 25_000 : 0, { quietMs: 2_500, maxMs: 30_000 });
     expect(result.indexedDB).toContain("unlocked");
-  }, 30_000);
+    // The /sync long-poll is still open; the wait must not hold out for it.
+    expect(result.elapsedMs).toBeLessThan(15_000);
+  }, 45_000);
 
   // Review: a slow key-backup call is not silence; its keys land after the reply.
   it("waits for a slow key-backup reply instead of timing silence from its start", async () => {
