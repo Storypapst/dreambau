@@ -523,7 +523,18 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     const credential = await credentialToken(record, totpSecret);
     if (credential.kind === "rejected") return credential;
     const profile = await userJson(credential.token, "/users/data");
-    if (profile.ok) return credential;
+    if (profile.ok) {
+      // A password token can still authenticate an account whose initial
+      // second-factor setup is incomplete. It is not a missing account.
+      try {
+        z.object({
+          twoFactorAuth: z.object({ isActive: z.literal(true), type: z.literal("APP") })
+        }).parse(await profile.json());
+      } catch {
+        throw new OrisoProvisioningError("totp_verification_failed");
+      }
+      return credential;
+    }
     // UserService represents a soft-deleted asker/consultant profile as 403:
     // retrieveValidatedUser()/retrieveValidatedConsultant() finds the row via
     // its deleteDate-aware lookup and raises ForbiddenException. That is a
