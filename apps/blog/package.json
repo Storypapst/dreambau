@@ -1,0 +1,19 @@
+{
+  "name": "dreambau-blog",
+  "version": "0.0.0",
+  "private": true,
+  "description": "dreambau.com Blog (Logbuch): the generator, the posts, the checks (slice S0: the tracer bullet with one invented fixture post)",
+  "type": "module",
+  "scripts": {
+    "build": "node src/cli.mjs",
+    "build:demo": "node src/cli.mjs --demo",
+    "check": "node tests/run.mjs",
+    "check:browser": "node tests/run.mjs browser/",
+    "check:server": "node tests/run.mjs server/",
+    "check:tokens": "node tools/check-tokens.mjs",
+    "serve": "node tests/serve.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

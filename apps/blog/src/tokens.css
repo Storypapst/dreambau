@@ -1,0 +1,8 @@
+/* The colour tokens of the Blog, declared once (spec 5.8 AC-1). The values are the ones that /referenzen/ declares in
+   apps/website/site/website-assets/references.css; `npm run check:tokens` compares every property with that file. The two
+   additions are --bd-control (the border of a control, 3:1 on the ground, AC-2) and --ring (the focus ring). */
+:root{color-scheme:dark;--bg:#06080d;--fg:233,237,245;--cream:255,238,210;--cur:255,190,100;--en:169,139,255;--neu:200,208,224;
+--tok-c:140,190,255;--tok-s:255,208,150;
+--mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans Mono CJK JP",monospace;
+--sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+--bd-control:rgba(var(--fg),.45);--ring:#fff}
