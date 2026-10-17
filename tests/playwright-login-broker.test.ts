@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  ORISO_CHAT_UNLOCK_WAIT,
   ORISO_REQUIRED_AUTH_STATE,
   activateLoginSubmit,
   isOtpChallenge,
@@ -282,7 +283,8 @@ describe("Playwright login broker", () => {
       requiredAuthState: {
         cookieNames: ["keycloak", "oriso_admin_access_token"],
         localStorageKeys: ["auth.keycloak"]
-      }
+      },
+      awaitChatUnlock: ORISO_CHAT_UNLOCK_WAIT
     }));
     const response = JSON.parse(output.join(""));
     expect(response).toMatchObject({
@@ -807,4 +809,97 @@ describe("Playwright login broker", () => {
       expect(errors.join("")).not.toContain("user");
     }
   });
+});
+
+// ORISO-Frontend#1741: a session saved before the chat unlocked asks for a recovery key.
+describe("ORISO chat unlock before saving the session", () => {
+  /** Logs in to a fixture app; `matrixDelayMs` slows the Matrix replies by path. */
+  async function loginToApp(appScript: string, matrixDelayMs: (path: string) => number, wait: Partial<typeof ORISO_CHAT_UNLOCK_WAIT>) {
+    const server = createServer((req, res) => {
+      if (req.url?.startsWith("/_matrix/client/")) {
+        setTimeout(() => {
+          res.setHeader("Content-Type", "application/json");
+          res.end("{}");
+        }, matrixDelayMs(req.url));
+        return;
+      }
+      res.setHeader("Content-Type", "text/html");
+      if (req.url?.startsWith("/sessions/")) {
+        res.end(`<!doctype html><p>app</p><script>
+          localStorage.setItem('auth.keycloak', 'fixture-token');
+          const unlock = () => {
+            const open = indexedDB.open('fixture-crypto', 1);
+            open.onupgradeneeded = () => open.result.createObjectStore('keys');
+            open.onsuccess = () => {
+              const tx = open.result.transaction('keys', 'readwrite');
+              tx.objectStore('keys').put('unlocked', 'backup');
+            };
+          };
+          ${appScript}
+        </script>`);
+        return;
+      }
+      res.end(`<!doctype html><form id="login">
+          <input id="username">
+          <input id="passwordInput" type="password">
+          <button>Login</button>
+        </form>
+        <script>
+          document.querySelector('#login').addEventListener('submit', (event) => {
+            event.preventDefault();
+            location.href = '/sessions/consultant/sessionView';
+          });
+        </script>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("test server did not bind");
+    const statePath = join(await mkdtemp(join(tmpdir(), "playwright-chat-unlock-")), "state.json");
+    try {
+      const started = Date.now();
+      await playwrightLogin({
+        username: "test-counsellor",
+        password: "test-password",
+        loginUrl: `http://127.0.0.1:${address.port}/login`,
+        statePath,
+        ignoreHTTPSErrors: false,
+        getOtp: async () => { throw new Error("OTP should not be requested"); },
+        requiredAuthState: ORISO_REQUIRED_AUTH_STATE,
+        awaitChatUnlock: { ...ORISO_CHAT_UNLOCK_WAIT, ...wait }
+      });
+      const elapsedMs = Date.now() - started;
+      const state = JSON.parse(await readFile(statePath, "utf8"));
+      const origin = state.origins.find((entry: { origin: string }) => entry.origin.endsWith(`:${address.port}`));
+      return { indexedDB: JSON.stringify(origin?.indexedDB ?? []), elapsedMs };
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  }
+
+  it("waits for the app's Matrix traffic to settle and keeps its IndexedDB keys", async () => {
+    const result = await loginToApp(`
+      fetch('/_matrix/client/v3/sync');
+      setTimeout(() => { unlock(); fetch('/_matrix/client/v3/room_keys/keys'); }, 1500);
+    `, (path) => path.includes("/sync") ? 25_000 : 0, { quietMs: 2_500, maxMs: 30_000 });
+    expect(result.indexedDB).toContain("unlocked");
+    // The /sync long-poll is still open; the wait must not hold out for it.
+    expect(result.elapsedMs).toBeLessThan(15_000);
+  }, 45_000);
+
+  // Review: a slow key-backup call is not silence; its keys land after the reply.
+  it("waits for a slow key-backup reply instead of timing silence from its start", async () => {
+    const result = await loginToApp(`
+      fetch('/_matrix/client/v3/room_keys/version').then(unlock);
+    `, (path) => path.includes("room_keys") ? 4_000 : 0, { quietMs: 1_500, maxMs: 15_000 });
+    expect(result.indexedDB).toContain("unlocked");
+  }, 30_000);
+
+  // Review: a call the app starts right on entry must count, or the wait runs to its limit.
+  it("sees a Matrix call the app starts on entry and does not run to the limit", async () => {
+    const result = await loginToApp(`
+      fetch('/_matrix/client/v3/room_keys/version').then(unlock);
+    `, () => 0, { quietMs: 1_500, maxMs: 20_000 });
+    expect(result.indexedDB).toContain("unlocked");
+    expect(result.elapsedMs).toBeLessThan(12_000);
+  }, 40_000);
 });
