@@ -309,28 +309,53 @@ export async function describeLoginFailure(page: Page): Promise<string> {
   }
 }
 
+/** Matrix calls other than the /sync long-poll, which is always in flight. */
+const isUnlockRequest = (url: string) => {
+  const path = new URL(url).pathname;
+  return path.startsWith("/_matrix/client/") && !/\/sync$/.test(path);
+};
+
 /**
- * Best effort and bounded: waits until the app's Matrix traffic (sync, key
- * backup restore) has been quiet for a moment, or its recovery notice shows.
- * Never fails the login; a session that did not unlock is still a session.
+ * Watches the app's Matrix calls from the moment the page exists, so calls the
+ * app starts right on entry are seen. Counts them until they finish or fail.
+ * The listeners end with the page's context.
  */
-async function waitForChatUnlock(page: Page, wait: ChatUnlockWait): Promise<void> {
+function trackMatrixTraffic(page: Page) {
+  const traffic = { inFlight: 0, lastActivity: 0 };
+  const started = (request: { url: () => string }) => {
+    if (!isUnlockRequest(request.url())) return;
+    traffic.inFlight++;
+    traffic.lastActivity = Date.now();
+  };
+  const ended = (request: { url: () => string }) => {
+    if (!isUnlockRequest(request.url())) return;
+    traffic.inFlight = Math.max(0, traffic.inFlight - 1);
+    traffic.lastActivity = Date.now();
+  };
+  page.on("request", started);
+  page.on("requestfinished", ended);
+  page.on("requestfailed", ended);
+  return traffic;
+}
+
+/**
+ * Best effort and bounded: waits until the app's Matrix calls (key backup
+ * restore, room keys) have finished and stayed quiet for a moment, or its
+ * recovery notice shows. Never fails the login; a session that did not unlock
+ * is still a session.
+ */
+async function waitForChatUnlock(
+  page: Page,
+  wait: ChatUnlockWait,
+  traffic: { inFlight: number; lastActivity: number }
+): Promise<void> {
   if (!wait.appPath.test(new URL(page.url()).pathname)) return;
   const started = Date.now();
-  let lastMatrixRequest = 0;
-  const onRequest = (request: { url: () => string }) => {
-    if (new URL(request.url()).pathname.startsWith("/_matrix/client/")) lastMatrixRequest = Date.now();
-  };
-  page.on("request", onRequest);
-  try {
-    while (Date.now() - started < wait.maxMs) {
-      const notice = await page.getByTestId("key-backup-recovery-action").isVisible().catch(() => false);
-      if (notice) return;
-      if (lastMatrixRequest && Date.now() - lastMatrixRequest >= wait.quietMs) return;
-      await delay(250);
-    }
-  } finally {
-    page.off("request", onRequest);
+  while (Date.now() - started < wait.maxMs) {
+    const notice = await page.getByTestId("key-backup-recovery-action").isVisible().catch(() => false);
+    if (notice) return;
+    if (traffic.lastActivity && traffic.inFlight === 0 && Date.now() - traffic.lastActivity >= wait.quietMs) return;
+    await delay(250);
   }
 }
 
@@ -340,6 +365,7 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
   const context = await browser.newContext({ ignoreHTTPSErrors: request.ignoreHTTPSErrors });
   try {
     const page = await context.newPage();
+    const matrix = request.awaitChatUnlock ? trackMatrixTraffic(page) : undefined;
     const failedResponses: string[] = [];
     let submissionMayHaveStarted = false;
     page.on("request", (request) => {
@@ -456,7 +482,7 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
         request.requiredAuthState
       );
     }
-    if (request.awaitChatUnlock) await waitForChatUnlock(page, request.awaitChatUnlock);
+    if (request.awaitChatUnlock && matrix) await waitForChatUnlock(page, request.awaitChatUnlock, matrix);
     // IndexedDB carries the unlocked chat keys into the reused session.
     await context.storageState({ path: request.statePath, indexedDB: Boolean(request.awaitChatUnlock) });
   } finally {
