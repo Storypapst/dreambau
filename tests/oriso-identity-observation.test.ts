@@ -111,7 +111,7 @@ describe("strict Dev identity occupancy read", () => {
     h.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => { throw new Error("private JSON"); } });
     expect(await h.subject.observe(selectors)).toEqual({ kind: "unknown", reason: "invalid-observation" });
   });
-  it.each([{}, { username: "a*" }, { username: "a_" }, { username: " " }, { email: "x".repeat(255) }, { username: "a\n" }, { username: "enc.invalid" }, { username: "lisa", host: "elsewhere" }])("rejects invalid selectors before auth %#", async invalid => {
+  it.each([{}, { username: "a*" }, { username: "a%" }, { username: "a?" }, { username: " " }, { email: "x".repeat(255) }, { username: "a\n" }, { username: "enc.invalid" }, { username: "lisa", host: "elsewhere" }])("rejects invalid selectors before auth %#", async invalid => {
     const h = harness();
     expect(await h.subject.observe(invalid)).toEqual({ kind: "unknown", reason: "invalid-selectors" });
     expect(h.fetch).not.toHaveBeenCalled();
@@ -119,6 +119,46 @@ describe("strict Dev identity occupancy read", () => {
   it("validates encoded usernames against the exact raw/encoded union", async () => {
     const h = harness();
     expect(await h.subject.observe({ ...selectors, username: "ENC.NRUXGYI." })).toMatchObject({ kind: "free-candidate" });
+  });
+  it.each([
+    ["counsellor", "marge.simpson_at_oriso.org", "enc.NVQXEZ3FFZZWS3LQONXW4X3BORPW64TJONXS433SM4......"],
+    ["advice-seeker", "lisa.simpson_at_oriso.org", "enc.NRUXGYJOONUW24DTN5XF6YLUL5XXE2LTN4XG64TH"]
+  ])("observes literal _at_ %s usernames in raw and encoded form", async (_role, raw, encoded) => {
+    for (const username of [raw, encoded]) {
+      for (const occupied of [false, true]) {
+        const facts = occupied ? [
+          { source: "KEYCLOAK", identityId: "same-id", username: raw },
+          { source: "CONSULTANT", identityId: "same-id", rowId: "row", username: encoded }
+        ] : [];
+        const h = harness(payload({
+          normalizedSelectors: { identityId: null, usernames: [raw, encoded], email: null },
+          occupancy: occupied ? "OCCUPIED" : "FREE", facts
+        }));
+        expect(await h.subject.observe({ username })).toMatchObject({ kind: occupied ? "occupied" : "free-candidate" });
+        expect(h.fetch).toHaveBeenLastCalledWith("https://dev.oriso.org/service/useradmin/identity-observations", expect.objectContaining({ body: JSON.stringify({ username }) }));
+      }
+    }
+  });
+  it("keeps literal underscore selectors as an exact union, including email and known ID", async () => {
+    const input = { identityId: "known_id", username: "lisa.simpson_at_oriso.org", email: "Lisa_Simpson@oriso.org" };
+    const names = [input.username, "enc.NRUXGYJOONUW24DTN5XF6YLUL5XXE2LTN4XG64TH"];
+    const h = harness(payload({
+      normalizedSelectors: { identityId: input.identityId, usernames: names, email: "lisa_simpson@oriso.org" },
+      occupancy: "CONFLICT", facts: [
+        { source: "KEYCLOAK", identityId: "known_id", username: input.username },
+        { source: "ADMIN", identityId: "other_id", email: "lisa_simpson@oriso.org" }
+      ]
+    }), 409);
+    expect(await h.subject.observe(input)).toMatchObject({ kind: "conflict" });
+    expect(h.fetch).toHaveBeenLastCalledWith("https://dev.oriso.org/service/useradmin/identity-observations", expect.objectContaining({ body: JSON.stringify(input) }));
+  });
+  it.each(["lisa.simpsonXatYoriso.org", "lisa.simpsonatoriso.org"])("does not expand underscores to match %s", async username => {
+    const raw = "lisa.simpson_at_oriso.org";
+    const h = harness(payload({
+      normalizedSelectors: { identityId: null, usernames: [raw, "enc.NRUXGYJOONUW24DTN5XF6YLUL5XXE2LTN4XG64TH"], email: null },
+      occupancy: "OCCUPIED", facts: [{ source: "KEYCLOAK", identityId: "stranger", username }]
+    }));
+    expect(await h.subject.observe({ username: raw })).toEqual({ kind: "unknown", reason: "invalid-observation" });
   });
   it("rejects facts unrelated to every exact selector", async () => {
     const h = harness(payload({ normalizedSelectors: { identityId: null, usernames: [], email: "lisa@oriso.org" }, occupancy: "OCCUPIED", facts: [{ source: "ADMIN", identityId: "stranger", email: "other@oriso.org" }] }));

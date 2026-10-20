@@ -5,7 +5,9 @@ import { createOrisoManagedAdminClient, OrisoManagedAdminError, type OrisoManage
 // api/useradminservice.yaml IdentityObservation*DTO + IdentityProbe/IdentityObservationService.
 const sources = ["KEYCLOAK", "ADMIN", "CONSULTANT", "ASKER"] as const;
 const bounded = z.string().min(1).max(255).regex(/^[^\x00-\x1f\x7f-\x9f]+$/).refine(value => value.trim().length > 0);
-const selector = bounded.refine(value => value.trim().length > 0 && !/[*%_?]/.test(value));
+// Underscores are literal characters in canonical _at_ usernames; this API
+// compares exact values and never accepts caller-controlled LIKE patterns.
+const selector = bounded.refine(value => value.trim().length > 0 && !/[*%?]/.test(value));
 const selectorsSchema = z.object({ identityId: selector.optional(), username: selector.optional(), email: selector.refine(value => value.length <= 254).optional() }).strict()
   .refine(value => Object.keys(value).length > 0);
 export type OrisoIdentitySelectors = z.infer<typeof selectorsSchema>;
