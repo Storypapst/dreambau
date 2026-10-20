@@ -197,6 +197,10 @@ const generatedOrisoTotpSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 const generatedPreDevRawTotpSecret = "TiytwMC3QVofH3fD6v9B0I7eefb7eEJ0";
 const generatedDevTotpSecret = "zYxWvUtSrQpOnMlKjIhGfEdCbA987654";
 
+function appFactorProfile(secret: string, isActive: boolean) {
+  return { twoFactorAuth: { secret, isActive, type: isActive ? "APP" : null } };
+}
+
 function adminRecord(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
   return {
     id: "oriso/pre-dev/e2e-platform-admin-predev",
@@ -597,6 +601,7 @@ describe("service construction", () => {
 describe("reusable ORISO PreDev account factory", () => {
   it("reprovisions a same-role ready record when auth survives but the ORISO user profile is stale", async () => {
     let accountCreated = false;
+    let totpActive = false;
     let createCalls = 0;
     const storedTotp = generatedOrisoTotpSecret;
     const fetch: ProvisioningFetch = async (input, init) => {
@@ -613,7 +618,7 @@ describe("reusable ORISO PreDev account factory", () => {
       }
       if (url.endsWith("/users/data") && init?.method === "GET") {
         return accountCreated
-          ? ok({ twoFactorAuth: { secret: storedTotp } })
+          ? ok(appFactorProfile(storedTotp, totpActive))
           : { ok: false, status: 404, async json() { return {}; } };
       }
       if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
@@ -627,7 +632,10 @@ describe("reusable ORISO PreDev account factory", () => {
         accountCreated = true;
         return ok({ _embedded: { id: "recreated-tenant-admin" } });
       }
-      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") return ok();
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
+        totpActive = true;
+        return ok();
+      }
       return { ok: false, status: 404, async json() { return {}; } };
     };
     const subject = service(fetch, provider(), () => new Date("2026-07-30T05:00:00.000Z"), {
@@ -687,7 +695,7 @@ describe("reusable ORISO PreDev account factory", () => {
       if (url.endsWith("/users/data") && init?.method === "GET") {
         profileCalls += 1;
         return accountReactivated
-          ? ok({ twoFactorAuth: { secret: storedTotp } })
+          ? ok(appFactorProfile(storedTotp, accountReactivated))
           : { ok: false, status: 403, async json() { return { message: "profile deleted" }; } };
       }
       if (url.endsWith("/useradmin/askers/deletion/reactivate") && init?.method === "POST") {
@@ -790,6 +798,7 @@ describe("reusable ORISO PreDev account factory", () => {
 
   it("keeps a pending advice-seeker 401 on the normal creation flow", async () => {
     let accountCreated = false;
+    let totpActive = false;
     let reactivateCalls = 0;
     let createCalls = 0;
     const fetch: ProvisioningFetch = async (input, init) => {
@@ -813,9 +822,12 @@ describe("reusable ORISO PreDev account factory", () => {
         return ok({ _embedded: { id: "created-asker" } });
       }
       if (url.endsWith("/users/email") && init?.method === "PUT") return ok();
-      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") return ok();
+      if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
+        totpActive = true;
+        return ok();
+      }
       if (url.endsWith("/users/data") && init?.method === "GET") {
-        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+        return ok(appFactorProfile(generatedOrisoTotpSecret, totpActive));
       }
       return { ok: false, status: 404, async json() { return {}; } };
     };
@@ -1002,7 +1014,7 @@ describe("reusable ORISO PreDev account factory", () => {
       }
       if (url.endsWith("/users/data") && init?.method === "GET") {
         profileCalls += 1;
-        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+        return ok(appFactorProfile(generatedOrisoTotpSecret, true));
       }
       if (url.endsWith("/useradmin/tenantadmins") && init?.method === "POST") {
         createCalls += 1;
@@ -1113,7 +1125,7 @@ describe("reusable ORISO PreDev account factory", () => {
         return ok({ _embedded: { id: "dev-created-user-id" } });
       }
       if (url.endsWith("/users/data") && init?.method === "GET") {
-        return ok({ twoFactorAuth: { secret: generatedDevTotpSecret } });
+        return ok(appFactorProfile(generatedDevTotpSecret, totpActive));
       }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         expect(init.headers?.["X-U25-CSRF-TOKEN"]).toBe("dreambau-test-access");
@@ -1190,7 +1202,7 @@ describe("reusable ORISO PreDev account factory", () => {
       }
       if (url.includes("/created-user-id/agencies") && init?.method === "PUT") return ok();
       if (url.endsWith("/users/data") && init?.method === "GET") {
-        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+        return ok(appFactorProfile(generatedOrisoTotpSecret, totpActive));
       }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         totpActive = true;
@@ -1249,7 +1261,7 @@ describe("reusable ORISO PreDev account factory", () => {
         return ok({ _embedded: { id: "created-user-id" } });
       }
       if (url.endsWith("/users/data") && init?.method === "GET") {
-        return ok({ twoFactorAuth: { secret: generatedPreDevRawTotpSecret } });
+        return ok(appFactorProfile(generatedPreDevRawTotpSecret, totpActive));
       }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         activationOtp = String(JSON.parse(String(init.body)).otp);
@@ -1305,7 +1317,7 @@ describe("reusable ORISO PreDev account factory", () => {
         return ok({ access_token: `user-token-${userTokenNumber}`, expires_in: 300 });
       }
       if (url.endsWith("/users/data") && init?.method === "GET") {
-        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+        return ok(appFactorProfile(generatedOrisoTotpSecret, totpActive));
       }
       if (url.endsWith("/users/2fa/app") && init?.method === "PUT") {
         activationAttempts += 1;
@@ -1470,7 +1482,7 @@ describe("reusable ORISO PreDev account factory", () => {
         if (url.includes("/created-user-id/agencies") && method === "PUT") return ok();
         if (url.endsWith("/users/email") && method === "PUT") return ok();
       if (url.endsWith("/users/data") && method === "GET") {
-        return ok({ twoFactorAuth: { secret: generatedOrisoTotpSecret } });
+        return ok(appFactorProfile(generatedOrisoTotpSecret, totpActive));
       }
       if (url.endsWith("/users/2fa/app") && method === "PUT") {
         const body = JSON.parse(String(init?.body));
@@ -1573,7 +1585,7 @@ describe("reusable ORISO PreDev account factory", () => {
         return ok();
       }
       if (url.endsWith("/users/data") && init?.method === "GET") {
-        return ok({ twoFactorAuth: { secret: adminTotpSecret } });
+        return ok(appFactorProfile(adminTotpSecret, totpActive));
       }
       return { ok: false, status: 409, async json() { return {}; } };
     };

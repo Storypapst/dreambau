@@ -8,12 +8,13 @@ import type { AccountRecord } from "../src/server/accounts.js";
 import { secretNameForRecord } from "../src/server/infisical-import.js";
 import { createDatabase } from "../src/server/db.js";
 import { createOrisoAdminDeletionService } from "../src/server/oriso-admin-deletion.js";
-import type { RegistryProvider, TestAccessRecord } from "../src/server/infisical-provider.js";
+import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord } from "../src/server/infisical-provider.js";
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
 import { createInfisicalRegistryWriter, type RegistryWriter } from "../src/server/infisical-writer.js";
 import {
   OrisoProvisioningError,
+  createOrisoProvisioningService,
   publicInviteState,
   type OrisoProvisioningService
 } from "../src/server/oriso-provisioning.js";
@@ -144,6 +145,7 @@ async function setup(options: {
   services?: Partial<Record<"pre-dev" | "dev", OrisoProvisioningService>>;
   writer?: RegistryWriter | null;
   records?: TestAccessRecord[];
+  registryProvider?: RegistryProvider;
   role?: "admin" | "member";
   projects?: Array<"oriso" | "orimo" | "dreambau">;
   grantEnvironments?: Array<"local" | "pre-dev" | "dev" | "production-test">;
@@ -153,7 +155,7 @@ async function setup(options: {
   const bart = mailbox("bart.simpson@oriso.org", "Bart Simpson");
   const moe = mailbox("moe.szyslak@getme.global", "Moe Szyslak");
   const records = options.records ?? [];
-  const registryProvider: RegistryProvider = {
+  const registryProvider: RegistryProvider = options.registryProvider ?? {
     async list() { return [...records]; },
     async get(id) { return records.find((record) => record.id === id) ?? null; }
   };
@@ -242,7 +244,122 @@ async function setup(options: {
   return { agent, app, database, lisa, bart, moe, service, writer, createdRecords, user, passkeyStore, emailOtpCodes };
 }
 
+async function factorReadinessFixture(profile: unknown, provisioningStatus: "failed" | "ready" = "failed") {
+  const record = managedRecord({
+    id: "oriso/dev/bart.simpson-oriso.org", environment: "dev", kind: "app-user",
+    username: "bart.simpson_at_oriso.org", email: "bart.simpson@oriso.org",
+    roles: ["consultant"], provisioningStatus, loginUrl: "https://dev.oriso.org"
+  });
+  const admin = managedRecord({ id: "oriso/dev/test-admin", environment: "dev", roles: ["platform-admin"] });
+  const stored = new Map([record, admin].map(value => [secretNameForRecord(value.id), value]));
+  const infisicalFetch = async (input: string | URL, init?: RequestInit) => {
+    const url = new URL(input);
+    if (url.pathname.endsWith("/login")) {
+      return Response.json({ accessToken: "fixture-infisical-token", expiresIn: 300, accessTokenMaxTTL: 300, tokenType: "Bearer" });
+    }
+    if (url.pathname === "/api/v4/secrets") {
+      return Response.json({ secrets: [...stored].map(([secretKey, value]) => ({ secretKey, secretValue: JSON.stringify(value) })) });
+    }
+    const secretKey = decodeURIComponent(url.pathname.split("/").at(-1)!);
+    if (init?.method === "PATCH") {
+      const body = JSON.parse(String(init.body));
+      stored.set(secretKey, JSON.parse(body.secretValue));
+      return Response.json({ secret: { secretKey } });
+    }
+    const value = stored.get(secretKey);
+    if (value) return Response.json({ secret: { secretKey, secretValue: JSON.stringify(value) } });
+    throw new Error("Unexpected fixture Infisical request");
+  };
+  const infisicalOptions = {
+    baseUrl: "https://secrets.example.test", organizationSlug: "fixture", clientId: "fixture", clientSecret: "fixture-only",
+    fetch: infisicalFetch
+  };
+  const registryProvider = createInfisicalRegistryProvider({
+    ...infisicalOptions, sources: [{ project: "oriso", projectId: "fixture-oriso", environment: "dev" }]
+  });
+  const writer = createInfisicalRegistryWriter({
+    ...infisicalOptions, projectIds: { oriso: "fixture-oriso", orimo: "fixture-orimo", dreambau: "fixture-dreambau" }
+  });
+  const productMutations: string[] = [];
+  const service = createOrisoProvisioningService({
+    environment: "dev", apiBaseUrl: "https://dev.oriso.org/service",
+    tokenUrl: "https://dev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
+    clientId: "app", adminBaseUrl: "https://dev.oriso.org/admin", appBaseUrl: "https://dev.oriso.org",
+    defaultTenantId: 7, defaultAgencyId: 12, defaultConsultingType: "1", defaultPostcode: "10115", defaultMainTopicId: 31,
+    adminRecordId: admin.id, registryProvider,
+    fetch: async (input, init) => {
+      const url = new URL(input);
+      if (url.pathname.endsWith("/token")) return Response.json({ access_token: "fixture-oriso-token", expires_in: 300 });
+      if (url.pathname.endsWith("/users/data")) return Response.json(profile);
+      if (url.pathname.endsWith("/useradmin/account-invites") && (!init?.method || init.method === "GET")) {
+        return Response.json({ content: [{
+          id: 132, recipientEmail: record.email, targetRole: "COUNSELLOR", inviteStatus: "ACCEPTED",
+          emailVerificationStatus: "VERIFIED", twoFactorStatus: "PENDING_SETUP", accessGateStatus: "BLOCKED_TWO_FACTOR"
+        }] });
+      }
+      productMutations.push(`${init?.method ?? "GET"} ${url.pathname}`);
+    throw new Error("Unexpected fixture ORISO request");
+    }
+  });
+  const { agent, bart } = await setup({ service, services: { dev: service }, registryProvider, writer });
+  const endpoint = `/testmails/api/accounts/${encodeURIComponent(bart.email)}/oriso-provisioning`;
+  return { agent, endpoint, productMutations };
+}
+
 describe("human self-service ORISO PreDev provisioning", () => {
+  it("does not report a stored App key as ready when ORISO still requires first-time 2FA", async () => {
+    const { agent, endpoint, productMutations } = await factorReadinessFixture({ twoFactorAuth: { isActive: false, type: null } });
+    const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor" });
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "totp_verification_failed" });
+    const status = await agent.get(endpoint);
+    expect(status.status).toBe(200);
+    expect(status.body).toMatchObject({ state: { state: "two-factor-pending", accessGateStatus: "BLOCKED_TWO_FACTOR" }, linked: { hasTotp: true, username: "bart.simpson_at_oriso.org" } });
+    expect(productMutations).toEqual([]);
+  });
+
+  it("reports ready after ORISO explicitly confirms the stored App factor is active", async () => {
+    const { agent, endpoint, productMutations } = await factorReadinessFixture({ twoFactorAuth: { isActive: true, type: "APP" } });
+    const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor" });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ created: false, state: { state: "ready", twoFactorStatus: "ACTIVE", accessGateStatus: "READY" } });
+    const status = await agent.get(endpoint);
+    expect(status.status).toBe(200);
+    expect(status.body).toMatchObject({ state: { state: "ready" }, linked: { hasTotp: true } });
+    expect(productMutations).toEqual([]);
+  });
+
+  it("rejects live verification even when an earlier stored record says ready", async () => {
+    const { agent, endpoint, productMutations } = await factorReadinessFixture({ twoFactorAuth: { isActive: false, type: null } }, "ready");
+    const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor" });
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "totp_verification_failed" });
+    const status = await agent.get(endpoint);
+    expect(status.status).toBe(200);
+    // The read-only status route projects the last stored result. A failed
+    // live probe must not overwrite a concurrently verified registry record.
+    expect(status.body).toMatchObject({ state: { state: "ready" }, linked: { hasTotp: true, username: "bart.simpson_at_oriso.org" } });
+    expect(productMutations).toEqual([]);
+  });
+
+  it.each([
+    ["inactive App", { twoFactorAuth: { isActive: false, type: "APP" } }],
+    ["active Email", { twoFactorAuth: { isActive: true, type: "EMAIL" } }],
+    ["missing type", { twoFactorAuth: { isActive: true } }],
+    ["non-boolean activation", { twoFactorAuth: { isActive: "true", type: "APP" } }],
+    ["missing factor", {}],
+    ["null factor", { twoFactorAuth: null }]
+  ])("requires explicit active App confirmation rather than %s", async (_description, profile) => {
+    const { agent, endpoint, productMutations } = await factorReadinessFixture(profile);
+    const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor" });
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: "totp_verification_failed" });
+    const status = await agent.get(endpoint);
+    expect(status.status).toBe(200);
+    expect(status.body.state.state).toBe("two-factor-pending");
+    expect(productMutations).toEqual([]);
+  });
+
   it("retains the exact new creation binding before reporting first-password setup required", async () => {
     const binding = { inviteId: 119, provisionedUserId: "original-new-id", submittedAt: null };
     const fixture = await setup({ service: fakeService({ provision: vi.fn(async ({ storeSetupBinding }) => {
