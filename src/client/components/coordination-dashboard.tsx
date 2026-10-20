@@ -61,21 +61,24 @@ const labels = {
 export function CoordinationDashboard({
   locale,
   onBack,
-  initialCatalog
+  initialCatalog, initialProject, onProjectChange, onWorkState
 }: {
   locale: Locale;
   onBack: () => void;
   initialCatalog?: CoordinationCatalog;
+  initialProject?: CoordinationProject;
+  onProjectChange?: (project: CoordinationProject) => void;
+  onWorkState?: () => void;
 }) {
   const copy = labels[locale];
   const [catalog, setCatalog] = useState<CoordinationCatalog | null>(initialCatalog ?? null);
   const [error, setError] = useState(false);
-  const [project, setProject] = useState<CoordinationProject | null>(initialCatalog?.projects[0]?.id ?? null);
+  const [project, setProject] = useState<CoordinationProject | null>(initialProject ?? initialCatalog?.projects[0]?.id ?? null);
 
   useEffect(() => {
     if (initialCatalog) return;
     void loadCoordination()
-      .then((next) => { setCatalog(next); setProject(next.projects[0]?.id ?? null); })
+      .then((next) => { setCatalog(next); setProject(next.projects.some(entry=>entry.id===initialProject)?initialProject!:next.projects[0]?.id ?? null); })
       .catch(() => setError(true));
   }, [initialCatalog]);
 
@@ -97,10 +100,11 @@ export function CoordinationDashboard({
     <section className="mx-auto max-w-[1600px] px-4 py-8 lg:px-8">
       <RuntimeStatusCards locale={locale} />
       <Separator className="my-8" />
-      <Tabs value={project} onValueChange={(value) => setProject(value as CoordinationProject)}>
+      <Tabs value={project} onValueChange={(value) => {setProject(value as CoordinationProject);onProjectChange?.(value as CoordinationProject);}}>
         <TabsList>{catalog.projects.map((entry) => <TabsTrigger key={entry.id} value={entry.id}>{entry.name}</TabsTrigger>)}</TabsList>
         {catalog.projects.map((entry) => <TabsContent key={entry.id} value={entry.id} className="flex flex-col gap-6 pt-4">
           <div><h2 className="text-2xl font-semibold">{entry.name}</h2><p className="text-muted-foreground">{entry.description}</p></div>
+          {entry.id === "oriso" && onWorkState && <div><Button onClick={onWorkState}>{locale === "de" ? "ORISO Arbeitsstand öffnen" : "Open ORISO work state"}</Button></div>}
           <ProjectCards items={catalog.items.filter((item) => item.projects.includes(entry.id))} copy={copy} onMetadata={updateMetadata} />
         </TabsContent>)}
       </Tabs>

@@ -9,8 +9,8 @@ describe("coordination catalog", () => {
     expect(delivery?.diagram).toContain("Feature Request");
     expect(delivery?.diagram).toContain("Wayfinder");
     expect(delivery?.diagram).toContain("Grill with Docs");
-    expect(delivery?.diagram).toContain("Pre-Dev E2E");
-    expect(delivery?.diagram).toContain("Human Dev Gate");
+    expect(delivery?.diagram).toContain("Human Review + Merge to dev");
+    expect(delivery?.diagram).toContain("Dev Deployment");
     expect(delivery?.details.map((detail) => detail.title)).toEqual(
       expect.arrayContaining(["ADR", "Parent Issue + Sub-Issues", "Draft PR", "Dev Smoke + E2E"])
     );

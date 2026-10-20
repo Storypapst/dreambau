@@ -51,6 +51,7 @@ export const pullRequestSchema = z.object({
   id: identifierSchema, number: z.number().int().positive(), url: safeUrlSchema, title: z.string().max(4096),
   author: identifierSchema.nullable(), base: z.string().min(1).max(255), head: z.string().min(1).max(255), headSha: z.string().min(1).max(255),
   baseSha: z.string().min(1).max(255).optional(),
+  reviewRequested: z.boolean().optional(),
   lifecycle: z.enum(["open", "closed", "merged"]), draft: z.boolean(), mergedAt: timestamp.nullable(), facets: facetsSchema
 }).strict().refine((pr) => pr.lifecycle === "merged" ? pr.mergedAt !== null : pr.mergedAt === null, "merged_time_must_match_lifecycle");
 export type PullRequestSnapshot = z.infer<typeof pullRequestSchema>;

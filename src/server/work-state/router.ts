@@ -1,12 +1,15 @@
 import express from "express";
+import { createAttentionService } from "./attention.js";
+import type { FreshnessMode } from "./classify.js";
 import { z } from "zod";
 import type { HumanUser } from "../passkey-store.js";
 import { WorkStateError, type RepoScope } from "./model.js";
 import type { WorkStateStore } from "./store.js";
 
 /** Must be mounted behind requireActiveHumanSession. No grants can be mutated here. */
-export function createWorkStateRouter(store: WorkStateStore | undefined) {
+export function createWorkStateRouter(store: WorkStateStore | undefined, options: {mode?:FreshnessMode} = {}) {
   const router = express.Router();
+  const attention = store ? createAttentionService(store, options) : undefined;
   router.use((_req, res, next) => {
     const user = res.locals.humanUser as HumanUser | undefined;
     if (!user || user.status !== "active") return res.status(403).json({ error: "strong_auth_required" });
@@ -22,6 +25,8 @@ export function createWorkStateRouter(store: WorkStateStore | undefined) {
     store!.enqueueScopedPull(scope(res),String(req.params.id),number);
     res.status(202).json({queued:true});
   });
+  router.get("/attention", (req,res)=>res.json(attention!.listAttention(scope(res),req.query)));
+  router.get("/repositories/:id/pulls/:number", (req,res)=>res.json(attention!.detail(scope(res),String(req.params.id),z.coerce.number().int().positive().parse(req.params.number))));
   router.get("/repositories", (_req, res) => res.json({ items: store!.listRepositories(scope(res)) }));
   router.get("/pulls", (req, res) => res.json(store!.listPullRequests(scope(res), req.query)));
   router.get("/items", (_req, res) => res.json({ items: store!.listWorkItems(scope(res)) }));

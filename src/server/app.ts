@@ -60,6 +60,7 @@ import {
 
 interface AppOptions {
   workStateStore?: WorkStateStore;
+  workStateMode?: "normal" | "polling_pilot";
   /** Explicit opt-in; no default database is created for work state. */
   workStateDatabasePath?: string;
   workStateWebhookSecret?: string;
@@ -1166,7 +1167,7 @@ export function createApp(options: AppOptions = {}) {
     }
   });
   api.use("/work-state", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
-  api.use("/work-state", requireActiveHumanSession, createWorkStateRouter(workStateStore));
+  api.use("/work-state", requireActiveHumanSession, createWorkStateRouter(workStateStore, {mode:options.workStateMode}));
 
   api.use("/release-lists", requireActiveHumanSession, createReleaseListRouter(database.releaseLists));
   api.put("/taxonomies/:kind", requireAdminSession, async (req, res) => {

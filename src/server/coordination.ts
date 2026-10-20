@@ -23,7 +23,7 @@ const projects = [
   {
     id: "oriso" as const,
     name: "ORISO",
-    description: "Beratungsplattform mit Pre-Dev- und Dev-Qualitätsgates."
+    description: "Beratungsplattform mit menschlichem Review, Merge nach dev und anschließender Dev-Prüfung."
   },
   {
     id: "orimo" as const,
@@ -52,16 +52,16 @@ const items: CoordinationItem[] = [
       E --> F["Parent Issue + Sub-Issues"]
       F --> G["Draft PR"]
       G --> H["Self Review"]
-      H --> I["Pre-Dev E2E"]
-      I --> J["Human Dev Gate"]
+      H --> I["Human Review + Merge to dev"]
+      I --> J["Dev Deployment"]
       J --> K["Dev Smoke + E2E"]`,
     details: [
       { title: "Feature Request", description: "Hält Problem, Nutzerwert und erwartetes Ergebnis in GitHub fest." },
       { title: "ADR", description: "Dokumentiert die tragende Entscheidung samt Alternativen und Folgen auf einer Zeitachse." },
       { title: "Parent Issue + Sub-Issues", description: "Teilt die freigegebene Spezifikation in kleine, überprüfbare Arbeitspakete." },
       { title: "Draft PR", description: "Verbindet Code, Tests, Issue-Status und Reviewbeweis ohne automatischen Merge." },
-      { title: "Pre-Dev E2E", description: "Beweist die Funktion auf dem internen Quality Gate mit echten Browserabläufen." },
-      { title: "Human Dev Gate", description: "Ein Mensch entscheidet über den Übergang in das kundenzeigbare Dev-Staging." },
+      { title: "Human Review + Merge to dev", description: "Ein berechtigter menschlicher Reviewer prüft den PR gegen dev und führt ihn zusammen. Pre-Dev ist kein verpflichtender Promotionsschritt." },
+      { title: "Dev Deployment", description: "Nach erfolgreichem Build wird das freigegebene Image auf Dev bereitgestellt; Merge und Deployment bleiben getrennte Tatsachen." },
       { title: "Dev Smoke + E2E", description: "Prüft nach dem Merge erneut die tatsächlich laufende Umgebung." }
     ],
     resources: [
