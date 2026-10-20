@@ -1,3 +1,4 @@
+import type { OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import express from "express";
 import { z } from "zod";
 import { encryptionFor, type AccountRecord } from "./accounts.js";
@@ -41,6 +42,7 @@ function idFor(account: AccountRecord) {
 export function createTestAccessRouter(options: {
   identities: MachineIdentitySource;
   registryProvider: RegistryProvider;
+  fixtureObserver?: OrisoIdentityObserver;
   registryWriter?: RegistryWriter;
   databasePath?: string;
   database: RegistryDatabase;
@@ -62,6 +64,7 @@ export function createTestAccessRouter(options: {
 
   router.use("/runs", createTestRunRouter({
     registryProvider: options.registryProvider,
+    fixtureObserver: options.fixtureObserver,
     database: options.database,
     now: options.now
   }));

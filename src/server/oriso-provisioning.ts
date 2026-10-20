@@ -264,6 +264,14 @@ export function readyStateForProvisionedRecord(
   return directStateView(record, role, "DIRECT_RECONCILED");
 }
 
+/** Public identity projection only. No credentials, timestamps or provisioning effects. */
+export function provisionedIdentityProjection(email: string, role: OrisoProvisioningRole, environment: OrisoProvisioningEnvironment) {
+  const normalized = email.trim().toLowerCase();
+  const [localPart, domain] = normalized.split("@");
+  const recordId = domain === "oriso.org" ? localPart : `${localPart}-${domain}`;
+  return { id: `oriso/${environment}/${recordId}`, username: roleContract[role].recordKind === "app-user" ? appRegistrationUsername(email) : normalized };
+}
+
 export function buildProvisionedRecord(input: {
   email: string;
   displayName: string;
@@ -275,23 +283,18 @@ export function buildProvisionedRecord(input: {
   secret: string;
   environment?: OrisoProvisioningEnvironment;
 }): TestAccessRecord {
+  const identity = provisionedIdentityProjection(input.email, input.role, input.environment ?? "pre-dev");
   const contract = roleContract[input.role];
-  const [localPart, domain] = input.email.trim().toLowerCase().split("@");
   const environment = input.environment ?? "pre-dev";
   const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
   const timestamp = input.now.toISOString();
-  // Local parts repeat across the pool's mail domains; only the canonical
-  // oriso.org identities get the short id, every other domain stays disjoint.
-  const recordId = domain === "oriso.org" ? localPart : `${localPart}-${domain}`;
   return testAccessRecordSchema.parse({
-    id: `oriso/${environment}/${recordId}`,
+    id: identity.id,
     project: "oriso",
     environment,
     kind: contract.recordKind,
     displayName: `${input.displayName} — ORISO ${environmentLabel} ${input.role}`,
-    username: contract.recordKind === "app-user"
-      ? appRegistrationUsername(input.email)
-      : input.email.trim().toLowerCase(),
+    username: identity.username,
     email: input.email.trim().toLowerCase(),
     roles: [...contract.recordRoles],
     permissionsDescription: `Self-service provisioned ORISO ${environmentLabel} ${input.role}`,
