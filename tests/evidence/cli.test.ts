@@ -75,10 +75,10 @@ function dependencies(baseUrl: string, overrides: Partial<CliDependencies> = {})
     runCommand: (command, args) => {
       if (command === "git" && args[1] === "HEAD") return { code: 0, stdout: `${headSha}\n`, stderr: "" };
       if (command === "git") return { code: 0, stdout: "feat/pr-evidence\n", stderr: "" };
-      if (command === "gh" && args[0] === "repo") {
+      if (command === "gh" && args[0] === "api" && args[1] === "repos/{owner}/{repo}") {
         return { code: 0, stdout: "OpenResilienceInitiative/ORISO-E2E\n", stderr: "" };
       }
-      if (command === "gh" && args[0] === "pr") return { code: 0, stdout: listPullRequests, stderr: "" };
+      if (command === "gh" && args[0] === "api" && args[1]?.includes("/pulls")) return { code: 0, stdout: listPullRequests, stderr: "" };
       if (command === "gh" && args[0] === "auth") return { code: 0, stdout: "signed in\n", stderr: "" };
       return { code: 1, stdout: "", stderr: "unexpected" };
     },
@@ -217,7 +217,7 @@ describe("refusals", () => {
   it("stops when the branch has no open pull request", async () => {
     const noPullRequests = dependencies(baseUrl, {
       runCommand: (command, args) => {
-        if (command === "gh" && args[0] === "pr") return { code: 0, stdout: "[]", stderr: "" };
+        if (command === "gh" && args[0] === "api" && args[1]?.includes("/pulls")) return { code: 0, stdout: "[]", stderr: "" };
         return dependencies(baseUrl).runCommand(command, args);
       }
     });
@@ -230,7 +230,7 @@ describe("refusals", () => {
   it("keeps a draft upload private when no pull request exists", async () => {
     const noPullRequests = dependencies(baseUrl, {
       runCommand: (command, args) => {
-        if (command === "gh" && args[0] === "pr") return { code: 0, stdout: "[]", stderr: "" };
+        if (command === "gh" && args[0] === "api" && args[1]?.includes("/pulls")) return { code: 0, stdout: "[]", stderr: "" };
         return dependencies(baseUrl).runCommand(command, args);
       }
     });
@@ -244,7 +244,7 @@ describe("refusals", () => {
   it("refuses to upload against a pull request whose head has moved on", async () => {
     const moved = dependencies(baseUrl, {
       runCommand: (command, args) => {
-        if (command === "gh" && args[0] === "pr") {
+        if (command === "gh" && args[0] === "api" && args[1]?.includes("/pulls")) {
           return {
             code: 0,
             stdout: JSON.stringify([{ number: 42, url: "u", state: "OPEN", headRefOid: "2".repeat(40) }]),
@@ -383,7 +383,7 @@ describe("status, archive and doctor", () => {
   it("refuses to watch without a pull request unless it is a draft", async () => {
     const noPullRequests = dependencies(baseUrl, {
       runCommand: (command, args) => {
-        if (command === "gh" && args[0] === "pr") return { code: 0, stdout: "[]", stderr: "" };
+        if (command === "gh" && args[0] === "api" && args[1]?.includes("/pulls")) return { code: 0, stdout: "[]", stderr: "" };
         return dependencies(baseUrl).runCommand(command, args);
       }
     });
