@@ -1,11 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
+import { createMachineHttp, createMachineTransport, machineAuthMode, type MachineAuthOptions } from "../../server/machine-http.js";
 import { readMachineCredential, readMacOSKeychainCredential } from "../../server/machine-credential.js";
 import {
   evidenceEnvironments,
@@ -32,7 +33,7 @@ import { GitHubError, upsertRunComment, type GhRunner } from "./github.js";
 export const keychainService = "dreambau-evidence";
 const configDirectory = "dreambau-evidence";
 
-export interface CliDependencies {
+export interface CliDependencies extends MachineAuthOptions {
   baseUrl: string;
   publicBaseUrl: string;
   identity: string;
@@ -45,7 +46,7 @@ export interface CliDependencies {
   fileSize: (path: string) => number;
   write: (value: string) => void;
   writeError: (value: string) => void;
-  clientFactory?: (options: { baseUrl: string; token: string; fetch: typeof fetch }) => GatewayClient;
+  clientFactory?: (options: { baseUrl: string; token: string; authMode?: string; fetch: typeof fetch }) => GatewayClient;
 }
 
 const usage = `usage: dreambau-evidence <command> [options]
@@ -54,8 +55,12 @@ const usage = `usage: dreambau-evidence <command> [options]
   publish <run-id>    publish an uploaded run and write the pull request comment
   status <run-id>     show a run, its files and any quarantine findings
   archive <run-id>    remove public reachability for a run
-  doctor              check gh, git, the token and gateway reachability
+  doctor              check gh, git, authentication and gateway reachability
   watch <directory>   upload OBS/Cap recordings as they finish
+
+authentication environment:
+  EVIDENCE_AUTH_MODE=machine-token (default) or network-proxy
+  HTTPS_PROXY=<http(s)://host:port> is required for network-proxy
 
 options:
   --project <oriso|orimo|dreambau>      required for upload
@@ -353,7 +358,11 @@ async function runDoctor(dependencies: CliDependencies): Promise<number> {
   // An unreadable *or empty* token is a failure worth reporting. Reporting
   // nothing at all is what made an earlier version exit 0 on a missing token.
   let token = "";
-  try {
+  if (machineAuthMode(dependencies.authMode) === "network-proxy") {
+    // Validation and the reachability probe below use the real proxy transport.
+    createMachineTransport({ ...dependencies, service: "evidence" });
+    checks.push(["network proxy config", true, "configured; local credential lookup skipped"]);
+  } else try {
     token = dependencies.readKeychainToken(dependencies.identity);
     checks.push([
       "keychain token",
@@ -367,6 +376,10 @@ async function runDoctor(dependencies: CliDependencies): Promise<number> {
   // Actually ask the gateway rather than echoing the configured address.
   const probe = await probeGateway(dependencies);
   checks.push(["gateway", probe.ok, `${dependencies.baseUrl} — ${probe.detail}`]);
+  if (machineAuthMode(dependencies.authMode) === "network-proxy") {
+    const auth = await probeProxyAuthentication(dependencies);
+    checks.push(["gateway read grant", auth.ok, auth.detail]);
+  }
 
   for (const [name, ok, detail] of checks) {
     dependencies.write(`${ok ? "ok  " : "fail"} ${name.padEnd(20)} ${detail}\n`);
@@ -374,12 +387,30 @@ async function runDoctor(dependencies: CliDependencies): Promise<number> {
   return checks.every(([, ok]) => ok) ? 0 : 1;
 }
 
-async function probeGateway(dependencies: CliDependencies): Promise<{ ok: boolean; detail: string }> {
-  const health = `${dependencies.baseUrl.replace(/\/api\/v1$/, "")}/health/live`;
+async function probeProxyAuthentication(dependencies: CliDependencies): Promise<{ ok: boolean; detail: string }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await dependencies.fetch(health, { signal: controller.signal });
+    const http = createMachineHttp({ ...dependencies, service: "evidence" });
+    // Unknown ids return this exact error only after authentication and the
+    // evidence:read permission check. A public health response proves neither.
+    const response = await http.fetch(`${dependencies.baseUrl.replace(/\/$/, "")}/runs/doctor-${randomUUID()}`, { signal: controller.signal });
+    const payload = await response.json() as { error?: unknown };
+    return response.status === 404 && payload.error === "run_not_found"
+      ? { ok: true, detail: "authenticated evidence:read grant; project/environment scope not inspected" }
+      : { ok: false, detail: `authenticated read probe rejected (HTTP ${response.status})` };
+  } catch {
+    return { ok: false, detail: "authenticated read probe failed" };
+  } finally { clearTimeout(timeout); }
+}
+
+async function probeGateway(dependencies: CliDependencies): Promise<{ ok: boolean; detail: string }> {
+  const health = `${dependencies.baseUrl.replace(/\/$/, "").replace(/\/api\/v1$/, "")}/health/live`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const transport = createMachineTransport({ ...dependencies, service: "evidence" });
+    const response = await transport(health, { signal: controller.signal });
     return response.ok
       ? { ok: true, detail: "reachable" }
       : { ok: false, detail: `HTTP ${response.status}` };
@@ -392,7 +423,7 @@ async function probeGateway(dependencies: CliDependencies): Promise<{ ok: boolea
 
 export async function runEvidenceCommand(args: string[], dependencies: CliDependencies): Promise<number> {
   try {
-    const command = positionals(args)[0];
+    const command = ["--help", "-h"].includes(args[0]) ? "help" : positionals(args)[0];
     if (!command || command === "help") {
       dependencies.write(usage);
       return command ? 0 : 1;
@@ -401,10 +432,9 @@ export async function runEvidenceCommand(args: string[], dependencies: CliDepend
     if (command === "doctor") return await runDoctor(dependencies);
 
     if (!dependencies.identity) throw new Error("EVIDENCE_IDENTITY or --identity is required");
-    const token = dependencies.readKeychainToken(dependencies.identity);
-    if (!token) throw new Error(`Keychain token missing for identity ${dependencies.identity}`);
+    const http = createMachineHttp({ ...dependencies, service: "evidence" });
     const factory = dependencies.clientFactory ?? createGatewayClient;
-    const client = factory({ baseUrl: dependencies.baseUrl, token, fetch: dependencies.fetch });
+    const client = factory({ baseUrl: dependencies.baseUrl, token: http.token, authMode: http.authMode, fetch: http.fetch });
 
     if (command === "upload") return await runUpload(args, dependencies, client);
     if (command === "watch") return await runWatchCommand(args, dependencies, client);
@@ -497,6 +527,8 @@ async function main() {
     baseUrl: process.env.EVIDENCE_URL ?? `${publicBaseUrl}/api/v1`,
     publicBaseUrl,
     identity,
+    authMode: process.env.EVIDENCE_AUTH_MODE,
+    proxyUrl: process.env.HTTPS_PROXY,
     readKeychainToken: (name) => readMachineCredential(name, {
       readKeychain: (value) => readMacOSKeychainCredential(value, { service: keychainService }),
       configDirectory,

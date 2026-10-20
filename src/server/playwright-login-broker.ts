@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
 
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 
@@ -63,7 +64,7 @@ export const ORISO_REQUIRED_AUTH_STATE: NonNullable<BrowserLoginRequest["require
   localStorageKeys: ["auth.keycloak"]
 };
 
-export interface BrokerDependencies {
+export interface BrokerDependencies extends MachineAuthOptions {
   baseUrl: string;
   identity: string;
   readKeychainToken: (identity: string) => string;
@@ -121,8 +122,8 @@ export function isOtpChallenge(
     && /(?:^|\/)login\/?$/i.test(current.pathname);
 }
 
-async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) {
-  const response = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` } });
+async function jsonRequest(fetchImpl: typeof fetch, url: string) {
+  const response = await fetchImpl(url);
   if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
   return response.json() as Promise<any>;
 }
@@ -497,20 +498,19 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
   try {
     if (!dependencies.identity) throw new Error("TEST_ACCESS_IDENTITY or --identity is required");
     if (!accountId) throw new Error("playwright-login requires an account id");
-    const token = dependencies.readKeychainToken(dependencies.identity);
-    if (!token) throw new Error(`Keychain token missing for identity ${dependencies.identity}`);
-    secrets.push(token);
+    const http = createMachineHttp({ ...dependencies, service: "test-access" });
+    if (http.token) secrets.push(http.token);
 
     const baseUrl = dependencies.baseUrl.replace(/\/$/, "");
     const scope = accountScope(accountId);
     const query = new URLSearchParams(scope);
-    const records = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts?${query}`, token) as AccountMetadata[];
+    const records = await jsonRequest(http.fetch, `${baseUrl}/accounts?${query}`) as AccountMetadata[];
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
     secrets.push(account.username);
 
     const encoded = encodeURIComponent(accountId);
-    const secretResponse = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts/${encoded}/secret`, token);
+    const secretResponse = await jsonRequest(http.fetch, `${baseUrl}/accounts/${encoded}/secret`);
     const password = String(secretResponse.secret ?? "");
     if (!password) throw new Error("account secret is empty");
     secrets.push(password);
@@ -523,7 +523,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const statePath = join(stateDirectory, "storage-state.json");
     const getOtp = async () => {
       const code = await requestSafeOtpCode(
-        () => jsonRequest(dependencies.fetch, `${baseUrl}/accounts/${encoded}/otp`, token),
+        () => jsonRequest(http.fetch, `${baseUrl}/accounts/${encoded}/otp`),
         { now: () => (dependencies.now?.() ?? new Date()).getTime() }
       );
       secrets.push(code);

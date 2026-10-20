@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createRunInputSchema } from "./test-run-model.js";
+import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
 
 export interface RunApiRequest {
   method: "GET" | "POST";
@@ -7,7 +8,7 @@ export interface RunApiRequest {
   body?: Record<string, unknown>;
 }
 
-export interface TestRunCliDependencies {
+export interface TestRunCliDependencies extends MachineAuthOptions {
   baseUrl: string;
   identity: string;
   readKeychainToken: (identity: string) => string;
@@ -95,15 +96,14 @@ export async function runTestRunCli(args: string[], dependencies: TestRunCliDepe
   try {
     if (!dependencies.identity) throw new Error("TEST_ACCESS_IDENTITY or --identity is required");
     const request = buildRunApiRequest(args);
-    const token = dependencies.readKeychainToken(dependencies.identity);
-    if (!token) throw new Error(`Keychain token missing for identity ${dependencies.identity}`);
-    const response = await dependencies.fetch(
+    const http = createMachineHttp({ ...dependencies, service: "test-access" });
+    const response = await http.fetch(
       `${dependencies.baseUrl.replace(/\/$/, "")}${request.path}`,
       {
         method: request.method,
         headers: request.body
-          ? { authorization: `Bearer ${token}`, "content-type": "application/json" }
-          : { authorization: `Bearer ${token}` },
+          ? { "content-type": "application/json" }
+          : {},
         body: request.body ? JSON.stringify(request.body) : undefined
       }
     );
