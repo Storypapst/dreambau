@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { TestResourceStore } from "./test-resource-store.js";
 import {
   assertRunTransition,
   createRunInputSchema,
@@ -75,7 +76,7 @@ interface AccountRow {
 }
 
 export class TestRunStore {
-  constructor(private readonly sqlite: Database.Database) {}
+  constructor(private readonly sqlite: Database.Database, private readonly resources = new TestResourceStore(sqlite)) {}
 
   create(
     rawInput: CreateRunInput,
@@ -253,6 +254,7 @@ export class TestRunStore {
       const current = this.sqlite.prepare("SELECT status FROM test_runs WHERE id=?").get(runId) as { status: RunStatus } | undefined;
       if (!current) throw new Error("test run not found");
       assertRunTransition(current.status, "released");
+      this.resources.assertRunReleasable(runId);
       const released = this.sqlite.prepare("DELETE FROM account_leases WHERE run_id=?").run(runId).changes;
       const update = this.sqlite.prepare(
         "UPDATE test_runs SET status='released',cleaned_at=? WHERE id=? AND status=?"
@@ -261,7 +263,7 @@ export class TestRunStore {
       this.insertEvent(runId, "run_released", actor, now, { releasedAccounts: released });
       return released;
     });
-    return releaseTransaction();
+    return releaseTransaction.immediate();
   }
 
   private insertEvent(

@@ -4,6 +4,8 @@ import { metadataPatchSchema, emptyMetadata, type AccountMetadata, type Metadata
 import type { Taxonomies } from "./taxonomies.js";
 import * as schema from "./schema.js";
 import { topicKeys } from "./catalog.js";
+import { TestResourceStore } from "./test-resource-store.js";
+import { TestFixturePlanStore } from "./test-fixture-plan-store.js";
 import { TestRunStore } from "./test-run-store.js";
 import { ReleaseListStore } from "./release-list-store.js";
 import {
@@ -25,6 +27,8 @@ const seeds = {
 
 export interface RegistryDatabase {
   testRuns: TestRunStore;
+  fixturePlans: TestFixturePlanStore;
+  testResources: TestResourceStore;
   releaseLists: ReleaseListStore;
   tableNames(): string[]; getMetadata(email: string): AccountMetadata; getAllMetadata(): AccountMetadata[];
   upsertMetadata(email: string, patch: MetadataPatch): AccountMetadata; bulkStatus(emails: string[], status: string): number;
@@ -136,6 +140,42 @@ export function createDatabase(path: string): RegistryDatabase {
       created_at TEXT NOT NULL,
       payload TEXT NOT NULL DEFAULT '{}'
     );
+    CREATE TABLE IF NOT EXISTS test_fixture_plans (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE RESTRICT,
+      revision INTEGER NOT NULL CHECK(revision > 0),
+      snapshot_hash TEXT NOT NULL,
+      body TEXT NOT NULL,
+      UNIQUE(run_id,revision)
+    );
+    CREATE TABLE IF NOT EXISTS test_resources (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE RESTRICT,
+      operation_key TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('tenant','agency','user','session','matrix-room')),
+      account_id TEXT,
+      project TEXT NOT NULL,
+      target_environment TEXT NOT NULL,
+      application_version TEXT NOT NULL,
+      commit_sha TEXT NOT NULL,
+      target_origin TEXT NOT NULL,
+      external_id TEXT,
+      fingerprint TEXT,
+      state TEXT NOT NULL CHECK(state IN ('planned','creating','create-uncertain','present','deleting','pending-purge','delete-uncertain','deleted','cancelled')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      deletion_started_at TEXT,
+      UNIQUE(run_id,operation_key),
+      UNIQUE(target_origin,kind,external_id)
+    );
+    CREATE TABLE IF NOT EXISTS test_resource_parents (
+      resource_id TEXT NOT NULL REFERENCES test_resources(id) ON DELETE RESTRICT,
+      parent_id TEXT NOT NULL REFERENCES test_resources(id) ON DELETE RESTRICT,
+      PRIMARY KEY(resource_id,parent_id),
+      CHECK(resource_id <> parent_id)
+    );
+    CREATE INDEX IF NOT EXISTS test_resources_run ON test_resources(run_id,state);
+    CREATE INDEX IF NOT EXISTS test_resource_children ON test_resource_parents(parent_id,resource_id);
     CREATE UNIQUE INDEX IF NOT EXISTS taxonomy_kind_value ON taxonomy_values(kind, value);
     CREATE INDEX IF NOT EXISTS test_runs_lookup ON test_runs(project,target_environment,application_version);
     CREATE INDEX IF NOT EXISTS test_run_events_order ON test_run_events(run_id,id);
@@ -163,8 +203,11 @@ export function createDatabase(path: string): RegistryDatabase {
       ON CONFLICT(account_id) DO UPDATE SET environment=excluded.environment,email=excluded.email,actor_id=excluded.actor_id,deleted_at=excluded.deleted_at,state=excluded.state`)
       .run(accountId, environment, email, actorId, at, state);
   };
+  const testResources = new TestResourceStore(sqlite);
   const api: RegistryDatabase = {
-    testRuns: new TestRunStore(sqlite),
+    testRuns: new TestRunStore(sqlite, testResources),
+    fixturePlans: new TestFixturePlanStore(sqlite),
+    testResources,
     releaseLists: new ReleaseListStore(sqlite),
     tableNames: () => (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((row) => row.name),
     getMetadata(email) { const row = sqlite.prepare("SELECT * FROM account_metadata WHERE email=?").get(email); return row ? rowToMetadata(row) : emptyMetadata(email); },
