@@ -412,8 +412,8 @@ export function OrisoProvisioningDialog({
               aria-describedby={`${usernameInputId}-description`} value={applicationUsername}
               onChange={(event) => setApplicationUsername(event.target.value)} disabled={busy || enrollBusy} />
             <FieldDescription id={`${usernameInputId}-description`}>{locale === "de"
-              ? "Den bei der Kontoanlage gewählten Benutzernamen eintragen. Ohne Angabe bleibt der bisherige Standard bestehen."
-              : "Enter the username chosen when creating the account. Leave blank to keep the existing default."}</FieldDescription>
+              ? "Den bei der Kontoanlage gewählten Benutzernamen ohne Leerzeichen eintragen. Ohne Angabe bleibt der bisherige Standard bestehen."
+              : "Enter the username chosen when creating the account, without spaces. Leave blank to keep the existing default."}</FieldDescription>
           </Field>}
           <Field data-disabled={busy || enrollBusy}>
             <FieldLabel htmlFor={passwordInputId}>{locale === "de" ? "Bestehendes ORISO-App-Passwort" : "Existing ORISO app password"}</FieldLabel>

@@ -3,12 +3,7 @@ import type { TestAccessRecord } from "./infisical-provider.js";
 import type { RegistryWriter } from "./infisical-writer.js";
 import { environmentForOrisoEmail } from "./oriso-provisioning.js";
 
-const springfieldNames = new Set([
-  "abe.simpson", "bart.simpson", "blinky.fish", "clancy.bouvier", "cyrus.simpson", "herb.powell", "homer.simpson", "hugo.simpson",
-  "jacqueline.bouvier", "krusty.clown", "laddie.dog", "ling.bouvier", "lisa.simpson", "maggie.simpson", "marge.simpson",
-  "mojo.helper.monkey", "mona.simpson", "monty.burns", "mr.teeny", "ned.flanders", "patty.bouvier", "pinchy.lobster",
-  "princess.pony", "ralph.wiggum", "santas.little.helper", "selma.bouvier", "sideshow.bob", "snowball.two", "spider.pig", "stampy.elephant"
-]);
+import { isSpringfieldPoolEmail } from "./springfield-pool.js";
 
 export interface SetupOperatorInput {
   recordId: string;
@@ -41,7 +36,7 @@ export async function runRequiredSetup(input: SetupOperatorInput, deps: SetupOpe
     const { record: original, project, deleted } = await deps.read();
     const age = deps.now().getTime() - Date.parse(original.createdAt);
     if (original.id !== input.recordId || original.email !== input.email || input.email !== input.email.trim().toLowerCase()
-      || !springfieldNames.has(input.email.split("@")[0])
+      || !isSpringfieldPoolEmail(input.email)
       || environmentForOrisoEmail(input.email) !== "dev" || original.project !== "oriso" || original.environment !== "dev"
       || project !== "ORISO" || deleted || original.createdAt !== input.expectedCreatedAt
       || !Number.isFinite(age) || age < 0 || age > 24 * 60 * 60 * 1000

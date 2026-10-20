@@ -45,13 +45,7 @@ if ! mv "$runtime_temporary" "$data_dir/node_modules"; then
 fi
 if test -n "$runtime_backup"; then rm -rf "$runtime_backup"; fi
 
-printf '%s\n' \
-  '#!/bin/sh' \
-  'set -eu' \
-  'PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"' \
-  'export PATH' \
-  'exec node "${XDG_DATA_HOME:-$HOME/.local/share}/dreambau-agent-tools/test-access/test-access.mjs" "$@"' \
-  > "$wrapper_temporary"
+bash "$root_dir/scripts/write-machine-cli-wrapper.sh" "$wrapper_temporary" "$bundle"
 chmod 0755 "$wrapper_temporary"
 mv "$wrapper_temporary" "$wrapper"
 trap - EXIT HUP INT TERM

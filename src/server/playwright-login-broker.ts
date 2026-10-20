@@ -3,6 +3,8 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { resolveBrowserProxy, type BrowserProxy } from "./browser-proxy.js";
+import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
 
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 
@@ -26,6 +28,7 @@ interface AccountMetadata {
 }
 
 export interface BrowserLoginRequest {
+  proxy?: BrowserProxy;
   username: string;
   password: string;
   loginUrl: string;
@@ -36,7 +39,23 @@ export interface BrowserLoginRequest {
     cookieNames: string[];
     localStorageKeys: string[];
   };
+  // ORISO unlocks encrypted chat history right after login, with the password
+  // it only holds for that moment. Saving before that leaves a session whose
+  // browser never unlocked and asks for a recovery key (ORISO-Frontend#1741).
+  awaitChatUnlock?: ChatUnlockWait;
 }
+
+export interface ChatUnlockWait {
+  appPath: RegExp;
+  quietMs: number;
+  maxMs: number;
+}
+
+export const ORISO_CHAT_UNLOCK_WAIT: ChatUnlockWait = {
+  appPath: /^\/(app|sessions)(\/|$)/,
+  quietMs: 4_000,
+  maxMs: 45_000
+};
 
 // The counselling app keeps its session in `keycloak`. The Admin shares that
 // host (/app next to /admin) and keeps its own httpOnly session in
@@ -47,7 +66,8 @@ export const ORISO_REQUIRED_AUTH_STATE: NonNullable<BrowserLoginRequest["require
   localStorageKeys: ["auth.keycloak"]
 };
 
-export interface BrokerDependencies {
+export interface BrokerDependencies extends MachineAuthOptions {
+  browserProxyMode?: string;
   baseUrl: string;
   identity: string;
   readKeychainToken: (identity: string) => string;
@@ -105,10 +125,10 @@ export function isOtpChallenge(
     && /(?:^|\/)login\/?$/i.test(current.pathname);
 }
 
-async function jsonRequest(fetchImpl: typeof fetch, url: string, token: string) {
-  const response = await fetchImpl(url, { headers: { authorization: `Bearer ${token}` } });
+async function jsonRequest(http: ReturnType<typeof createMachineHttp>, url: string) {
+  const response = await http.fetch(url);
   if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
-  return response.json() as Promise<any>;
+  return http.json(response) as Promise<any>;
 }
 
 export async function requestSafeOtpCode(
@@ -293,12 +313,63 @@ export async function describeLoginFailure(page: Page): Promise<string> {
   }
 }
 
+/** Matrix calls other than the /sync long-poll, which is always in flight. */
+const isUnlockRequest = (url: string) => {
+  const path = new URL(url).pathname;
+  return path.startsWith("/_matrix/client/") && !/\/sync$/.test(path);
+};
+
+/**
+ * Watches the app's Matrix calls from the moment the page exists, so calls the
+ * app starts right on entry are seen. Counts them until they finish or fail.
+ * The listeners end with the page's context.
+ */
+function trackMatrixTraffic(page: Page) {
+  const traffic = { inFlight: 0, lastActivity: 0 };
+  const started = (request: { url: () => string }) => {
+    if (!isUnlockRequest(request.url())) return;
+    traffic.inFlight++;
+    traffic.lastActivity = Date.now();
+  };
+  const ended = (request: { url: () => string }) => {
+    if (!isUnlockRequest(request.url())) return;
+    traffic.inFlight = Math.max(0, traffic.inFlight - 1);
+    traffic.lastActivity = Date.now();
+  };
+  page.on("request", started);
+  page.on("requestfinished", ended);
+  page.on("requestfailed", ended);
+  return traffic;
+}
+
+/**
+ * Best effort and bounded: waits until the app's Matrix calls (key backup
+ * restore, room keys) have finished and stayed quiet for a moment, or its
+ * recovery notice shows. Never fails the login; a session that did not unlock
+ * is still a session.
+ */
+async function waitForChatUnlock(
+  page: Page,
+  wait: ChatUnlockWait,
+  traffic: { inFlight: number; lastActivity: number }
+): Promise<void> {
+  if (!wait.appPath.test(new URL(page.url()).pathname)) return;
+  const started = Date.now();
+  while (Date.now() - started < wait.maxMs) {
+    const notice = await page.getByTestId("key-backup-recovery-action").isVisible().catch(() => false);
+    if (notice) return;
+    if (traffic.lastActivity && traffic.inFlight === 0 && Date.now() - traffic.lastActivity >= wait.quietMs) return;
+    await delay(250);
+  }
+}
+
 export async function playwrightLogin(request: BrowserLoginRequest) {
   const { chromium } = await import("@playwright/test");
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, proxy: request.proxy });
   const context = await browser.newContext({ ignoreHTTPSErrors: request.ignoreHTTPSErrors });
   try {
     const page = await context.newPage();
+    const matrix = request.awaitChatUnlock ? trackMatrixTraffic(page) : undefined;
     const failedResponses: string[] = [];
     let submissionMayHaveStarted = false;
     page.on("request", (request) => {
@@ -415,7 +486,9 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
         request.requiredAuthState
       );
     }
-    await context.storageState({ path: request.statePath });
+    if (request.awaitChatUnlock && matrix) await waitForChatUnlock(page, request.awaitChatUnlock, matrix);
+    // IndexedDB carries the unlocked chat keys into the reused session.
+    await context.storageState({ path: request.statePath, indexedDB: Boolean(request.awaitChatUnlock) });
   } finally {
     await context.close();
     await browser.close();
@@ -428,20 +501,20 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
   try {
     if (!dependencies.identity) throw new Error("TEST_ACCESS_IDENTITY or --identity is required");
     if (!accountId) throw new Error("playwright-login requires an account id");
-    const token = dependencies.readKeychainToken(dependencies.identity);
-    if (!token) throw new Error(`Keychain token missing for identity ${dependencies.identity}`);
-    secrets.push(token);
+    const http = createMachineHttp({ ...dependencies, service: "test-access" });
+    if (http.token) secrets.push(http.token);
+    const proxy = resolveBrowserProxy(dependencies.browserProxyMode, dependencies.proxyUrl, http.authMode === "network-proxy");
 
     const baseUrl = dependencies.baseUrl.replace(/\/$/, "");
     const scope = accountScope(accountId);
     const query = new URLSearchParams(scope);
-    const records = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts?${query}`, token) as AccountMetadata[];
+    const records = await jsonRequest(http, `${baseUrl}/accounts?${query}`) as AccountMetadata[];
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
     secrets.push(account.username);
 
     const encoded = encodeURIComponent(accountId);
-    const secretResponse = await jsonRequest(dependencies.fetch, `${baseUrl}/accounts/${encoded}/secret`, token);
+    const secretResponse = await jsonRequest(http, `${baseUrl}/accounts/${encoded}/secret`);
     const password = String(secretResponse.secret ?? "");
     if (!password) throw new Error("account secret is empty");
     secrets.push(password);
@@ -454,7 +527,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const statePath = join(stateDirectory, "storage-state.json");
     const getOtp = async () => {
       const code = await requestSafeOtpCode(
-        () => jsonRequest(dependencies.fetch, `${baseUrl}/accounts/${encoded}/otp`, token),
+        () => jsonRequest(http, `${baseUrl}/accounts/${encoded}/otp`),
         { now: () => (dependencies.now?.() ?? new Date()).getTime() }
       );
       secrets.push(code);
@@ -462,13 +535,15 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     };
 
     await (dependencies.login ?? playwrightLogin)({
+      proxy,
       username: account.username,
       password,
       loginUrl: account.loginUrl,
       statePath,
       ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
       getOtp,
-      requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined
+      requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined,
+      awaitChatUnlock: account.project === "oriso" ? ORISO_CHAT_UNLOCK_WAIT : undefined
     });
     await chmod(statePath, 0o600);
     (dependencies.scheduleCleanup ?? scheduleCleanup)(stateDirectory, STATE_TTL_MS);

@@ -9,6 +9,8 @@ import {
   type BrokerDependencies
 } from "./playwright-login-broker.js";
 import { runTestRunCli } from "./test-run-cli.js";
+import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
+import { runTestAccessRenew, type RenewalOperatorRequest } from "./test-access-renew.js";
 
 type OutputMode = "json" | "secret" | "otp" | "env";
 
@@ -99,7 +101,8 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
   throw new Error("usage: test-access <list|lookup|get|enroll-totp|otp|mail|env|doctor|sync|session open> ...");
 }
 
-interface CliDependencies {
+interface CliDependencies extends MachineAuthOptions {
+  browserProxyMode?: string;
   baseUrl: string;
   identity: string;
   readKeychainToken: (identity: string) => string;
@@ -108,9 +111,27 @@ interface CliDependencies {
   writeError?: (value: string) => void;
   readTotpSecret?: () => Promise<string>;
   playwrightLoginBroker?: typeof runPlaywrightLoginBroker;
+  renewOperatorRequest?: RenewalOperatorRequest;
 }
 
 export async function runTestAccessCommand(args: string[], dependencies: CliDependencies) {
+  if (["help", "--help", "-h"].includes(args[0])) {
+    dependencies.write(`usage: test-access <list|lookup|get|enroll-totp|otp|mail|env|doctor|sync|session open|run|renew> ...
+
+Operator renewal: renew --operator-host <SSH host> [--days 1..90] [--dry-run]
+Uses independent SSH operator authorization; no machine bearer is used.
+
+Authentication environment:
+  TEST_ACCESS_IDENTITY=<machine identity>
+  TEST_ACCESS_AUTH_MODE=machine-token (default) or network-proxy
+  HTTPS_PROXY=<http(s)://host:port> is required for network-proxy
+
+machine-token reads the local machine credential; network-proxy skips it.
+network-proxy permits only https://dreambau.com/testmails/api/v1.
+`);
+    return 0;
+  }
+  if (args[0] === "renew") return runTestAccessRenew(args.slice(1), dependencies);
   if (args[0] === "run") return runTestRunCli(args.slice(1), dependencies);
   const isSessionOpen = args[0] === "session" && args[1] === "open";
   if (args[0] === "playwright-login" || isSessionOpen) {
@@ -131,17 +152,16 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
       if (!totpSecret) throw new Error("TOTP secret is required");
       request.body = { totpSecret };
     }
-    const token = dependencies.readKeychainToken(dependencies.identity);
-    if (!token) throw new Error(`Keychain token missing for identity ${dependencies.identity}`);
-    const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+    const http = createMachineHttp({ ...dependencies, service: "test-access" });
+    const headers: Record<string, string> = {};
     if (request.body) headers["content-type"] = "application/json";
-    const response = await dependencies.fetch(`${dependencies.baseUrl.replace(/\/$/, "")}${request.path}`, {
+    const response = await http.fetch(`${dependencies.baseUrl.replace(/\/$/, "")}${request.path}`, {
       headers,
       ...(request.method ? { method: request.method } : {}),
       ...(request.body ? { body: JSON.stringify(request.body) } : {})
     });
     if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
-    const body = await response.json() as unknown;
+    const body = await http.json(response);
     if (request.output === "secret") {
       const { secret } = z.object({ secret: z.string() }).passthrough().parse(body);
       dependencies.write(`${secret}\n`);
@@ -235,6 +255,9 @@ async function main() {
   process.exitCode = await runTestAccessCommand(argv, {
     baseUrl,
     identity,
+    authMode: process.env.TEST_ACCESS_AUTH_MODE,
+    browserProxyMode: process.env.DREAMBAU_BROWSER_PROXY,
+    proxyUrl: process.env.HTTPS_PROXY,
     readKeychainToken: readTestAccessCredential,
     fetch,
     write: (value) => process.stdout.write(value)

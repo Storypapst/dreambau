@@ -1,9 +1,12 @@
+import { createTestFixturePlanRouter } from "./test-fixture-plan-router.js";
+import type { OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import type { RegistryDatabase } from "./db.js";
 import type { RegistryProvider } from "./infisical-provider.js";
 import { machineCan, type MachineIdentity } from "./machine-access.js";
 import { createRunInputSchema } from "./test-run-model.js";
+import { ResourcesNotCleanedError } from "./test-resource-store.js";
 import { InsufficientAccountsError } from "./test-run-store.js";
 import { z } from "zod";
 
@@ -23,11 +26,13 @@ const finishRunSchema = z.object({
 
 export function createTestRunRouter(options: {
   registryProvider: RegistryProvider;
+  fixtureObserver?: OrisoIdentityObserver;
   database: RegistryDatabase;
   now?: () => Date;
   createRunId?: () => string;
 }) {
   const router = express.Router();
+  router.use("/:runId/fixture-plans", createTestFixturePlanRouter({ ...options, observer: options.fixtureObserver }));
 
   const identityCanSeeRun = (identity: MachineIdentity, run: NonNullable<ReturnType<RegistryDatabase["testRuns"]["get"]>>) =>
     identity.projects.includes(run.project)
@@ -88,6 +93,15 @@ export function createTestRunRouter(options: {
     }
   });
 
+  router.get("/:runId/resources", (req, res) => {
+    const identity = res.locals.machineIdentity as MachineIdentity;
+    if (!machineCan(identity, "runs:read")) return res.status(403).json({ error: "action_denied" });
+    const run = options.database.testRuns.get(String(req.params.runId));
+    if (!run || !identityCanSeeRun(identity, run)) return res.status(404).json({ error: "run_not_found" });
+    const resources = options.database.testResources.listByRun(run.id);
+    return res.json({ resources, pendingResourceCount: resources.filter(resource => resource.state !== "deleted" && resource.state !== "cancelled").length });
+  });
+
   router.get("/:runId", (req, res) => {
     const identity = res.locals.machineIdentity as MachineIdentity;
     if (!machineCan(identity, "runs:read")) return res.status(403).json({ error: "action_denied" });
@@ -110,6 +124,7 @@ export function createTestRunRouter(options: {
       operation(runId, identity, (options.now?.() ?? new Date()).toISOString());
       return res.json(options.database.testRuns.get(runId));
     } catch (error) {
+      if (error instanceof ResourcesNotCleanedError) return res.status(409).json({ error: "resources_not_cleaned" });
       if (error instanceof Error && (error.message.startsWith("invalid run transition") || error.message === "run status changed")) {
         return res.status(409).json({ error: "invalid_transition" });
       }

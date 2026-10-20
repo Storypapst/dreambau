@@ -1,3 +1,4 @@
+import { createOrisoManagedAdminClient, type ProvisioningFetch } from "./oriso-managed-admin-client.js";
 import { createOrisoAdminDeletionService, type OrisoAdminDeletionService } from "./oriso-admin-deletion.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -263,6 +264,14 @@ export function readyStateForProvisionedRecord(
   return directStateView(record, role, "DIRECT_RECONCILED");
 }
 
+/** Public identity projection only. No credentials, timestamps or provisioning effects. */
+export function provisionedIdentityProjection(email: string, role: OrisoProvisioningRole, environment: OrisoProvisioningEnvironment) {
+  const normalized = email.trim().toLowerCase();
+  const [localPart, domain] = normalized.split("@");
+  const recordId = domain === "oriso.org" ? localPart : `${localPart}-${domain}`;
+  return { id: `oriso/${environment}/${recordId}`, username: roleContract[role].recordKind === "app-user" ? appRegistrationUsername(email) : normalized };
+}
+
 export function buildProvisionedRecord(input: {
   email: string;
   displayName: string;
@@ -275,23 +284,18 @@ export function buildProvisionedRecord(input: {
   environment?: OrisoProvisioningEnvironment;
   username?: string;
 }): TestAccessRecord {
+  const identity = provisionedIdentityProjection(input.email, input.role, input.environment ?? "pre-dev");
   const contract = roleContract[input.role];
-  const [localPart, domain] = input.email.trim().toLowerCase().split("@");
   const environment = input.environment ?? "pre-dev";
   const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
   const timestamp = input.now.toISOString();
-  // Local parts repeat across the pool's mail domains; only the canonical
-  // oriso.org identities get the short id, every other domain stays disjoint.
-  const recordId = domain === "oriso.org" ? localPart : `${localPart}-${domain}`;
   return testAccessRecordSchema.parse({
-    id: `oriso/${environment}/${recordId}`,
+    id: identity.id,
     project: "oriso",
     environment,
     kind: contract.recordKind,
     displayName: `${input.displayName} — ORISO ${environmentLabel} ${input.role}`,
-    username: input.username ?? (contract.recordKind === "app-user"
-      ? appRegistrationUsername(input.email)
-      : input.email.trim().toLowerCase()),
+    username: input.username ?? identity.username,
     email: input.email.trim().toLowerCase(),
     roles: [...contract.recordRoles],
     permissionsDescription: `Self-service provisioned ORISO ${environmentLabel} ${input.role}`,
@@ -308,13 +312,7 @@ export function buildProvisionedRecord(input: {
   });
 }
 
-export type ProvisioningFetch = (input: string | URL, init?: {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-  signal?: AbortSignal;
-  redirect?: "error";
-}) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type { ProvisioningFetch } from "./oriso-managed-admin-client.js";
 
 export interface OrisoProvisioningTarget {
   environment: OrisoProvisioningEnvironment;
@@ -385,57 +383,9 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   const apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, "");
   const generateEnvironmentTotp = generateCompatibleOrisoTotp;
   const requestSignal = () => AbortSignal.timeout(15_000);
-  let cachedToken: { value: string; expiresAt: number } | null = null;
-  let pendingToken: Promise<string> | null = null;
-
-  async function authenticate() {
-    const record = await options.registryProvider.get(options.adminRecordId);
-    if (!record || record.project !== "oriso" || record.environment !== options.environment) {
-      throw new OrisoProvisioningError("admin_record_unavailable");
-    }
-    const form = new URLSearchParams({
-      client_id: options.clientId,
-      grant_type: "password",
-      username: record.username,
-      password: record.secret
-    });
-    if (record.totpSecret) form.set("otp", generateEnvironmentTotp(record.totpSecret, now()).code);
-    const response = await fetch(options.tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString(),
-      signal: requestSignal()
-    });
-    if (!response.ok) throw new OrisoProvisioningError("oriso_authentication_failed");
-    try {
-      const parsed = tokenResponseSchema.parse(await response.json());
-      cachedToken = { value: parsed.access_token, expiresAt: now().getTime() + parsed.expires_in * 1000 };
-      return cachedToken.value;
-    } catch {
-      throw new OrisoProvisioningError("oriso_authentication_failed");
-    }
-  }
-
-  async function accessToken() {
-    if (cachedToken && cachedToken.expiresAt > now().getTime() + 30_000) return cachedToken.value;
-    if (!pendingToken) pendingToken = authenticate().finally(() => { pendingToken = null; });
-    return pendingToken;
-  }
-
-  async function authorizedJson(path: string, init?: { method?: string; body?: string }, beforeSend?: () => void) {
-    const token = await accessToken();
-    beforeSend?.();
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      method: init?.method ?? "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(init?.body ? { "Content-Type": "application/json" } : {})
-      },
-      body: init?.body,
-      signal: requestSignal()
-    });
-    return response;
-  }
+  const { request: authorizedJson } = createOrisoManagedAdminClient({
+    ...options, fetch, now, error: (code) => new OrisoProvisioningError(code)
+  });
 
   async function credentialToken(
     record: TestAccessRecord,
@@ -524,7 +474,18 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     const credential = await credentialToken(record, totpSecret);
     if (credential.kind === "rejected") return credential;
     const profile = await userJson(credential.token, "/users/data");
-    if (profile.ok) return credential;
+    if (profile.ok) {
+      // A password token can still authenticate an account whose initial
+      // second-factor setup is incomplete. It is not a missing account.
+      try {
+        z.object({
+          twoFactorAuth: z.object({ isActive: z.literal(true), type: z.literal("APP") })
+        }).parse(await profile.json());
+      } catch {
+        throw new OrisoProvisioningError("totp_verification_failed");
+      }
+      return credential;
+    }
     // UserService represents a soft-deleted asker/consultant profile as 403:
     // retrieveValidatedUser()/retrieveValidatedConsultant() finds the row via
     // its deleteDate-aware lookup and raises ForbiddenException. That is a

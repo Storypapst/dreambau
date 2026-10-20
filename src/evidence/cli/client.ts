@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { machineAuthHeaders, machineAuthMode } from "../../server/machine-http.js";
 import type { EvidenceFile, EvidenceRun } from "../model.js";
 
 export class GatewayError extends Error {
@@ -10,6 +11,7 @@ export class GatewayError extends Error {
 export interface GatewayClientOptions {
   baseUrl: string;
   token: string;
+  authMode?: string;
   fetch: typeof fetch;
   /** Per-request ceiling. A blackholing gateway must not hang a CI job forever. */
   timeoutMs?: number;
@@ -36,6 +38,7 @@ export interface InitFileResult {
 
 export function createGatewayClient(options: GatewayClientOptions) {
   const base = options.baseUrl.replace(/\/$/, "");
+  const authMode = machineAuthMode(options.authMode);
 
   async function call<T>(path: string, init: RequestInit & { expect?: number[]; binary?: boolean } = {}): Promise<T> {
     const { expect: _expect, binary, ...request } = init;
@@ -47,7 +50,7 @@ export function createGatewayClient(options: GatewayClientOptions) {
         ...request,
         signal: controller.signal,
         headers: {
-          authorization: `Bearer ${options.token}`,
+          ...machineAuthHeaders(authMode, options.token),
           ...(init.body ? { "content-type": binary ? "application/octet-stream" : "application/json" } : {}),
           ...(init.headers ?? {})
         }
@@ -74,6 +77,9 @@ export function createGatewayClient(options: GatewayClientOptions) {
     }
     const acceptable = init.expect ?? [200, 201];
     if (!acceptable.includes(response.status)) {
+      if (authMode === "network-proxy") {
+        throw new GatewayError(response.status, "gateway_error", `evidence gateway returned HTTP ${response.status}`);
+      }
       const code = (payload as { error?: string }).error ?? "gateway_error";
       throw new GatewayError(response.status, code, describe(response.status, code, payload));
     }

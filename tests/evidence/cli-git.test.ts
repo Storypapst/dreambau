@@ -4,6 +4,7 @@ import {
   detectGitHubLogin,
   detectPullRequests,
   detectRepositoryContext,
+  viewPullRequest,
   GitContextError,
   resolveTarget,
   type CommandResult
@@ -20,8 +21,8 @@ function runner(overrides: Record<string, CommandResult> = {}) {
     if (key in overrides) return overrides[key];
     if (command === "git" && args[0] === "rev-parse" && args[1] === "HEAD") return ok(`${headSha}\n`);
     if (command === "git" && args[0] === "rev-parse") return ok("feat/pr-evidence\n");
-    if (command === "gh" && args[0] === "repo") return ok("OpenResilienceInitiative/ORISO-E2E\n");
-    if (command === "gh" && args[0] === "pr" && args[1] === "list") return ok("[]");
+    if (command === "gh" && args[0] === "api" && args[1] === "repos/{owner}/{repo}") return ok("OpenResilienceInitiative/ORISO-E2E\n");
+    if (command === "gh" && args[0] === "api" && args[1]?.includes("/pulls?")) return ok("[]");
     if (command === "gh" && args[0] === "api") return ok("Storypapst\n");
     return fail(`unexpected command: ${command} ${args.join(" ")}`);
   };
@@ -46,19 +47,19 @@ describe("detectRepositoryContext", () => {
   });
 
   it("asks for a gh login when the repository cannot be resolved", () => {
-    expect(() => detectRepositoryContext(runner({ "gh repo view": fail() })))
+    expect(() => detectRepositoryContext(runner({ "gh api repos/{owner}/{repo}": fail() })))
       .toThrow(/gh auth login/);
   });
 
   it("refuses a repository name that is not owner/repo", () => {
-    expect(() => detectRepositoryContext(runner({ "gh repo view": ok("https://github.com/a/b\n") })))
+    expect(() => detectRepositoryContext(runner({ "gh api repos/{owner}/{repo}": ok("https://github.com/a/b\n") })))
       .toThrow(GitContextError);
   });
 });
 
 describe("detectPullRequests", () => {
   it("maps the gh payload onto the pull request context", () => {
-    const pullRequests = detectPullRequests(runner({ "gh pr list": ok(onePullRequest) }), "feat/pr-evidence");
+    const pullRequests = detectPullRequests(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls?state=open&per_page=100": ok(onePullRequest) }), "feat/pr-evidence", "OpenResilienceInitiative/ORISO-E2E");
     expect(pullRequests).toEqual([{
       number: 553,
       url: "https://github.com/OpenResilienceInitiative/ORISO-E2E/pull/553",
@@ -68,13 +69,13 @@ describe("detectPullRequests", () => {
   });
 
   it("treats a gh failure as no pull request rather than crashing", () => {
-    expect(detectPullRequests(runner({ "gh pr list": fail() }), "feat/pr-evidence")).toEqual([]);
+    expect(detectPullRequests(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls?state=open&per_page=100": fail() }), "feat/pr-evidence", "OpenResilienceInitiative/ORISO-E2E")).toEqual([]);
   });
 });
 
 describe("resolveTarget", () => {
   it("uses the single open pull request of the branch", () => {
-    const target = resolveTarget(runner({ "gh pr list": ok(onePullRequest) }));
+    const target = resolveTarget(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls?state=open&per_page=100": ok(onePullRequest) }));
     expect(target.pullRequest?.number).toBe(553);
   });
 
@@ -93,17 +94,17 @@ describe("resolveTarget", () => {
       { number: 1, url: "u1", state: "OPEN", headRefOid: headSha },
       { number: 2, url: "u2", state: "OPEN", headRefOid: headSha }
     ]);
-    expect(() => resolveTarget(runner({ "gh pr list": ok(several) }))).toThrow(/pass --pr/);
+    expect(() => resolveTarget(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls?state=open&per_page=100": ok(several) }))).toThrow(/pass --pr/);
   });
 
   it("looks up an explicitly named pull request", () => {
     const view = JSON.stringify({ number: 900, url: "u", state: "OPEN", headRefOid: headSha });
-    const target = resolveTarget(runner({ "gh pr view": ok(view) }), { explicitPullRequest: 900 });
+    const target = resolveTarget(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls/900": ok(view) }), { explicitPullRequest: 900 });
     expect(target.pullRequest?.number).toBe(900);
   });
 
   it("reports a pull request that does not exist", () => {
-    expect(() => resolveTarget(runner({ "gh pr view": fail() }), { explicitPullRequest: 900 }))
+    expect(() => resolveTarget(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls/900": fail() }), { explicitPullRequest: 900 }))
       .toThrow(/#900 was not found/);
   });
 
@@ -111,14 +112,14 @@ describe("resolveTarget", () => {
     const moved = JSON.stringify([
       { number: 553, url: "u", state: "OPEN", headRefOid: "2222222222222222222222222222222222222222" }
     ]);
-    expect(() => resolveTarget(runner({ "gh pr list": ok(moved) }))).toThrow(/--allow-older-commit/);
+    expect(() => resolveTarget(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls?state=open&per_page=100": ok(moved) }))).toThrow(/--allow-older-commit/);
   });
 
   it("lets --allow-older-commit through once it is explicit", () => {
     const moved = JSON.stringify([
       { number: 553, url: "u", state: "OPEN", headRefOid: "2222222222222222222222222222222222222222" }
     ]);
-    const target = resolveTarget(runner({ "gh pr list": ok(moved) }), { allowOlderCommit: true });
+    const target = resolveTarget(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls?state=open&per_page=100": ok(moved) }), { allowOlderCommit: true });
     expect(target.pullRequest?.number).toBe(553);
   });
 });
@@ -149,20 +150,43 @@ describe("findings raised by review", () => {
   });
 
   it("turns unparseable gh output into a clear error rather than a SyntaxError", () => {
-    const garbage = runner({ "gh pr view": ok("<html>proxy error</html>") });
+    const garbage = runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls/7": ok("<html>proxy error</html>") });
     expect(() => resolveTarget(garbage, { explicitPullRequest: 7 })).toThrow(/not valid JSON/);
   });
 
   it("treats unparseable pull request listings as no pull request", () => {
-    const garbage = runner({ "gh pr list": ok("not json at all") });
-    expect(() => detectPullRequests(garbage, "feat/x")).toThrow(/not valid JSON/);
+    const garbage = runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls?state=open&per_page=100": ok("not json at all") });
+    expect(() => detectPullRequests(garbage, "feat/x", "OpenResilienceInitiative/ORISO-E2E")).toThrow(/not valid JSON/);
   });
 
   it("refuses an explicitly named pull request that is closed or merged", () => {
     for (const state of ["MERGED", "CLOSED"]) {
       const view = JSON.stringify({ number: 900, url: "u", state, headRefOid: headSha });
-      expect(() => resolveTarget(runner({ "gh pr view": ok(view) }), { explicitPullRequest: 900 }), state)
+      expect(() => resolveTarget(runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls/900": ok(view) }), { explicitPullRequest: 900 }), state)
         .toThrow(new RegExp(state.toLowerCase()));
     }
+  });
+});
+
+
+describe("REST-only pull request reads", () => {
+  it("paginates all branch matches including fork heads and preserves multiple-match rejection", () => {
+    const calls: string[][] = [];
+    const execute = runner({ "gh api repos/OpenResilienceInitiative/ORISO-E2E/pulls?state=open&per_page=100": ok([
+      { number: 1, url: "https://github.com/a/b/pull/1", state: "open", headRefOid: headSha },
+      { number: 2, url: "https://github.com/a/b/pull/2", state: "open", headRefOid: headSha }
+    ].map((entry) => JSON.stringify(entry)).join("\n")) });
+    const run = (command: string, args: string[]) => { calls.push([command, ...args]); return execute(command, args); };
+    expect(() => resolveTarget(run)).toThrow("pass --pr");
+    const listing = calls.find((args) => args[2]?.includes("/pulls?"));
+    expect(listing).toContain("--paginate");
+    expect(listing?.join(" ")).toContain(".head.ref");
+    expect(calls.every((args) => args[0] !== "gh" || args[1] === "api")).toBe(true);
+  });
+  it("uses repository-scoped REST for an explicit PR and normalizes closed/merged state", () => {
+    const calls: string[][] = [];
+    const run = (command: string, args: string[]) => { calls.push([command, ...args]); return ok(JSON.stringify({ number: 7, url: "u", state: "MERGED", headRefOid: headSha })); };
+    expect(viewPullRequest(run, 7, "OpenResilienceInitiative/ORISO-E2E")?.state).toBe("MERGED");
+    expect(calls[0]).toEqual(expect.arrayContaining(["gh", "api", "repos/OpenResilienceInitiative/ORISO-E2E/pulls/7"]));
   });
 });
