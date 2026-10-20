@@ -121,6 +121,23 @@ test("bookmark, filters, keyboard, source links and private data boundaries", as
   await expect(page.getByRole("dialog")).toContainText(
     "Inspect the failing job",
   );
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page
+    .getByRole("button", { name: "Fortsetzung kopieren", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("Fortsetzung kopiert");
+  const copied = JSON.parse(
+    await page.evaluate(() => navigator.clipboard.readText()),
+  );
+  expect(copied.nextAction).toBe(
+    "Inspect the failing job and repeat verification",
+  );
+  expect(copied.localVerificationRequired).toBe(true);
+  expect(Buffer.byteLength(JSON.stringify(copied))).toBeLessThanOrEqual(6144);
+  await page.screenshot({
+    path: `output/playwright/work-state/verified-resume-${info.project.name}-de.png`,
+    fullPage: true,
+  });
   await page.keyboard.press("Escape");
   expect(
     await page.evaluate(
@@ -134,9 +151,9 @@ test("bookmark, filters, keyboard, source links and private data boundaries", as
   await page
     .getByRole("button", { name: "Quelle aktualisieren", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText(
-    "Aktualisierung vorgemerkt",
-  );
+  await expect(
+    page.getByRole("status").filter({ hasText: "Aktualisierung vorgemerkt" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Zurück", exact: true }).click();
   await page
     .getByRole("button", { name: "Koordinationszentrum", exact: true })
@@ -174,6 +191,19 @@ test("bookmark, filters, keyboard, source links and private data boundaries", as
     path: `output/playwright/work-state/verified-after-${info.project.name}-en.png`,
     fullPage: true,
   });
+  await page
+    .getByRole("button", { name: "Details", exact: true })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "Copy continuation", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("Continuation copied");
+  await page.screenshot({
+    path: `output/playwright/work-state/verified-resume-${info.project.name}-en.png`,
+    fullPage: true,
+  });
+  await page.keyboard.press("Escape");
   const guest = await login(page, "bart.workstate@example.test");
   expect(guest.status()).toBe(200);
   await page.reload();

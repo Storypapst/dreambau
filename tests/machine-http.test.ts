@@ -270,3 +270,9 @@ describe("real curl CONNECT proxy transport", () => {
     await expect(request).rejects.toMatchObject({ name: "AbortError" });
   });
 });
+
+it('accepts only the dedicated work-state proxy base and never borrows credentials',()=>{
+ const deps={service:'work-state' as const,baseUrl:'https://dreambau.com/work-state/api/v1',authMode:'network-proxy',proxyUrl:'http://127.0.0.1:9999',identity:'work-only',readKeychainToken:()=>{throw Error('must not read');},fetch};
+ expect(()=>createMachineHttp(deps)).not.toThrow();
+ expect(()=>createMachineHttp({...deps,baseUrl:'https://dreambau.com/testmails/api/v1'})).toThrow('unapproved');
+});

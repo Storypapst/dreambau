@@ -373,3 +373,170 @@ it.each(["scope_denied", "session_required", "grant_removed", "network_error"])(
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   },
 );
+
+it.each([false, true])(
+  "copies the authorized resume packet and exposes clipboard failure=%s",
+  async (fail) => {
+    let copied = "";
+    vi.stubGlobal("navigator", {
+      clipboard: {
+        writeText: async (value: string) => {
+          if (fail) throw Error("denied");
+          copied = value;
+        },
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      async (input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify(
+            String(input).includes("/items/work/context")
+              ? {
+                  id: "work",
+                  version: 2,
+                  goal: "Continue",
+                  nextAction: "Inspect current PR",
+                  localVerificationRequired: true,
+                }
+              : String(input).includes("/pulls/7")
+                ? {
+                    ...row,
+                    pr: { ...row.pr, facets: {} },
+                    workItems: [
+                      {
+                        id: "work",
+                        goal: "Continue",
+                        links: [],
+                        checkpoint: null,
+                      },
+                    ],
+                  }
+                : payload,
+          ),
+          { status: 200 },
+        ),
+    );
+    await mount();
+    await openDetails();
+    const copy = [...document.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("Copy continuation"),
+    );
+    expect(copy).toBeDefined();
+    await act(async () => copy!.click());
+    if (fail) {
+      expect(document.body.textContent).toContain("Could not copy");
+      expect(copied).toBe("");
+    } else {
+      expect(JSON.parse(copied).nextAction).toBe("Inspect current PR");
+      expect(document.body.textContent).toContain("Continuation copied");
+    }
+  },
+);
+
+it.each(["close", "revoked"])(
+  "does not copy a delayed packet after details are %s",
+  async (invalidation) => {
+    let copied = "",
+      done!: (response: Response) => void,
+      revoked = false;
+    const interval = vi.spyOn(window, "setInterval");
+    vi.stubGlobal("navigator", {
+      clipboard: {
+        writeText: async (text: string) => {
+          copied = text;
+        },
+      },
+    });
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) =>
+      String(input).includes("/items/work/context")
+        ? new Promise<Response>((resolve) => {
+            done = resolve;
+          })
+        : new Response(
+            JSON.stringify(
+              String(input).includes("/pulls/7")
+                ? {
+                    ...row,
+                    pr: { ...row.pr, facets: {} },
+                    workItems: [
+                      {
+                        id: "work",
+                        goal: "Protected work",
+                        links: [],
+                        checkpoint: null,
+                      },
+                    ],
+                  }
+                : revoked
+                  ? { ...payload, items: [], repositories: [] }
+                  : payload,
+            ),
+            { status: 200 },
+          ),
+    );
+    await mount();
+    await openDetails();
+    await act(async () =>
+      [...document.querySelectorAll("button")]
+        .find((b) => b.textContent?.includes("Copy continuation"))!
+        .click(),
+    );
+    if (invalidation === "close")
+      await act(async () =>
+        [...document.querySelectorAll("button")]
+          .find((b) => b.textContent === "Close")!
+          .click(),
+      );
+    else {
+      revoked = true;
+      await act(async () => pollCallback(interval)());
+    }
+    await act(async () =>
+      done(
+        new Response(
+          JSON.stringify({ id: "work", nextAction: "Protected late note" }),
+          { status: 200 },
+        ),
+      ),
+    );
+    expect(copied).toBe("");
+    expect(document.body.textContent).not.toContain("Continuation copied");
+  },
+);
+it("clears protected details when copying learns a direct scope denial", async () => {
+  vi.stubGlobal(
+    "fetch",
+    async (input: RequestInfo | URL) =>
+      new Response(
+        JSON.stringify(
+          String(input).includes("/items/work/context")
+            ? { error: "scope_denied" }
+            : String(input).includes("/pulls/7")
+              ? {
+                  ...row,
+                  pr: { ...row.pr, facets: {} },
+                  workItems: [
+                    {
+                      id: "work",
+                      goal: "Protected work",
+                      links: [],
+                      checkpoint: null,
+                    },
+                  ],
+                }
+              : payload,
+        ),
+        { status: String(input).includes("/items/work/context") ? 403 : 200 },
+      ),
+  );
+  await mount();
+  await openDetails();
+  await act(async () =>
+    [...document.querySelectorAll("button")]
+      .find((b) => b.textContent?.includes("Copy continuation"))!
+      .click(),
+  );
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.body.textContent).not.toContain("Protected work");
+});

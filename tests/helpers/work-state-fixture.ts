@@ -9,7 +9,7 @@ import type {
   PullRequestSnapshot,
   Facet,
 } from "../../src/server/work-state/model.js";
-export function workStateFixture() {
+export function workStateFixture(options: { machineIdentities?: import("../../src/server/machine-access.js").MachineIdentity[] } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "work-state-c-"));
   const database = createDatabase(":memory:");
   const passkeyStore = createPasskeyStore(path.join(dir, "auth.sqlite"));
@@ -37,6 +37,7 @@ export function workStateFixture() {
       backedUp: true,
     });
   const app = createApp({
+    machineIdentities: options.machineIdentities,
     runtimeStatusLoader: async () => [],
     passwordHash: "unused",
     sessionSecret: "local-work-state-fixture-session-only",
@@ -75,6 +76,7 @@ export function workStateFixture() {
   return {
     app,
     store,
+    storePath: path.join(dir, "work.sqlite"),
     user,
     guest,
     scope,

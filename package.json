@@ -17,6 +17,7 @@
     "start": "node dist/server/index.js",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "work-state": "tsx src/server/work-state/cli.ts",
     "test-access": "tsx src/server/test-access-cli.ts",
     "oriso-login-check": "tsx src/server/oriso-consultant-login-check.ts",
     "smoke:live": "tsx src/server/live-smoke-cli.ts",

@@ -1,3 +1,4 @@
+import { createWorkStateMachineRouter } from "./work-state/machine-router.js";
 import { createWorkStateWebhook } from "./work-state/webhook.js";
 import { createWorkStateStore, type WorkStateStore } from "./work-state/store.js";
 import { createWorkStateRouter } from "./work-state/router.js";
@@ -1167,6 +1168,7 @@ export function createApp(options: AppOptions = {}) {
     }
   });
   api.use("/work-state", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+  app.use("/work-state/api/v1",createWorkStateMachineRouter(workStateStore,{identities:machineIdentitySource,mode:options.workStateMode,onAuthenticated:identity=>database.recordMachineIdentityUse(identity.id)}));
   api.use("/work-state", requireActiveHumanSession, createWorkStateRouter(workStateStore, {mode:options.workStateMode}));
 
   api.use("/release-lists", requireActiveHumanSession, createReleaseListRouter(database.releaseLists));

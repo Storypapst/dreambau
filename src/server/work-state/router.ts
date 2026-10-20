@@ -1,3 +1,4 @@
+import { createContextService } from "./context.js";
 import express from "express";
 import { createAttentionService } from "./attention.js";
 import type { FreshnessMode } from "./classify.js";
@@ -25,6 +26,7 @@ export function createWorkStateRouter(store: WorkStateStore | undefined, options
     store!.enqueueScopedPull(scope(res),String(req.params.id),number);
     res.status(202).json({queued:true});
   });
+  router.use(createContextRoutes(store, options));
   router.get("/attention", (req,res)=>res.json(attention!.listAttention(scope(res),req.query)));
   router.get("/repositories/:id/pulls/:number", (req,res)=>res.json(attention!.detail(scope(res),String(req.params.id),z.coerce.number().int().positive().parse(req.params.number))));
   router.get("/repositories", (_req, res) => res.json({ items: store!.listRepositories(scope(res)) }));
@@ -32,7 +34,7 @@ export function createWorkStateRouter(store: WorkStateStore | undefined, options
   router.get("/items", (_req, res) => res.json({ items: store!.listWorkItems(scope(res)) }));
   router.post("/items", (req, res) => res.status(201).json(store!.createWorkItem(scope(res), req.body)));
   router.get("/items/:id", (req, res) => res.json(store!.getWorkItem(scope(res), String(req.params.id))));
-  router.put("/items/:id/checkpoint", (req, res) => res.json(store!.writeCheckpoint(scope(res), String(req.params.id), req.body)));
+  router.put("/items/:id/checkpoint", (req, res) => res.json(req.header("Idempotency-Key") ? store!.writeCheckpointOnce(scope(res),String(req.params.id),req.body,req.header("Idempotency-Key")!) : store!.writeCheckpoint(scope(res), String(req.params.id), req.body)));
   router.put("/items/:id/links", (req, res) => res.json(store!.updateWorkItemLinks(scope(res), String(req.params.id), req.body)));
   router.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (error instanceof WorkStateError) return res.status(error.status).json({ error: error.message });
@@ -40,4 +42,16 @@ export function createWorkStateRouter(store: WorkStateStore | undefined, options
     res.status(500).json({ error: "work_state_failed" });
   });
   return router;
+}
+
+/** Shared bounded reads; caller establishes workStateScope and permission middleware. */
+export function createContextRoutes(store:WorkStateStore|undefined,options:{basePath?:string;mode?:FreshnessMode}={}) {
+ const router=express.Router(),service=store?createContextService(store,options):undefined;
+ const scope=(res:express.Response)=>res.locals.workStateScope as RepoScope;
+ router.get("/context/attention",(req,res)=>res.json(service!.summary(scope(res),req.query)));
+ router.get("/items/:id/context",(req,res)=>res.json(service!.resume(scope(res),String(req.params.id))));
+ router.get("/items/:id/sections/:section",(req,res)=>res.json(service!.itemSection(scope(res),String(req.params.id),String(req.params.section),req.query)));
+ router.get("/repositories/:id/pulls/:number/sections/:section",(req,res)=>res.json(service!.pullSection(scope(res),String(req.params.id),z.coerce.number().int().positive().parse(req.params.number),String(req.params.section),req.query)));
+ router.get("/items/:id/checkpoint-receipts/:key",(req,res)=>res.json(store!.getCheckpointReceipt(scope(res),String(req.params.id),String(req.params.key))));
+ return router;
 }
