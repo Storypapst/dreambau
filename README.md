@@ -6,6 +6,10 @@ Passwordgeschützte Verwaltung der 180 Simpsons-Testpostfächer. Zugangsdaten ko
 
 ## Betrieb
 
+Für die Erneuerung bestehender Maschinenzugänge über den autorisierten
+SSH-Operatorweg siehe [CLI renewal](docs/test-access-renewal.md). Der Befehl
+erhält Schlüssel und Rechte und bietet eine Vorschau ohne Schreibzugriff.
+
 Die Anwendung läuft als Einzelreplica `wcr/testmails`. Releases liegen getrennt unter `/root/releases/testmails`; das aktuelle Manifest verwendet `dreambau-testmails:0.10.4-fixed-creds-6fc95bf` und Infisical als Registry-Provider.
 
 ```bash

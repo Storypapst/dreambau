@@ -7,3 +7,4 @@ test-results/
 .env*
 accounts.json
 testmails.md
+__pycache__/
