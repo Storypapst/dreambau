@@ -45,9 +45,8 @@ const PLAIN = {
 const AURORA = { name: 'Aurora', purpose: 'Zeigt Beispielzahlen' };
 const INTERNAL = { name: 'internal', purpose: 'Beispiel für einen Link in die Verwaltung' };
 const WITH_VALUES = [
-  ['hub meta, four zones', 'zoneCount', [4], '4 Zonen'],
+  ['hub meta, five zones', 'zoneCount', [5], '5 Zonen'],
   ['hub meta, one zone', 'zoneCount', [1], '1 Zone'],
-  ['hub meta, second line', 'innerZone', ['Verwaltung'], '+ Verwaltung'],
   ['age line below a minute', 'ageSeconds', [38], 'Stand: vor 38 s'],
   ['age line in minutes', 'ageMinutes', [12], 'Stand: vor 12 min'],
   ['age line in hours', 'ageHours', [2], 'Stand: vor 2 h'],
@@ -62,8 +61,8 @@ const WITH_VALUES = [
   ['zone count, accessible name', 'zoneCountLabel', [5], '5 erreichbar'],
   ['zone count with unknown status, accessible name', 'zoneCountLabel', [5, true], '5 Programme, Status unbekannt'],
 ];
-// What the hub shows for the example list (spec 9, row C37: `4 Zonen`, second line `+ Verwaltung`).
-const HUB_LINES = ['4 Zonen', '+ Verwaltung'];
+// What the hub shows for the example list (spec 9, row C37: `5 Zonen` for four outer zones and the inner zone, one line).
+const HUB_LINES = ['5 Zonen'];
 // The static strings that index.html itself carries (ticket 1, point 3).
 const STATIC_KEYS = ['title', 'kicker', 'back', 'privacy', 'footNote', 'noScript', 'loading', 'detailHint', 'reducedMotion', 'mapLabel', 'sideLabel', 'legendLabel'];
 
