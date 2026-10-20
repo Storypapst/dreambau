@@ -1,3 +1,4 @@
+import { createOrisoManagedAdminClient, type ProvisioningFetch } from "./oriso-managed-admin-client.js";
 import { createOrisoAdminDeletionService, type OrisoAdminDeletionService } from "./oriso-admin-deletion.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -307,13 +308,7 @@ export function buildProvisionedRecord(input: {
   });
 }
 
-export type ProvisioningFetch = (input: string | URL, init?: {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-  signal?: AbortSignal;
-  redirect?: "error";
-}) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type { ProvisioningFetch } from "./oriso-managed-admin-client.js";
 
 export interface OrisoProvisioningTarget {
   environment: OrisoProvisioningEnvironment;
@@ -384,57 +379,9 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
   const apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, "");
   const generateEnvironmentTotp = generateCompatibleOrisoTotp;
   const requestSignal = () => AbortSignal.timeout(15_000);
-  let cachedToken: { value: string; expiresAt: number } | null = null;
-  let pendingToken: Promise<string> | null = null;
-
-  async function authenticate() {
-    const record = await options.registryProvider.get(options.adminRecordId);
-    if (!record || record.project !== "oriso" || record.environment !== options.environment) {
-      throw new OrisoProvisioningError("admin_record_unavailable");
-    }
-    const form = new URLSearchParams({
-      client_id: options.clientId,
-      grant_type: "password",
-      username: record.username,
-      password: record.secret
-    });
-    if (record.totpSecret) form.set("otp", generateEnvironmentTotp(record.totpSecret, now()).code);
-    const response = await fetch(options.tokenUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString(),
-      signal: requestSignal()
-    });
-    if (!response.ok) throw new OrisoProvisioningError("oriso_authentication_failed");
-    try {
-      const parsed = tokenResponseSchema.parse(await response.json());
-      cachedToken = { value: parsed.access_token, expiresAt: now().getTime() + parsed.expires_in * 1000 };
-      return cachedToken.value;
-    } catch {
-      throw new OrisoProvisioningError("oriso_authentication_failed");
-    }
-  }
-
-  async function accessToken() {
-    if (cachedToken && cachedToken.expiresAt > now().getTime() + 30_000) return cachedToken.value;
-    if (!pendingToken) pendingToken = authenticate().finally(() => { pendingToken = null; });
-    return pendingToken;
-  }
-
-  async function authorizedJson(path: string, init?: { method?: string; body?: string }, beforeSend?: () => void) {
-    const token = await accessToken();
-    beforeSend?.();
-    const response = await fetch(`${apiBaseUrl}${path}`, {
-      method: init?.method ?? "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(init?.body ? { "Content-Type": "application/json" } : {})
-      },
-      body: init?.body,
-      signal: requestSignal()
-    });
-    return response;
-  }
+  const { request: authorizedJson } = createOrisoManagedAdminClient({
+    ...options, fetch, now, error: (code) => new OrisoProvisioningError(code)
+  });
 
   async function credentialToken(
     record: TestAccessRecord,
