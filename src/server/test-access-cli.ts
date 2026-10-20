@@ -10,6 +10,7 @@ import {
 } from "./playwright-login-broker.js";
 import { runTestRunCli } from "./test-run-cli.js";
 import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
+import { runTestAccessRenew, type RenewalOperatorRequest } from "./test-access-renew.js";
 
 type OutputMode = "json" | "secret" | "otp" | "env";
 
@@ -110,11 +111,15 @@ interface CliDependencies extends MachineAuthOptions {
   writeError?: (value: string) => void;
   readTotpSecret?: () => Promise<string>;
   playwrightLoginBroker?: typeof runPlaywrightLoginBroker;
+  renewOperatorRequest?: RenewalOperatorRequest;
 }
 
 export async function runTestAccessCommand(args: string[], dependencies: CliDependencies) {
   if (["help", "--help", "-h"].includes(args[0])) {
-    dependencies.write(`usage: test-access <list|lookup|get|enroll-totp|otp|mail|env|doctor|sync|session open|run> ...
+    dependencies.write(`usage: test-access <list|lookup|get|enroll-totp|otp|mail|env|doctor|sync|session open|run|renew> ...
+
+Operator renewal: renew --operator-host <SSH host> [--days 1..90] [--dry-run]
+Uses independent SSH operator authorization; no machine bearer is used.
 
 Authentication environment:
   TEST_ACCESS_IDENTITY=<machine identity>
@@ -126,6 +131,7 @@ network-proxy permits only https://dreambau.com/testmails/api/v1.
 `);
     return 0;
   }
+  if (args[0] === "renew") return runTestAccessRenew(args.slice(1), dependencies);
   if (args[0] === "run") return runTestRunCli(args.slice(1), dependencies);
   const isSessionOpen = args[0] === "session" && args[1] === "open";
   if (args[0] === "playwright-login" || isSessionOpen) {
