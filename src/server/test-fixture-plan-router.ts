@@ -3,7 +3,7 @@ import type { RegistryDatabase } from "./db.js";
 import type { RegistryProvider } from "./infisical-provider.js";
 import type { OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import { machineCan, type MachineIdentity } from "./machine-access.js";
-import { fixturePlanInputSchema } from "./test-fixture-plan-model.js";
+import { FixtureMappingChangedError, fixturePlanInputSchema } from "./test-fixture-plan-model.js";
 import { createFixturePlanner } from "./test-fixture-planner.js";
 
 export function createTestFixturePlanRouter(options: { database: RegistryDatabase; registryProvider: RegistryProvider; observer?: OrisoIdentityObserver; now?: () => Date }) {
@@ -23,6 +23,7 @@ export function createTestFixturePlanRouter(options: { database: RegistryDatabas
     try {
       return res.status(201).json(await planner.create(run.id, parsed.data.templateVersion, { type: "machine", id: identity.id }));
     } catch (error) {
+      if (error instanceof FixtureMappingChangedError) return res.status(409).json({ error: "mapping_changed" });
       if (error instanceof Error && error.message === "run_changed") return res.status(409).json({ error: "run_changed" });
       if (error instanceof Error && error.message === "registry_unavailable") return res.status(503).json({ error: "registry_unavailable" });
       next(error);

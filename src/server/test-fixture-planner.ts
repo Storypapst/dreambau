@@ -3,7 +3,7 @@ import type { RegistryProvider, TestAccessRecord } from "./infisical-provider.js
 import type { OrisoIdentityObserver, OrisoIdentityObservationResult } from "./oriso-identity-observation.js";
 import { environmentForOrisoEmail, orisoProvisioningRoles, provisioningRoleForRecord, provisionedIdentityProjection, type OrisoProvisioningRole } from "./oriso-provisioning.js";
 import { isSpringfieldPoolEmail } from "./springfield-pool.js";
-import { clockSkewMs, fixtureActorSchema, fixturePlanInputSchema, observationTtlMs, publicHash, type FixtureActor, type FixturePlan, type FixturePlanView } from "./test-fixture-plan-model.js";
+import { FixtureMappingChangedError, FixturePlanConflict, clockSkewMs, fixtureActorSchema, fixturePlanInputSchema, observationTtlMs, publicHash, type FixtureActor, type FixturePlan, type FixturePlanView } from "./test-fixture-plan-model.js";
 import type { RunActor, TestRunAccount } from "./test-run-store.js";
 
 function roleFor(tag: string): OrisoProvisioningRole | null {
@@ -25,7 +25,7 @@ export function createFixturePlanner(options: { database: RegistryDatabase; regi
   function actorMapping(account: TestRunAccount, records: TestAccessRecord[], pool: string, at: number): FixtureActor {
     const role = roleFor(account.requestedRole);
     const blocked = (): FixtureActor => ({ accountId: account.accountId, email: account.email, requestedRole: account.requestedRole, role, accessRecordId: null, selectors: null,
-      decision: "blocked", reason: "mapping-invalid", observedAt: null, counts: { identities: 0, facts: 0 } });
+      recordExpiries: null, decision: "blocked", reason: "mapping-invalid", observedAt: null, counts: { identities: 0, facts: 0 } });
     const result = blocked();
     const mailbox = records.filter(record => record.id === account.accountId);
     const email = account.email;
@@ -44,6 +44,7 @@ export function createFixturePlanner(options: { database: RegistryDatabase; regi
       || !validRecordTime(existing, at) || options.database.isOrisoAdminDeleted(existing.id) || options.database.isOrisoAdminDeletionPending(existing.id))) return result;
     if (!existing && records.some(candidate => candidate.id === projected.id)) return result;
     const candidate = { ...result, accessRecordId: existing?.id ?? projected.id,
+      recordExpiries: { mailbox: record.expiresAt, access: existing?.expiresAt ?? null },
       selectors: { email, username: existing?.username ?? projected.username, ...(existing?.accountSetup ? { identityId: existing.accountSetup.provisionedUserId } : {}) },
       decision: "unknown" as const, reason: "not-observed" as const };
     return fixtureActorSchema.safeParse(candidate).success ? candidate : result;
@@ -67,7 +68,7 @@ export function createFixturePlanner(options: { database: RegistryDatabase; regi
     const seen = new Set<string>();
     for (const actor of actors) for (const value of identifiers(actor)) { if (seen.has(value)) duplicates.add(value); seen.add(value); }
     for (const actor of actors) if (identifiers(actor).some(value => duplicates.has(value))) {
-      actor.accessRecordId = null; actor.selectors = null; actor.decision = "blocked"; actor.reason = "mapping-invalid";
+      actor.accessRecordId = null; actor.selectors = null; actor.recordExpiries = null; actor.decision = "blocked"; actor.reason = "mapping-invalid";
     }
     const { run: source, leases } = authority;
     const run = { id: source.id, project: "oriso" as const, targetEnvironment: "dev" as const, poolEnvironment: source.poolEnvironment,
@@ -116,9 +117,17 @@ export function createFixturePlanner(options: { database: RegistryDatabase; regi
         }
       };
       await Promise.all(Array.from({ length: Math.min(4, actors.length) }, worker));
+      // Compare the latest available public registry projection with the exact
+      // selectors we observed. This is not a remote registry transaction; the
+      // subsequent SQLite save still performs the synchronous run/lease CAS.
+      const refreshed = await snapshot(runId, templateVersion);
+      if (refreshed.authority.hash !== input.authority.hash) throw new FixturePlanConflict();
+      if (refreshed.snapshotHash !== input.snapshotHash) throw new FixtureMappingChangedError();
       const finished = now();
       const observations = actors.flatMap(item => item.observedAt === null ? [] : [Date.parse(item.observedAt)]);
-      const expires = Math.min(createdAt.getTime() + observationTtlMs, ...observations.map(value => Math.min(value, finished.getTime()) + observationTtlMs));
+      const recordExpiries = actors.flatMap(item => item.recordExpiries
+        ? [item.recordExpiries.mailbox, item.recordExpiries.access].flatMap(value => value === null ? [] : [Date.parse(value)]) : []);
+      const expires = Math.min(createdAt.getTime() + observationTtlMs, ...recordExpiries, ...observations.map(value => Math.min(value, finished.getTime()) + observationTtlMs));
       const suffix = publicHash({ runId }).slice(0, 16);
       const draft: Omit<FixturePlan, "id" | "revision" | "fingerprint"> = {
         runId, templateVersion: "synthetic-dev-v1", targetOrigin: "https://dev.oriso.org", authorityHash: input.authority.hash,
@@ -129,14 +138,17 @@ export function createFixturePlanner(options: { database: RegistryDatabase; regi
         counts: { total: actors.length, observed: observations.length, unknown: actors.filter(item => item.decision === "unknown").length, blocked: actors.filter(item => item.decision === "blocked").length },
         hierarchy: { tenant: { name: `Test run ${suffix}`, subdomain: `test-${suffix}` }, agency: { name: `Test agency ${suffix}`, status: "unresolved", required: ["tenant-native-receipt", "consulting-type-catalogue", "team-agency-choice", "external-choice", "conditional-demographics"] } }
       };
-      return store.view(store.save(draft, actor, finished), finished, input.snapshotHash);
+      return store.view(store.save(draft, actor, finished), finished, refreshed.snapshotHash);
     },
     async get(runId: string, planId: string): Promise<FixturePlanView | null> {
       const plan = store.get(runId, planId);
       if (!plan) return null;
       const basic = store.view(plan, now());
       if (basic.usability !== "current") return basic;
-      try { return store.view(plan, now(), (await snapshot(runId, plan.templateVersion)).snapshotHash); }
+      try {
+        const refreshed = await snapshot(runId, plan.templateVersion);
+        return store.view(plan, now(), refreshed.snapshotHash);
+      }
       catch { return { ...plan, usability: "mapping-unavailable" }; }
     }
   };

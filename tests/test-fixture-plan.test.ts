@@ -238,6 +238,57 @@ describe("persisted scoped fixture preflight", () => {
     const second = await t.planner().create("run-1", "synthetic-dev-v1", t.actor);
     expect(second.revision).toBe(2); expect(second.id).not.toBe(first.id);
   });
+  it.each(["username-change", "binding-change", "record-expiry", "registry-unavailable"])("rejects %s after observation instead of persisting stale selectors", async mode => {
+    const t = setup(1); const m = t.records[0];
+    const access: TestAccessRecord = { ...m, id: "oriso/dev/existing", environment: "dev", kind: "admin", username: "original-name", roles: ["platform-admin"],
+      expiresAt: mode === "record-expiry" ? new Date(time + 1_000).toISOString() : null,
+      accountSetup: { inviteId: 7, provisionedUserId: "original-id", submittedAt: null } };
+    t.records.push(access);
+    t.observe.mockImplementation(async () => {
+      if (mode === "username-change") access.username = "replacement-name";
+      if (mode === "binding-change") access.accountSetup!.provisionedUserId = "replacement-id";
+      if (mode === "record-expiry") t.setNow(time + 2_000);
+      if (mode === "registry-unavailable") t.provider.list.mockRejectedValueOnce(new Error(canary));
+      return free();
+    });
+    await expect(t.planner().create("run-1", "synthetic-dev-v1", t.actor)).rejects.toThrow(mode === "registry-unavailable" ? "registry_unavailable" : "mapping_changed");
+    expect(t.observe).toHaveBeenCalledExactlyOnceWith({ email: m.email, username: "original-name", identityId: "original-id" });
+    expect(t.sql().prepare("SELECT count(*) n FROM test_fixture_plans").get()).toEqual({ n: 0 });
+    expect(t.db.testRuns.events("run-1").map(event => event.type)).not.toContain("fixture_plan_created");
+  });
+  it("rejects a changed future record expiry even while the record remains valid", async () => {
+    const t = setup(1); const m = t.records[0];
+    const access: TestAccessRecord = { ...m, id: "oriso/dev/existing", environment: "dev", kind: "admin", username: "original-name", roles: ["platform-admin"], expiresAt: new Date(time + 60_000).toISOString() };
+    t.records.push(access);
+    t.observe.mockImplementation(async () => { access.expiresAt = new Date(time + 120_000).toISOString(); return free(); });
+    await expect(t.planner().create("run-1", "synthetic-dev-v1", t.actor)).rejects.toThrow("mapping_changed");
+    expect(t.sql().prepare("SELECT count(*) n FROM test_fixture_plans").get()).toEqual({ n: 0 });
+  });
+  it.each(["mailbox-first", "access-first"])("caps plan TTL at the earliest known record expiry (%s)", async mode => {
+    const t = setup(1); const m = t.records[0];
+    m.expiresAt = new Date(time + (mode === "mailbox-first" ? 30_000 : 60_000)).toISOString();
+    const access: TestAccessRecord = { ...m, id: "oriso/dev/existing", environment: "dev", kind: "admin", username: "original-name", roles: ["platform-admin"], expiresAt: new Date(time + (mode === "access-first" ? 30_000 : 60_000)).toISOString() };
+    t.records.push(access);
+    const plan = await t.planner().create("run-1", "synthetic-dev-v1", t.actor);
+    expect(plan.expiresAt).toBe(new Date(time + 30_000).toISOString());
+    t.setNow(time + 30_001);
+    expect((await t.planner().get("run-1", plan.id))?.usability).toBe("expired");
+  });
+  it("rechecks SQLite run authority during the final public mapping refresh", async () => {
+    const t = setup(1);
+    t.provider.list.mockResolvedValueOnce(t.records).mockImplementationOnce(async () => {
+      t.db.testRuns.release("run-1", t.actor, new Date(time).toISOString());
+      return t.records;
+    });
+    await expect(t.planner().create("run-1", "synthetic-dev-v1", t.actor)).rejects.toThrow("run_changed");
+    expect(t.sql().prepare("SELECT count(*) n FROM test_fixture_plans").get()).toEqual({ n: 0 });
+  });
+  it("checks GET expiry after awaiting the current public mapping", async () => {
+    const t = setup(1); const plan = await t.planner().create("run-1", "synthetic-dev-v1", t.actor);
+    t.setNow(time + 899_999);
+    t.provider.list.mockImplementationOnce(async () => { t.setNow(time + 900_001); return t.records; });
+    expect((await t.planner().get("run-1", plan.id))?.usability).toBe("expired");
+  });
   it("completes a 20 actor plan with no duplicate actors", async () => {
     const t = setup(20); const plan = await t.planner().create("run-1", "synthetic-dev-v1", t.actor);
     expect(plan.counts.observed).toBe(20); expect(plan.inspectionComplete).toBe(true); expect(new Set(plan.actors.map(actor => actor.accountId)).size).toBe(20);
@@ -262,6 +313,16 @@ describe("fixture plan API authority", () => {
   it.each([{ templateVersion: "synthetic-dev-v1", url: "https://evil.test" }, { templateVersion: "new" }, { templateVersion: "synthetic-dev-v1", roles: [] }])("rejects client override %j", async body => {
     const t = setup(1); const response = await request(apiTarget(t)).post(url).auth("fixture-token", { type: "bearer" }).send(body);
     expect(response.status).toBe(400); expect(t.observe).not.toHaveBeenCalled();
+  });
+  it("returns a scoped conflict when mapping changes during observation", async () => {
+    const t = setup(1); const m = t.records[0];
+    const access: TestAccessRecord = { ...m, id: "oriso/dev/existing", environment: "dev", kind: "admin", username: "original-name", roles: ["platform-admin"] };
+    t.records.push(access);
+    t.observe.mockImplementation(async () => { access.username = "replacement-name"; return free(); });
+    const response = await request(apiTarget(t)).post(url).auth("fixture-token", { type: "bearer" }).send({ templateVersion: "synthetic-dev-v1" });
+    expect(response.status).toBe(409); expect(response.body).toEqual({ error: "mapping_changed" });
+    expect(response.text).not.toContain(canary);
+    expect(t.sql().prepare("SELECT count(*) n FROM test_fixture_plans").get()).toEqual({ n: 0 });
   });
   it("returns persisted scoped plans and hides all foreign run/plan combinations", async () => {
     const t = setup(1); const app = apiTarget(t);

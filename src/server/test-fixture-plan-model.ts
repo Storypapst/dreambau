@@ -10,6 +10,7 @@ const publicString = z.string().min(1).max(255).regex(/^[^\x00-\x1f\x7f-\x9f]+$/
 export const fixtureActorSchema = z.object({
   accountId: publicString, email: z.string().email().nullable(), requestedRole: publicString,
   role: z.enum(orisoProvisioningRoles).nullable(), accessRecordId: publicString.nullable(),
+  recordExpiries: z.object({ mailbox: z.string().datetime().nullable(), access: z.string().datetime().nullable() }).strict().nullable(),
   selectors: z.object({ username: publicString, email: z.string().email(), identityId: publicString.optional() }).strict().nullable(),
   decision: z.enum(["fresh-candidate", "reference-pending-reconciliation", "blocked", "unknown"]),
   reason: z.enum(["not-observed", "mapping-invalid", "free-observed", "occupied-reconciliation-required", "identity-conflict", "observation-unknown", "observation-unavailable", "observation-time-invalid", "dispatch-budget-exhausted"]),
@@ -44,3 +45,5 @@ export function publicHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
 }
 export class FixturePlanConflict extends Error { constructor() { super("run_changed"); } }
+
+export class FixtureMappingChangedError extends Error { constructor() { super("mapping_changed"); } }
