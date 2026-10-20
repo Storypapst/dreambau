@@ -34,20 +34,7 @@ mv "$temporary" "$bundle"
 # The bundle path is resolved at install time and baked in. Recomputing it from
 # XDG_DATA_HOME at runtime would break every later invocation that does not
 # happen to carry the same value the install used.
-node_binary=${DREAMBAU_NODE_BINARY:-node}
-if [ "$node_binary" != node ] && { [ ! -x "$node_binary" ] || [[ "$node_binary" != /* ]]; }; then
-  echo 'DREAMBAU_NODE_BINARY must name an absolute executable' >&2; exit 1
-fi
-node - "$wrapper_temporary" "$node_binary" "$bundle" "${DREAMBAU_CLI_PROFILE:-}" <<'NODE'
-const { writeFileSync } = require("node:fs");
-const [wrapper, runtime, bundle, profile] = process.argv.slice(2);
-const quote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
-let script = "#!/bin/sh\nset -eu\n";
-if (runtime === "node") script += 'PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"\nexport PATH\n';
-if (profile) script += `. ${quote(profile)}\n`;
-script += `exec ${quote(runtime)} ${quote(bundle)} "$@"\n`;
-writeFileSync(wrapper, script);
-NODE
+bash "$root_dir/scripts/write-machine-cli-wrapper.sh" "$wrapper_temporary" "$bundle"
 chmod 0755 "$wrapper_temporary"
 mv "$wrapper_temporary" "$wrapper"
 trap - EXIT HUP INT TERM

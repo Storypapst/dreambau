@@ -11,7 +11,7 @@ function fixture() {
   const home = mkdtempSync(join(tmpdir(), "cloud-bootstrap-'")); homes.push(home);
   const source = join(home, "source"); const project = join(home, "project");
   mkdirSync(source); mkdirSync(project); mkdirSync(join(source, "scripts"));
-  for (const name of ["install-test-access-cli.sh", "install-evidence-cli.sh"]) cpSync(join(root, "scripts", name), join(source, "scripts", name));
+  for (const name of ["install-test-access-cli.sh", "install-evidence-cli.sh", "write-machine-cli-wrapper.sh"]) cpSync(join(root, "scripts", name), join(source, "scripts", name));
   // Tiny committed source exercises real npm ci and the existing installers,
   // without downloading the application's dependencies for every unit test.
   writeFileSync(join(source, "package.json"), JSON.stringify({ name: "bootstrap-fixture", version: "1.0.0", scripts: { postinstall: "node prepare.cjs" } }));
