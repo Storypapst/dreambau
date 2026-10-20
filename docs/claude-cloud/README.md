@@ -4,7 +4,7 @@ Dieses Template installiert die Dreambau-Werkzeuge, einen festen Node20.20.2 und
 
 ## 1. Umgebung auf dem anderen Computer anlegen
 
-Öffne Claude Code im Browser und bearbeite die Cloud-Umgebung. Wenn du zunächst ein öffentliches Repository auswählen musst, verwende **Storypapst/dreambau**. Der Setup-Code wird unabhängig davon aus genau diesem öffentlichen Repository und einem unveränderlichen Commit geladen. Wähle für spätere Produktaufgaben das tatsächliche ORISO-Repository; der Dreambau-Werkzeugcache ist kein Produkt-Checkout.
+Öffne Claude Code im Browser und bearbeite die Cloud-Umgebung. Wenn du zunächst ein öffentliches Repository auswählen musst, verwende **Storypapst/dreambau**. Der Setup-Code wird unabhängig davon aus genau diesem öffentlichen Repository und einem unveränderlichen Commit geladen. Für spätere Produktaufgaben zusätzlich das tatsächliche ORISO-Repository anschließen. **Storypapst/dreambau muss auch später angeschlossen bleiben**, weil Claude selbst öffentliche `codeload.github.com`-Archivabrufe nur für angeschlossene Repositories zulässt. Sonst kann ein erneuter Cache-Aufbau scheitern. Der Dreambau-Werkzeugcache ist kein Produkt-Checkout. Siehe [Claude-Dokumentation: Cloud environments, GitHub proxy](https://code.claude.com/docs/en/cloud-environments).
 
 | Feld | Eintrag |
 | --- | --- |
@@ -43,7 +43,7 @@ bash scripts/print-cloud-loader.sh <40-stelliger-veröffentlichter-Commit>
 
 Der erzeugte Loader lädt `scripts/bootstrap-agent-environment.sh` von `raw.githubusercontent.com/Storypapst/dreambau/<COMMIT>/…`, prüft dessen fest eingebettete SHA256-Prüfsumme **vor** der Ausführung und reicht denselben Commit an die Installation weiter. Er benötigt weder einen GitHub-Token noch einen privaten Drive-Pfad. Ein Commit, der nur lokal vorliegt, ist noch keine öffentlich installierbare Lieferung.
 
-Die Installation verwendet Ubuntu24.04 x86_64. Sie installiert Systembibliotheken, Git/gh, exakt Node20.20.2, `npm ci` aus dem Commit, `test-access`, `dreambau-evidence`, `dreambau-cloud-doctor` und das gesperrte Chromium. Ein zweiter Aufruf gleicht dieselben gesperrten Abhängigkeiten erneut ab. Die bestehenden Teile einer Projekt-`CLAUDE.md` bleiben erhalten; nur ein klar markierter Dreambau-Block wird gepflegt. Es werden keine Zugangsdaten-Dateien geschrieben.
+Claude cached den vorbereiteten Zustand; die reale Setup-/Cache-Zeit muss innerhalb der Plattformgrenze liegen (die offizielle Anleitung nennt ungefähr fünf Minuten). Ein kalter Ubuntu-Test unter x86_64-Emulation misst den Installer, ersetzt diese tatsächliche Claude-Cache-Abnahme aber nicht. Die Installation verwendet Ubuntu24.04 x86_64. Sie installiert Systembibliotheken, Git/gh, exakt Node20.20.2, `npm ci` aus dem Commit, `test-access`, `dreambau-evidence`, `dreambau-cloud-doctor` und das gesperrte Chromium. Ein zweiter Aufruf gleicht dieselben gesperrten Abhängigkeiten erneut ab. Die bestehenden Teile einer Projekt-`CLAUDE.md` bleiben erhalten; nur ein klar markierter Dreambau-Block wird gepflegt. Es werden keine Zugangsdaten-Dateien geschrieben.
 
 ## 3. Zwei vorhandene Werte aus Infisical kopieren
 
