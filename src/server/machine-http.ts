@@ -151,5 +151,15 @@ export function createMachineHttp(options: MachineHttpDependencies) {
     const headers = Object.fromEntries(new Headers(init.headers));
     return transport(input, { ...init, headers: { ...headers, ...machineAuthHeaders(authMode, token) } });
   }) as typeof fetch;
-  return { authMode, token, fetch: authenticatedFetch };
+  const json = async (response: Response): Promise<unknown> => {
+    try {
+      return await response.json();
+    } catch (error) {
+      // Node's SyntaxError can contain response bytes. Proxy-mode callers must
+      // never print those bytes, including secrets not yet known to the broker.
+      if (authMode === "network-proxy") throw new Error("machine gateway returned invalid JSON");
+      throw error;
+    }
+  };
+  return { authMode, token, fetch: authenticatedFetch, json };
 }

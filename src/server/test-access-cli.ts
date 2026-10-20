@@ -154,7 +154,7 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
       ...(request.body ? { body: JSON.stringify(request.body) } : {})
     });
     if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
-    const body = await response.json() as unknown;
+    const body = await http.json(response);
     if (request.output === "secret") {
       const { secret } = z.object({ secret: z.string() }).passthrough().parse(body);
       dependencies.write(`${secret}\n`);

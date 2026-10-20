@@ -108,7 +108,7 @@ export async function runTestRunCli(args: string[], dependencies: TestRunCliDepe
       }
     );
     if (!response.ok) throw new Error(`Test Run API failed with HTTP ${response.status}`);
-    dependencies.write(`${JSON.stringify(await response.json(), null, 2)}\n`);
+    dependencies.write(`${JSON.stringify(await http.json(response), null, 2)}\n`);
     return 0;
   } catch (error) {
     const message = error instanceof z.ZodError

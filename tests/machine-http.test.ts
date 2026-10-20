@@ -33,6 +33,19 @@ describe("explicit machine authentication", () => {
     expect(fetch).toHaveBeenCalledWith(`${hub}/accounts`, expect.objectContaining({ headers: { authorization: "Bearer local-token" } }));
   });
 
+  it.each(["account", "run", "broker"])("retains local-mode JSON error behavior for %s", async (caller) => {
+    const parseError = new SyntaxError("local-parse-error-sentinel");
+    const dependencies = { baseUrl: hub, identity: "local", readKeychainToken: vi.fn(() => "local-token"),
+      fetch: vi.fn(async () => ({ ok: true, json: async () => { throw parseError; } })) as unknown as typeof fetch,
+      write: vi.fn(), writeError: vi.fn() };
+    const result = caller === "broker"
+      ? await runPlaywrightLoginBroker("oriso/dev/test-consultant-001", dependencies)
+      : await runTestAccessCommand(caller === "run" ? ["run", "list"] : ["list"], dependencies);
+    expect(result).toBe(1);
+    expect(dependencies.writeError).toHaveBeenCalledWith("local-parse-error-sentinel\n");
+    expect(dependencies.readKeychainToken).toHaveBeenCalledWith("local");
+  });
+
   it.each(["", "automatic", "NETWORK-PROXY"])("rejects invalid explicit mode %j before credential lookup", (authMode) => {
     const readKeychainToken = vi.fn();
     expect(() => createMachineHttp({ baseUrl: hub, service: "test-access", identity: "cloud", authMode, readKeychainToken, fetch })).toThrow("auth mode");
@@ -58,6 +71,7 @@ describe("real curl CONNECT proxy transport", () => {
   let proxy: ReturnType<typeof createHttpServer>;
   const sockets = new Set<Socket>();
   let brokerAccount: Record<string, string> | undefined;
+  let malformedPath: string | undefined;
   let authProbeStatus = 404;
   let authProbeBody = { error: "run_not_found" };
   const requests: Array<{ url: string; authorization?: string; body: Buffer; method: string }> = [];
@@ -73,6 +87,7 @@ describe("real curl CONNECT proxy transport", () => {
       req.on("data", (chunk) => chunks.push(chunk));
       req.on("end", () => {
         if (req.headers.authorization !== "Bearer proxy-injected") { res.writeHead(401); res.end(); return; }
+        if (malformedPath && req.url?.split("?")[0] === malformedPath) { res.end("sensitive-response-sentinel"); return; }
         if (req.url?.endsWith("/redirect")) { res.writeHead(302, { location: "https://evil.test/leak" }); res.end("secret-error-body"); return; }
         if (req.url?.endsWith("/large")) { res.end("x".repeat(9 * 1024 * 1024)); return; }
         if (req.url?.endsWith("/wait")) return;
@@ -185,6 +200,33 @@ describe("real curl CONNECT proxy transport", () => {
       expect(requests.at(-1)?.url).toContain("/otp");
       expect(write.mock.calls.join()).not.toMatch(/fixture-password|123456/);
     } finally { brokerAccount = undefined; }
+  });
+
+  it.each([
+    ["account list", "/testmails/api/v1/accounts", ["list"]],
+    ["run finish", "/testmails/api/v1/runs/run1/finish", ["run", "finish", "run1", "--result", "passed"]],
+    ["broker initial metadata", "/testmails/api/v1/accounts", undefined],
+    ["broker initial secret", "/testmails/api/v1/accounts/oriso%2Fdev%2Ftest-consultant-001/secret", undefined]
+  ] as const)("sanitizes malformed successful JSON for %s", async (_name, path, args) => {
+    malformedPath = path;
+    const accountId = "oriso/dev/test-consultant-001";
+    brokerAccount = { id: accountId, project: "oriso", environment: "dev", username: "fixture-user", loginUrl: "https://dev.oriso.org" };
+    const write = vi.fn();
+    const writeError = vi.fn();
+    const dependencies = { ...deps(), write, writeError };
+    const login = vi.fn();
+    try {
+      const result = args
+        ? await runTestAccessCommand([...args], dependencies)
+        : await runPlaywrightLoginBroker(accountId, { ...dependencies, login });
+      expect(result).toBe(1);
+      expect(write).not.toHaveBeenCalled();
+      expect(writeError).toHaveBeenCalledWith("machine gateway returned invalid JSON\n");
+      expect(writeError.mock.calls.join()).not.toContain("sensitive-response-sentinel");
+      expect(login).not.toHaveBeenCalled();
+      expect(dependencies.readKeychainToken).not.toHaveBeenCalled();
+      expect(dependencies.fetch).not.toHaveBeenCalled();
+    } finally { malformedPath = undefined; brokerAccount = undefined; }
   });
 
   it("retains binary evidence bytes", async () => {

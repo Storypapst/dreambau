@@ -122,10 +122,10 @@ export function isOtpChallenge(
     && /(?:^|\/)login\/?$/i.test(current.pathname);
 }
 
-async function jsonRequest(fetchImpl: typeof fetch, url: string) {
-  const response = await fetchImpl(url);
+async function jsonRequest(http: ReturnType<typeof createMachineHttp>, url: string) {
+  const response = await http.fetch(url);
   if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
-  return response.json() as Promise<any>;
+  return http.json(response) as Promise<any>;
 }
 
 export async function requestSafeOtpCode(
@@ -504,13 +504,13 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const baseUrl = dependencies.baseUrl.replace(/\/$/, "");
     const scope = accountScope(accountId);
     const query = new URLSearchParams(scope);
-    const records = await jsonRequest(http.fetch, `${baseUrl}/accounts?${query}`) as AccountMetadata[];
+    const records = await jsonRequest(http, `${baseUrl}/accounts?${query}`) as AccountMetadata[];
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
     secrets.push(account.username);
 
     const encoded = encodeURIComponent(accountId);
-    const secretResponse = await jsonRequest(http.fetch, `${baseUrl}/accounts/${encoded}/secret`);
+    const secretResponse = await jsonRequest(http, `${baseUrl}/accounts/${encoded}/secret`);
     const password = String(secretResponse.secret ?? "");
     if (!password) throw new Error("account secret is empty");
     secrets.push(password);
@@ -523,7 +523,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const statePath = join(stateDirectory, "storage-state.json");
     const getOtp = async () => {
       const code = await requestSafeOtpCode(
-        () => jsonRequest(http.fetch, `${baseUrl}/accounts/${encoded}/otp`),
+        () => jsonRequest(http, `${baseUrl}/accounts/${encoded}/otp`),
         { now: () => (dependencies.now?.() ?? new Date()).getTime() }
       );
       secrets.push(code);
