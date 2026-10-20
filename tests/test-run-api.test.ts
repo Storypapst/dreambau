@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/server/app.js";
 import { createDatabase } from "../src/server/db.js";
 import type { RegistryProvider, TestAccessRecord } from "../src/server/infisical-provider.js";
@@ -163,5 +163,83 @@ describe("versioned test run API", () => {
       .send({ ...body, project: "orimo" });
     expect(crossProject.status).toBe(403);
     expect(crossProject.body).toEqual({ error: "scope_denied" });
+  });
+});
+
+const resourceFixtures: Array<{ database: ReturnType<typeof createDatabase>; dir: string }> = [];
+afterEach(() => {
+  for (const { database, dir } of resourceFixtures.splice(0)) {
+    database.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function resourceTarget(actions: MachineAction[] = ["runs:read", "runs:execute"], environments: Array<"dev" | "production-test"> = ["dev", "production-test"], project: "oriso" | "orimo" = "oriso") {
+  const dir = mkdtempSync(path.join(tmpdir(), "resource-api-"));
+  const database = createDatabase(path.join(dir, "test.sqlite"));
+  resourceFixtures.push({ database, dir });
+  const actor = { type: "machine" as const, id: "factory" };
+  database.testRuns.create({ ...body, project: "oriso", targetEnvironment: "dev", poolEnvironment: "production-test" }, [
+    { accountId: "a", email: null, roles: ["consultant"] }, { accountId: "b", email: null, roles: ["consultant"] },
+    { accountId: "c", email: null, roles: ["user"] }
+  ], actor, "2026-10-20T10:00:00.000Z", "owned-run");
+  const app = createApp({
+    passwordHash: "unused", secureCookies: false, loadAccounts: () => [], database,
+    registryProvider: { async list() { return []; }, async get() { return null; } },
+    machineIdentities: [{ id: "reader", tokenHash: createHash("sha256").update(token).digest("hex"),
+      projects: [project], environments, actions, expiresAt: "2099-01-01T00:00:00.000Z", revokedAt: null }],
+    now: () => new Date("2026-10-20T10:00:00.000Z")
+  });
+  return { app, database, actor };
+}
+
+describe("scoped run resource metadata", () => {
+  it("reads tracked resources and pending count without exposing credentials", async () => {
+    const { app, database, actor } = resourceTarget();
+    database.testResources.planIntent({ runId: "owned-run", operationKey: "tenant-create", kind: "tenant", parentIds: [] }, "tenant", actor, "2026-10-20T10:00:00.000Z");
+    const result = await request(app).get("/testmails/api/v1/runs/owned-run/resources").set("Authorization", `Bearer ${token}`);
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({ resources: [{ id: "tenant", runId: "owned-run", state: "planned", targetOrigin: "https://dev.oriso.org" }], pendingResourceCount: 1 });
+    expect(JSON.stringify(result.body)).not.toContain(token);
+    expect(JSON.stringify(result.body)).not.toContain(secret);
+    database.testResources.transition("tenant", "planned", "cancelled", actor, "2026-10-20T10:00:00.000Z");
+    const terminal = await request(app).get("/testmails/api/v1/runs/owned-run/resources").set("Authorization", `Bearer ${token}`);
+    expect(terminal.body.pendingResourceCount).toBe(0);
+  });
+
+  it("returns a specific release conflict while retaining all leases and run status", async () => {
+    const { app, database, actor } = resourceTarget();
+    database.testResources.planIntent({ runId: "owned-run", operationKey: "tenant-create", kind: "tenant", parentIds: [] }, "private-resource", actor, "2026-10-20T10:00:00.000Z");
+    const result = await request(app).post("/testmails/api/v1/runs/owned-run/release").set("Authorization", `Bearer ${token}`);
+    expect(result.status).toBe(409);
+    expect(result.body).toEqual({ error: "resources_not_cleaned" });
+    expect(database.testRuns.leasedAccountIds().size).toBe(3);
+    expect(database.testRuns.get("owned-run")?.status).toBe("reserved");
+  });
+
+  it("uses read action and complete project, target and pool scope without disclosing invisible resources", async () => {
+    for (const setup of [
+      { actions: ["runs:execute"] as MachineAction[], environments: ["dev", "production-test"] as Array<"dev" | "production-test">, project: "oriso" as const, status: 403 },
+      { actions: ["runs:read"] as MachineAction[], environments: ["dev"] as Array<"dev" | "production-test">, project: "oriso" as const, status: 404 },
+      { actions: ["runs:read"] as MachineAction[], environments: ["production-test"] as Array<"dev" | "production-test">, project: "oriso" as const, status: 404 },
+      { actions: ["runs:read"] as MachineAction[], environments: ["dev", "production-test"] as Array<"dev" | "production-test">, project: "orimo" as const, status: 404 }
+    ]) {
+      const { app, database } = resourceTarget(setup.actions, setup.environments, setup.project);
+      const result = await request(app).get("/testmails/api/v1/runs/owned-run/resources").set("Authorization", `Bearer ${token}`);
+      expect(result.status).toBe(setup.status);
+      expect(result.body).toEqual({ error: setup.status === 403 ? "action_denied" : "run_not_found" });
+    }
+  });
+
+  it("does not expose ownership writes and distinguishes an empty ledger from an unknown run", async () => {
+    const { app, database } = resourceTarget();
+    const empty = await request(app).get("/testmails/api/v1/runs/owned-run/resources").set("Authorization", `Bearer ${token}`);
+    expect(empty.status).toBe(200);
+    expect(empty.body).toEqual({ resources: [], pendingResourceCount: 0 });
+    const unknown = await request(app).get("/testmails/api/v1/runs/missing/resources").set("Authorization", `Bearer ${token}`);
+    expect(unknown.status).toBe(404);
+    const write = await request(app).post("/testmails/api/v1/runs/owned-run/resources").set("Authorization", `Bearer ${token}`).send({ state: "deleted" });
+    expect(write.status).toBe(403);
+    expect(database.testResources.listByRun("owned-run")).toEqual([]);
   });
 });

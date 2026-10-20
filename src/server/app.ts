@@ -1,3 +1,4 @@
+import { createOrisoIdentityObserver, type OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import { loadProgrammeGuide } from "./teamwork-guides.js";
 import { installOrisoAdminDeletionRoutes } from "./oriso-admin-deletion-router.js";
 import cookieParser from "cookie-parser";
@@ -66,6 +67,7 @@ interface AppOptions {
   machineIdentityLoader?: () => MachineIdentity[];
   mailReader?: TestMailReader;
   registryProvider?: RegistryProvider;
+  fixtureObserver?: OrisoIdentityObserver;
   registryWriter?: RegistryWriter;
   now?: () => Date;
   passkeyStore?: PasskeyStore;
@@ -360,6 +362,12 @@ export function createApp(options: AppOptions = {}) {
   ) as Partial<Record<OrisoProvisioningEnvironment, OrisoProvisioningService>>;
   const orisoProvisioningServices = options.orisoProvisioningServices
     ?? (options.orisoProvisioning ? { "pre-dev": options.orisoProvisioning } : runtimeOrisoProvisioningServices);
+  const fixtureObserver = options.fixtureObserver ?? (() => {
+    const target = config.orisoProvisioningTargets.dev;
+    if (!target) return undefined;
+    try { return createOrisoIdentityObserver({ ...target, environment: "dev", registryProvider, now: options.now }); }
+    catch { return undefined; }
+  })();
   const reconcileRecords = (records: TestAccessRecord[]) =>
     database.reconcileTestAccessLinks(
       accountLoader().map((account) => account.email),
@@ -432,6 +440,7 @@ export function createApp(options: AppOptions = {}) {
     ?? (options.machineIdentities ? () => options.machineIdentities! : () => loadMachineIdentities(config.machineIdentitiesPath));
   api.use("/v1", createTestAccessRouter({
     identities: machineIdentitySource,
+    fixtureObserver,
     registryProvider,
     registryWriter,
     databasePath: options.loadAccounts ? ":memory:" : config.databasePath,
