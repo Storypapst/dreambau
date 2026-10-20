@@ -43,7 +43,7 @@ bash scripts/print-cloud-loader.sh <40-stelliger-veröffentlichter-Commit>
 
 Der erzeugte Loader lädt `scripts/bootstrap-agent-environment.sh` von `raw.githubusercontent.com/Storypapst/dreambau/<COMMIT>/…`, prüft dessen fest eingebettete SHA256-Prüfsumme **vor** der Ausführung und reicht denselben Commit an die Installation weiter. Er benötigt weder einen GitHub-Token noch einen privaten Drive-Pfad. Ein Commit, der nur lokal vorliegt, ist noch keine öffentlich installierbare Lieferung.
 
-Claude cached den vorbereiteten Zustand; die reale Setup-/Cache-Zeit muss innerhalb der Plattformgrenze liegen (die offizielle Anleitung nennt ungefähr fünf Minuten). Ein kalter Ubuntu-Test unter x86_64-Emulation misst den Installer, ersetzt diese tatsächliche Claude-Cache-Abnahme aber nicht. Die Installation verwendet Ubuntu24.04 x86_64. Sie installiert Systembibliotheken, Git/gh, exakt Node20.20.2, `npm ci` aus dem Commit, `test-access`, `dreambau-evidence`, `dreambau-cloud-doctor` und das gesperrte Chromium. Ein zweiter Aufruf gleicht dieselben gesperrten Abhängigkeiten erneut ab. Die bestehenden Teile einer Projekt-`CLAUDE.md` bleiben erhalten; nur ein klar markierter Dreambau-Block wird gepflegt. Es werden keine Zugangsdaten-Dateien geschrieben.
+Claude cached den vorbereiteten Zustand; die reale Setup-/Cache-Zeit muss innerhalb der Plattformgrenze liegen (die offizielle Anleitung nennt ungefähr fünf Minuten). Ein kalter Ubuntu-Test unter x86_64-Emulation misst den Installer, ersetzt diese tatsächliche Claude-Cache-Abnahme aber nicht. Die Installation verwendet Ubuntu24.04 x86_64. Sie installiert Systembibliotheken, Git/gh, exakt Node20.20.2, `npm ci` aus dem Commit, `test-access`, `dreambau-evidence`, `dreambau-cloud-doctor` und das gesperrte Chromium. Ein zweiter Aufruf gleicht dieselben gesperrten Abhängigkeiten erneut ab. Die bestehenden Teile von `~/.claude/CLAUDE.md` und der Projekt-`CLAUDE.md` bleiben erhalten; die globale Datei trägt die Regeln auch in spätere Produkt-Checkouts weiter; nur ein klar markierter Dreambau-Block wird gepflegt. Es werden keine Zugangsdaten-Dateien geschrieben.
 
 ## 3. Zwei vorhandene Werte aus Infisical kopieren
 
@@ -92,6 +92,8 @@ Dasselbe steht in der installierten Datei `instructions/FIRST_RUN.md`. Der Docto
 | `PASS Evidence authenticated read` | Die Evidence-Leseberechtigung funktioniert. Projekt-/Umgebungsscope ist weiterhin nicht introspektiert. |
 | `PASS Chromium connectivity` | Der ausgewählte Browser-Transport erreicht die Dev-Seite. Produkt-Login wurde noch nicht geprüft. |
 | `FAIL …` | Den genannten Prüfpunkt und die fehlende Konfiguration prüfen. Bei Gateway-Problemen zuerst Host, Bearer-Präfix, vorhandenen Secret-Wert und Gültigkeit kontrollieren; keine Passwortänderung versuchen. |
+
+Der GitHub-Check liest genau den REST-Pfad `repos/<owner>/<repo>` aus dem Origin des aktuellen Produkt-Checkouts; er verlangt keine kontoweite `/user`-Freigabe. Bei einem nicht standardmäßigen Origin kann `DREAMBAU_GITHUB_REPOSITORY=owner/repo` für ein tatsächlich angeschlossenes Repository gesetzt werden. Ein grüner Check beweist nur dessen Lesbarkeit, keine Schreibrechte und keine weiteren Repositories.
 
 Ein leeres Metadaten-Ergebnis kann eine gültige Berechtigung haben, ohne einen verfügbaren Testaccount zu beweisen. Der Doctor greift keine Geheimnisse oder OTPs ab und legt keinen Testlauf an.
 

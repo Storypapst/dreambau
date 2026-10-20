@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { resolveBrowserProxy } from "./browser-proxy.js";
 import { createMachineHttp, createMachineTransport, machineAuthMode } from "./machine-http.js";
 import { readMachineCredential, readMacOSKeychainCredential } from "./machine-credential.js";
 
@@ -66,8 +67,17 @@ export async function runCloudDoctor(args: string[], env: NodeJS.ProcessEnv = pr
       return "evidence:read granted; project/environment scope not introspected";
     });
     await gate("GitHub authentication", async () => {
-      if (spawnSync("gh", ["auth", "status"], { stdio: "ignore", timeout: 15_000 }).status !== 0) throw new Error();
-      return "gh reports an authenticated session; write permissions not tested";
+      let repository = env.DREAMBAU_GITHUB_REPOSITORY;
+      if (!repository) {
+        const remote = spawnSync("git", ["-C", env.CLAUDE_PROJECT_DIR ?? process.cwd(), "remote", "get-url", "origin"], { encoding: "utf8", timeout: 5_000 });
+        const match = remote.status === 0 ? remote.stdout.trim().match(/^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?\/?$/) : null;
+        repository = match?.[1];
+      }
+      if (!repository || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error();
+      // Claude's GitHub proxy may grant attached-repository REST calls without
+      // account-wide /user introspection. Measure the route we actually need.
+      if (spawnSync("gh", ["api", `repos/${repository}`, "--silent"], { stdio: "ignore", timeout: 15_000 }).status !== 0) throw new Error();
+      return `repository REST readable: ${repository}; writes and other repositories not tested`;
     });
   }
   if (!browserRequested) write("SKIP Chromium connectivity: use --browser; API results do not prove browser access");
@@ -77,12 +87,7 @@ export async function runCloudDoctor(args: string[], env: NodeJS.ProcessEnv = pr
     if ((!fixture && url.origin !== "https://dev.oriso.org") || url.username || url.password || url.hash || url.search) throw new Error();
     const screenshot = value("--screenshot");
     if (screenshot && !fixture) throw new Error(); // Never screenshot a credential-bearing product session.
-    let proxy: { server: string; bypass: string } | undefined;
-    if (env.DREAMBAU_BROWSER_PROXY === "network-proxy") {
-      const parsed = new URL(env.HTTPS_PROXY ?? "");
-      if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) throw new Error();
-      proxy = { server: parsed.href, bypass: "<-loopback>" };
-    }
+    const proxy = resolveBrowserProxy(env.DREAMBAU_BROWSER_PROXY, env.HTTPS_PROXY, true);
     const browser = await chromium.launch({ headless: true, proxy });
     try {
       const page = await browser.newPage();

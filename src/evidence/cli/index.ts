@@ -20,7 +20,7 @@ import {
 import { multipartChunkSize } from "../security.js";
 import { renderComment } from "./comment.js";
 import { createGatewayClient, GatewayError, type GatewayClient } from "./client.js";
-import { detectGitHubLogin, GitContextError, resolveTarget, type CommandRunner } from "./git.js";
+import { detectGitHubRepository, detectGitHubLogin, GitContextError, resolveTarget, type CommandRunner } from "./git.js";
 import {
   defaultWatchOptions,
   emptyWatchState,
@@ -351,9 +351,14 @@ async function runDoctor(dependencies: CliDependencies): Promise<number> {
   const checks: Array<[string, boolean, string]> = [];
   const git = dependencies.runCommand("git", ["rev-parse", "HEAD"]);
   checks.push(["git repository", git.code === 0, git.code === 0 ? git.stdout.trim().slice(0, 7) : "not a repository"]);
-  const gh = dependencies.runCommand("gh", ["auth", "status"]);
-  const login = gh.code === 0 ? detectGitHubLogin(dependencies.runCommand) : "";
-  checks.push(["gh authentication", gh.code === 0, gh.code === 0 ? `signed in as ${login || "unknown"}` : "run gh auth login"]);
+  if (machineAuthMode(dependencies.authMode) === "network-proxy") {
+    try { checks.push(["gh repository REST", true, `${detectGitHubRepository(dependencies.runCommand)} readable; writes not tested`]); }
+    catch { checks.push(["gh repository REST", false, "attached repository REST access unavailable"]); }
+  } else {
+    const gh = dependencies.runCommand("gh", ["auth", "status"]);
+    const login = gh.code === 0 ? detectGitHubLogin(dependencies.runCommand) : "";
+    checks.push(["gh authentication", gh.code === 0, gh.code === 0 ? `signed in as ${login || "unknown"}` : "run gh auth login"]);
+  }
 
   // An unreadable *or empty* token is a failure worth reporting. Reporting
   // nothing at all is what made an earlier version exit 0 on a missing token.

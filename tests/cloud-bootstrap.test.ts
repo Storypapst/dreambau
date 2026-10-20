@@ -39,6 +39,8 @@ describe("cloud bootstrap executable contract", () => {
   it("installs and reruns using pinned Node, preserves instructions and stays secret-free", () => {
     const f = fixture();
     writeFileSync(join(f.project, "CLAUDE.md"), "My existing project rules.\n");
+    mkdirSync(join(f.home, ".claude"));
+    writeFileSync(join(f.home, ".claude/CLAUDE.md"), "My existing global rules.\n");
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const result = f.run(); expect(result.status, result.stdout + result.stderr).toBe(0);
       expect(result.stdout).not.toContain("must-not-be-persisted");
@@ -47,6 +49,10 @@ describe("cloud bootstrap executable contract", () => {
     const instructions = readFileSync(join(f.project, "CLAUDE.md"), "utf8");
     expect(instructions).toContain("My existing project rules.");
     expect(instructions.match(/dreambau-cloud:begin/g)).toHaveLength(1);
+    const global = readFileSync(join(f.home, ".claude/CLAUDE.md"), "utf8");
+    expect(global).toContain("My existing global rules.");
+    expect(global.match(/dreambau-cloud:begin/g)).toHaveLength(1);
+    expect(global).toContain(join(f.home, "bin/dreambau-cloud-doctor"));
     for (const name of ["test-access", "dreambau-evidence", "dreambau-cloud-doctor"]) {
       const result = spawnSync(join(f.home, "bin", name), ["--version"], { env: { ...f.env, HOME: join(f.home, "other-home") }, encoding: "utf8" });
       expect(result.status, result.stderr).toBe(0); expect(result.stdout.trim()).toBe("v20.20.2");

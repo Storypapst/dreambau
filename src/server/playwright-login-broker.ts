@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { resolveBrowserProxy, type BrowserProxy } from "./browser-proxy.js";
 import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
 
 import type { BrowserContext, Locator, Page } from "@playwright/test";
@@ -27,6 +28,7 @@ interface AccountMetadata {
 }
 
 export interface BrowserLoginRequest {
+  proxy?: BrowserProxy;
   username: string;
   password: string;
   loginUrl: string;
@@ -65,6 +67,7 @@ export const ORISO_REQUIRED_AUTH_STATE: NonNullable<BrowserLoginRequest["require
 };
 
 export interface BrokerDependencies extends MachineAuthOptions {
+  browserProxyMode?: string;
   baseUrl: string;
   identity: string;
   readKeychainToken: (identity: string) => string;
@@ -362,7 +365,7 @@ async function waitForChatUnlock(
 
 export async function playwrightLogin(request: BrowserLoginRequest) {
   const { chromium } = await import("@playwright/test");
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, proxy: request.proxy });
   const context = await browser.newContext({ ignoreHTTPSErrors: request.ignoreHTTPSErrors });
   try {
     const page = await context.newPage();
@@ -500,6 +503,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     if (!accountId) throw new Error("playwright-login requires an account id");
     const http = createMachineHttp({ ...dependencies, service: "test-access" });
     if (http.token) secrets.push(http.token);
+    const proxy = resolveBrowserProxy(dependencies.browserProxyMode, dependencies.proxyUrl, http.authMode === "network-proxy");
 
     const baseUrl = dependencies.baseUrl.replace(/\/$/, "");
     const scope = accountScope(accountId);
@@ -531,6 +535,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     };
 
     await (dependencies.login ?? playwrightLogin)({
+      proxy,
       username: account.username,
       password,
       loginUrl: account.loginUrl,

@@ -132,6 +132,27 @@ describe("Playwright login broker", () => {
     }
   }, 25_000);
 
+  it("uses the configured browser proxy instead of silently connecting directly", async () => {
+    const seen: string[] = [];
+    const proxy = createServer((req, res) => {
+      seen.push(req.url ?? "");
+      const path = new URL(req.url ?? "/", "http://fixture.invalid").pathname;
+      if (path === "/app") { res.end("signed in"); return; }
+      res.setHeader("content-type", "text/html"); res.end(SEMANTIC_LOGIN_FORM);
+    });
+    await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+    const address = proxy.address();
+    const directory = await mkdtemp(join(tmpdir(), "broker-proxy-state-"));
+    try {
+      await playwrightLogin({ username: "fixture-user", password: "fixture-password", loginUrl: "http://broker-proxy-only.invalid/login",
+        statePath: join(directory, "state.json"), getOtp: async () => { throw new Error("OTP must not be requested"); },
+        proxy: { server: `http://127.0.0.1:${typeof address === "object" && address ? address.port : 0}`, bypass: "<-loopback>" }
+      });
+      expect(seen).toContain("http://broker-proxy-only.invalid/login");
+      expect(seen.some((url) => url.startsWith("http://broker-proxy-only.invalid/app"))).toBe(true);
+    } finally { await new Promise<void>((resolve) => proxy.close(() => resolve())); }
+  }, 12_000);
+
   it("re-resolves a semantic login button when React detaches the first match", async () => {
     const detached = {
       first: () => detached,

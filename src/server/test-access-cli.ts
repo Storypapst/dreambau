@@ -101,6 +101,7 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
 }
 
 interface CliDependencies extends MachineAuthOptions {
+  browserProxyMode?: string;
   baseUrl: string;
   identity: string;
   readKeychainToken: (identity: string) => string;
@@ -249,6 +250,7 @@ async function main() {
     baseUrl,
     identity,
     authMode: process.env.TEST_ACCESS_AUTH_MODE,
+    browserProxyMode: process.env.DREAMBAU_BROWSER_PROXY,
     proxyUrl: process.env.HTTPS_PROXY,
     readKeychainToken: readTestAccessCredential,
     fetch,

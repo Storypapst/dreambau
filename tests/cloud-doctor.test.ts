@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -20,7 +20,7 @@ else if(url.includes('/accounts')){const env=new URL(url).searchParams.get('envi
 else if(url.includes('/runs/')){status=404;body={error:process.env.DOCTOR_FIXTURE==='bad-evidence'?'wrong':'run_not_found'};}
 else body={status:'ok'};
 process.stdout.write(JSON.stringify(body)+'\\n'+status);`);
-  writeFileSync(join(bin, "gh"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  writeFileSync(join(bin, "gh"), `#!/bin/sh\nprintf '%s\\n' "$@" > "${join(home, "gh-args")}"\nexit 0\n`, { mode: 0o755 });
 });
 afterAll(() => rmSync(home, { recursive: true, force: true }));
 function run(args: string[], additional: Record<string, string> = {}) {
@@ -37,6 +37,12 @@ describe("installed cloud doctor command", () => {
     for (const gate of ["PASS public evidence health", "PASS Hub dev metadata", "PASS Hub production-test metadata", "PASS Evidence authenticated read", "scope not introspected", "SKIP Chromium connectivity"]) expect(result.output).toContain(gate);
     expect(result.output).not.toMatch(/must-not-print-account|sensitive-response-sentinel/);
     expect(existsSync(join(home, ".config/dreambau-test-access/identities"))).toBe(false);
+  });
+  it("probes the attached repository REST path without requiring account-wide auth status", async () => {
+    const result = await run([], { DREAMBAU_GITHUB_REPOSITORY: "OpenResilienceInitiative/ORISO-E2E" });
+    expect(result.code, result.output).toBe(0);
+    expect(result.output).toContain("repository REST readable: OpenResilienceInitiative/ORISO-E2E");
+    expect(readFileSync(join(home, "gh-args"), "utf8")).toBe("api\nrepos/OpenResilienceInitiative/ORISO-E2E\n--silent\n");
   });
   it.each(["denied", "bad-evidence"])("fails closed without body excerpts for %s", async (DOCTOR_FIXTURE) => {
     const result = await run([], { DOCTOR_FIXTURE });

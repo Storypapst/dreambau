@@ -1,6 +1,6 @@
 # ORISO cloud operating rules
 
-These curated nonsecret rules are self-contained. Private Drive/Core, machine Keychain and local skills may be unavailable. Never invent their contents or silently copy stale kit rules. If a private reference is required, report the specific missing reference and stop the dependent work.
+These curated nonsecret rules apply to ORISO work in this prepared environment; other projects retain their own routers and policies. They are self-contained. Private Drive/Core, machine Keychain and local skills may be unavailable. Never invent their contents or silently copy stale kit rules. If a private reference is required, report the specific missing reference and stop the dependent work.
 
 1. Before code, read the ticket and project/repository routers. Query the current online graph manifest at https://understand.oriso.org/ua/current/manifest.json and discover service graph URLs there. A403 at /ua/ is not proof the manifest failed. No cached/local graph fallback and no local graph rebuild. Read applicable repository ADRs. For UI work inspect current Storybook contracts/stories before editing components.
 2. Keep tool source/cache separate from product source. Resolve the product root at runtime from CLAUDE_PROJECT_DIR or current working directory; the cached Dreambau tooling source is never an ORISO product checkout. Create work branches from dev and PRs against dev. ORISO-E2E uses its established pre-dev integration exception. Neither branch choice changes the runtime target: Dev is https://dev.oriso.org; production is forbidden.

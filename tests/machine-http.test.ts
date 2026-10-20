@@ -141,7 +141,7 @@ describe("real curl CONNECT proxy transport", () => {
     rmSync(directory, { recursive: true, force: true });
   });
   function deps() {
-    return { baseUrl: hub, service: "test-access" as const, identity: "cloud", authMode: "network-proxy", proxyUrl, readKeychainToken: vi.fn(() => { throw new Error("must not read credentials"); }), fetch: vi.fn(() => { throw new Error("must not use direct fetch"); }) as unknown as typeof fetch };
+    return { baseUrl: hub, service: "test-access" as const, identity: "cloud", authMode: "network-proxy", browserProxyMode: "network-proxy", proxyUrl, readKeychainToken: vi.fn(() => { throw new Error("must not read credentials"); }), fetch: vi.fn(() => { throw new Error("must not use direct fetch"); }) as unknown as typeof fetch };
   }
 
   it("uses actual curl CONNECT despite NO_PROXY=* and skips credentials and Authorization", async () => {
@@ -158,7 +158,7 @@ describe("real curl CONNECT proxy transport", () => {
     for (const args of [["list"], ["doctor"], ["run", "finish", "run1", "--result", "passed"]]) {
       expect(await runTestAccessCommand(args, { ...deps(), write: vi.fn(), writeError: vi.fn() })).toBe(0);
     }
-    const dependencies = { ...deps(), baseUrl: evidence, publicBaseUrl: "https://evidence.dreambau.com", write: vi.fn(), writeError: vi.fn(), runCommand: vi.fn(() => ({ code: 0, stdout: "1234567", stderr: "" })), gh: vi.fn(), readChunk: vi.fn(), fileSize: vi.fn() };
+    const dependencies = { ...deps(), baseUrl: evidence, publicBaseUrl: "https://evidence.dreambau.com", write: vi.fn(), writeError: vi.fn(), runCommand: vi.fn(() => ({ code: 0, stdout: "Storypapst/dreambau", stderr: "" })), gh: vi.fn(), readChunk: vi.fn(), fileSize: vi.fn() };
     expect(await runEvidenceCommand(["doctor"], dependencies)).toBe(0);
     expect(dependencies.readKeychainToken).not.toHaveBeenCalled();
     expect(requests.some((request) => request.url === "/health/live")).toBe(true);
@@ -171,7 +171,7 @@ describe("real curl CONNECT proxy transport", () => {
     authProbeStatus = status;
     authProbeBody = { error: "wrong" };
     try {
-      const dependencies = { ...deps(), baseUrl: evidence, publicBaseUrl: "https://evidence.dreambau.com", write: vi.fn(), writeError: vi.fn(), runCommand: vi.fn(() => ({ code: 0, stdout: "1234567", stderr: "" })), gh: vi.fn(), readChunk: vi.fn(), fileSize: vi.fn() };
+      const dependencies = { ...deps(), baseUrl: evidence, publicBaseUrl: "https://evidence.dreambau.com", write: vi.fn(), writeError: vi.fn(), runCommand: vi.fn(() => ({ code: 0, stdout: "Storypapst/dreambau", stderr: "" })), gh: vi.fn(), readChunk: vi.fn(), fileSize: vi.fn() };
       expect(await runEvidenceCommand(["doctor"], dependencies)).toBe(1);
       expect(dependencies.readKeychainToken).not.toHaveBeenCalled();
       expect(dependencies.write).toHaveBeenCalledWith(expect.stringContaining("fail gateway read grant"));
@@ -188,6 +188,7 @@ describe("real curl CONNECT proxy transport", () => {
       const result = await runPlaywrightLoginBroker(accountId, { ...dependencies, write, writeError,
         stateRoot: join(directory, "states"), scheduleCleanup: vi.fn(),
         login: async (request) => {
+          expect(request.proxy).toEqual({ server: new URL(proxyUrl).href, bypass: "<-loopback>" });
           expect(request.username).toBe("fixture-user");
           expect(request.password).toBe("fixture-password");
           expect(await request.getOtp()).toBe("123456");
@@ -200,6 +201,14 @@ describe("real curl CONNECT proxy transport", () => {
       expect(requests.at(-1)?.url).toContain("/otp");
       expect(write.mock.calls.join()).not.toMatch(/fixture-password|123456/);
     } finally { brokerAccount = undefined; }
+  });
+
+  it("refuses a proxy-mode session without an explicit browser transport", async () => {
+    const dependencies = { ...deps(), browserProxyMode: undefined, write: vi.fn(), writeError: vi.fn(), login: vi.fn() };
+    expect(await runPlaywrightLoginBroker("oriso/dev/test-consultant-001", dependencies)).toBe(1);
+    expect(dependencies.writeError).toHaveBeenCalledWith(expect.stringContaining("explicit browser proxy"));
+    expect(dependencies.login).not.toHaveBeenCalled();
+    expect(dependencies.readKeychainToken).not.toHaveBeenCalled();
   });
 
   it.each([

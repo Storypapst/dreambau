@@ -36,7 +36,14 @@ function parseJson(raw: string, what: string): unknown {
   }
 }
 
-/** `gh repo view` is authoritative; it resolves the remote the user is signed in to. */
+/** gh expands repository placeholders using its normal remote/default context. */
+export function detectGitHubRepository(run: CommandRunner): string {
+  const repository = run("gh", ["api", "repos/{owner}/{repo}", "--jq", ".full_name"]);
+  if (repository.code !== 0) throw new GitContextError("could not resolve the GitHub repository; run `gh auth login` first");
+  const name = repository.stdout.trim();
+  if (!repositoryPattern.test(name)) throw new GitContextError("unexpected repository name from GitHub");
+  return name;
+}
 export function detectRepositoryContext(run: CommandRunner): RepositoryContext {
   const head = run("git", ["rev-parse", "HEAD"]);
   if (head.code !== 0) throw new GitContextError("not inside a Git repository");
@@ -46,14 +53,11 @@ export function detectRepositoryContext(run: CommandRunner): RepositoryContext {
   if (branch.code !== 0 || !branch.stdout.trim() || branch.stdout.trim() === "HEAD") {
     throw new GitContextError("HEAD is detached or the branch could not be resolved; check out a branch first");
   }
-  const repository = run("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
-  if (repository.code !== 0) {
-    throw new GitContextError("could not resolve the GitHub repository; run `gh auth login` first");
-  }
-  const name = repository.stdout.trim();
-  if (!repositoryPattern.test(name)) throw new GitContextError(`unexpected repository name: ${name}`);
+  const name = detectGitHubRepository(run);
   return { repository: name, commitSha: head.stdout.trim(), branch: branch.stdout.trim() };
 }
+
+const restPullRequestFields = '{number, url: .html_url, state: (if .merged_at == null then .state else "MERGED" end), headRefOid: .head.sha}';
 
 const pullRequestListSchema = z.array(z.object({
   number: z.number().int().positive(),
@@ -66,20 +70,17 @@ const pullRequestListSchema = z.array(z.object({
  * Returns every open pull request whose head is the current branch. More than
  * one match is not resolved silently — the caller must pass `--pr`.
  */
-export function detectPullRequests(run: CommandRunner, branch: string): PullRequestContext[] {
-  const result = run("gh", [
-    "pr", "list", "--state", "open", "--head", branch,
-    "--json", "number,url,state,headRefOid"
-  ]);
+export function detectPullRequests(run: CommandRunner, branch: string, repository = "{owner}/{repo}"): PullRequestContext[] {
+  // Filter on ref, not base-owner:ref: fork heads can use the same branch name.
+  // Every page is included before deciding whether the match is ambiguous.
+  const result = run("gh", ["api", `repos/${repository}/pulls?state=open&per_page=100`, "--paginate", "--jq",
+    `.[] | select(.head.ref == ${JSON.stringify(branch)}) | ${restPullRequestFields}`]);
   if (result.code !== 0) return [];
-  const parsed = pullRequestListSchema.safeParse(parseJson(result.stdout || "[]", "the open pull requests"));
+  const entries = result.stdout.split("\n").map((line) => line.trim()).filter(Boolean)
+    .flatMap((line) => { const value = parseJson(line, "the open pull requests"); return Array.isArray(value) ? value : [value]; });
+  const parsed = pullRequestListSchema.safeParse(entries);
   if (!parsed.success) return [];
-  return parsed.data.map((entry) => ({
-    number: entry.number,
-    url: entry.url,
-    state: entry.state,
-    headSha: entry.headRefOid
-  }));
+  return parsed.data.map((entry) => ({ number: entry.number, url: entry.url, state: entry.state.toUpperCase(), headSha: entry.headRefOid }));
 }
 
 const pullRequestViewSchema = z.object({
@@ -92,18 +93,15 @@ const pullRequestViewSchema = z.object({
 /** Only an open pull request may receive evidence. */
 export const openStates = ["OPEN"];
 
-export function viewPullRequest(run: CommandRunner, pullRequestNumber: number): PullRequestContext | null {
-  const result = run("gh", [
-    "pr", "view", String(pullRequestNumber),
-    "--json", "number,url,state,headRefOid"
-  ]);
+export function viewPullRequest(run: CommandRunner, pullRequestNumber: number, repository = "{owner}/{repo}"): PullRequestContext | null {
+  const result = run("gh", ["api", `repos/${repository}/pulls/${pullRequestNumber}`, "--jq", restPullRequestFields]);
   if (result.code !== 0) return null;
   const parsed = pullRequestViewSchema.safeParse(parseJson(result.stdout || "{}", "the pull request"));
   if (!parsed.success) return null;
   return {
     number: parsed.data.number,
     url: parsed.data.url,
-    state: parsed.data.state,
+    state: parsed.data.state.toUpperCase(),
     headSha: parsed.data.headRefOid
   };
 }
@@ -133,9 +131,9 @@ export interface ResolveOptions {
 export function resolveTarget(run: CommandRunner, options: ResolveOptions = {}): ResolvedTarget {
   const context = detectRepositoryContext(run);
   if (options.explicitPullRequest !== undefined) {
-    const pullRequest = viewPullRequest(run, options.explicitPullRequest);
+    const pullRequest = viewPullRequest(run, options.explicitPullRequest, context.repository);
     if (!pullRequest) throw new GitContextError(`pull request #${options.explicitPullRequest} was not found`);
-    // `gh pr view` is not state-filtered, unlike the branch lookup, so a closed
+    // An explicit REST lookup is not state-filtered, unlike the branch lookup, so a closed
     // or merged pull request would otherwise accept evidence.
     if (!openStates.includes(pullRequest.state.toUpperCase())) {
       throw new GitContextError(
@@ -145,7 +143,7 @@ export function resolveTarget(run: CommandRunner, options: ResolveOptions = {}):
     assertCommitMatches(pullRequest, context.commitSha, options.allowOlderCommit ?? false);
     return { ...context, pullRequest };
   }
-  const candidates = detectPullRequests(run, context.branch);
+  const candidates = detectPullRequests(run, context.branch, context.repository);
   if (candidates.length > 1) {
     const numbers = candidates.map((candidate) => `#${candidate.number}`).join(", ");
     throw new GitContextError(`branch ${context.branch} has several open pull requests (${numbers}); pass --pr`);

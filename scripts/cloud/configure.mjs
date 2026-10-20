@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, existsSync, writeFileSync, copyFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const [root, bin, node, revision, mode, project] = process.argv.slice(2);
@@ -20,10 +21,12 @@ writeFileSync(join(root, 'profile.sh'), `# Generated locally; contains no creden
 writeFileSync(join(root, 'routing.json'), JSON.stringify({ sourceRevision: revision, toolSource: join(root, 'sources', revision), projectRoot: 'runtime: CLAUDE_PROJECT_DIR or current working directory', instructions, onlineGraphManifest: 'https://understand.oriso.org/ua/current/manifest.json', privateCore: 'unavailable in cloud; do not invent contents' }, null, 2) + '\n', { mode: 0o600 });
 writeFileSync(join(bin, 'dreambau-cloud-doctor'), `#!/bin/sh\nset -eu\n. ${quote(join(root, 'profile.sh'))}\nexec ${quote(node)} ${quote(join(root, 'doctor.mjs'))} "$@"\n`, { mode: 0o755 });
 // A bounded managed block keeps all unrelated project instructions verbatim.
-const target = join(project, 'CLAUDE.md');
 const begin = '<!-- dreambau-cloud:begin -->'; const end = '<!-- dreambau-cloud:end -->';
-const block = `${begin}\nRead ${join(instructions, 'OPERATING_RULES.md')} before project work.\nRuntime check: ${join(bin, 'dreambau-cloud-doctor')} --browser\nRouting: ${join(root, 'routing.json')}. Tools are separate from the current product checkout.\n${end}`;
-const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
-const first = current.indexOf(begin); const last = current.indexOf(end);
-if ((first < 0) !== (last < 0) || (first >= 0 && last < first)) throw new Error('Incomplete existing managed CLAUDE.md block; preserve and repair it manually');
-writeFileSync(target, first < 0 ? current + (current.endsWith('\n') || !current ? '' : '\n') + block + '\n' : current.slice(0, first) + block + current.slice(last + end.length));
+const block = `${begin}\nFor ORISO work in this prepared environment, read ${join(instructions, 'OPERATING_RULES.md')} before project work.\nRuntime check: ${join(bin, 'dreambau-cloud-doctor')} --browser\nRouting: ${join(root, 'routing.json')}. Tools are separate from the current product checkout.\n${end}`;
+for (const target of new Set([join(project, 'CLAUDE.md'), join(homedir(), '.claude', 'CLAUDE.md')])) {
+  mkdirSync(dirname(target), { recursive: true, mode: 0o700 });
+  const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
+  const first = current.indexOf(begin); const last = current.indexOf(end);
+  if ((first < 0) !== (last < 0) || (first >= 0 && last < first)) throw new Error('Incomplete existing managed CLAUDE.md block; preserve and repair it manually');
+  writeFileSync(target, first < 0 ? current + (current.endsWith('\n') || !current ? '' : '\n') + block + '\n' : current.slice(0, first) + block + current.slice(last + end.length));
+}
