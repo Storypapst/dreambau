@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { createCollectorStore } from "./collector-store.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { createWorkStateAccess } from "./access.js";
@@ -153,7 +154,12 @@ export function createWorkStateStore(path: string) {
   }
   function currentVersion(id: string) { return (sqlite.prepare("SELECT version FROM work_items WHERE id=?").get(id) as { version: number }).version; }
 
+  const collector = createCollectorStore(sqlite, (scope, ids) => access.assertRepositories(scope, ids));
   return {
+    ...collector,
+    commitSync(token: string, snapshot: RepositorySnapshot, now = Date.now()) {
+      return collector.commitSnapshot(token, snapshot, now, () => this.applyRepositorySnapshot(snapshot));
+    },
     close() { if (sqlite.open) sqlite.close(); },
     /** Service-owner configuration only. Never expose these methods through a human router. */
     configureRepository(input: RepositoryInput) {
@@ -198,7 +204,7 @@ export function createWorkStateStore(path: string) {
             const { facets: _facets, ...core } = pr;
             sqlite.prepare("INSERT INTO pull_requests(repository_id,number,payload) VALUES(?,?,?) ON CONFLICT(repository_id,number) DO UPDATE SET payload=excluded.payload").run(repo.id, pr.number, JSON.stringify(core));
             const previous = old ? JSON.parse(old.payload) as Omit<PullRequestSnapshot, "facets"> : undefined;
-            if (!previous || previous.lifecycle !== core.lifecycle || previous.base !== core.base || previous.head !== core.head || previous.headSha !== core.headSha) {
+            if (!previous || previous.lifecycle !== core.lifecycle || previous.base !== core.base || previous.head !== core.head || previous.headSha !== core.headSha || previous.baseSha !== core.baseSha) {
               sqlite.prepare("INSERT INTO pull_request_history(repository_id,number,observed_at,recorded_at,origin,payload) VALUES(?,?,?,?,?,?)")
                 .run(repo.id, pr.number, snapshot.collectedAt, new Date().toISOString(), "github", JSON.stringify(core));
             }
