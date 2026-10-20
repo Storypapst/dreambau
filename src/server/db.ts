@@ -5,6 +5,7 @@ import type { Taxonomies } from "./taxonomies.js";
 import * as schema from "./schema.js";
 import { topicKeys } from "./catalog.js";
 import { TestResourceStore } from "./test-resource-store.js";
+import { TestFixturePlanStore } from "./test-fixture-plan-store.js";
 import { TestRunStore } from "./test-run-store.js";
 import { ReleaseListStore } from "./release-list-store.js";
 import {
@@ -26,6 +27,7 @@ const seeds = {
 
 export interface RegistryDatabase {
   testRuns: TestRunStore;
+  fixturePlans: TestFixturePlanStore;
   testResources: TestResourceStore;
   releaseLists: ReleaseListStore;
   tableNames(): string[]; getMetadata(email: string): AccountMetadata; getAllMetadata(): AccountMetadata[];
@@ -138,6 +140,14 @@ export function createDatabase(path: string): RegistryDatabase {
       created_at TEXT NOT NULL,
       payload TEXT NOT NULL DEFAULT '{}'
     );
+    CREATE TABLE IF NOT EXISTS test_fixture_plans (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE RESTRICT,
+      revision INTEGER NOT NULL CHECK(revision > 0),
+      snapshot_hash TEXT NOT NULL,
+      body TEXT NOT NULL,
+      UNIQUE(run_id,revision)
+    );
     CREATE TABLE IF NOT EXISTS test_resources (
       id TEXT PRIMARY KEY,
       run_id TEXT NOT NULL REFERENCES test_runs(id) ON DELETE RESTRICT,
@@ -196,6 +206,7 @@ export function createDatabase(path: string): RegistryDatabase {
   const testResources = new TestResourceStore(sqlite);
   const api: RegistryDatabase = {
     testRuns: new TestRunStore(sqlite, testResources),
+    fixturePlans: new TestFixturePlanStore(sqlite),
     testResources,
     releaseLists: new ReleaseListStore(sqlite),
     tableNames: () => (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((row) => row.name),

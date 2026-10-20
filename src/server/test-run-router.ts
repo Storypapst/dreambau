@@ -1,3 +1,5 @@
+import { createTestFixturePlanRouter } from "./test-fixture-plan-router.js";
+import type { OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import type { RegistryDatabase } from "./db.js";
@@ -24,11 +26,13 @@ const finishRunSchema = z.object({
 
 export function createTestRunRouter(options: {
   registryProvider: RegistryProvider;
+  fixtureObserver?: OrisoIdentityObserver;
   database: RegistryDatabase;
   now?: () => Date;
   createRunId?: () => string;
 }) {
   const router = express.Router();
+  router.use("/:runId/fixture-plans", createTestFixturePlanRouter({ ...options, observer: options.fixtureObserver }));
 
   const identityCanSeeRun = (identity: MachineIdentity, run: NonNullable<ReturnType<RegistryDatabase["testRuns"]["get"]>>) =>
     identity.projects.includes(run.project)

@@ -10,6 +10,7 @@ export const machineActions = [
   "accounts:totp:write",
   "sessions:open",
   "runs:read",
+  "fixtures:plan",
   "runs:create",
   "runs:execute",
   "runs:cleanup",
