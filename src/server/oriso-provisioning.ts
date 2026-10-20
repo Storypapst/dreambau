@@ -282,6 +282,7 @@ export function buildProvisionedRecord(input: {
   now: Date;
   secret: string;
   environment?: OrisoProvisioningEnvironment;
+  username?: string;
 }): TestAccessRecord {
   const identity = provisionedIdentityProjection(input.email, input.role, input.environment ?? "pre-dev");
   const contract = roleContract[input.role];
@@ -294,7 +295,7 @@ export function buildProvisionedRecord(input: {
     environment,
     kind: contract.recordKind,
     displayName: `${input.displayName} — ORISO ${environmentLabel} ${input.role}`,
-    username: identity.username,
+    username: input.username ?? identity.username,
     email: input.email.trim().toLowerCase(),
     roles: [...contract.recordRoles],
     permissionsDescription: `Self-service provisioned ORISO ${environmentLabel} ${input.role}`,

@@ -244,6 +244,67 @@ async function setup(options: {
   return { agent, app, database, lisa, bart, moe, service, writer, createdRecords, user, passkeyStore, emailOtpCodes };
 }
 
+// Exercise the real API, record provider/writer and ORISO service. Only the
+// external Infisical/ORISO HTTP endpoints and WebAuthn device are simulated.
+async function chosenUsernameLinkFixture(records: TestAccessRecord[] = []) {
+  const admin = managedRecord({ id: "oriso/dev/test-admin", environment: "dev", roles: ["platform-admin"] });
+  const stored = new Map([admin, ...records].map(record => [secretNameForRecord(record.id), record]));
+  const registryMutations: string[] = [];
+  const infisicalFetch = async (input: string | URL, init?: RequestInit) => {
+    const url = new URL(input);
+    if (url.pathname.endsWith("/login")) {
+      return Response.json({ accessToken: "fixture-infisical-token", expiresIn: 300, accessTokenMaxTTL: 300, tokenType: "Bearer" });
+    }
+    if (url.pathname === "/api/v4/secrets") {
+      return Response.json({ secrets: [...stored].map(([secretKey, value]) => ({ secretKey, secretValue: JSON.stringify(value) })) });
+    }
+    const secretKey = decodeURIComponent(url.pathname.split("/").at(-1)!);
+    if (init?.method === "POST" || init?.method === "PATCH") {
+      registryMutations.push(`${init.method} ${url.pathname}`);
+      const body = JSON.parse(String(init.body));
+      stored.set(secretKey, JSON.parse(body.secretValue));
+      return Response.json({ secret: { secretKey } });
+    }
+    const value = stored.get(secretKey);
+    return value
+      ? Response.json({ secret: { secretKey, secretValue: JSON.stringify(value) } })
+      : Response.json({ error: "Secret not found" }, { status: 404 });
+  };
+  const infisicalOptions = {
+    baseUrl: "https://secrets.example.test", organizationSlug: "fixture", clientId: "fixture", clientSecret: "fixture-only",
+    fetch: infisicalFetch
+  };
+  const registryProvider = createInfisicalRegistryProvider({
+    ...infisicalOptions, sources: [{ project: "oriso", projectId: "fixture-oriso", environment: "dev" }]
+  });
+  const writer = createInfisicalRegistryWriter({
+    ...infisicalOptions, projectIds: { oriso: "fixture-oriso", orimo: "fixture-orimo", dreambau: "fixture-dreambau" }
+  });
+  const productMutations: string[] = [];
+  const service = createOrisoProvisioningService({
+    environment: "dev", apiBaseUrl: "https://dev.oriso.org/service",
+    tokenUrl: "https://dev.oriso.org/auth/realms/online-beratung/protocol/openid-connect/token",
+    clientId: "app", adminBaseUrl: "https://dev.oriso.org/admin", appBaseUrl: "https://dev.oriso.org",
+    defaultTenantId: 7, defaultAgencyId: 12, defaultConsultingType: "1", defaultPostcode: "10115", defaultMainTopicId: 31,
+    adminRecordId: admin.id, registryProvider,
+    fetch: async (input, init) => {
+      const url = new URL(input);
+      if (url.pathname.endsWith("/token")) return Response.json({ access_token: "fixture-oriso-token", expires_in: 300 });
+      if (url.pathname.endsWith("/useradmin/account-invites") && (!init?.method || init.method === "GET")) {
+        return Response.json({ content: [{
+          id: 132, recipientEmail: "bart.simpson@oriso.org", targetRole: "COUNSELLOR",
+          inviteKind: "EXISTING_ACCOUNT_SETUP", inviteStatus: "ACCEPTED", provisioningStatus: "COMPLETED",
+          emailVerificationStatus: "VERIFIED", twoFactorStatus: "PENDING_SETUP", accessGateStatus: "BLOCKED_TWO_FACTOR"
+        }] });
+      }
+      productMutations.push(`${init?.method ?? "GET"} ${url.pathname}`);
+      throw new Error("Unexpected fixture ORISO request");
+    }
+  });
+  const { agent, bart } = await setup({ service, services: { dev: service }, registryProvider, writer });
+  return { agent, productMutations, registryMutations, endpoint: `/testmails/api/accounts/${encodeURIComponent(bart.email)}/oriso-provisioning` };
+}
+
 async function factorReadinessFixture(profile: unknown, provisioningStatus: "failed" | "ready" = "failed") {
   const record = managedRecord({
     id: "oriso/dev/bart.simpson-oriso.org", environment: "dev", kind: "app-user",
@@ -307,6 +368,82 @@ async function factorReadinessFixture(profile: unknown, provisioningStatus: "fai
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
+  it("rejects a chosen username outside password linking without a product change", async () => {
+    const { agent, endpoint, productMutations } = await chosenUsernameLinkFixture();
+    const response = await agent.post(endpoint).send({
+      environment: "dev", role: "counsellor", applicationUsername: "bart-simpson-okt-14"
+    });
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "validation_failed" });
+    const readback = await agent.get(endpoint);
+    expect(readback.body.linked).toBeNull();
+    expect(productMutations).toEqual([]);
+  });
+
+  it("rejects remapping a retained username without changing either system", async () => {
+    const retained = managedRecord({ id: "oriso/dev/bart.simpson", environment: "dev", kind: "app-user",
+      email: "bart.simpson@oriso.org", username: "bart-existing", roles: ["consultant"],
+      loginUrl: "https://dev.oriso.org", provisioningStatus: "failed", totpSecret: undefined });
+    const { agent, endpoint, productMutations, registryMutations } = await chosenUsernameLinkFixture([retained]);
+    const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor",
+      applicationUsername: "bart-simpson-okt-14", applicationPassword: "Fixture-Permanent-Password-Only" });
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "record_username_conflict" });
+    const readback = await agent.get(endpoint);
+    expect(readback.body.linked).toMatchObject({ id: "oriso/dev/bart.simpson", username: "bart-existing" });
+    expect(registryMutations).toEqual([]);
+    expect(productMutations).toEqual([]);
+  });
+
+  it("rejects a chosen username on complete-first-setup actions", async () => {
+    const { agent, endpoint, productMutations, registryMutations } = await chosenUsernameLinkFixture();
+    const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor",
+      completeAccountSetup: true, applicationUsername: "bart-simpson-okt-14", applicationPassword: "Fixture-Permanent-Password-Only" });
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "validation_failed" });
+    expect(registryMutations).toEqual([]);
+    expect(productMutations).toEqual([]);
+  });
+
+  it("rejects a chosen username on role-replacement actions", async () => {
+    const { agent, endpoint, productMutations, registryMutations } = await chosenUsernameLinkFixture();
+    const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor",
+      replaceStaleRole: true, applicationUsername: "bart-simpson-okt-14", applicationPassword: "Fixture-Permanent-Password-Only" });
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "validation_failed" });
+    expect(registryMutations).toEqual([]);
+    expect(productMutations).toEqual([]);
+  });
+
+  it("rejects an embedded newline in a chosen username before linking", async () => {
+    const { agent, endpoint, productMutations, registryMutations } = await chosenUsernameLinkFixture();
+    const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor",
+      applicationUsername: "bart\nsimpson", applicationPassword: "Fixture-Permanent-Password-Only" });
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "validation_failed" });
+    expect(registryMutations).toEqual([]);
+    expect(productMutations).toEqual([]);
+  });
+
+  it("links a chosen Accounts username and keeps it pending without creating a product account", async () => {
+    const { agent, endpoint, productMutations } = await chosenUsernameLinkFixture();
+    const response = await agent.post(endpoint).send({
+      environment: "dev", role: "counsellor", applicationUsername: "bart-simpson-okt-14",
+      applicationPassword: "Fixture-Permanent-Password-Only"
+    });
+    expect(response.status).toBe(201);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.body).toMatchObject({ created: false, recordCreated: true,
+      linked: { id: "oriso/dev/bart.simpson", username: "bart-simpson-okt-14", roles: ["consultant"], hasTotp: false },
+      state: { state: "two-factor-pending", nextStep: "store-totp" } });
+    expect(JSON.stringify(response.body)).not.toContain("Fixture-Permanent-Password-Only");
+    const readback = await agent.get(endpoint);
+    expect(readback.status).toBe(200);
+    expect(readback.body).toMatchObject({ linked: { id: "oriso/dev/bart.simpson", username: "bart-simpson-okt-14" },
+      state: { state: "two-factor-pending" } });
+    expect(productMutations).toEqual([]);
+  });
+
   it("does not report a stored App key as ready when ORISO still requires first-time 2FA", async () => {
     const { agent, endpoint, productMutations } = await factorReadinessFixture({ twoFactorAuth: { isActive: false, type: null } });
     const response = await agent.post(endpoint).send({ environment: "dev", role: "counsellor" });
