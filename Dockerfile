@@ -20,7 +20,7 @@ COPY scripts ./scripts
 COPY migrations ./migrations
 COPY understand-kit ./understand-kit
 # tests/playwright-login-broker.test.ts launches a real browser.
-RUN apt-get update && apt-get install -y --no-install-recommends curl && npx playwright install --with-deps chromium
+RUN apt-get update && apt-get install -y --no-install-recommends curl age && npx playwright install --with-deps chromium
 RUN npm run lint
 RUN npm test
 RUN npm run build
