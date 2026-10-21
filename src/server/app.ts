@@ -965,6 +965,12 @@ export function createApp(options: AppOptions = {}) {
           lastName: nameParts.slice(1).join(" ") || "-",
           role: body.role,
           rejectExistingAccount: Boolean(recordReplacementExpected),
+          // A rejected login does not prove that a retained incomplete account
+          // is absent. Continue that same account without another creation try.
+          existingAccountOnly: Boolean(existingRecord
+            && ["pending", "failed"].includes(existingRecord.provisioningStatus ?? "")
+            && existingRecord.roles.join(",") === requestedRoles.join(",")
+            && !recordReplacementExpected),
           onCreationAttempt: (state) => { replacementMayHaveCreatedAccount = state === "started"; },
           storeSetupBinding: async (binding) => {
             if (!registryWriter.bindAccountSetup) throw new OrisoProvisioningError("account_setup_store_failed");

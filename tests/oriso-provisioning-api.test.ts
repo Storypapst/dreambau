@@ -16,6 +16,7 @@ import {
   OrisoProvisioningError,
   createOrisoProvisioningService,
   publicInviteState,
+  type ProvisioningFetch,
   type OrisoProvisioningService
 } from "../src/server/oriso-provisioning.js";
 
@@ -246,7 +247,7 @@ async function setup(options: {
 
 // Exercise the real API, record provider/writer and ORISO service. Only the
 // external Infisical/ORISO HTTP endpoints and WebAuthn device are simulated.
-async function chosenUsernameLinkFixture(records: TestAccessRecord[] = []) {
+async function chosenUsernameLinkFixture(records: TestAccessRecord[] = [], productFetch?: ProvisioningFetch) {
   const admin = managedRecord({ id: "oriso/dev/test-admin", environment: "dev", roles: ["platform-admin"] });
   const stored = new Map([admin, ...records].map(record => [secretNameForRecord(record.id), record]));
   const registryMutations: string[] = [];
@@ -288,6 +289,7 @@ async function chosenUsernameLinkFixture(records: TestAccessRecord[] = []) {
     defaultTenantId: 7, defaultAgencyId: 12, defaultConsultingType: "1", defaultPostcode: "10115", defaultMainTopicId: 31,
     adminRecordId: admin.id, registryProvider,
     fetch: async (input, init) => {
+      if (productFetch) return productFetch(input, init);
       const url = new URL(input);
       if (url.pathname.endsWith("/token")) return Response.json({ access_token: "fixture-oriso-token", expires_in: 300 });
       if (url.pathname.endsWith("/useradmin/account-invites") && (!init?.method || init.method === "GET")) {
@@ -302,7 +304,53 @@ async function chosenUsernameLinkFixture(records: TestAccessRecord[] = []) {
     }
   });
   const { agent, bart } = await setup({ service, services: { dev: service }, registryProvider, writer });
-  return { agent, productMutations, registryMutations, endpoint: `/testmails/api/accounts/${encodeURIComponent(bart.email)}/oriso-provisioning` };
+  return { agent, productMutations, registryMutations, registryProvider, endpoint: `/testmails/api/accounts/${encodeURIComponent(bart.email)}/oriso-provisioning` };
+}
+
+async function incompleteAskerFixture(
+  status: "pending" | "failed",
+  authentication: 400 | 401 | 500 | "timeout" | "success",
+  records?: TestAccessRecord[]
+) {
+  const record = managedRecord({ id: "oriso/dev/bart.simpson", environment: "dev", kind: "app-user",
+    email: "bart.simpson@oriso.org", username: "bart.simpson_at_oriso.org", roles: ["asker"],
+    loginUrl: "https://dev.oriso.org", totpSecret: undefined, provisioningStatus: status });
+  const requests: Array<{ method: string; path: string }> = [];
+  const originalPasswordUsed: boolean[] = [];
+  const originalTotp = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+  let factorActive = false;
+  const fixture = await chosenUsernameLinkFixture(records ?? [record], async (input, init) => {
+    const url = new URL(input), method = init?.method ?? "GET";
+    requests.push({ method, path: url.pathname });
+    if (url.pathname.endsWith("/token")) {
+      const form = new URLSearchParams(init?.body);
+      if (form.get("username") === record.username) {
+        originalPasswordUsed.push(form.get("password") === record.secret);
+        if (authentication === "timeout") throw new DOMException("Fixture token timeout", "TimeoutError");
+        if (authentication !== "success") return Response.json({}, { status: authentication });
+      }
+      return Response.json({ access_token: "fixture-oriso-token", expires_in: 300 });
+    }
+    if (url.pathname.endsWith("/useradmin/account-invites")) return Response.json({ content: [] });
+    if (url.pathname.endsWith("/agencyadmin/agencies/12")) {
+      return Response.json({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }] } });
+    }
+    if (url.pathname.endsWith("/users/askers/new")) return Response.json({}, { status: 409 });
+    if (url.pathname.endsWith("/users/email") && method === "PUT") {
+      expect(JSON.parse(init!.body!)).toBe("bart.simpson@oriso.org");
+      return new Response(null, { status: 204 });
+    }
+    if (url.pathname.endsWith("/users/data")) {
+      return Response.json({ twoFactorAuth: { secret: originalTotp, isActive: factorActive, type: factorActive ? "APP" : null } });
+    }
+    if (url.pathname.endsWith("/users/2fa/app") && method === "PUT") {
+      expect(JSON.parse(init!.body!)).toMatchObject({ secret: originalTotp, otp: expect.stringMatching(/^\d{6}$/) });
+      factorActive = true;
+      return new Response(null, { status: 204 });
+    }
+    throw new Error("Unexpected fixture ORISO request");
+  });
+  return { ...fixture, record, requests, originalPasswordUsed, originalTotp };
 }
 
 async function factorReadinessFixture(profile: unknown, provisioningStatus: "failed" | "ready" = "failed") {
@@ -368,6 +416,63 @@ async function factorReadinessFixture(profile: unknown, provisioningStatus: "fai
 }
 
 describe("human self-service ORISO PreDev provisioning", () => {
+  it.each([
+    ["pending", 400, 409], ["pending", 401, 409], ["pending", 500, 502], ["pending", "timeout", 500],
+    ["failed", 400, 409], ["failed", 401, 409], ["failed", 500, 502], ["failed", "timeout", 500]
+  ] as const)("never recreates a linked %s asker after token %s", async (status, authentication, expectedStatus) => {
+    const h = await incompleteAskerFixture(status, authentication);
+    if (status === "failed") {
+      const linked = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker", applicationPassword: h.record.secret });
+      expect(linked.status).toBe(200);
+      expect(linked.body).toMatchObject({ created: false, recordCreated: false });
+    }
+    const response = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker" });
+    expect(h.requests.filter(request => request.method === "POST" && request.path.endsWith("/users/askers/new"))).toEqual([]);
+    expect(response.status).toBe(expectedStatus);
+    if (authentication === 400 || authentication === 401) expect(response.body).toEqual({ error: "account_setup_outcome_unknown" });
+    expect(await h.registryProvider.get(h.record.id)).toMatchObject({ username: h.record.username, secret: h.record.secret,
+      roles: ["asker"], provisioningStatus: "failed" });
+    expect((await h.registryProvider.list()).filter(record => record.email === h.record.email)).toHaveLength(1);
+  });
+
+  it("completes the original linked asker with its retained password, email and active App factor", async () => {
+    const h = await incompleteAskerFixture("failed", "success");
+    const linked = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker", applicationPassword: h.record.secret });
+    expect(linked.status).toBe(200);
+    const response = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker" });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ created: false, recordCreated: false,
+      state: { state: "ready", twoFactorStatus: "ACTIVE" }, linked: { id: h.record.id, hasTotp: true } });
+    expect(h.requests.filter(request => request.path.endsWith("/users/askers/new"))).toEqual([]);
+    expect(h.requests.filter(request => request.path.endsWith("/users/email"))).toEqual([{ method: "PUT", path: "/service/users/email" }]);
+    expect(h.requests.filter(request => request.path.endsWith("/users/2fa/app"))).toEqual([{ method: "PUT", path: "/service/users/2fa/app" }]);
+    expect(h.originalPasswordUsed).toEqual([true, true]);
+    expect(await h.registryProvider.get(h.record.id)).toMatchObject({ username: h.record.username, secret: h.record.secret,
+      roles: ["asker"], totpSecret: h.originalTotp, provisioningStatus: "ready" });
+    expect(JSON.stringify(response.body)).not.toContain(h.record.secret);
+    expect(JSON.stringify(response.body)).not.toContain(h.originalTotp);
+  });
+
+  it("still attempts normal initial asker creation when no record was linked before the request", async () => {
+    const h = await incompleteAskerFixture("pending", 400, []);
+    const response = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker" });
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "account_creation_conflict" });
+    expect(h.requests.filter(request => request.method === "POST" && request.path.endsWith("/users/askers/new"))).toHaveLength(1);
+  });
+
+  it("keeps explicit stale-role replacement separate from incomplete same-role continuation", async () => {
+    const previous = managedRecord({ id: "oriso/dev/bart.simpson", environment: "dev", kind: "app-user",
+      email: "bart.simpson@oriso.org", username: "bart.simpson_at_oriso.org", roles: ["consultant"],
+      loginUrl: "https://dev.oriso.org", totpSecret: undefined, provisioningStatus: "pending" });
+    const h = await incompleteAskerFixture("pending", 400, [previous]);
+    const response = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker", replaceStaleRole: true });
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "account_creation_conflict" });
+    expect(h.requests.filter(request => request.method === "POST" && request.path.endsWith("/users/askers/new"))).toHaveLength(1);
+    expect(await h.registryProvider.get(previous.id)).toMatchObject({ roles: ["consultant"], secret: previous.secret });
+  });
+
   it("rejects a chosen username outside password linking without a product change", async () => {
     const { agent, endpoint, productMutations } = await chosenUsernameLinkFixture();
     const response = await agent.post(endpoint).send({
