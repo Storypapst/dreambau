@@ -1,3 +1,4 @@
+import { createWorkStateWebhook } from "./work-state/webhook.js";
 import { createWorkStateStore, type WorkStateStore } from "./work-state/store.js";
 import { createWorkStateRouter } from "./work-state/router.js";
 import { createOrisoIdentityObserver, type OrisoIdentityObserver } from "./oriso-identity-observation.js";
@@ -61,6 +62,7 @@ interface AppOptions {
   workStateStore?: WorkStateStore;
   /** Explicit opt-in; no default database is created for work state. */
   workStateDatabasePath?: string;
+  workStateWebhookSecret?: string;
   teamworkGuidesPath?: string | null;
   passwordHash?: string;
   sessionSecret?: string;
@@ -98,6 +100,9 @@ export function createApp(options: AppOptions = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  const workStatePath = options.workStateDatabasePath ?? process.env.WORK_STATE_DATABASE_PATH;
+  const workStateStore = options.workStateStore ?? (workStatePath ? createWorkStateStore(workStatePath) : undefined);
+  if (workStateStore && options.workStateWebhookSecret) app.use("/testmails/api/work-state/webhook", createWorkStateWebhook(workStateStore, options.workStateWebhookSecret));
   app.use(express.json({ limit: "64kb" }));
   app.use(cookieParser());
   app.get("/testmails/health/live", (_req, res) => res.json({ status: "ok" }));
@@ -1160,8 +1165,6 @@ export function createApp(options: AppOptions = {}) {
       handleValidation(error, res);
     }
   });
-  const workStatePath = options.workStateDatabasePath ?? process.env.WORK_STATE_DATABASE_PATH;
-  const workStateStore = options.workStateStore ?? (workStatePath ? createWorkStateStore(workStatePath) : undefined);
   api.use("/work-state", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   api.use("/work-state", requireActiveHumanSession, createWorkStateRouter(workStateStore));
 

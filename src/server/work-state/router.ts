@@ -16,6 +16,12 @@ export function createWorkStateRouter(store: WorkStateStore | undefined) {
     next();
   });
   const scope = (res: express.Response) => res.locals.workStateScope as RepoScope;
+  router.post("/repositories/:id/refresh", (req,res) => { store!.enqueueScopedSync(scope(res),String(req.params.id));res.status(202).json({queued:true}); });
+  router.post("/repositories/:id/pulls/:number/refresh", (req,res) => {
+    const number = z.coerce.number().int().positive().parse(req.params.number);
+    store!.enqueueScopedPull(scope(res),String(req.params.id),number);
+    res.status(202).json({queued:true});
+  });
   router.get("/repositories", (_req, res) => res.json({ items: store!.listRepositories(scope(res)) }));
   router.get("/pulls", (req, res) => res.json(store!.listPullRequests(scope(res), req.query)));
   router.get("/items", (_req, res) => res.json({ items: store!.listWorkItems(scope(res)) }));
