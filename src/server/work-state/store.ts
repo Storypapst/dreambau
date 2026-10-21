@@ -186,6 +186,20 @@ export function createWorkStateStore(path: string) {
       if (value.allowed) sqlite.prepare("INSERT OR IGNORE INTO internal_task_grants(project,actor_id) VALUES(?,?)").run(value.project, value.actorId);
       else sqlite.prepare("DELETE FROM internal_task_grants WHERE project=? AND actor_id=?").run(value.project, value.actorId);
     },
+    readSnapshot<T>(read: () => T): T { return sqlite.transaction(read)(); },
+    getPullRequest(scope: RepoScope, repositoryId: string, inputNumber: number) {
+      return sqlite.transaction(() => {
+        const parsed = scopeSchema.parse(scope);
+        access.assertRepositories(parsed, [repositoryId]);
+        const number = z.number().int().positive().parse(inputNumber);
+        const row = sqlite.prepare("SELECT payload FROM pull_requests WHERE repository_id=? AND number=?").get(repositoryId, number) as JsonRow | undefined;
+        if (!row) throw new WorkStateError(404, "pull_not_found");
+        const core = JSON.parse(row.payload) as Omit<PullRequestSnapshot, "facets">;
+        const facets: PullRequestSnapshot["facets"] = {};
+        for (const facet of sqlite.prepare("SELECT facet,payload FROM observations WHERE repository_id=? AND number=?").all(repositoryId, number) as Array<JsonRow & {facet:keyof typeof facets}>) facets[facet.facet]=JSON.parse(facet.payload) as Facet;
+        return {...core, repositoryId, facets};
+      })();
+    },
     listRepositories(scope: RepoScope) { return sqlite.transaction(() => listRepositoriesInTransaction(scope))(); },
     applyRepositorySnapshot(input: RepositorySnapshot) {
       const snapshot = repositorySnapshotSchema.parse(input);

@@ -7,6 +7,11 @@ import type {
   RepositoryInput,
 } from "./model.js";
 export type CheckValue = {
+  headSha?: string | null;
+  appId?: number | null;
+  suiteId?: number | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
   id: number;
   name: string;
   status: string;
@@ -19,6 +24,7 @@ export type StatusValue = {
   url: string | null;
 };
 export type ReviewThreadValue = {
+  url?: string | null;
   id: string;
   resolved: boolean;
   outdated: boolean;
@@ -79,7 +85,7 @@ export interface CollectionCheckpoint {
   pullRequests?: PullRequestSnapshot[];
   mergeRetries?: Record<string, number>;
 }
-export const REVIEW_QUERY = `query WorkStateReviews($owner:String!,$name:String!,$number:Int!,$cursor:String){ repository(owner:$owner,name:$name){ pullRequest(number:$number){ headRefOid baseRefOid headRefName baseRefName reviewDecision reviewThreads(first:100,after:$cursor){nodes{id isResolved isOutdated} pageInfo{hasNextPage endCursor}} } } }`;
+export const REVIEW_QUERY = `query WorkStateReviews($owner:String!,$name:String!,$number:Int!,$cursor:String){ repository(owner:$owner,name:$name){ pullRequest(number:$number){ headRefOid baseRefOid headRefName baseRefName reviewDecision reviewThreads(first:100,after:$cursor){nodes{id isResolved isOutdated comments(first:1){nodes{url}}} pageInfo{hasNextPage endCursor}} } } }`;
 interface Cache {
   etag?: string;
   value: unknown;
@@ -290,6 +296,8 @@ export class GitHubReader {
       user: z.object({ login: z.string() }).nullable(),
       state: z.enum(["open", "closed"]),
       draft: z.boolean(),
+      requested_reviewers: z.array(z.object({login:z.string()})).optional(),
+      requested_teams: z.array(z.object({id:z.number()}).passthrough()).optional(),
       merged_at: z.string().nullable(),
       mergeable: z.boolean().nullable(),
       mergeable_state: z.string().optional(),
@@ -385,7 +393,7 @@ export class GitHubReader {
     };
     await aspect("checks", async () =>
       paginated(
-        `${root}/commits/${before.head.sha}/check-runs?per_page=100`,
+        `${root}/commits/${before.head.sha}/check-runs?filter=all&per_page=100`,
         "check_runs",
         progress.checks,
         (row) => {
@@ -396,9 +404,19 @@ export class GitHubReader {
               status: z.string(),
               conclusion: z.string().nullable().optional(),
               html_url: z.string().url().nullable().optional(),
+              head_sha: z.string().nullable().optional(),
+              app: z.object({id:z.number()}).nullable().optional(),
+              check_suite: z.object({id:z.number()}).nullable().optional(),
+              started_at: z.string().nullable().optional(),
+              completed_at: z.string().nullable().optional(),
             })
             .parse(row);
           return {
+            ...(raw.head_sha === undefined ? {} : {headSha:raw.head_sha}),
+            ...(raw.app === undefined ? {} : {appId:raw.app?.id ?? null}),
+            ...(raw.check_suite === undefined ? {} : {suiteId:raw.check_suite?.id ?? null}),
+            ...(raw.started_at === undefined ? {} : {startedAt:raw.started_at}),
+            ...(raw.completed_at === undefined ? {} : {completedAt:raw.completed_at}),
             id: raw.id,
             name: raw.name,
             status: raw.status,
@@ -472,6 +490,7 @@ export class GitHubReader {
                             id: z.string(),
                             isResolved: z.boolean(),
                             isOutdated: z.boolean(),
+                            comments: z.object({nodes:z.array(z.object({url:z.string().url()}))}).optional(),
                           }),
                         ),
                         pageInfo: z.object({
@@ -502,6 +521,7 @@ export class GitHubReader {
           reviews.decision = pr.reviewDecision;
           reviews.threads.push(
             ...pr.reviewThreads.nodes.map((t) => ({
+              ...(t.comments?.nodes[0]?.url ? {url:t.comments.nodes[0].url} : {}),
               id: t.id,
               resolved: t.isResolved,
               outdated: t.isOutdated,
@@ -545,6 +565,7 @@ export class GitHubReader {
       headSha: after.head.sha,
       baseSha: after.base.sha,
       lifecycle: after.merged_at ? "merged" : after.state,
+      ...((after.requested_reviewers?.length || after.requested_teams?.length) ? {reviewRequested:true} : after.requested_reviewers && after.requested_teams ? {reviewRequested:false} : {}),
       draft: after.draft,
       mergedAt: after.merged_at,
       facets,

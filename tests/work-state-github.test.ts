@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { createServer, type Server } from "node:http";
+import {classifyPullRequest} from "../src/server/work-state/classify.js";
 import { GitHubReader, GitHubError } from "../src/server/work-state/github.js";
 const repo = {
   id: "1",
@@ -455,4 +456,29 @@ describe("GitHub source", () => {
       { context: "ci", state: "success", url: null },
     ]);
   });
+});
+
+it("retains only the provenance and source permalinks needed by attention", async () => {
+  handler = (path) => {
+    if(path.includes("/check-runs")) return {body:{check_runs:[{id:9,name:"build",status:"completed",conclusion:"failure",html_url:"https://github.com/org/repo/actions/runs/9",head_sha:"head",app:{id:2},check_suite:{id:8},started_at:"2026-10-20T11:00:00Z",completed_at:"2026-10-20T11:02:00Z"}]}};
+    if(path === "/graphql") { const result=defaults(path) as any;result.body.data.repository.pullRequest.reviewThreads.nodes=[{id:"thread",isResolved:false,isOutdated:false,comments:{nodes:[{url:"https://github.com/org/repo/pull/1#discussion_r9"}]}}];return result; }
+    const result=defaults(path);if(path.includes("/pulls/1"))return {body:{...core(),requested_reviewers:[{login:"reviewer"}],requested_teams:[]}};return result;
+  };
+  const pr=await reader().readPullRequest("1",1);
+  expect(pr.facets.checks?.value).toEqual([expect.objectContaining({headSha:"head",appId:2,suiteId:8,startedAt:"2026-10-20T11:00:00Z"})]);
+  expect(pr.facets.reviewThreads?.value).toEqual([expect.objectContaining({url:"https://github.com/org/repo/pull/1#discussion_r9"})]);
+  expect(pr).toHaveProperty("reviewRequested",true);
+});
+
+it("does not let completion-time source filtering hide a newer pending rerun",async()=>{
+ handler=(path)=>{
+  if(path.includes("/check-runs")){
+   const previous={id:1,name:"build",status:"completed",conclusion:"failure",head_sha:"head",app:{id:1},check_suite:{id:2},started_at:"2026-10-20T10:00:00Z",completed_at:"2026-10-20T11:59:00Z"};
+   const current={...previous,id:2,status:"in_progress",conclusion:null,started_at:"2026-10-20T11:00:00Z",completed_at:null};
+   return {body:{check_runs:new URL(path,url).searchParams.get("filter")==="all"?[previous,current]:[previous]}};
+  }
+  return defaults(path);
+ };
+ const pr=await reader().readPullRequest("1",1);const reasons=classifyPullRequest(pr,Date.now()).map(reason=>reason.code);
+ expect(reasons).toContain("checks_pending");expect(reasons).not.toContain("checks_failed");
 });

@@ -27,12 +27,28 @@ import { EmployeeManagement } from "./employee-management";
 import { PasskeyManager } from "./passkey-manager";
 import { FilterPresets } from "./filter-presets";
 import { CoordinationDashboard } from "./coordination-dashboard";
+import { WorkStateDashboard } from "./work-state-dashboard";
+import type { CoordinationProject } from "@/coordination-client";
 import { ReleaseListPage } from "./release-list";
 
 const WEBMAIL_URL = "https://mail.dreambau.com/";
 
 export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, onLocaleChange, onLogout, isAdmin, canManagePasskeys, entitlements }: { initialAccounts: AccountView[]; initialTaxonomies: Taxonomies; locale: Locale; onLocaleChange: (locale: Locale) => void; onLogout: () => void; isAdmin: boolean; canManagePasskeys: boolean; entitlements: HumanEntitlements }) {
   const [showCoordination, setShowCoordination] = useState(false);
+  const [coordinationProject, setCoordinationProject] = useState<CoordinationProject | undefined>();
+  const isWorkStateLocation = () => new URLSearchParams(window.location.search).get("view") === "work-state";
+  const [showWorkState, setShowWorkState] = useState(isWorkStateLocation);
+  const workStateBack = useRef({url:"/testmails/",coordination:false});
+  function openWorkState() {
+    workStateBack.current={url:window.location.pathname+window.location.search,coordination:showCoordination};
+    window.history.pushState(null,"","/testmails/?view=work-state");
+    setShowWorkState(true);
+  }
+  function closeWorkState() {
+    window.history.pushState(null,"",workStateBack.current.url);
+    setShowWorkState(false);setShowCoordination(workStateBack.current.coordination);
+  }
+  useEffect(()=>{const pop=()=>setShowWorkState(isWorkStateLocation());window.addEventListener("popstate",pop);return()=>window.removeEventListener("popstate",pop);},[]);
   // /testmails/releases is a shareable deep link; the server already answers it with the SPA shell.
   const [showReleases, setShowReleasesState] = useState(() => window.location.pathname.startsWith("/testmails/releases"));
   const accountsUrl = useRef("/testmails/");
@@ -77,9 +93,9 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   const activeFilterCount = countActiveFilters(filters) + (onlyFavorites ? 1 : 0);
   function resetFilters() { setFilters(DEFAULT_FILTERS); setOnlyFavorites(false); }
   const onReleasePage = () => window.location.pathname.startsWith("/testmails/releases");
-  useEffect(() => { if (onReleasePage()) return; writeFiltersToLocation(filters); saveLastFilters(filters); }, [filters]);
+  useEffect(() => { if (onReleasePage() || isWorkStateLocation() || showCoordination) return; writeFiltersToLocation(filters); saveLastFilters(filters); }, [filters]);
   useEffect(() => {
-    const onPopState = () => { if (!onReleasePage()) setFilters(readFiltersFromLocation() ?? DEFAULT_FILTERS); };
+    const onPopState = () => { if (!onReleasePage() && !isWorkStateLocation()) setFilters(readFiltersFromLocation() ?? DEFAULT_FILTERS); };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
@@ -94,7 +110,8 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   function edit(account: AccountView) { setSelected(account); setDetailOpen(false); setEditOpen(true); }
   async function logout() { await api("/auth/logout", { method: "POST" }); onLogout(); }
   if (showReleases) return <ReleaseListPage locale={locale} onLocaleChange={onLocaleChange} onBack={() => setShowReleases(false)} />;
-  if (showCoordination) return <CoordinationDashboard locale={locale} onBack={() => setShowCoordination(false)} />;
+  if (showWorkState) return <WorkStateDashboard locale={locale} onBack={closeWorkState} />;
+  if (showCoordination) return <CoordinationDashboard locale={locale} onBack={() => setShowCoordination(false)} initialProject={coordinationProject} onProjectChange={setCoordinationProject} onWorkState={openWorkState} />;
   return <main className="min-h-screen"><header className="border-b bg-card"><div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-6 lg:px-8"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="mb-2 flex items-center gap-2 text-sm font-medium"><ShieldCheckIcon />{t(locale, "page.kicker")}</div><h1 className="text-3xl font-bold tracking-tight">{t(locale, "page.title")}</h1><p className="mt-1 text-muted-foreground">{t(locale, "page.description", { count: accounts.length })}</p></div><div className="flex flex-col items-end gap-2"><div className="flex flex-wrap items-center gap-2"><Button onClick={() => setShowCoordination(true)}><RouteIcon data-icon="inline-start" />{locale === "de" ? "Koordinationszentrum" : "Coordination center"}</Button><Button variant="outline" asChild><a href={WEBMAIL_URL} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />{t(locale, "page.webmail")}</a></Button><Button type="button" variant="ghost" aria-expanded={moreOpen} aria-controls="more-actions" data-testid="more-toggle" onClick={() => setMoreOpen((open) => !open)}><MoreHorizontalIcon data-icon="inline-start" />{locale === "de" ? "Mehr" : "More"}</Button></div><div id="more-actions" hidden={!moreOpen} className="flex flex-wrap items-center justify-end gap-2"><Button variant="outline" onClick={() => setShowReleases(true)}><ListChecksIcon data-icon="inline-start" />{locale === "de" ? "Release-Liste" : "Release list"}</Button><Button variant="outline" asChild><a href="/testmails/testmails.md"><DownloadIcon data-icon="inline-start" />{t(locale, "page.markdown")}</a></Button>{isAdmin && <EmployeeManagement locale={locale} />}{canManagePasskeys && <PasskeyManager locale={locale} />}<TaxonomySettings taxonomies={taxonomies} locale={locale} onSaved={setTaxonomies} /><Button variant="outline" onClick={() => onLocaleChange(locale === "de" ? "en" : "de")} aria-label={t(locale, "page.language")}><LanguagesIcon data-icon="inline-start" />{locale === "de" ? "EN" : "DE"}</Button><Button variant="ghost" onClick={logout}><LogOutIcon data-icon="inline-start" />{t(locale, "page.logout")}</Button></div></div></div>
     <div className="grid gap-3 sm:grid-cols-[minmax(18rem,1fr)_auto_auto]"><div className="relative"><SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><Input className="pl-10" placeholder={t(locale, "page.search")} value={query} onChange={(event) => setQuery(event.target.value)} /></div><Button type="button" variant="outline" aria-expanded={advancedOpen} aria-controls="advanced-filters" data-testid="advanced-toggle" onClick={() => setAdvancedOpen((open) => !open)}><SlidersHorizontalIcon data-icon="inline-start" />{locale === "de" ? "Filter" : "Filters"}{advancedCount > 0 ? ` (${advancedCount})` : ""}</Button>{activeFilterCount > 0 && <Button type="button" variant="outline" data-testid="reset-filters" onClick={resetFilters}><FilterXIcon data-icon="inline-start" />{t(locale, "page.resetFilters", { count: activeFilterCount })}</Button>}</div>
     <div id="advanced-filters" hidden={!advancedOpen} className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,12rem))_auto]"><Select value={status} onValueChange={(value) => setStatus(value as typeof status)}><SelectTrigger className="w-full lg:w-40"><SelectValue placeholder={t(locale, "page.status")} /></SelectTrigger><SelectContent><SelectGroup>{lifecycleValues.map((value) => <SelectItem key={value} value={value}>{value === "all" ? t(locale, "page.all") : labelLifecycle(locale, value)}</SelectItem>)}</SelectGroup></SelectContent></Select><Select value={project} onValueChange={(value) => setProject(value as typeof project)}><SelectTrigger className="w-full lg:w-36"><SelectValue placeholder={t(locale, "page.project")} /></SelectTrigger><SelectContent><SelectGroup>{projectValues.map((value) => <SelectItem key={value} value={value}>{value === "all" ? t(locale, "page.all") : labelProject(locale, value)}</SelectItem>)}</SelectGroup></SelectContent></Select><Select value={quality} onValueChange={(value) => setQuality(value as typeof quality)}><SelectTrigger className="w-full lg:w-36"><SelectValue placeholder={t(locale, "page.testData")} /></SelectTrigger><SelectContent><SelectGroup>{fixtureValues.map((value) => <SelectItem key={value} value={value}>{value === "all" ? t(locale, "page.all") : labelFixture(locale, value)}</SelectItem>)}</SelectGroup></SelectContent></Select><VersionBulkAction accounts={accounts} locale={locale} onMarked={(emails) => setAccounts((current) => current.map((account) => emails.includes(account.email) ? { ...account, metadata: { ...account.metadata, lifecycleStatus: "delete_candidate" } } : account))} /></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Input aria-label={locale === "de" ? "Konten nach Version filtern" : "Filter accounts by version"} placeholder={locale === "de" ? "Liste: Version >" : "List: version >"} value={versionAfter} onChange={(event) => setVersionAfter(event.target.value)} /><MultiSelect label={locale === "de" ? "Rollen filtern" : "Filter roles"} options={distinctRoleOptions(taxonomies.roles)} value={roleFilters} onChange={setRoleFilters} locale={locale} /><MultiSelect label={locale === "de" ? "Themen filtern" : "Filter topics"} options={taxonomies.topics} value={topicFilters} onChange={setTopicFilters} formatOption={(value) => labelTopic(locale, value)} locale={locale} /><MultiSelect label={locale === "de" ? "Konversationen filtern" : "Filter conversations"} options={taxonomies.conversationTypes} value={conversationFilters} onChange={setConversationFilters} locale={locale} /></div><FilterPresets locale={locale} current={filters} onApply={setFilters} /></div>
