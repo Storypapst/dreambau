@@ -18,6 +18,8 @@ const reasonCopy: Record<string, [string, string, string, string]> = {
     "Quelle prüfen",
     "Inspect source",
   ],
+  delivery_source_incomplete: ["Lieferbelege prüfen", "Check delivery evidence", "Belegquelle prüfen", "Inspect evidence source"],
+  board_source_incomplete: ["Board-Quelle prüfen", "Check board source", "Board-Felder aktualisieren und Quelle prüfen", "Refresh board fields and inspect the source"],
   no_checks: [
     "Keine Checks beobachtet",
     "No checks observed",

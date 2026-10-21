@@ -1,3 +1,4 @@
+import type {SourceFacts} from "./sources.js";
 import { z } from "zod";
 import {
   classifyPullRequest,
@@ -33,8 +34,9 @@ export interface AttentionRow {
   assignments: Assignment[];
   /** Oldest stored facet observation, never the repository inventory timestamp. */
   observedAt: string | null;
-  deployment: "not_recorded";
-  acceptance: "not_recorded";
+  deployment: SourceFacts["deployment"];
+  acceptance: SourceFacts["acceptance"];
+  sources?:SourceFacts;
 }
 export interface AttentionList {
   items: AttentionRow[];
@@ -73,6 +75,7 @@ export function createAttentionService(
     repos: ReturnType<WorkStateStore["listRepositories"]>,
     items: ReturnType<WorkStateStore["listWorkItems"]>,
     time: number,
+    scope: RepoScope,
   ): AttentionRow => {
     const repo = repos.find((repo) => repo.id === pr.repositoryId)!;
     const { facets: _facets, ...core } = pr;
@@ -89,16 +92,21 @@ export function createAttentionService(
       )
         ? observations.sort()[0]!
         : null;
+    const sources=store.sourceFacts(scope,pr.repositoryId,pr.number,pr.headSha,time);
+    const reasons=classifyPullRequest({ ...pr, mode }, time);
+    if(sources.board.some(b=>b.coverage!=="complete"||b.stale))reasons.push({code:"board_source_incomplete",category:"data",url:sources.board[0]?.url??pr.url,observedAt:sources.board[0]?.observedAt??null});
+    if((sources.deploymentReceipt||sources.acceptanceReceipt)&&sources.feed.coverage!=="complete")reasons.push({code:"delivery_source_incomplete",category:"data",url:sources.deploymentReceipt?.evidenceLinks[0]??sources.acceptanceReceipt?.evidenceLinks[0]??pr.url,observedAt:sources.deploymentReceipt?.observedAt??sources.acceptanceReceipt?.observedAt??null});
     return {
       pr: core,
       observedAt,
       repository: { id: repo.id, fullName: repo.fullName },
-      reasons: classifyPullRequest({ ...pr, mode }, time),
+      reasons,
       assignments: assignments(items, pr).map(
         ({ id, goal, owner, priority }) => ({ id, goal, owner, priority }),
       ),
-      deployment: "not_recorded",
-      acceptance: "not_recorded",
+      deployment:sources.deployment,
+      acceptance:sources.acceptance,
+      sources,
     };
   };
   const belongs = (item: AttentionRow, view: AttentionView) =>
@@ -129,7 +137,7 @@ export function createAttentionService(
           cursor = page.nextCursor;
         } while (cursor !== null);
         const time = now();
-        const all = pulls.map((pr) => row(pr, repos, items, time));
+        const all = pulls.map((pr) => row(pr, repos, items, time,scope));
         const filtered = all.filter(
           (item) =>
             (!query.person ||
@@ -141,11 +149,8 @@ export function createAttentionService(
                   ))) &&
             (!query.priority ||
               (query.priority === "unknown"
-                ? item.assignments.length === 0 ||
-                  item.assignments.some((item) => !item.priority)
-                : item.assignments.some(
-                    (item) => item.priority === query.priority,
-                  ))) &&
+                ? !item.assignments.some(a=>a.priority)&&!item.sources?.board.some(b=>b.priority)
+                : item.assignments.some(a=>a.priority===query.priority)||item.sources?.board.some(b=>b.priority===query.priority))) &&
             (!query.reason ||
               item.reasons.some((reason) => reason.code === query.reason)),
         );
@@ -159,6 +164,7 @@ export function createAttentionService(
         const priority = (item: AttentionRow) =>
           Math.min(
             9,
+            ...(item.sources?.board.map(b=>b.priority?Number(b.priority[1]):9)??[]),
             ...item.assignments.map((item) =>
               item.priority ? Number(item.priority[1]) : 9,
             ),
@@ -205,9 +211,7 @@ export function createAttentionService(
             priorities: [
               ...new Set(
                 all.flatMap((item) =>
-                  item.assignments.flatMap((item) =>
-                    item.priority ? [item.priority] : [],
-                  ),
+                  [...item.assignments.flatMap((item) => item.priority ? [item.priority] : []),...(item.sources?.board.flatMap(board=>board.priority?[board.priority]:[])??[])],
                 ),
               ),
             ].sort(),
@@ -232,7 +236,7 @@ export function createAttentionService(
         const repos = store.listRepositories(scope);
         const items = store.listWorkItems(scope);
         return {
-          ...row(pr, repos, items, now()),
+          ...row(pr, repos, items, now(),scope),
           pr,
           workItems: assignments(items, pr),
         };

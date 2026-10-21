@@ -245,6 +245,7 @@ export function WorkStateDashboard({
           {row.assignments.map((item) => item.priority ?? unknown).join(", ") ||
             unknown}
         </p>
+        {row.sources?.board.length ? <p className="text-sm text-muted-foreground">{text("Board-Priorität", "Board priority")}: {[...new Set(row.sources.board.map(b=>b.priority??unknown))].join(", ")} {row.sources.board.some(b=>b.stale||b.coverage!=="complete")?text("(Quelle prüfen)","(check source)"):""}</p> : null}
         <p
           className="text-sm text-muted-foreground"
           title={absolute(row.observedAt)}

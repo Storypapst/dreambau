@@ -437,3 +437,12 @@ it("discovers resume IDs and reconstructs every authorized assignment from the r
     JSON.stringify(f.service.pullSection(f.scope, "A", 1, "overview", {})),
   ).not.toContain(hidden.id);
 });
+it("advertises bounded reloadable source provenance and fences changed board data",()=>{
+ const f=setup();seedPulls(f.store,[fixturePull()]);
+ f.store.createWorkItem(f.scope,{goal:"Linked",links:[{repositoryId:"A",kind:"pull",number:1},{repositoryId:"A",kind:"issue",number:9}]});
+ const board={status:"In review",priority:"P0",url:"https://github.com/OpenResilienceInitiative/repoA/issues/9",observedAt:new Date().toISOString(),coverage:"complete"};f.store.recordBoard("A",9,board);
+ const overview=f.service.pullSection(f.scope,"A",1,"overview");expect(overview.availableSections).toContain("sources");
+ let cursor=0,text="",revision="";do{const page=f.service.pullSection(f.scope,"A",1,"sources",{cursor});expect(bytes(page)).toBeLessThanOrEqual(12288);text+=JSON.stringify(page.entries);revision=page.revision;cursor=page.nextCursor;}while(cursor!==null);
+ expect(text).toContain("P0");expect(text).toContain(board.url);
+ f.store.recordBoard("A",9,{...board,priority:"P1",observedAt:new Date(Date.now()+1).toISOString()});expect(()=>f.service.pullSection(f.scope,"A",1,"sources",{revision})).toThrow("version_conflict");
+});

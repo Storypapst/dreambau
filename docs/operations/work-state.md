@@ -131,3 +131,96 @@ deployment is introduced by this service.
 
 Primary authentication contracts: [installation tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)
 and [signed JWTs](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-json-web-token-jwt-for-a-github-app).
+
+## Board and delivery source adapters (Package I)
+
+Opt in through `sources` in the protected runtime configuration. Board reads use
+one fixed paginated query for explicitly linked issues: an authorized work item
+must link the issue and PR. No title matching, cross-repository permission shortcut
+or copying of board fields into internal task state is performed. Both priorities
+stay visible. Org Issue Priority is authoritative; the empty project mirror is not.
+A missing source remains unknown and a failed attempt retains the last verified
+value with incomplete coverage. Older responses cannot replace newer observations.
+
+**For operators — optional source configuration:**
+```json
+{
+  "board": true,
+  "receiptDirectory": "/run/work-state-receipts",
+  "policies": [{
+    "producer": "approved-dev-verifier",
+    "publicKey": "REPLACE_WITH_APPROVED_ED25519_PUBLIC_PEM",
+    "repositoryIds": ["REPLACE_WITH_APPROVED_REPOSITORY_ID"],
+    "environments": ["dev"]
+  }]
+}
+```
+
+The optional Board token additionally requests Issues read and organization
+Projects read. The sources manifest is an alternative registration of the same App with these
+extra read permissions. Verify the real
+App query before claiming service coverage. A successful local `gh` read does not
+prove App access. The core collector remains read-only and has no personal-token
+fallback. A complete cycle runs hourly, in batches of twenty linked issues, with
+a persisted offset; an interrupted cycle resumes after restart. The current reader
+rejects GraphQL partial errors, nonadvancing cursors and unsupported field types.
+Do not treat the absence of a field mirror as a known empty value.
+
+Deployment and Dev acceptance use independent signed receipts from an explicitly
+approved producer. Mount its input directory read-only. Configure only its public
+Ed25519 key and permitted repository/environment scope. Do not copy a user's root
+SSH key to the service. A JSON file without a valid approved signature is not proof.
+The existing E2E runtime-evidence contract supplies full commits and immutable image
+digests, but connecting a real capture/signing producer remains an activation gate.
+Schema validation and a synthetic signature test do not prove a live deployment.
+
+**For the approved producer — receipt payload example (synthetic values):**
+```json
+{
+  "receiptId": "unique-immutable-id",
+  "producer": "approved-dev-verifier",
+  "repositoryId": "123",
+  "pullNumber": 7,
+  "kind": "deployment",
+  "environment": "dev",
+  "targetHeadSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "sourceCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "imageDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "observedAt": "2026-10-21T10:00:00.000Z",
+  "ready": true,
+  "evidenceLinks": ["https://evidence.dreambau.com/REPLACE_WITH_REAL_PROOF"]
+}
+```
+
+For acceptance use `kind=acceptance`, `result=PASS|FAIL` and a criterion instead of
+`ready`. The producer must actually compare the running digest/revision with the
+intended CI build and prove which PR head that build contains. A merge alone does
+not justify populating these fields. The real Dev browser run must record the same
+build revision/digest and a durable evidence link. Different revision, stale proof,
+unready deployment and missing matching deployment are displayed separately.
+
+Sign the UTF-8 canonical payload (object keys sorted recursively, array order
+preserved, no whitespace) with Ed25519, encode the signature as base64, then publish
+`{"payload": <payload>, "signature": <base64>}` atomically as a new `.json` file,
+maximum 64 KiB. Never reuse a receipt ID for different content. The consumer reads
+up to fifty files per tick with persisted progress, retains immutable receipts and
+polls a completed directory every thirty seconds. It never deletes producer files.
+No deployment, acceptance, issue or board mutations are performed by these adapters.
+The UI labels these assertions “per evidence” and exposes producer, timestamp,
+source commit, digest and evidence. Revoke repository grants to hide all derived
+fields as well as the original saved work.
+
+Saved receipts retain their signature and normalized signing-key fingerprint. The
+current producer/key/repository/environment policy is checked again on every read;
+revocation or key rotation withholds trusted readiness while history remains.
+Receipt chronology uses numeric epoch milliseconds, including fractional seconds.
+Observed FAIL and its criterion stay visible independently of missing deployment,
+stale proof or revision mismatch. The protected operations endpoint and source
+sections expose sanitized feed coverage, last attempt/success and scan errors.
+A bad input anywhere in a multi-batch scan remains flagged until a complete clean
+scan succeeds. Aborting a partial scan does not publish scan completion.
+
+Machines follow the advertised `/sections/sources` link for bounded, paginated
+board/receipt provenance; source changes enter its revision fence. Schema 7/8 adds
+source tables and verification provenance. Earlier receipts without retained
+verification provenance remain history and cannot establish current trusted proof.

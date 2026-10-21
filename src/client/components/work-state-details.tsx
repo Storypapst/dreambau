@@ -1,3 +1,4 @@
+import {sourceStateLabel} from "@/work-state-source-labels";
 import { WorkStateResume } from "./work-state-resume";
 import { useEffect, useState } from "react";
 import type { Locale } from "@/i18n";
@@ -123,9 +124,18 @@ export function WorkStateDetails({
                 {detail.pr.base} ← {detail.pr.head} · {detail.pr.headSha}
               </p>
               <p>
-                {text("Deployment", "Deployment")}: {notRecorded} ·{" "}
-                {text("Dev-Abnahme", "Dev acceptance")}: {notRecorded}
+                {text("Deployment", "Deployment")}: {sourceStateLabel(locale,detail.deployment)} ·{" "}
+                {text("Dev-Abnahme", "Dev acceptance")}: {sourceStateLabel(locale,detail.acceptance)}
               </p>
+              {detail.sources?.board.map(board=><p key={`${board.repositoryId}/${board.issueNumber}`} className="text-sm">
+                <a className="underline" href={safeLink(board.url)} target="_blank" rel="noreferrer">{text("Board-Quelle","Board source")}</a>: {board.status??unknown} · {board.priority??unknown} · {age(board.observedAt)}{board.stale||board.coverage!=="complete"?text(" · Quelle prüfen"," · Check source"):""}
+              </p>)}
+              {detail.sources&&(detail.sources.deploymentReceipt||detail.sources.acceptanceReceipt)&&detail.sources.feed?.coverage!=="complete"?<p>{text("Belegquelle prüfen", "Check evidence source")} · {detail.sources.feed?.errorCode?text("Letzte Aktualisierung fehlgeschlagen","Last update failed"):text("Aktualität nicht bestätigt","Freshness unconfirmed")}</p>:null}
+              {[detail.sources?.deploymentReceipt,detail.sources?.acceptanceReceipt].filter(Boolean).map(receipt=><div key={receipt!.receiptId} className="break-all text-sm">
+                {receipt!.kind==="acceptance"?<p>{text("Prüfergebnis", "Test result")}: {receipt!.result} · {receipt!.criterion}</p>:null}
+                {receipt!.producer} · {receipt!.environment} · {age(receipt!.observedAt)}<br/>{receipt!.sourceCommit} · {receipt!.imageDigest}
+                {receipt!.evidenceLinks.map(url=><a key={url} className="ml-2 underline" href={safeLink(url)} target="_blank" rel="noreferrer">{text("Beleg öffnen","Open evidence")}</a>)}
+              </div>)}
               <div className="flex flex-col gap-2">
                 {Object.entries(detail.pr.facets).map(([name, facet]) => (
                   <p key={name} className="text-sm">
