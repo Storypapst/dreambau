@@ -27,6 +27,11 @@ export function createDeliveryAcceptor(store: WorkStateStore, secret: string) {
       !/^[-\w]{1,100}$/.test(event)
     )
       throw new WorkStateError(400, "invalid_delivery");
+    if (event === "ping") {
+      try { z.object({hook_id:z.number().int().positive()}).passthrough().parse(JSON.parse(rawBody.toString("utf8"))); }
+      catch { throw new WorkStateError(400,"invalid_payload"); }
+      return delivery;
+    }
     const pull = z
       .object({ number: z.number().int().positive().optional() })
       .passthrough();

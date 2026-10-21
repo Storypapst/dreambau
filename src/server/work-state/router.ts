@@ -29,6 +29,7 @@ export function createWorkStateRouter(store: WorkStateStore | undefined, options
   router.use(createContextRoutes(store, options));
   router.get("/attention", (req,res)=>res.json(attention!.listAttention(scope(res),req.query)));
   router.get("/repositories/:id/pulls/:number", (req,res)=>res.json(attention!.detail(scope(res),String(req.params.id),z.coerce.number().int().positive().parse(req.params.number))));
+  router.get("/operations", (_req,res) => res.json(store!.operations(scope(res))));
   router.get("/repositories", (_req, res) => res.json({ items: store!.listRepositories(scope(res)) }));
   router.get("/pulls", (req, res) => res.json(store!.listPullRequests(scope(res), req.query)));
   router.get("/items", (_req, res) => res.json({ items: store!.listWorkItems(scope(res)) }));
