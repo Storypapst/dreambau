@@ -108,7 +108,8 @@ test("bookmark, filters, keyboard, source links and private data boundaries", as
   await expect(page.locator("body")).toContainText("Daten veraltet");
   await page.getByRole("tab", { name: /^Zuletzt gemerged/ }).click();
   await page.getByRole("button", { name: "Details", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("Nicht erfasst");
+  await expect(page.getByRole("dialog")).toContainText("Bereit laut Beleg");
+  await expect(page.getByRole("dialog")).toContainText("Bestanden laut Beleg");
   await page.keyboard.press("Escape");
   await expect(
     page.getByRole("button", { name: "Details", exact: true }),
@@ -121,6 +122,8 @@ test("bookmark, filters, keyboard, source links and private data boundaries", as
   await expect(page.getByRole("dialog")).toContainText(
     "Inspect the failing job",
   );
+  await expect(page.getByRole("dialog")).toContainText("Board-Quelle");
+  await expect(page.getByRole("dialog")).toContainText("P0");
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page
     .getByRole("button", { name: "Fortsetzung kopieren", exact: true })

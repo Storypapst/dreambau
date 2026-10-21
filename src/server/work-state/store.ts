@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { createWorkStateSources } from "./sources.js";
 import { createCollectorStore } from "./collector-store.js";
 import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
@@ -178,6 +179,7 @@ export function createWorkStateStore(path: string) {
   const collector = createCollectorStore(sqlite, (scope, ids) => access.assertRepositories(scope, ids));
   return {
     ...collector,
+    ...createWorkStateSources(sqlite,(scope,ids)=>access.assertRepositories(scope,ids),(scope,id)=>access.itemAllowed(scope,id)),
     commitSync(token: string, snapshot: RepositorySnapshot, now = Date.now()) {
       return collector.commitSnapshot(token, snapshot, now, () => this.applyRepositorySnapshot(snapshot));
     },
@@ -193,7 +195,7 @@ export function createWorkStateStore(path: string) {
       return { repositories, coverage:{configured:repositories.length,complete:repositories.filter(repo=>repo.coverage==="complete"&&!repo.errorCode).length},
         lastFullSync: completed.length === repositories.length && completed.length ? completed.sort()[0] : null,
         queue:{pending:queues.filter(Boolean).length,running:queues.filter(q=>q?.token&&q.lease_until!==null&&q.lease_until>now).length,oldestAgeMs:queues.some(Boolean)&&queues.filter(Boolean).every(q=>q!.enqueued_at!==null)?Math.max(...queues.filter(Boolean).map(q=>Math.max(0,now-q!.enqueued_at!))):null},
-        backup:maintenance("backup"), restore:maintenance("restore") };
+        sourceFeed:this.receiptFeedState(now), backup:maintenance("backup"), restore:maintenance("restore") };
     },
     close() { if (sqlite.open) sqlite.close(); },
     /** Service-owner configuration only. Never expose these methods through a human router. */

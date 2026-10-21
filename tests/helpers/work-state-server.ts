@@ -1,4 +1,6 @@
 import express from "express";
+import {generateKeyPairSync,sign} from "node:crypto";
+import {canonicalReceipt} from "../../src/server/work-state/sources.js";
 import path from "node:path";
 import {
   workStateFixture,
@@ -23,6 +25,7 @@ stale.title = "Source needs refreshing";
 const merged = fixturePull(4);
 merged.title = "Merged change";
 merged.lifecycle = "merged";
+merged.headSha="a".repeat(40);
 merged.mergedAt = new Date().toISOString();
 const partial = fixturePull(5);
 partial.title = "Partial review evidence";
@@ -42,7 +45,7 @@ const item = fixture.store.createWorkItem(fixture.scope, {
   goal: "Verify the failing check",
   owner: "Lisa Fixture",
   priority: "P1",
-  links: [{ repositoryId: "A", kind: "pull", number: 1 }],
+  links: [{ repositoryId: "A", kind: "pull", number: 1 },{repositoryId:"A",kind:"issue",number:9}],
 });
 fixture.store.writeCheckpoint(fixture.scope, item.id, {
   expectedVersion: 1,
@@ -54,6 +57,12 @@ fixture.store.writeCheckpoint(fixture.scope, item.id, {
   blockers: ["Check still failing"],
   evidenceLinks: ["https://example.test/work-state-evidence"],
 });
+fixture.store.recordBoard("A",9,{status:"In review",priority:"P0",url:"https://github.com/OpenResilienceInitiative/repoA/issues/9",observedAt:new Date().toISOString(),coverage:"complete"});
+const {privateKey,publicKey}=generateKeyPairSync("ed25519");
+const policy={producer:"local-synthetic-proof",publicKey:publicKey.export({format:"pem",type:"spki"}).toString(),repositoryIds:["A"],environments:["dev"]};
+fixture.store.configureReceiptPolicies([policy]);
+const proof={producer:policy.producer,repositoryId:"A",pullNumber:4,environment:"dev",targetHeadSha:merged.headSha,sourceCommit:"b".repeat(40),imageDigest:"sha256:"+"c".repeat(64),observedAt:new Date().toISOString(),evidenceLinks:["https://example.test/local-synthetic-proof"]};
+for(const payload of [{...proof,receiptId:"local-deploy",kind:"deployment",ready:true},{...proof,receiptId:"local-acceptance",kind:"acceptance",result:"PASS",criterion:"Synthetic browser fixture"}])fixture.store.ingestReceipt({payload,signature:sign(null,Buffer.from(canonicalReceipt(payload)),privateKey).toString("base64")},[policy]);
 const app = express();
 app.use("/testmails", express.static(path.resolve("dist/client")));
 app.use(fixture.app);

@@ -156,6 +156,11 @@ export function createContextService(
               })),
             owner: preview(row.assignments[0]?.owner),
             priority: row.assignments[0]?.priority ?? null,
+            boardPriorities:[...new Set(row.sources?.board.map(b=>b.priority).filter(Boolean)??[])].slice(0,4),
+            boardIncomplete:row.sources?.board.some(b=>b.coverage!=="complete"||b.stale)??false,
+            evidenceIncomplete:row.sources?.feed.coverage!=="complete",
+            sourceDetails:`${base}/repositories/${encodeURIComponent(row.repository.id)}/pulls/${row.pr.number}/sections/sources`,
+            deployment:row.deployment,acceptance:row.acceptance,
             detail,
           };
         });
@@ -314,7 +319,7 @@ export function createContextService(
     ) {
       return store.readSnapshot(() => {
         const query = pageQuery.parse(input);
-        z.enum(["overview", "checks", "reviews", "threads"]).parse(section);
+        z.enum(["overview", "checks", "reviews", "threads", "sources"]).parse(section);
         const pr = store.getPullRequest(scope, repo, number);
         const assignments =
           section === "overview"
@@ -335,8 +340,9 @@ export function createContextService(
                   context: `${itemPath(item.id)}/context`,
                 }))
             : [];
+        const sources=store.sourceFacts(scope,repo,number,pr.headSha,Date.now());
         const revision = createHash("sha256")
-          .update(JSON.stringify({ pr, assignments }))
+          .update(JSON.stringify({ pr, assignments, sources }))
           .digest("hex");
         if (query.revision && query.revision !== revision)
           throw new WorkStateError(409, "version_conflict");
@@ -361,6 +367,11 @@ export function createContextService(
             "mergedAt",
           ] as const)
             add(key, pr[key] ?? null);
+        if(section==="overview")add("sourceDetails",`${base}/repositories/${encodeURIComponent(repo)}/pulls/${number}/sections/sources`);
+        if(section==="sources"){
+          const flatten=(key:string,value:unknown)=>{if(Array.isArray(value))value.forEach((v,i)=>flatten(`${key}.${i}`,v));else if(value&&typeof value==="object")for(const [name,v]of Object.entries(value))flatten(`${key}.${name}`,v);else add(key,value);};
+          flatten("sources",sources);
+        }
         for (const [index, item] of assignments.entries())
           for (const [key, value] of Object.entries(item))
             add(`workItems.${index}.${key}`, value);
@@ -427,7 +438,7 @@ export function createContextService(
           number,
           section,
           revision,
-          availableSections: ["overview", "checks", "reviews", "threads"],
+          availableSections: ["overview", "checks", "reviews", "threads", "sources"],
         });
         return page;
       });
