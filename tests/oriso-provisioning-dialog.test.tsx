@@ -89,6 +89,80 @@ describe("OrisoProvisioningDialog", () => {
     return onProvisioned;
   }
 
+  const clientAccount = () => account({
+    displayName: "Hugo Simpson", email: "hugo.simpson@trail.ist", domain: "trail.ist",
+    metadata: { ...account().metadata, email: "hugo.simpson@trail.ist", project: "ORISO" }
+  });
+  const clientLinked: LinkedTestAccount = {
+    ...linkedFixture, id: "oriso/dev/hugo.simpson-trail.ist", environment: "dev", kind: "app-user",
+    displayName: "Hugo Simpson — ORISO Dev advice-seeker", email: "hugo.simpson@trail.ist",
+    username: "hugo.simpson_at_trail.ist", roles: ["asker"], loginUrl: "https://dev.oriso.org", hasTotp: true
+  };
+
+  it.each(["de", "en"] as const)("verifies a linked Client without an invitation status using its retained role (%s)", async (locale) => {
+    vi.mocked(api).mockResolvedValueOnce({ configured: true, environment: "dev",
+      supportedRoles: ["tenant-admin", "advice-seeker"], state: null, provisioningRole: "advice-seeker",
+      linked: clientLinked, requiresApplicationPassword: false, requiresAccountSetup: false
+    }).mockResolvedValueOnce({ created: false, recordCreated: false,
+      state: { ...readyStateFixture(), role: "advice-seeker", targetRole: "ADVICE_SEEKER" },
+      provisioningRole: "advice-seeker", linked: clientLinked, requiresApplicationPassword: false });
+    await act(async () => root.render(
+      <OrisoProvisioningDialog account={clientAccount()} locale={locale} hasLinkedAccess onProvisioned={vi.fn()} />
+    ));
+    await act(async () => container.querySelector("button")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.body.textContent).toContain(locale === "de" ? "ORISO Dev Konto" : "ORISO Dev account"));
+
+    expect(document.body.textContent).not.toContain(locale === "de" ? "Rolle für die Anlage wählen" : "Choose the role to provision");
+    expect(document.body.textContent).not.toContain(locale === "de" ? "Kein verknüpfter Onboarding-Status" : "No linked onboarding status");
+    expect(document.body.textContent).not.toContain("Tenant Admin");
+    expect(document.querySelector("[role=combobox]")).toBeNull();
+    expect(Array.from(document.querySelectorAll("button")).some(button =>
+      button.textContent?.includes(locale === "de" ? "Konto anlegen & prüfen" : "Provision & verify account"))).toBe(false);
+    expect(document.body.textContent).toContain(locale === "de" ? "Vorhandener Test-Access-Record" : "Existing Test Access record");
+    expect(document.body.textContent).toContain("Client");
+    const verify = Array.from(document.querySelectorAll("button")).find(button =>
+      button.textContent?.includes(locale === "de" ? "Vorhandenes Konto live prüfen" : "Verify existing account live"));
+    expect(verify).toBeDefined();
+    await act(async () => verify!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(api).toHaveBeenLastCalledWith(`/accounts/${encodeURIComponent(clientLinked.email)}/oriso-provisioning`, {
+      method: "POST", body: JSON.stringify({ environment: "dev", role: "advice-seeker" })
+    });
+    expect(document.body.textContent).toContain(locale === "de" ? "Live geprüft" : "Verified live");
+  });
+
+  it.each([
+    ["pending", false], ["failed", true]
+  ] as const)("keeps supported 2FA continuation for a linked %s Client without a saved factor", async (_status, requiresApplicationPassword) => {
+    vi.mocked(api).mockResolvedValueOnce({ configured: true, environment: "dev",
+      supportedRoles: ["tenant-admin", "advice-seeker"], state: null, provisioningRole: "advice-seeker",
+      linked: { ...clientLinked, hasTotp: false }, requiresApplicationPassword, requiresAccountSetup: false
+    });
+    await act(async () => root.render(
+      <OrisoProvisioningDialog account={clientAccount()} locale="de" hasLinkedAccess onProvisioned={vi.fn()} />
+    ));
+    await act(async () => container.querySelector("button")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("2FA direkt hier abschließen"));
+    expect(document.body.textContent).toContain("Vorhandener Test-Access-Record");
+    expect(document.querySelector("[role=combobox]")).toBeNull();
+    expect(Array.from(document.querySelectorAll("button")).some(button => button.textContent?.includes("Konto anlegen & prüfen"))).toBe(false);
+    expect(Boolean(document.querySelector("input[name=existingOrisoPassword]"))).toBe(requiresApplicationPassword);
+    expect(document.querySelector("input[name=dialogTotpSecret]")).not.toBeNull();
+    expect(api).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not guess PreDev while a trail.ist Client status is loading", async () => {
+    let resolveStatus!: (value: unknown) => void;
+    vi.mocked(api).mockReturnValueOnce(new Promise(resolve => { resolveStatus = resolve; }));
+    await act(async () => root.render(
+      <OrisoProvisioningDialog account={clientAccount()} locale="de" hasLinkedAccess onProvisioned={vi.fn()} />
+    ));
+    await act(async () => container.querySelector("button")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(document.querySelector("[data-slot=dialog-title]")?.textContent).toBe("ORISO-Konto");
+    await act(async () => resolveStatus({ configured: true, environment: "dev", supportedRoles: ["advice-seeker"],
+      state: null, provisioningRole: "advice-seeker", linked: clientLinked, requiresApplicationPassword: false }));
+    expect(document.querySelector("[data-slot=dialog-title]")?.textContent).toBe("ORISO Dev Konto");
+  });
+
   it("finishes a mailed first-password setup inside Testmails without credential inputs", async () => {
     vi.mocked(api).mockResolvedValueOnce({ configured: true, supportedRoles: ["counsellor"], environment: "pre-dev",
       state: stateFixture({ role: "counsellor", nextStep: "complete-account-setup" }), provisioningRole: "counsellor",
@@ -191,14 +265,14 @@ describe("OrisoProvisioningDialog", () => {
     });
 
     await openDialog();
-    await vi.waitFor(() => expect(document.body.textContent).toContain("nicht ausgeschlossen"));
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Gespeicherte Rolle prüfen"));
     const roleTrigger = document.querySelector<HTMLElement>("[aria-label=Rolle]")!;
     await act(async () => roleTrigger.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     const agencyOption = Array.from(document.querySelectorAll<HTMLElement>("[role=option]"))
       .find((option) => option.textContent?.includes("Agency Admin"));
     await act(async () => agencyOption?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     const submit = Array.from(document.querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("Konto anlegen & prüfen"));
+      .find((button) => button.textContent?.includes("Gespeicherte Rolle prüfen"));
     await act(async () => submit?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(document.body.textContent).toContain("Veraltete Rollen"));

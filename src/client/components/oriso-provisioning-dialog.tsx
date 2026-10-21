@@ -187,6 +187,8 @@ export function OrisoProvisioningDialog({
     ?? (account.domain === "oriso.org" || account.domain === "openresilience.cc" ? "dev" : "pre-dev");
   const environmentLabel = environment === "pre-dev" ? "PreDev" : "Dev";
   const provisioningRole = view?.provisioningRole ?? view?.state?.role ?? null;
+  const chooseRole = view?.configured && !view.requiresAccountSetup && !view.state
+    && !view.requiresApplicationPassword && (!view.linked || !provisioningRole);
 
   async function load() {
     setError(null);
@@ -358,9 +360,15 @@ export function OrisoProvisioningDialog({
     </DialogTrigger>
     <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto [&>*]:min-w-0 [&_button]:h-auto [&_button]:min-h-9 [&_button]:max-w-full [&_button]:whitespace-normal">
       <DialogHeader>
-        <DialogTitle>{locale === "de" ? `ORISO ${environmentLabel} Konto` : `ORISO ${environmentLabel} account`}</DialogTitle>
+        <DialogTitle>{!view
+          ? (locale === "de" ? "ORISO-Konto" : "ORISO account")
+          : (locale === "de" ? `ORISO ${environmentLabel} Konto` : `ORISO ${environmentLabel} account`)}</DialogTitle>
         <DialogDescription>
-          {view?.requiresApplicationPassword && !view.linked && !view.requiresAccountSetup
+          {view?.linked
+            ? (locale === "de"
+              ? "Zeigt den gespeicherten Zugang dieses ORISO-Testkontos. Anmeldung und 2FA werden erst bei einer Live-Prüfung bestätigt."
+              : "Shows the stored access for this ORISO test account. Sign-in and 2FA are confirmed only by a live check.")
+            : view?.requiresApplicationPassword && !view.requiresAccountSetup
             ? (locale === "de"
               ? "Verknüpft das vorhandene ORISO-Konto mit diesem Springfield-Postfach. Hinterlegen Sie hier die Anmeldedaten und prüfen Sie danach die Anmeldung und die Zwei-Faktor-Authentifizierung."
               : "Links the existing ORISO account with this Springfield mailbox. Save its login details here, then verify its sign-in and two-factor authentication.")
@@ -376,6 +384,13 @@ export function OrisoProvisioningDialog({
           : `ORISO provisioning is not configured for ${environmentLabel} on this server.`}
       </p>}
       {view?.configured && view.state && <StateSummary state={view.state} locale={locale} environment={view.environment} />}
+      {view?.configured && view.linked && !view.state && <div className="flex flex-col gap-2 rounded-lg border p-3">
+        <p className="text-sm font-medium">{locale === "de" ? "Vorhandener Test-Access-Record" : "Existing Test Access record"}</p>
+        {provisioningRole && <Badge variant="outline">{labelRole(locale, provisioningRole)}</Badge>}
+        <p className="text-xs text-muted-foreground">{locale === "de"
+          ? "Der aktuelle ORISO-Onboarding-Status ist noch nicht bestätigt. Die vorhandene Kontozuordnung bleibt erhalten."
+          : "The current ORISO onboarding status has not been confirmed yet. The existing account link is retained."}</p>
+      </div>}
       {view?.configured && view.state && view.linked?.hasTotp && <div className="flex flex-col gap-2 rounded-lg border p-3">
         <p className="text-sm font-medium">
           {liveVerified
@@ -483,15 +498,19 @@ export function OrisoProvisioningDialog({
       {otpWaitingUntil && <OtpValidity expiresAt={otpWaitingUntil} locale={locale} waiting />}
       {otp?.expiresAt && <OtpValidity expiresAt={otp.expiresAt} locale={locale} />}
       {otpError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "Code konnte nicht erzeugt werden." : "Could not generate the code."}</p>}
-      {view?.configured && !view.requiresAccountSetup && !view.state && !view.requiresApplicationPassword && <div className="flex flex-col gap-3">
-        <p className="text-sm">{locale === "de" ? "Kein verknüpfter Onboarding-Status gefunden. Ein bestehendes ORISO-Konto ist damit nicht ausgeschlossen. Rolle für die Anlage wählen:" : "No linked onboarding status was found. An existing ORISO account has not been ruled out. Choose the role to provision:"}</p>
+      {chooseRole && <div className="flex flex-col gap-3">
+        <p className="text-sm">{view?.linked
+          ? (locale === "de"
+            ? "Die gespeicherten Rollen sind keiner eindeutigen Einrichtungsrolle zugeordnet. Gewünschte Rolle zur Prüfung wählen; ein Austausch muss danach gesondert bestätigt werden."
+            : "The stored roles do not map to a single setup role. Choose a role to check; any replacement requires separate confirmation afterward.")
+          : (locale === "de" ? "Kein verknüpfter Onboarding-Status gefunden. Ein bestehendes ORISO-Konto ist damit nicht ausgeschlossen. Rolle für die Anlage wählen:" : "No linked onboarding status was found. An existing ORISO account has not been ruled out. Choose the role to provision:")}</p>
         <Select value={role} onValueChange={(value) => {
           setRole(value as OrisoProvisioningRole);
           setStaleRoleConflict(null);
         }}>
           <SelectTrigger aria-label={locale === "de" ? "Rolle" : "Role"}><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>
-            {view.supportedRoles.map((value) => <SelectItem key={value} value={value}>{labelRole(locale, value)}</SelectItem>)}
+            {view?.supportedRoles.map((value) => <SelectItem key={value} value={value}>{labelRole(locale, value)}</SelectItem>)}
           </SelectGroup></SelectContent>
         </Select>
       </div>}
@@ -526,11 +545,15 @@ export function OrisoProvisioningDialog({
           <ShieldCheckIcon data-icon="inline-start" />
           {busy ? (locale === "de" ? "Einrichtung wird geprüft…" : "Checking setup…") : (locale === "de" ? "Einrichtung abschließen & prüfen" : "Complete setup & verify")}
         </Button>}
-        {view?.configured && !view.requiresAccountSetup && !view.state && !view.requiresApplicationPassword && !staleRoleConflict && <Button type="button" onClick={() => provision(role)} disabled={busy}>
+        {chooseRole && !staleRoleConflict && <Button type="button" onClick={() => provision(role)} disabled={busy}>
           <CircleCheckIcon data-icon="inline-start" />
-          {busy
-            ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
-            : (locale === "de" ? "Konto anlegen & prüfen" : "Provision & verify account")}
+          {view?.linked
+            ? (busy
+              ? (locale === "de" ? "Wird geprüft…" : "Checking…")
+              : (locale === "de" ? "Gespeicherte Rolle prüfen" : "Check stored role"))
+            : (busy
+              ? (locale === "de" ? "Wird angelegt…" : "Provisioning…")
+              : (locale === "de" ? "Konto anlegen & prüfen" : "Provision & verify account"))}
         </Button>}
         {staleRoleConflict && <Button
           type="button"
@@ -554,7 +577,9 @@ export function OrisoProvisioningDialog({
           <RefreshCwIcon data-icon="inline-start" />
           {busy
             ? (locale === "de" ? "Wird live geprüft…" : "Verifying live…")
-            : (locale === "de" ? "Konto live prüfen & ggf. wiederherstellen" : "Verify live & restore if needed")}
+            : !view.state
+              ? (locale === "de" ? "Vorhandenes Konto live prüfen" : "Verify existing account live")
+              : (locale === "de" ? "Konto live prüfen & ggf. wiederherstellen" : "Verify live & restore if needed")}
         </Button>}
       </DialogFooter>
     </DialogContent>
