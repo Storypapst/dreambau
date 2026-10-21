@@ -33,3 +33,13 @@ export function refreshWorkState(id: string, number?: number) {
     { method: "POST" },
   );
 }
+
+export function loadResumeContext(id: string, signal?: AbortSignal) {
+  return api<
+    ReturnType<
+      ReturnType<
+        typeof import("../server/work-state/context.js").createContextService
+      >["resume"]
+    >
+  >(`/work-state/items/${encodeURIComponent(id)}/context`, { signal });
+}

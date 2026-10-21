@@ -1,3 +1,4 @@
+import { WorkStateResume } from "./work-state-resume";
 import { useEffect, useState } from "react";
 import type { Locale } from "@/i18n";
 import { loadPullDetail, type AttentionDetail } from "@/work-state-client";
@@ -219,6 +220,11 @@ export function WorkStateDetails({
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-col gap-3">
+                      <WorkStateResume
+                        id={item.id}
+                        locale={locale}
+                        onPermissionDenied={onPermissionDenied}
+                      />
                       {item.checkpoint ? (
                         <>
                           <p>

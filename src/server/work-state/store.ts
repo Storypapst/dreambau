@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { createCollectorStore } from "./collector-store.js";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createWorkStateAccess } from "./access.js";
 import {
   checkpointSchema, internalGrantSchema, linksUpdateSchema, pullQuerySchema, repositoryGrantSchema,
@@ -108,6 +108,13 @@ export function createWorkStateStore(path: string) {
       sqlite.prepare("INSERT INTO work_state_migrations(version,applied_at) VALUES(2,?)").run(recordedAt);
     }
   }).immediate();
+  sqlite.transaction(() => {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS checkpoint_receipts (
+      actor_id TEXT NOT NULL, project TEXT NOT NULL, item_id TEXT NOT NULL REFERENCES work_items(id),
+      key TEXT NOT NULL, request_hash TEXT NOT NULL, version INTEGER NOT NULL,
+      PRIMARY KEY(actor_id,project,item_id,key));
+      INSERT OR IGNORE INTO work_state_migrations(version,applied_at) VALUES(3,strftime('%Y-%m-%dT%H:%M:%fZ','now'));`);
+  }).immediate();
   const access = createWorkStateAccess(sqlite);
   const repository = (id: string) => sqlite.prepare("SELECT * FROM repositories WHERE id=?").get(id) as RepositoryRow | undefined;
   function listRepositoriesInTransaction(scope: RepoScope) {
@@ -154,6 +161,18 @@ export function createWorkStateStore(path: string) {
   }
   function currentVersion(id: string) { return (sqlite.prepare("SELECT version FROM work_items WHERE id=?").get(id) as { version: number }).version; }
 
+  function writeCheckpoint(scope: RepoScope, id: string, input: unknown) {
+      return sqlite.transaction(() => {
+        const parsed = access.assertItem(scope, id), version = currentVersion(id);
+        assertExpectedVersion(input, version);
+        const { expectedVersion: _expected, ...value } = checkpointSchema.parse(input);
+        const at = new Date().toISOString(), checkpoint = { ...value, version: version + 1, authorId: parsed.actorId, createdAt: at };
+        sqlite.prepare("UPDATE work_items SET version=version+1,updated_at=? WHERE id=? AND version=?").run(at, id, version);
+        sqlite.prepare("INSERT INTO checkpoints(item_id,version,author_id,created_at,payload) VALUES(?,?,?,?,?)").run(id, version + 1, parsed.actorId, at, JSON.stringify(checkpoint));
+        history(id, version + 1, "checkpoint", parsed.actorId, at, checkpoint);
+        return readItem(parsed, id);
+      }).immediate();
+    }
   const collector = createCollectorStore(sqlite, (scope, ids) => access.assertRepositories(scope, ids));
   return {
     ...collector,
@@ -292,17 +311,23 @@ export function createWorkStateStore(path: string) {
       })();
     },
     getWorkItem(scope: RepoScope, id: string) { return sqlite.transaction(() => readItem(scope, id))(); },
-    writeCheckpoint(scope: RepoScope, id: string, input: unknown) {
+    writeCheckpoint,
+    writeCheckpointOnce(scope: RepoScope, id: string, input: unknown, key: string) {
       return sqlite.transaction(() => {
-        const parsed = access.assertItem(scope, id), version = currentVersion(id);
-        assertExpectedVersion(input, version);
-        const { expectedVersion: _expected, ...value } = checkpointSchema.parse(input);
-        const at = new Date().toISOString(), checkpoint = { ...value, version: version + 1, authorId: parsed.actorId, createdAt: at };
-        sqlite.prepare("UPDATE work_items SET version=version+1,updated_at=? WHERE id=? AND version=?").run(at, id, version);
-        sqlite.prepare("INSERT INTO checkpoints(item_id,version,author_id,created_at,payload) VALUES(?,?,?,?,?)").run(id, version + 1, parsed.actorId, at, JSON.stringify(checkpoint));
-        history(id, version + 1, "checkpoint", parsed.actorId, at, checkpoint);
-        return readItem(parsed, id);
+        access.assertItem(scope,id);
+        z.string().regex(/^[A-Za-z0-9._-]{1,200}$/).parse(key);
+        const parsed=checkpointSchema.parse(input);
+        const hash=createHash("sha256").update(JSON.stringify(parsed)).digest("hex");
+        const prior=sqlite.prepare("SELECT request_hash,version FROM checkpoint_receipts WHERE actor_id=? AND project=? AND item_id=? AND key=?").get(scope.actorId,scope.project,id,key) as {request_hash:string;version:number}|undefined;
+        if(prior){if(prior.request_hash!==hash)throw new WorkStateError(409,"idempotency_conflict");return {id,version:prior.version};}
+        const result=writeCheckpoint(scope,id,parsed);
+        sqlite.prepare("INSERT INTO checkpoint_receipts(actor_id,project,item_id,key,request_hash,version) VALUES(?,?,?,?,?,?)").run(scope.actorId,scope.project,id,key,hash,result.version);
+        return {id,version:result.version};
       }).immediate();
+    },
+    getCheckpointReceipt(scope: RepoScope,id:string,key:string){
+      return sqlite.transaction(()=>{access.assertItem(scope,id);const row=sqlite.prepare("SELECT version FROM checkpoint_receipts WHERE actor_id=? AND project=? AND item_id=? AND key=?").get(scope.actorId,scope.project,id,key) as {version:number}|undefined;
+      if(!row)throw new WorkStateError(404,"receipt_not_found");return {id,version:row.version};})();
     },
     updateWorkItemLinks(scope: RepoScope, id: string, input: unknown) {
       return sqlite.transaction(() => {

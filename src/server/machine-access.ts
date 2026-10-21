@@ -17,7 +17,9 @@ export const machineActions = [
   "evidence:upload",
   "evidence:publish",
   "evidence:read",
-  "evidence:archive"
+  "evidence:archive",
+  "work-state:read",
+  "work-state:checkpoint"
 ] as const;
 export type MachineAction = typeof machineActions[number];
 

@@ -8,7 +8,7 @@ export interface MachineAuthOptions {
 }
 interface TransportOptions extends MachineAuthOptions {
   baseUrl: string;
-  service: "test-access" | "evidence";
+  service: "test-access" | "evidence" | "work-state";
   fetch: typeof fetch;
 }
 export interface MachineHttpDependencies extends TransportOptions {
@@ -29,8 +29,8 @@ export function machineAuthHeaders(mode: MachineAuthMode, token: string): Record
 function approvedUrl(value: string, service: TransportOptions["service"], isBase = false): URL {
   let url: URL;
   try { url = new URL(value); } catch { throw new Error("unapproved machine gateway URL"); }
-  const origin = service === "test-access" ? "https://dreambau.com" : "https://evidence.dreambau.com";
-  const prefix = service === "test-access" ? "/testmails/api/v1" : "/api/v1";
+  const origin = service === "evidence" ? "https://evidence.dreambau.com" : "https://dreambau.com";
+  const prefix = service === "test-access" ? "/testmails/api/v1" : service === "work-state" ? "/work-state/api/v1" : "/api/v1";
   let decodedPath = url.pathname;
   try {
     // Gateways may decode account ids (which legitimately contain %2F). Check
