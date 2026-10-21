@@ -9,6 +9,7 @@ export function createWorkStateWorker(options: {
   transport?: typeof fetch;
   now?: () => number;
   intervalMs?: number;
+  reconciliationMs?: number;
 }) {
   // Validate configured origins/registry before any durable job is claimed. No network call.
   new GitHubReader({
@@ -25,7 +26,7 @@ export function createWorkStateWorker(options: {
   async function tick(): Promise<SyncReport | null> {
     if (running) return running;
     running = (async () => {
-      options.store.scheduleSyncs(now());
+      options.store.scheduleSyncs(now(),options.reconciliationMs);
       const job = options.store.claimSync(now());
       if (!job) return null;
       const deadline = now() + 60_000;

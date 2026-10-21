@@ -86,3 +86,10 @@ describe("signed webhook HTTP boundary", () => {
     database.close();
   });
 });
+it("accepts a signed installation-wide ping without inventing a repository job",async()=>{
+ const store=createWorkStateStore(":memory:"),database=createDatabase(":memory:");try{
+ const app=createApp({loadAccounts:()=>[],database,workStateStore:store,workStateWebhookSecret:secret}),raw=JSON.stringify({zen:"Test delivery",hook_id:42});
+ const response=await request(app).post("/testmails/api/work-state/webhook").set("Content-Type","application/json").set("x-hub-signature-256",`sha256=${signed(raw)}`).set("x-github-delivery","installation-ping").set("x-github-event","ping").send(raw);
+ expect(response.status).toBe(202);expect(store.claimSync()).toBeNull();
+ }finally{store.close();database.close();}
+});

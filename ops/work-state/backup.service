@@ -1,0 +1,17 @@
+[Unit]
+Description=Encrypted verified ORISO work-state backup
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=oneshot
+User=work-state-backup
+UMask=0077
+EnvironmentFile=/etc/dreambau/work-state-backup.env
+WorkingDirectory=/opt/dreambau-work-state
+ExecStart=/opt/dreambau-work-state/ops/work-state/backup.sh
+TimeoutStartSec=15min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/dreambau-work-state

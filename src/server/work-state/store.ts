@@ -173,11 +173,27 @@ export function createWorkStateStore(path: string) {
         return readItem(parsed, id);
       }).immediate();
     }
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS work_state_maintenance(kind TEXT PRIMARY KEY, at TEXT NOT NULL, duration_ms INTEGER NOT NULL);
+    INSERT OR IGNORE INTO work_state_migrations(version,applied_at) VALUES(5,strftime('%Y-%m-%dT%H:%M:%fZ','now'));`);
   const collector = createCollectorStore(sqlite, (scope, ids) => access.assertRepositories(scope, ids));
   return {
     ...collector,
     commitSync(token: string, snapshot: RepositorySnapshot, now = Date.now()) {
       return collector.commitSnapshot(token, snapshot, now, () => this.applyRepositorySnapshot(snapshot));
+    },
+    async backupTo(destination: string) { await sqlite.backup(destination); },
+    recordMaintenance(kind: "backup" | "restore", at: string, durationMs: number) {
+      sqlite.prepare("INSERT INTO work_state_maintenance VALUES(?,?,?) ON CONFLICT(kind) DO UPDATE SET at=excluded.at,duration_ms=excluded.duration_ms").run(kind,at,durationMs);
+    },
+    operations(scope: RepoScope, now = Date.now()) {
+      const repositories = this.listRepositories(scope).filter(repo => repo.active);
+      const queues = repositories.map(repo => sqlite.prepare("SELECT enqueued_at,lease_until,token,error_code FROM sync_jobs WHERE repository_id=?").get(repo.id) as {enqueued_at:number|null;lease_until:number|null;token:string|null;error_code:string|null}|undefined);
+      const maintenance = (kind: string) => sqlite.prepare("SELECT at,duration_ms AS durationMs FROM work_state_maintenance WHERE kind=?").get(kind) ?? null;
+      const completed = repositories.map(repo => repo.lastSuccessAt).filter((at):at is string => !!at);
+      return { repositories, coverage:{configured:repositories.length,complete:repositories.filter(repo=>repo.coverage==="complete"&&!repo.errorCode).length},
+        lastFullSync: completed.length === repositories.length && completed.length ? completed.sort()[0] : null,
+        queue:{pending:queues.filter(Boolean).length,running:queues.filter(q=>q?.token&&q.lease_until!==null&&q.lease_until>now).length,oldestAgeMs:queues.some(Boolean)&&queues.filter(Boolean).every(q=>q!.enqueued_at!==null)?Math.max(...queues.filter(Boolean).map(q=>Math.max(0,now-q!.enqueued_at!))):null},
+        backup:maintenance("backup"), restore:maintenance("restore") };
     },
     close() { if (sqlite.open) sqlite.close(); },
     /** Service-owner configuration only. Never expose these methods through a human router. */
@@ -189,6 +205,13 @@ export function createWorkStateStore(path: string) {
         sqlite.prepare(`INSERT INTO repositories(id,project,full_name,integration_branch,active) VALUES(?,?,?,?,?)
           ON CONFLICT(id) DO UPDATE SET full_name=excluded.full_name,integration_branch=excluded.integration_branch,active=excluded.active`)
           .run(value.id, value.project, value.fullName, value.integrationBranch, Number(value.active));
+      }).immediate();
+    },
+    configureRegistry(input: RepositoryInput[]) {
+      const values = input.map(value => repositorySchema.parse(value));
+      sqlite.transaction(() => {
+        sqlite.prepare("UPDATE repositories SET active=0 WHERE project='oriso'").run();
+        for (const value of values) this.configureRepository(value);
       }).immediate();
     },
     setRepositoryGrant(input: unknown) {

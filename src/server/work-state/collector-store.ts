@@ -51,14 +51,17 @@ export function createCollectorStore(
         .run(new Date().toISOString());
     })
     .immediate();
+  const jobColumns = sqlite.prepare("PRAGMA table_info(sync_jobs)").all() as {name:string}[];
+  if (!jobColumns.some(column=>column.name==="enqueued_at")) sqlite.exec("ALTER TABLE sync_jobs ADD COLUMN enqueued_at INTEGER");
+  sqlite.prepare("INSERT OR IGNORE INTO work_state_migrations(version,applied_at) VALUES(6,?)").run(new Date().toISOString());
   function enqueue(repositoryId: string, now: number) {
     if (!repository(repositoryId)?.active)
       throw new WorkStateError(400, "repository_not_active");
     sqlite
       .prepare(
-        `INSERT INTO sync_jobs(repository_id,due_at) VALUES(?,?) ON CONFLICT(repository_id) DO UPDATE SET generation=generation+1,due_at=CASE WHEN error_code='rate_limited' THEN due_at ELSE MIN(due_at,excluded.due_at) END`,
+        `INSERT INTO sync_jobs(repository_id,due_at,enqueued_at) VALUES(?,?,?) ON CONFLICT(repository_id) DO UPDATE SET generation=generation+1,due_at=CASE WHEN error_code='rate_limited' THEN due_at ELSE MIN(due_at,excluded.due_at) END`,
       )
-      .run(repositoryId, now);
+      .run(repositoryId, now, now);
   }
   return {
     collectorRepositories() {
@@ -319,7 +322,7 @@ export function createCollectorStore(
         })
         .immediate();
     },
-    scheduleSyncs(now = Date.now()) {
+    scheduleSyncs(now = Date.now(), reconciliationMs = 3_600_000) {
       sqlite
         .transaction(() => {
           for (const repo of this.collectorRepositories()) {
@@ -332,15 +335,15 @@ export function createCollectorStore(
               | undefined;
             if (
               !prior ||
-              now - prior.reconciled_at >= 3_600_000 ||
+              now - prior.reconciled_at >= reconciliationMs ||
               now - prior.inventory_at >= 86_400_000
             ) {
               // Reconciliation coalesces pending work; only events/explicit refresh dirty its generation.
               sqlite
                 .prepare(
-                  "INSERT INTO sync_jobs(repository_id,due_at) VALUES(?,?) ON CONFLICT(repository_id) DO NOTHING",
+                  "INSERT INTO sync_jobs(repository_id,due_at,enqueued_at) VALUES(?,?,?) ON CONFLICT(repository_id) DO NOTHING",
                 )
-                .run(repo.id, now);
+                .run(repo.id, now, now);
               sqlite
                 .prepare(
                   "INSERT INTO sync_schedule VALUES(?,?,?) ON CONFLICT(repository_id) DO UPDATE SET reconciled_at=excluded.reconciled_at,inventory_at=excluded.inventory_at",
