@@ -310,15 +310,16 @@ async function chosenUsernameLinkFixture(records: TestAccessRecord[] = [], produ
 async function incompleteAskerFixture(
   status: "pending" | "failed",
   authentication: 400 | 401 | 500 | "timeout" | "success",
-  records?: TestAccessRecord[]
+  records?: TestAccessRecord[],
+  options: { savedAppSecret?: boolean } = {}
 ) {
+  const originalTotp = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
   const record = managedRecord({ id: "oriso/dev/bart.simpson", environment: "dev", kind: "app-user",
     email: "bart.simpson@oriso.org", username: "bart.simpson_at_oriso.org", roles: ["asker"],
-    loginUrl: "https://dev.oriso.org", totpSecret: undefined, provisioningStatus: status });
+    loginUrl: "https://dev.oriso.org", totpSecret: options.savedAppSecret ? originalTotp : undefined, provisioningStatus: status });
   const requests: Array<{ method: string; path: string }> = [];
   const originalPasswordUsed: boolean[] = [];
-  const originalTotp = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
-  let factorActive = false;
+  let factorActive = Boolean(options.savedAppSecret);
   const fixture = await chosenUsernameLinkFixture(records ?? [record], async (input, init) => {
     const url = new URL(input), method = init?.method ?? "GET";
     requests.push({ method, path: url.pathname });
@@ -328,14 +329,18 @@ async function incompleteAskerFixture(
         originalPasswordUsed.push(form.get("password") === record.secret);
         if (authentication === "timeout") throw new DOMException("Fixture token timeout", "TimeoutError");
         if (authentication !== "success") return Response.json({}, { status: authentication });
+        return Response.json({ access_token: "fixture-linked-user-token", expires_in: 300 });
       }
-      return Response.json({ access_token: "fixture-oriso-token", expires_in: 300 });
+      return Response.json({ access_token: "fixture-admin-token", expires_in: 300 });
     }
     if (url.pathname.endsWith("/useradmin/account-invites")) return Response.json({ content: [] });
     if (url.pathname.endsWith("/agencyadmin/agencies/12")) {
       return Response.json({ _embedded: { id: 12, tenantId: 7, consultingType: 1, topics: [{ id: 31 }] } });
     }
     if (url.pathname.endsWith("/users/askers/new")) return Response.json({}, { status: 409 });
+    if (["/service/users/email", "/service/users/data", "/service/users/2fa/app"].includes(url.pathname)) {
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer fixture-linked-user-token");
+    }
     if (url.pathname.endsWith("/users/email") && method === "PUT") {
       expect(JSON.parse(init!.body!)).toBe("bart.simpson@oriso.org");
       return new Response(null, { status: 204 });
@@ -419,12 +424,13 @@ describe("human self-service ORISO PreDev provisioning", () => {
   it.each([
     ["pending", 400, 409], ["pending", 401, 409], ["pending", 500, 502], ["pending", "timeout", 500],
     ["failed", 400, 409], ["failed", 401, 409], ["failed", 500, 502], ["failed", "timeout", 500]
-  ] as const)("never recreates a linked %s asker after token %s", async (status, authentication, expectedStatus) => {
+  ] as const)("never recreates a linked asker initially %s after token %s", async (status, authentication, expectedStatus) => {
     const h = await incompleteAskerFixture(status, authentication);
     if (status === "failed") {
       const linked = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker", applicationPassword: h.record.secret });
       expect(linked.status).toBe(200);
       expect(linked.body).toMatchObject({ created: false, recordCreated: false });
+      expect(await h.registryProvider.get(h.record.id)).toMatchObject({ provisioningStatus: "pending" });
     }
     const response = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker" });
     expect(h.requests.filter(request => request.method === "POST" && request.path.endsWith("/users/askers/new"))).toEqual([]);
@@ -432,6 +438,23 @@ describe("human self-service ORISO PreDev provisioning", () => {
     if (authentication === 400 || authentication === 401) expect(response.body).toEqual({ error: "account_setup_outcome_unknown" });
     expect(await h.registryProvider.get(h.record.id)).toMatchObject({ username: h.record.username, secret: h.record.secret,
       roles: ["asker"], provisioningStatus: "failed" });
+    expect((await h.registryProvider.list()).filter(record => record.email === h.record.email)).toHaveLength(1);
+  });
+
+  it.each([400, 401] as const)("never recreates a directly continued failed asker with a saved App secret after token %s", async (authentication) => {
+    const h = await incompleteAskerFixture("failed", authentication, undefined, { savedAppSecret: true });
+    const before = await h.registryProvider.get(h.record.id);
+    expect(before).toMatchObject({ provisioningStatus: "failed", totpSecret: h.originalTotp });
+
+    const response = await h.agent.post(h.endpoint).send({ environment: "dev", role: "advice-seeker" });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({ error: "account_setup_outcome_unknown" });
+    expect(h.requests.filter(request => request.method === "POST" && request.path.endsWith("/users/askers/new"))).toEqual([]);
+    expect(h.originalPasswordUsed).toEqual([true, true]);
+    expect(await h.registryProvider.get(h.record.id)).toMatchObject({ id: h.record.id,
+      username: h.record.username, secret: h.record.secret, roles: ["asker"],
+      totpSecret: h.originalTotp, provisioningStatus: "failed" });
     expect((await h.registryProvider.list()).filter(record => record.email === h.record.email)).toHaveLength(1);
   });
 
