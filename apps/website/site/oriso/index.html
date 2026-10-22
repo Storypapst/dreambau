@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="de" data-lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORISO Wachstum</title>
+<meta name="description" content="Wie stark ORISO gegenüber dem Ausgangscode 2024/2025 gewachsen ist: Funktionen, Tests und Codemenge im Vergleich.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/website-assets/oriso-wachstum.css">
+<script src="/website-assets/oriso-wachstum-lang.js"></script>
+</head>
+<body>
+
+<div class="appbar">
+  <div class="appbar-in">
+    <span class="brandname">ORISO</span>
+    <span class="sub"><span lang="de">Wachstum seit dem Ausgangscode</span><span lang="en">Growth since the starting code</span></span>
+    <span class="sp"></span>
+    <span class="badge"><span lang="de">Stand 22.10.2026</span><span lang="en">As of 22 Oct 2026</span></span>
+    <span class="langswitch" role="group" aria-label="Sprache / Language">
+      <button type="button" data-setlang="de" aria-pressed="true">DE</button>
+      <button type="button" data-setlang="en" aria-pressed="false">EN</button>
+    </span>
+  </div>
+</div>
+
+<header class="band">
+  <div class="band-in">
+    <div class="headcard">
+      <div class="eyebrow"><span lang="de">Online-Beratung für die Caritas</span><span lang="en">Online counselling for Caritas</span></div>
+      <h1><span lang="de">Wie stark ORISO gewachsen ist</span><span lang="en">How much ORISO has grown</span></h1>
+      <p class="lead">
+        <span lang="de">Links der Ausgangscode 2024/2025, rechts ORISO heute. Die Flächen stehen im Verhältnis der Codemenge. Jede Kachel ist ein Baustein: grau aus dem Ausgangscode, blau beauftragt, rot zusätzlich geliefert. Ein Klick auf eine Kachel zeigt, was sie ist und warum sie zählt.</span>
+        <span lang="en">On the left the starting code from 2024/2025, on the right ORISO today. The areas are in proportion to the amount of code. Each tile is one building block: grey from the starting code, blue commissioned, red delivered in addition. Click a tile to see what it is and why it matters.</span>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="chipnav" aria-label="Bereiche / Sections">
+  <div class="chipnav-in">
+    <a href="#vergleich"><span class="no">1</span><span lang="de">Vergleich</span><span lang="en">Comparison</span></a>
+    <a href="#zahlen"><span class="no">2</span><span lang="de">Eckzahlen</span><span lang="en">Key figures</span></a>
+    <a href="#liste"><span class="no">3</span><span lang="de">Alle Bausteine</span><span lang="en">All building blocks</span></a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <p class="hint" id="nojs"><span lang="de">Die Grafik und die Zahlen brauchen JavaScript.</span><span lang="en">The chart and the figures need JavaScript.</span></p>
+
+  <section id="vergleich" aria-labelledby="h-vergleich">
+    <div class="ch"><span class="chapter-no">1</span><h2 id="h-vergleich"><span lang="de">Ausgangscode und ORISO heute</span><span lang="en">Starting code and ORISO today</span></h2>
+      <span class="sub2"><span lang="de">Fläche im Verhältnis der Codemenge, Kacheln nach Angebot gruppiert</span><span lang="en">Area in proportion to the amount of code, tiles grouped by offer</span></span></div>
+
+    <div class="controls">
+      <div>
+        <span class="seg-l"><span lang="de">Fläche nach</span><span lang="en">Area by</span></span>
+        <span class="seg" role="group" aria-label="Maß / Measure" id="measureSeg"></span>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="stage">
+      <div class="squares" id="squares">
+        <div class="sqcol" id="colOld">
+          <div class="sq old" id="sqOld" role="group" aria-label="Ausgangscode"></div>
+          <div class="sqcap"><b><span lang="de">Ausgangscode 2024/2025</span><span lang="en">Starting code 2024/2025</span></b><span id="capOld"></span></div>
+        </div>
+        <div class="sqcol" id="colNew">
+          <div class="grow" id="growWrap"><div class="sq new" id="sqNew" role="group" aria-label="ORISO"></div></div>
+          <div class="sqcap"><b><span lang="de">ORISO heute</span><span lang="en">ORISO today</span></b><span id="capNew"></span></div>
+        </div>
+      </div>
+      <div class="factor" id="factor"></div>
+
+      <div class="plan">
+        <div class="plan-h"><b><span lang="de">Angebot CAR-15 (geplant)</span><span lang="en">Offer CAR-15 (planned)</span></b>
+          <span><span lang="de">Sieben neue Zusatzbausteine. Noch nicht gebaut, daher außerhalb der Quadrate und nicht maßstäblich.</span><span lang="en">Seven new add-on modules. Not built yet, so shown outside the squares and not to scale.</span></span></div>
+        <div class="plan-g" id="planGrid"></div>
+      </div>
+      <p class="hint" id="hint"></p>
+    </div>
+  </section>
+
+  <section id="zahlen" aria-labelledby="h-zahlen">
+    <div class="ch"><span class="chapter-no">2</span><h2 id="h-zahlen"><span lang="de">Eckzahlen</span><span lang="en">Key figures</span></h2>
+      <span class="sub2"><span lang="de">Ausgangscode 2024/2025 gegenüber ORISO heute</span><span lang="en">Starting code 2024/2025 compared with ORISO today</span></span></div>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section id="liste" aria-labelledby="h-liste">
+    <div class="ch"><span class="chapter-no">3</span><h2 id="h-liste"><span lang="de">Alle Bausteine</span><span lang="en">All building blocks</span></h2>
+      <span class="sub2"><span lang="de">Dieselben Kacheln als Liste, auch für Bildschirmleser</span><span lang="en">The same tiles as a list, also for screen readers</span></span></div>
+    <details class="all" id="allList">
+      <summary id="listSummary"></summary>
+      <div id="listBody"></div>
+    </details>
+  </section>
+
+</main>
+
+<footer>
+  <div class="fl">
+    <a href="https://docs.oriso.org/"><span lang="de">Dokumentation</span><span lang="en">Documentation</span> · docs.oriso.org</a>
+    <a href="https://understand.oriso.org/">ORISO Understand · understand.oriso.org</a>
+    <a href="https://dev.oriso.org/storybook-frontend/"><span lang="de">Storybook Beratungs-App</span><span lang="en">Storybook counselling app</span></a>
+    <a href="https://dev.oriso.org/storybook-admin/"><span lang="de">Storybook Verwaltung</span><span lang="en">Storybook administration</span></a>
+  </div>
+  <div><b><span lang="de">Stand 22.10.2026</span><span lang="en">As of 22 October 2026</span></b> ·
+    <span lang="de">Vergleichsbasis: Dienste vi-saas-* (Stand 2025, Verwaltung 02/2026) und onlineBeratung-frontend (04/2024).</span>
+    <span lang="en">Baseline: services vi-saas-* (2025, administration 02/2026) and onlineBeratung-frontend (04/2024).</span></div>
+  <div class="method">
+    <span lang="de">Methode: Testfälle sind Java-Methoden mit @Test, @ParameterizedTest oder @RepeatedTest und TypeScript it(…)/test(…) in Testdateien; Zeilen sind Zeilen Programmcode, getrennt nach Produktiv- und Testcode. Kachelgrößen sind eine Näherung über Testfälle (sonst Zeilen ÷ 25) je Baustein. Gezählt wird Menge, nicht Qualität.</span>
+    <span lang="en">Method: test cases are Java methods with @Test, @ParameterizedTest or @RepeatedTest and TypeScript it(…)/test(…) in test files; lines are lines of program code, split into production and test code. Tile sizes approximate each block by its test cases (otherwise lines ÷ 25). This counts quantity, not quality.</span>
+  </div>
+</footer>
+
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <div class="dlg-in" id="dlgIn">
+    <div class="dlg-top">
+      <div class="dlg-eb" id="dlgEb"></div>
+      <button type="button" class="dlg-x" id="dlgX"><span aria-hidden="true">×</span></button>
+    </div>
+    <h2 id="dlgTitle"></h2>
+    <div class="dlg-st" id="dlgSt"></div>
+    <dl class="kv" id="dlgKv"></dl>
+    <div class="dlg-links" id="dlgLinks"></div>
+  </div>
+</dialog>
+
+<script src="/website-assets/oriso-wachstum.js" defer></script>
+</body>
+</html>

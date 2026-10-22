@@ -19,7 +19,7 @@ const ok=(label,value)=>{assert(value,label);checks++;console.log('PASS '+label)
 try{
   if(!external){
     const conf=path.join(scratch,'default.conf');
-    fs.writeFileSync(conf,`server{listen 80;root /site;access_log off;include /etc/nginx/mime.types;add_header Content-Security-Policy "${policy}" always;add_header Cache-Control no-store always;add_header X-Content-Type-Options nosniff always;location = /{try_files /index.html =404;}location /homepage-assets/{alias /site/;}location = /referenzen{return 308 /referenzen/;}location = /glossar{return 308 /glossar/;}location ~ ^/(?:referenzen|glossar|website-assets)/(?:.*/)?\\.{return 404;}location /referenzen/{try_files $uri $uri/ =404;autoindex off;}location /glossar/{try_files $uri $uri/ =404;autoindex off;}location /website-assets/{try_files $uri =404;autoindex off;}location /{return 404;}}`);
+    fs.writeFileSync(conf,`server{listen 80;root /site;access_log off;include /etc/nginx/mime.types;add_header Content-Security-Policy "${policy}" always;add_header Cache-Control no-store always;add_header X-Content-Type-Options nosniff always;location = /{try_files /index.html =404;}location /homepage-assets/{alias /site/;}location = /referenzen{return 308 /referenzen/;}location = /glossar{return 308 /glossar/;}location = /oriso{return 308 /oriso/;}location ~ ^/(?:referenzen|glossar|oriso|website-assets)/(?:.*/)?\\.{return 404;}location /referenzen/{try_files $uri $uri/ =404;autoindex off;}location /glossar/{try_files $uri $uri/ =404;autoindex off;}location /oriso/{try_files $uri $uri/ =404;autoindex off;}location /website-assets/{try_files $uri =404;autoindex off;}location /{return 404;}}`);
     execFileSync('docker',['run','-d','--rm','--name',name,'-p','127.0.0.1::80','--mount',`type=bind,source=${dist},target=/site,readonly`,'--mount',`type=bind,source=${conf},target=/etc/nginx/conf.d/default.conf,readonly`,'nginx:1.27-alpine'],{stdio:'pipe'});
     base='http://127.0.0.1:'+execFileSync('docker',['port',name,'80/tcp'],{encoding:'utf8'}).trim().split(':').pop();
   }
@@ -31,7 +31,7 @@ try{
   assert(ready,'nginx serves the built candidate');
   browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--autoplay-policy=no-user-gesture-required']});
   const modules=process.argv.slice(2);
-  for(const name of modules.length?modules:['regressions','glossary','references','source','source-languages','raster']){
+  for(const name of modules.length?modules:['regressions','glossary','references','source','source-languages','raster','oriso']){
     assert(/^[a-z-]+$/.test(name),'bounded check module');
     const {run}=await import('./checks/'+name+'.mjs');
     await run({browser,base,artifact,ok,root,dist,policy});

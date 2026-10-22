@@ -20,3 +20,7 @@ The Landing Apex builder packages these pages and their assets in its checksum m
 The approved offline References C and Glossary Wegweiser mockups define the components. The saved fgp.webflow.io portfolio supplies the seven English references and four original project descriptions/images. Unconfirmed glossary proposals and obsolete language-release gates are excluded. There are twelve reference entries, twenty-six settled terms and twenty-seven questions. Counts reflect actual published records.
 
 The menu uses the existing pill and list-panel components. Its placement and grouping were decided under the owner's delegation; one word can change them. No new colour, font or marketing copy was introduced.
+
+## ORISO growth page (`/oriso/`)
+
+`site/oriso/index.html` is a self-contained data page (German and English toggle, not part of the 40-language system) with its own light, red-accented look taken from understand.oriso.org. It uses system fonts only, external CSS/JS under `/website-assets/oriso-wachstum*` and no inline script or style, so it runs under the same CSP as the other pages. The language choice is the only thing stored in the browser (`oriso-wachstum-lang`). The route `/oriso/` needs a canonical-route entry in the private operator nginx configuration, like `/referenzen/` and `/glossar/`.
