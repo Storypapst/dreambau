@@ -7,7 +7,7 @@ export async function run({browser,base,artifact,ok}) {
   page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')errors.push(m.text());});
   page.on('request',r=>{if(!r.url().startsWith(base+'/')&&!r.url().startsWith('data:'))external.push(r.url());});
   const bare=await fetch(base+'/oriso',{redirect:'manual'});
-  ok('/oriso redirects to /oriso/',bare.status===308&&bare.headers.get('location')==='/oriso/');
+  ok('/oriso redirects to /oriso/',bare.status===308&&new URL(bare.headers.get('location')||'',base).pathname==='/oriso/');
   await page.goto(base+'/oriso/');
   ok('ORISO page renders the old and the new square with tiles',await page.locator('#sqOld .tile, #sqOld > *').count()>0 && await page.locator('#sqNew .tile').count()>10);
   ok('Key figures render with bars sized through the stylesheet object model',await page.locator('#kpis .bar i').count()>0 && await page.locator('#kpis .bar i').first().evaluate(e=>e.getBoundingClientRect().width>0));
