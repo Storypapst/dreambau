@@ -6,7 +6,7 @@
 
 var SB_FE = {u:'https://dev.oriso.org/storybook-frontend/', de:'Storybook Beratungs-App', en:'Storybook counselling app'};
 var SB_AD = {u:'https://dev.oriso.org/storybook-admin/', de:'Storybook Verwaltung', en:'Storybook administration'};
-var DOCS  = {u:'https://docs.oriso.org/de/', de:'Dokumentation', en:'Documentation'};
+var DOCS  = {u:'https://docs.oriso.org/', de:'Dokumentation', en:'Documentation'};
 var ADR   = {u:'https://docs.oriso.org/decisions/', de:'Architekturentscheidungen', en:'Architecture decisions'};
 var UND   = {u:'https://understand.oriso.org/', de:'ORISO Understand', en:'ORISO Understand'};
 var DSFA  = {u:'https://understand.oriso.org/legal/dsfa/', de:'Datenschutz-Folgenabschätzung', en:'Data protection impact assessment'};
