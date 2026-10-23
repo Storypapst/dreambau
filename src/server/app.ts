@@ -1,3 +1,5 @@
+import { createWorkStateStore, type WorkStateStore } from "./work-state/store.js";
+import { createWorkStateRouter } from "./work-state/router.js";
 import { createOrisoIdentityObserver, type OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import { loadProgrammeGuide } from "./teamwork-guides.js";
 import { installOrisoAdminDeletionRoutes } from "./oriso-admin-deletion-router.js";
@@ -56,6 +58,9 @@ import {
 } from "./oriso-provisioning.js";
 
 interface AppOptions {
+  workStateStore?: WorkStateStore;
+  /** Explicit opt-in; no default database is created for work state. */
+  workStateDatabasePath?: string;
   teamworkGuidesPath?: string | null;
   passwordHash?: string;
   sessionSecret?: string;
@@ -1166,6 +1171,11 @@ export function createApp(options: AppOptions = {}) {
       handleValidation(error, res);
     }
   });
+  const workStatePath = options.workStateDatabasePath ?? process.env.WORK_STATE_DATABASE_PATH;
+  const workStateStore = options.workStateStore ?? (workStatePath ? createWorkStateStore(workStatePath) : undefined);
+  api.use("/work-state", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
+  api.use("/work-state", requireActiveHumanSession, createWorkStateRouter(workStateStore));
+
   api.use("/release-lists", requireActiveHumanSession, createReleaseListRouter(database.releaseLists));
   api.put("/taxonomies/:kind", requireAdminSession, async (req, res) => {
     try { const kind = taxonomyKindSchema.parse(String(req.params.kind)); const { values } = taxonomyValuesSchema.parse(req.body); const result = database.putTaxonomy(kind, values); await regenerate(); res.json(result); } catch (error) { handleValidation(error, res); }
