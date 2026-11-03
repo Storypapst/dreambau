@@ -15,3 +15,9 @@ Run the app tests with `node --test apps/oriso-ideas/*.test.mjs`. Build from the
 repository root with `docker build -f apps/oriso-ideas/Dockerfile .`. Production
 needs the Testmails identity endpoint, a persistent `INTAKE_DATABASE` path,
 and the mounted OpenRouter secret.
+
+For the Dreambau preview, keep `OPENROUTER_API_KEY` in Infisical under
+ORISO Infrastructure → Development → `/oriso-ideas`. Run
+`apps/oriso-ideas/sync-openrouter-secret.sh` from the operator Mac after
+creating or rotating the secret. The running app reads the updated file on
+its next model request.
