@@ -28,7 +28,7 @@
 <header class="band"><div class="band-in"><div class="headcard">
   <p class="eyebrow" data-copy="eyebrow">Features · Von der Idee zum Vorschlag</p>
   <h1 data-copy="title">Eine Idee für ORISO einreichen</h1>
-  <p class="lead" data-copy="lead">Beschreibe, was jemand in ORISO besser machen können soll. Im anschließenden Chat klären wir offene Fragen. Danach siehst du den Vorschlag auf Deutsch und Englisch.</p>
+  <p class="lead" data-copy="lead">Beschreibe, was jemand in ORISO besser machen können soll. Im anschließenden Chat klären wir offene Fragen. Danach siehst du den Vorschlag in deiner Sprache.</p>
   <div class="chips"><span class="chip" data-copy="private">Entwürfe sind geschützt</span><span class="chip" id="preview-mode" hidden data-copy="fixture">Lokale Vorschau · vorbereitete Antworten</span></div>
 </div></div></header>
 <nav class="chipnav" aria-label="Ablauf / Workflow"><div class="chipnav-in">
@@ -81,7 +81,7 @@
       </fieldset>
       <div id="user-stories"></div>
       <button type="button" id="add-story" data-copy="addStory">User Story hinzufügen</button>
-      <p class="intake-hint" data-copy="storyHint">Für jede ausgewählte Rolle erscheint eine vorgeschlagene User Story in der DE/EN-Vorschau.</p>
+      <p class="intake-hint" data-copy="storyHint">Für jede ausgewählte Rolle erscheint eine vorgeschlagene User Story in der Vorschau.</p>
       <label class="field"><span data-copy="storyNotes">Technische Hinweise (optional)</span><textarea name="storyNotes" maxlength="1500"></textarea></label>
       <p class="intake-hint" data-copy="storyExample">Als Beratende möchte ich …, damit ich …</p>
     </details>
@@ -91,6 +91,7 @@
 <section id="conversation" hidden>
   <div class="ch"><span class="chapter-no">2</span><h2 id="chat-title" tabindex="-1" data-copy="chat">Rückfragen</h2></div>
   <div class="intake-panel">
+    <p><a href="./api/system-prompt" target="_blank" rel="noopener" data-copy="promptLink">System-Prompt ansehen</a></p>
     <p id="notice" role="status"></p>
     <div id="proposal"><p class="intake-hint" data-copy="chatEmpty">Sobald du den Chat startest, erscheint hier die erste Rückfrage.</p></div>
   </div>

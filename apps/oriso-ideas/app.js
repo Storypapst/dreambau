@@ -46,7 +46,7 @@ const copy = {
   badge: ['Feature-Idee', 'Feature idea'],
   eyebrow: ['Features · Von der Idee zum Vorschlag', 'Features · From idea to proposal'],
   title: ['Eine Idee für ORISO einreichen', 'Submit an idea for ORISO'],
-  lead: ['Beschreibe, was jemand in ORISO besser machen können soll. Im anschließenden Chat klären wir offene Fragen. Danach siehst du den Vorschlag auf Deutsch und Englisch.', 'Describe what someone should be able to do better in ORISO. We’ll clarify open questions in a chat, then show you the proposal in German and English.'],
+  lead: ['Beschreibe, was jemand in ORISO besser machen können soll. Im anschließenden Chat klären wir offene Fragen. Danach siehst du den Vorschlag in deiner Sprache.', 'Describe what someone should be able to do better in ORISO. We’ll clarify open questions in a chat, then show you the proposal in your chosen language.'],
   private: ['Entwürfe sind geschützt', 'Drafts are protected'],
   livePreview: ['Lokale Vorschau · echtes Modell', 'Local preview · live model'],
   fixture: ['Lokale Vorschau · vorbereitete Antworten', 'Local preview · prepared responses'],
@@ -66,7 +66,7 @@ const copy = {
   'centre-admins': ['Beratungsstellen-Admins', 'Counselling centre admins'],
   management: ['Management', 'Management'],
   legal: ['Legal', 'Legal'],
-  storyHint: ['Für jede ausgewählte Rolle erscheint eine vorgeschlagene User Story in der DE/EN-Vorschau.', 'The bilingual preview will include a draft user story for each selected role.'],
+  storyHint: ['Für jede ausgewählte Rolle erscheint eine vorgeschlagene User Story in der Vorschau.', 'The preview will include a draft user story for each selected role.'],
   storyNotes: ['Technische Hinweise (optional)', 'Technical notes (optional)'],
   addStory: ['User Story hinzufügen', 'Add user story'],
   removeStory: ['Story entfernen', 'Remove story'],
@@ -94,7 +94,7 @@ const copy = {
   assumptions: ['Annahmen', 'Assumptions'],
   decisions: ['Offene Entscheidungen', 'Open decisions'],
   preview: ['Vorschau des Vorschlags', 'Proposal preview'],
-  submit: ['DE/EN bestätigen und einreichen', 'Confirm DE/EN and submit'],
+  submit: ['Vorschlag einreichen', 'Submit proposal'],
   empty: ['Keine Einreichungen', 'No submissions'],
   returned: ['Zur Überarbeitung', 'Revision requested'],
   revisionFeedback: ['Was du verbessern kannst', 'What to improve'],
@@ -122,13 +122,14 @@ const copy = {
   pmOpen: ['Offene Entscheidungen (optional)', 'Open decisions (optional)'],
   saveSpec: ['Spec-Entwurf speichern', 'Save draft spec'],
   noVotes: ['Für diese Fassung liegen noch keine Stimmen vor.', 'There are no votes for this revision yet.'],
+  promptLink: ['System-Prompt ansehen', 'View system prompt'],
   communityIntro: ['Hier stehen die Fassungen, die der Review für die Community freigegeben hat.', 'These are the revisions that reviewers have shared with the community.'],
   loadCommunity: ['Freigegebene Fassungen laden', 'Load shared revisions'],
   emptyCommunity: ['Derzeit sind keine Fassungen freigegeben.', 'No revisions are currently shared.'],
   shareCommunity: ['Für Community freigeben', 'Share with community'],
   withdrawCommunity: ['Community-Freigabe zurückziehen', 'Withdraw from community'],
   communityShared: ['Diese Fassung ist für die Community freigegeben.', 'This revision is shared with the community.'],
-  shareCheck: ['Ich habe den DE/EN-Text und die Stories auf vertrauliche Angaben geprüft.', 'I have checked the German and English text and stories for confidential information.'],
+  shareCheck: ['Ich habe den Vorschlag und die Stories auf vertrauliche Angaben geprüft.', 'I have checked the proposal and stories for confidential information.'],
   document: ['Feature-Dokument', 'Feature document'],
   revision: ['Fassung', 'Revision'],
   openDocument: ['Fassung öffnen', 'Open revision'],
@@ -145,6 +146,7 @@ const copy = {
   reject: ['Ablehnen', 'Reject'],
   retry: ['Erneut laden', 'Reload'],
   lost: ['Dieser Entwurf ist nicht mehr verfügbar. Du kannst eine neue Idee beginnen.', 'This draft is no longer available. You can start a new idea.'],
+  confirmScope: ['Umfang bestätigen', 'Confirm scope'],
   keepAsking: ['Rückfragen fortsetzen', 'Continue follow-up questions'],
   answerSaved: ['Deine Antwort ist gespeichert. Du kannst die nächste Rückfrage erneut anfordern.', 'Your answer is saved. You can retry the next question.'],
   retryQuestion: ['Nächste Rückfrage erneut anfordern', 'Retry next question'],
@@ -266,10 +268,12 @@ function preview(proposal) {
   const view = element('div', '', 'intake-preview');
   view.append(element('h3', t('preview')));
   for (const language of [locale, locale === 'de' ? 'en' : 'de']) {
+    if (!proposal.preview[language]) continue;
     const section = document.createElement('section');
     section.lang = language;
     section.append(element('h4', language.toUpperCase()), element('p', proposal.preview[language]));
     for (const story of proposal.preview.stories ?? []) {
+      if (!story[language]) continue;
       const storyView = document.createElement('article');
       storyView.append(element('strong', t(story.role, language)), element('p', story[language]));
       section.append(storyView);
@@ -337,6 +341,9 @@ function render() {
     input.addEventListener('input', () => { answerDraft = input.value; });
     label.append(input);
     proposalView.append(label, button('send', () => interview(input.value), true));
+    if (proposal.interview.confirmation) {
+      proposalView.append(button('confirmScope', () => interview(locale === 'de' ? 'Ja' : 'Yes')));
+    }
   } else {
     proposalView.append(button('start', () => interview(), true));
   }
@@ -491,12 +498,12 @@ function textField(label, value, maxLength) {
 function addRefinement(container, id, proposal, suggestion) {
   const details = document.createElement('details');
   details.append(element('summary', t('refine')));
-  const german = textField('revisionDe', proposal.preview.de, 4000);
-  const english = textField('revisionEn', proposal.preview.en, 4000);
-  details.append(german.wrapper, english.wrapper, button('refine', async () => {
+  const language = proposal.preview[locale] ? locale : locale === 'de' ? 'en' : 'de';
+  const text = textField(language === 'de' ? 'revisionDe' : 'revisionEn', proposal.preview[language], 4000);
+  details.append(text.wrapper, button('refine', async () => {
     const updated = await request('/proposals/' + id + '/refine', reviewPassword, {
       version: proposal.version, revision: proposal.revision, suggestion,
-      de: german.input.value, en: english.input.value,
+      [language]: text.input.value,
     });
     location.href = documentHref(id, updated.revision);
   }, true, reviewNotice));
@@ -614,7 +621,8 @@ function renderInbox() {
   for (const { id, proposal, revisions } of reviews) {
     const view = element('article', '', 'intake-preview');
     const last = proposal.history.at(-1);
-    const excerpt = (proposal.status === 'draft' ? last?.preview : proposal.preview)?.[locale];
+    const boardPreview = proposal.status === 'draft' ? last?.preview : proposal.preview;
+    const excerpt = boardPreview?.[locale] || boardPreview?.en || boardPreview?.de;
     view.append(element('h3', t(proposal.status === 'draft' && proposal.review?.action === 'revise'
       ? 'returned' : proposal.status)));
     if (excerpt) view.append(element('p', excerpt));

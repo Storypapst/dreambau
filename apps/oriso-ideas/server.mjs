@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
+import { instructions } from './interview-model.mjs';
 import { createAccess } from './access.mjs';
 import { advance, confirm, documentMarkdown, getDocument, listDocuments, rate, review, reviseFromFeedback, saveTechnicalReview, start } from './workflow.mjs';
 
@@ -126,6 +127,11 @@ export function createIntake({ database, reviewerToken, interview, emailAccess, 
       if (resolveIdentity && request.method !== 'GET'
         && request.headers.origin && request.headers.origin !== 'https://dreambau.com') {
         return json(response, 403, { error: 'Invalid origin' });
+      }
+      if (path === '/ideas/api/system-prompt' && request.method === 'GET') {
+        if (!identity) return json(response, 401, { error: 'Sign in required' });
+        response.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        return response.end(instructions);
       }
       if (path === '/ideas/api/access' && request.method === 'GET') {
         return json(response, 200, { identity, ...(resolveIdentity && { reviewer: isReviewer }) });
@@ -268,7 +274,7 @@ export function createIntake({ database, reviewerToken, interview, emailAccess, 
         try {
           const output = await interview({ ...proposal, locale, turns, continueInterview });
           if (continueInterview && output.question === null) throw new Error('Expected another question');
-          next = { ...advance(proposal, output), locale, turns };
+          next = { ...advance({ ...proposal, locale }, output), locale, turns };
         } catch {
           return json(response, 502, { error: 'Interview unavailable; the draft was saved' });
         } finally {

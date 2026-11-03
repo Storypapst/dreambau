@@ -40,12 +40,13 @@ test('revision keeps the prior review and requires a new interview and preview',
   assert.throws(() => confirm(returned, returned.version));
 });
 
-test('open decisions and single-language previews cannot be submitted', () => {
+test('open decisions block submission and the selected language is sufficient', () => {
   const draft = start(form, 'de');
   const open = advance(draft, { ...resolved, question: 'Wer prüft das?', decisions: ['QA'] });
   assert.equal(open.preview, null);
   assert.throws(() => advance(draft, { ...resolved, decisions: ['QA'] }));
-  assert.throws(() => advance(draft, { ...resolved, en: '' }));
+  assert.equal(advance(draft, { ...resolved, en: '' }).preview.de, resolved.de);
+  assert.throws(() => advance(draft, { ...resolved, de: '' }));
 });
 
 test('stakeholders are optional and story drafts cover exactly the selected roles', () => {

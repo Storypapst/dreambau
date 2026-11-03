@@ -64,7 +64,7 @@ export function advance(proposal, output) {
   const decisions = readList(output.decisions);
   if (question === null && decisions.length) throw new Error('Decisions are still open');
   const preview = question === null
-    ? { de: readText(output.de, 4000), en: readText(output.en, 4000) }
+    ? { de: readText(output.de, 4000, proposal.locale === 'de'), en: readText(output.en, 4000, proposal.locale === 'en') }
     : null;
   if (preview && proposal.stakeholders?.length) {
     const stories = output.stories;
@@ -73,20 +73,20 @@ export function advance(proposal, output) {
       throw new TypeError('Stories must cover the selected stakeholders');
     }
     preview.stories = stories.map(({ role, de, en }) => ({
-      role, de: readText(de, 800), en: readText(en, 800),
+      role, de: readText(de, 800, proposal.locale === 'de'), en: readText(en, 800, proposal.locale === 'en'),
     }));
   }
   return {
     ...proposal,
     version: proposal.version + 1,
-    interview: { question, assumptions, decisions },
+    interview: { question, assumptions, decisions, ...(output.phase === 'confirmation' && { confirmation: true }) },
     preview,
   };
 }
 
 export function confirm(proposal, version) {
   requireState(proposal, 'draft', version);
-  if (!proposal.preview) throw new Error('Interview and bilingual preview required');
+  if (!proposal.preview) throw new Error('Interview and proposal preview required');
   return { ...proposal, status: 'submitted', version: version + 1, revision: String(version + 1) };
 }
 
@@ -133,9 +133,11 @@ export function documentMarkdown(document) {
   const escape = value => value.replace(/[<>&]/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[char]);
   const lines = ['# Feature proposal / Feature-Vorschlag', '', 'Revision: ' + document.revision];
   for (const [locale, title] of [['de', 'Deutsch'], ['en', 'English']]) {
+    if (!document.preview[locale]) continue;
     lines.push('', '## ' + title, '', escape(document.preview[locale]));
     if (document.preview.stories?.length) lines.push('', '### User Stories', '');
     for (const story of document.preview.stories ?? []) {
+      if (!story[locale]) continue;
       lines.push('- **' + story.role + '** · ' + escape(story[locale]));
     }
   }
@@ -152,7 +154,13 @@ export function reviseFromFeedback(proposal, version, { suggestion, de, en }, re
   const revision = proposal.revision ?? proposal.submittedAt;
   const history = [...proposal.history, { ...getDocument(proposal, revision), history: undefined, status: 'superseded' }];
   const change = { suggestion: readText(suggestion, 1000), reviewer };
-  const preview = { ...proposal.preview, de: readText(de, 4000), en: readText(en, 4000) };
+  const preview = { de: readText(de ?? '', 4000, false), en: readText(en ?? '', 4000, false) };
+  if (!preview.de && !preview.en) throw new TypeError('A revised proposal is required');
+  if (proposal.preview.stories) {
+    preview.stories = proposal.preview.stories.map(story => ({
+      role: story.role, de: preview.de ? story.de : '', en: preview.en ? story.en : '',
+    }));
+  }
   return {
     ...proposal, history, preview, change, revision: String(version + 1),
     version: version + 1, submittedAt: new Date().toISOString(), status: 'submitted',
@@ -169,7 +177,7 @@ export function saveTechnicalReview(proposal, version, input, reviewer) {
   const revision = proposal.revision ?? proposal.submittedAt;
   const spec = [
     '# Feature specification draft', 'Feature revision: ' + revision,
-    '## Problem and proposed outcome\n' + proposal.preview.en,
+    '## Problem and proposed outcome\n' + (proposal.preview.en || proposal.preview.de),
     '## User Stories\n' + notes.story,
     '## Technical findings and sources\n' + notes.findings,
     '## Implementation decisions\n' + notes.decisions,
