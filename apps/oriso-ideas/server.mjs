@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
 import { instructions } from './interview-model.mjs';
 import { createAccess } from './access.mjs';
-import { advance, confirm, documentMarkdown, getDocument, listDocuments, rate, review, reviseFromFeedback, saveTechnicalReview, start } from './workflow.mjs';
+import { advance, confirm, documentMarkdown, getDocument, listDocuments, rate, review, reviseFromFeedback, saveTechnicalReview, saveReport, start } from './workflow.mjs';
 
 const assets = {
   '/ideas/': ['./index.html', 'text/html'],
@@ -32,7 +32,7 @@ async function readBody(request) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-export function createIntake({ database, reviewerToken, interview, emailAccess, dailyCalls = 50, previewMode = false, livePreview = false, resolveIdentity }) {
+export function createIntake({ database, reviewerToken, interview, emailAccess, dailyCalls = 50, previewMode = false, livePreview = false, resolveIdentity, generateReport }) {
   if (!resolveIdentity && (!reviewerToken || reviewerToken.length < 32)) throw new Error('A reviewer secret is required');
   const reviewerHash = reviewerToken ? hash(reviewerToken) : null;
   const db = new DatabaseSync(database);
@@ -192,13 +192,13 @@ export function createIntake({ database, reviewerToken, interview, emailAccess, 
         return json(response, 201, { id, token, proposal });
       }
 
-      const match = path.match(/^\/ideas\/api\/proposals\/([0-9a-f-]{36})(?:\/(interview|submit|review|rating|document|community|refine|technical))?$/);
+      const match = path.match(/^\/ideas\/api\/proposals\/([0-9a-f-]{36})(?:\/(interview|submit|review|rating|document|community|refine|technical|report))?$/);
       if (!match) return json(response, 404, { error: 'Not found' });
       const [, id, action] = match;
       const row = find.get(id);
       if (!row || !identity) return json(response, 404, { error: 'Not found' });
       const proposal = JSON.parse(row.data);
-      const allowed = ['review', 'rating', 'document', 'community', 'refine', 'technical'].includes(action) ? isReviewer : (resolveIdentity || row.secret === secret) && proposal.author?.email === identity.email;
+      const allowed = ['review', 'rating', 'document', 'community', 'refine', 'technical', 'report'].includes(action) ? isReviewer : (resolveIdentity || row.secret === secret) && proposal.author?.email === identity.email;
       if (!allowed) return json(response, 404, { error: 'Not found' });
       if (request.method === 'GET' && action === 'document') {
         const document = getDocument(proposal, url.searchParams.get('revision'));
@@ -243,6 +243,23 @@ export function createIntake({ database, reviewerToken, interview, emailAccess, 
           return json(response, 409, { error: 'Revision has changed' });
         }
         next = saveTechnicalReview(proposal, body.version, body, identity);
+      } else if (action === 'report') {
+        const revision = proposal.revision ?? proposal.submittedAt;
+        if (body.revision !== revision || !['submitted', 'accepted-for-specification'].includes(proposal.status)) {
+          return json(response, 409, { error: 'Report revision unavailable' });
+        }
+        if (body.mode === 'generate' && generateReport) {
+          if (!reserve.run(day, 'model', dailyCalls).changes) return json(response, 429, { error: 'Daily model limit reached' });
+          try {
+            next = saveReport(proposal, body.version, revision, await generateReport(proposal));
+          } catch {
+            return json(response, 502, { error: 'Report unavailable; the proposal was saved' });
+          }
+        } else if (body.mode === 'save' || (body.mode === 'approve' && proposal.report)) {
+          next = saveReport(proposal, body.version, revision, body.text, body.mode === 'approve' ? identity : null);
+        } else {
+          return json(response, 400, { error: 'Unsupported report action' });
+        }
       } else if (action === 'rating') {
         next = rate(proposal, body.version, body, identity);
       } else if (action === 'review') {

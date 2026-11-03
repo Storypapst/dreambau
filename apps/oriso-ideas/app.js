@@ -114,6 +114,15 @@ const copy = {
   refine: ['Vorschlag in neue Fassung übernehmen', 'Create revision from suggestion'],
   revisionDe: ['Überarbeiteter Text auf Deutsch', 'Revised German text'],
   revisionEn: ['Überarbeiteter Text auf Englisch', 'Revised English text'],
+  report: ['Feature-Bericht', 'Feature report'],
+  reportTitle: ['Titel', 'Title'],
+  reportSummary: ['Kurzfassung', 'Summary'],
+  reportGenerate: ['Bericht mit KI entwerfen', 'Draft report with AI'],
+  reportEdit: ['Bericht bearbeiten', 'Edit report'],
+  reportSave: ['Bericht als Entwurf speichern', 'Save report draft'],
+  reportApprove: ['Bericht prüfen und freigeben', 'Approve report'],
+  reportDraft: ['Entwurf · zur Prüfung', 'Draft · ready for review'],
+  reportApproved: ['Freigegeben · bereit für die technische Spec', 'Approved · ready for the technical spec'],
   technicalTitle: ['Technische PM-Prüfung', 'Technical PM review'],
   findings: ['Technischer Befund und Quellen', 'Technical findings and sources'],
   pmDecisions: ['Vorgeschlagene Umsetzung', 'Proposed implementation'],
@@ -521,7 +530,52 @@ function addRefinement(container, id, proposal, suggestion) {
   container.append(details);
 }
 
+function addFeatureReport(view, id, proposal) {
+  const editable = ['submitted', 'accepted-for-specification'].includes(proposal.status);
+  if (!editable && !proposal.report) return;
+  const section = document.createElement('section');
+  section.className = 'intake-preview';
+  section.append(element('h3', t('report')));
+  async function save(mode, text) {
+    const updated = await request('/proposals/' + id + '/report', reviewPassword, {
+      mode, text, version: proposal.version, revision: proposal.revision,
+    });
+    refreshDocument(updated);
+  }
+  if (!proposal.report) {
+    section.append(button('reportGenerate', () => save('generate'), true, reviewNotice));
+  } else {
+    const report = proposal.report;
+    section.append(element('p', t(report.approvedAt ? 'reportApproved' : 'reportDraft')));
+    section.append(element('h4', report.text.title), element('p', report.text.summary));
+    const steps = document.createElement('ol');
+    for (const step of ['step1', 'step2', 'step3', 'step4']) steps.append(element('li', report.text[step]));
+    section.append(steps);
+    if (editable) {
+      const details = document.createElement('details');
+      details.append(element('summary', t('reportEdit')));
+      const fields = Object.entries(report.text).map(([key, value]) => {
+        const label = key.startsWith('step') ? (locale === 'de' ? 'Schritt ' : 'Step ') + key.slice(4)
+          : t(key === 'title' ? 'reportTitle' : 'reportSummary');
+        const wrapper = element('label', label, 'field');
+        const input = document.createElement('textarea');
+        input.maxLength = 1200;
+        input.value = value;
+        wrapper.append(input);
+        details.append(wrapper);
+        return [key, input];
+      });
+      const text = () => Object.fromEntries(fields.map(([key, input]) => [key, input.value]));
+      details.append(button('reportSave', () => save('save', text()), false, reviewNotice),
+        button('reportApprove', () => save('approve', text()), true, reviewNotice));
+      section.append(details);
+    }
+  }
+  view.append(section);
+}
+
 function addTechnicalReview(view, id, proposal) {
+  if (!proposal.report?.approvedAt && !proposal.technical) return;
   const editable = ['submitted', 'accepted-for-specification'].includes(proposal.status);
   if (!editable && !proposal.technical) return;
   const details = document.createElement('details');
@@ -601,6 +655,7 @@ function renderDocument() {
   addCommunityControls(view, id, proposal);
   addCommunityFeedback(view, id, proposal, activeDocument.communityFeedback);
   if (proposal.change) view.append(element('p', proposal.change.suggestion));
+  addFeatureReport(view, id, proposal);
   addTechnicalReview(view, id, proposal);
   addRatings(view, id, proposal);
   if (proposal.review?.reason) view.append(element('p', proposal.review.reason));

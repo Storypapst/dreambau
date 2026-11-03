@@ -59,7 +59,7 @@ export function start(form, locale) {
 
 export function advance(proposal, output) {
   requireState(proposal, 'draft', proposal.version);
-  const question = output.question === null ? null : readText(output.question, 280);
+  const question = output.question === null ? null : readText(output.question, 600);
   const assumptions = readList(output.assumptions);
   const decisions = readList(output.decisions);
   if (question === null && decisions.length) throw new Error('Decisions are still open');
@@ -108,10 +108,10 @@ export function review(proposal, version, action, reason, reviewer) {
   if (action !== 'revise') return reviewed;
   const history = [...proposal.history, {
     version, revision: proposal.revision ?? proposal.submittedAt, submittedAt: proposal.submittedAt,
-    preview: proposal.preview, userStories: proposal.userStories, technical: proposal.technical, interview: proposal.interview, turns: proposal.turns ?? [],
+    preview: proposal.preview, report: proposal.report, userStories: proposal.userStories, technical: proposal.technical, interview: proposal.interview, turns: proposal.turns ?? [],
     ratings: proposal.ratings ?? [], review: decision,
   }];
-  return { ...reviewed, history, interview: null, preview: null, turns: [], ratings: [], technical: null };
+  return { ...reviewed, history, interview: null, preview: null, turns: [], ratings: [], technical: null, report: null };
 }
 
 export function listDocuments(proposal) {
@@ -164,7 +164,7 @@ export function reviseFromFeedback(proposal, version, { suggestion, de, en }, re
   return {
     ...proposal, history, preview, change, revision: String(version + 1),
     version: version + 1, submittedAt: new Date().toISOString(), status: 'submitted',
-    interview: null, turns: [], ratings: [], review: null, technical: null,
+    interview: null, turns: [], ratings: [], review: null, technical: null, report: null,
   };
 }
 
@@ -178,6 +178,8 @@ export function saveTechnicalReview(proposal, version, input, reviewer) {
   const spec = [
     '# Feature specification draft', 'Feature revision: ' + revision,
     '## Problem and proposed outcome\n' + (proposal.preview.en || proposal.preview.de),
+    ...(proposal.report?.approvedAt ? ['## Approved feature report\n' + proposal.report.text.summary
+      + '\n' + ['step1', 'step2', 'step3', 'step4'].map((step, i) => (i + 1) + '. ' + proposal.report.text[step]).join('\n')] : []),
     '## User Stories\n' + notes.story,
     '## Technical findings and sources\n' + notes.findings,
     '## Implementation decisions\n' + notes.decisions,
@@ -185,4 +187,16 @@ export function saveTechnicalReview(proposal, version, input, reviewer) {
     '## Open decisions\n' + (notes.open || 'None recorded.'),
   ].join('\n\n') + '\n';
   return { ...proposal, version: version + 1, technical: { revision, notes, spec, reviewer, at: new Date().toISOString() } };
+}
+
+export function saveReport(proposal, version, revision, content, approver) {
+  requireState(proposal, proposal.status, version);
+  if (!['submitted', 'accepted-for-specification'].includes(proposal.status)
+    || revision !== (proposal.revision ?? proposal.submittedAt)) throw new Error('Report revision unavailable');
+  const fields = ['title', 'summary', 'step1', 'step2', 'step3', 'step4'];
+  const text = Object.fromEntries(fields.map(field => [field, readText(content[field], 1200)]));
+  return { ...proposal, version: version + 1, report: {
+    revision, text, approvedAt: approver ? new Date().toISOString() : null,
+    ...(approver && { approvedBy: approver }),
+  } };
 }
