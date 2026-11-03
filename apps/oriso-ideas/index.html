@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idee einreichen — ORISO Understand</title>
+<link rel="stylesheet" href="./hub.css">
+<link rel="stylesheet" href="./intake.css">
+<script src="./app.js" defer></script>
+</head>
+<body>
+<div class="appbar"><div class="appbar-in">
+  <span class="brandname"><a href="https://understand.oriso.org/">ORISO Understand</a></span>
+  <span class="sub">/ideas</span><span class="sp"></span>
+  <span class="badge solid" data-copy="badge">Feature-Idee</span>
+  <div class="intake-preferences">
+  <div class="langswitch" role="group" aria-label="Sprache / Language">
+    <button type="button" data-locale="de" aria-pressed="true">DE</button>
+    <button type="button" data-locale="en" aria-pressed="false">EN</button>
+  </div>
+  <div class="langswitch" role="group" id="theme-switch" aria-label="Farbschema">
+    <button type="button" data-color-mode="system" data-copy="themeSystem" aria-pressed="true">System</button>
+    <button type="button" data-color-mode="light" data-copy="themeLight" aria-pressed="false">Hell</button>
+    <button type="button" data-color-mode="dark" data-copy="themeDark" aria-pressed="false">Dunkel</button>
+  </div>
+  </div>
+</div></div>
+<header class="band"><div class="band-in"><div class="headcard">
+  <p class="eyebrow" data-copy="eyebrow">Features · Von der Idee zum Vorschlag</p>
+  <h1 data-copy="title">Eine Idee für ORISO einreichen</h1>
+  <p class="lead" data-copy="lead">Beschreibe, was jemand in ORISO besser machen können soll. Im anschließenden Chat klären wir offene Fragen. Danach siehst du den Vorschlag auf Deutsch und Englisch.</p>
+  <div class="chips"><span class="chip" data-copy="private">Entwürfe sind geschützt</span><span class="chip" id="preview-mode" hidden data-copy="fixture">Lokale Vorschau · vorbereitete Antworten</span></div>
+</div></div></header>
+<nav class="chipnav" aria-label="Ablauf / Workflow"><div class="chipnav-in">
+  <a href="#idea"><span class="no">1</span><span data-copy="idea">Idee</span></a>
+  <a href="#conversation"><span class="no">2</span><span data-copy="chat">Rückfragen</span></a>
+  <a href="#review-section"><span class="no">3</span><span>High-Level Review</span></a>
+  <a href="#community"><span class="no">4</span><span>Community</span></a>
+</div></nav>
+<main class="wrap intake-wrap">
+<section id="access">
+  <div class="ch"><h2 data-copy="accessTitle">Zugang mit E-Mail bestätigen</h2></div>
+  <div class="intake-panel">
+    <p class="intake-hint" data-copy="accessHint">Verwende das gemeinsame Passwort und eine E-Mail-Adresse aus einer freigegebenen Domain. Name und bestätigte Adresse sind im geschützten Ideen-Board für Rückfragen sichtbar.</p>
+    <p id="testmails-login" hidden><a href="/testmails/" data-copy="testmailsLogin">In Testmails anmelden</a></p>
+    <form id="access-start">
+      <label class="field"><span data-copy="name">Dein Name</span><input name="name" autocomplete="name" maxlength="120" required></label>
+      <label class="field"><span data-copy="email">Deine E-Mail-Adresse</span><input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+      <label class="field"><span data-copy="accessPassword">Gemeinsames Passwort</span><input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" data-copy="sendCode">E-Mail-Code anfordern</button>
+    </form>
+    <form id="access-verify" hidden>
+      <label class="field"><span data-copy="emailCode">Sechsstelliger E-Mail-Code</span><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
+      <button class="primary" data-copy="verifyCode">Code bestätigen</button>
+      <button type="button" id="access-restart" data-copy="newCode">Neuen Code anfordern</button>
+    </form>
+    <div id="identity" hidden><p></p><button type="button" id="logout" data-copy="logout">Abmelden</button></div>
+    <p id="access-notice" role="status"></p>
+  </div>
+</section>
+<section id="idea" hidden>
+  <div class="ch"><span class="chapter-no">1</span><h2 data-copy="formTitle">Die Idee aus Nutzersicht</h2></div>
+  <form id="intake" class="intake-panel">
+    <p class="intake-hint" data-copy="privacy">Bitte gib keine Namen, Kontaktdaten oder Beratungsinhalte ein.</p>
+    <label class="field"><span data-copy="role">Wer braucht die Änderung?</span><textarea name="role" maxlength="1000" required></textarea></label>
+    <label class="field"><span data-copy="situation">In welcher Situation ist die Person?</span><textarea name="situation" maxlength="1000" required></textarea></label>
+    <label class="field"><span data-copy="problem">Was kann sie heute nicht tun oder erkennen?</span><textarea name="problem" maxlength="1000" required></textarea></label>
+    <label class="field"><span data-copy="solution">Was könnte ihr helfen? (optional)</span><textarea name="solution" maxlength="1000"></textarea></label>
+    <label class="field"><span data-copy="benefit">Woran würde sie merken, dass die Änderung hilft?</span><textarea name="benefit" maxlength="1000" required></textarea></label>
+    <details class="technical">
+      <summary data-copy="technical">Stakeholder &amp; User Stories (optional)</summary>
+      <fieldset>
+        <legend data-copy="stakeholders">Welche weiteren Rollen betrifft die Idee?</legend>
+        <div class="role-options">
+          <label><input type="checkbox" name="stakeholders" value="help-seekers"><span data-copy="help-seekers">Ratsuchende</span></label>
+          <label><input type="checkbox" name="stakeholders" value="counsellors"><span data-copy="counsellors">Beratende</span></label>
+          <label><input type="checkbox" name="stakeholders" value="centre-admins"><span data-copy="centre-admins">Beratungsstellen-Admins</span></label>
+          <label><input type="checkbox" name="stakeholders" value="management"><span data-copy="management">Management</span></label>
+          <label><input type="checkbox" name="stakeholders" value="legal"><span data-copy="legal">Legal</span></label>
+        </div>
+      </fieldset>
+      <div id="user-stories"></div>
+      <button type="button" id="add-story" data-copy="addStory">User Story hinzufügen</button>
+      <p class="intake-hint" data-copy="storyHint">Für jede ausgewählte Rolle erscheint eine vorgeschlagene User Story in der DE/EN-Vorschau.</p>
+      <label class="field"><span data-copy="storyNotes">Technische Hinweise (optional)</span><textarea name="storyNotes" maxlength="1500"></textarea></label>
+      <p class="intake-hint" data-copy="storyExample">Als Beratende möchte ich …, damit ich …</p>
+    </details>
+    <button class="primary" data-copy="start">Rückfragen starten</button>
+  </form>
+</section>
+<section id="conversation" hidden>
+  <div class="ch"><span class="chapter-no">2</span><h2 id="chat-title" tabindex="-1" data-copy="chat">Rückfragen</h2></div>
+  <div class="intake-panel">
+    <p id="notice" role="status"></p>
+    <div id="proposal"><p class="intake-hint" data-copy="chatEmpty">Sobald du den Chat startest, erscheint hier die erste Rückfrage.</p></div>
+  </div>
+</section>
+<section id="review-section" hidden>
+  <div class="ch"><span class="chapter-no">3</span><h2 data-copy="boardTitle">Ideen-Board</h2></div>
+  <details class="intake-panel">
+    <summary data-copy="reviewAccess">Review mit Passwort öffnen</summary>
+    <form id="review">
+      <label class="field"><span data-copy="password">Review-Passwort</span><input name="token" type="password" autocomplete="off" required></label>
+      <button class="primary" data-copy="loadInbox">Einreichungen laden</button>
+    </form>
+    <form id="domains" hidden>
+      <label class="field"><span data-copy="domains">Erlaubte E-Mail-Domains</span><textarea name="domains" spellcheck="false"></textarea></label>
+      <p class="intake-hint" data-copy="domainsHint">Eine Domain pro Zeile. Entfernte Domains verlieren sofort den Zugang, auch zu bestehenden Sitzungen.</p>
+      <button class="primary" data-copy="saveDomains">Domainliste speichern</button>
+    </form>
+    <p id="review-notice" role="status"></p>
+    <div id="inbox"></div>
+  </details>
+</section>
+<section id="community" hidden>
+  <div class="ch"><span class="chapter-no">4</span><h2>Community</h2></div>
+  <div class="intake-panel">
+    <p class="intake-hint" data-copy="communityIntro">Hier stehen die Fassungen, die der Review für die Community freigegeben hat.</p>
+    <button type="button" id="load-community" data-copy="loadCommunity">Freigegebene Fassungen laden</button>
+    <p id="community-notice" role="status"></p>
+    <div id="community-documents"></div>
+  </div>
+</section>
+</main>
+</body>
+</html>

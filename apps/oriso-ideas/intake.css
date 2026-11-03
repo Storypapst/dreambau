@@ -1,0 +1,39 @@
+[hidden] { display: none !important }
+
+.intake-wrap { gap: 28px }
+.intake-wrap section { min-width: 0; scroll-margin-top: 66px }
+.intake-panel { padding: clamp(16px, 3vw, 28px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--card) }
+.intake-hint { color: var(--ink-2); margin-block: .35rem .8rem }
+.field { display: grid; gap: .4rem; margin: 1rem 0; font-weight: 600 }
+textarea, .field input { display: block; width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem; background: var(--paper); color: var(--ink); font: inherit; font-weight: 400 }
+textarea { min-height: 4rem; resize: vertical }
+button { font: inherit; cursor: pointer }
+.intake-wrap button { border: 1px solid var(--brand-line); border-radius: var(--radius); background: var(--brand-wash); color: var(--brand-deep); padding: .55rem .9rem; margin: .3rem .45rem .3rem 0 }
+.intake-wrap button.primary { background: var(--brand-deep); color: var(--paper); border-color: var(--brand-deep); font-weight: 600 }
+.intake-wrap button:disabled { opacity: .65; cursor: wait }
+.technical { border-top: 1px solid var(--line); margin: 1.2rem 0; padding-top: .7rem }
+summary { cursor: pointer; font-weight: 600 }
+fieldset { border: 0; padding: 0; margin: .9rem 0 .5rem }
+legend { margin-bottom: .45rem }
+.role-options { display: flex; flex-wrap: wrap; gap: .45rem }
+.role-options label { display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .65rem; border: 1px solid var(--line); border-radius: 999px; cursor: pointer }
+.role-options label:has(:checked) { background: var(--brand-wash); border-color: var(--brand-line); color: var(--brand-deep) }
+.role-options input { accent-color: var(--brand) }
+.intake-bubble { max-width: 74ch; margin: .65rem 0; padding: .65rem .85rem; border-radius: var(--radius); background: var(--sunken); overflow-wrap: anywhere }
+.intake-bubble p, .intake-preview p { white-space: pre-wrap }
+.intake-bubble.you { margin-left: auto; background: var(--brand-wash) }
+.intake-preview { margin-block: .8rem; border: 1px solid var(--line); border-radius: var(--radius); padding: .9rem; overflow-wrap: anywhere }
+.intake-preview section + section, .intake-preview article { margin-top: .8rem }
+#notice:not(:empty), #access-notice:not(:empty), #review-notice:not(:empty) { margin-bottom: .75rem; color: var(--brand-deep) }
+
+.intake-preferences { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem }
+:root { color-scheme: light dark }
+:root[data-theme="light"] { color-scheme: light }
+:root[data-theme="dark"] { color-scheme: dark }
+
+.rating-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .65rem; max-width: 34rem; margin-bottom: .7rem }
+.rating-row .rating-field { margin: 0 }
+.rating-row input { padding: 0; accent-color: var(--brand) }
+.rating-row small { grid-column: 1 / -1; color: var(--ink-2) }
+
+.intake-spec { white-space: pre-wrap; overflow-wrap: anywhere }
