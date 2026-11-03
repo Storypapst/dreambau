@@ -146,6 +146,7 @@ const copy = {
   reject: ['Ablehnen', 'Reject'],
   retry: ['Erneut laden', 'Reload'],
   lost: ['Dieser Entwurf ist nicht mehr verfügbar. Du kannst eine neue Idee beginnen.', 'This draft is no longer available. You can start a new idea.'],
+  newIdea: ['Neue Idee', 'New idea'],
   confirmScope: ['Umfang bestätigen', 'Confirm scope'],
   keepAsking: ['Rückfragen fortsetzen', 'Continue follow-up questions'],
   answerSaved: ['Deine Antwort ist gespeichert. Du kannst die nächste Rückfrage erneut anfordern.', 'Your answer is saved. You can retry the next question.'],
@@ -325,6 +326,16 @@ function render() {
   if (proposal.preview) proposalView.append(preview(proposal));
   if (proposal.status !== 'draft') {
     proposalView.append(button('retry', async () => setProposal(await request(session.path, session.token))));
+    proposalView.append(button('newIdea', () => {
+      localStorage.removeItem(key);
+      session = null;
+      current = null;
+      answerDraft = '';
+      intake.reset();
+      intake.hidden = false;
+      proposalView.replaceChildren();
+      intake.querySelector('[name="role"]').focus();
+    }));
   } else if (proposal.preview) {
     proposalView.append(button('submit', async () => {
       setProposal(await request(session.path + '/submit', session.token, { version: proposal.version }));
