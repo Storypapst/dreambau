@@ -132,7 +132,66 @@
         "same_as_current": null,
         "displayed_original_addresses": [
           "sunflower-care.org"
-        ]
+        ],
+        "case_study": {
+          "title": "Sunflower Care e.V.",
+          "summary": "Eine mehrsprachige NGO-Website, auf der Hilfesuchende Unterstützung finden und Unterstützer die Arbeit der Organisation kennenlernen können.",
+          "what": "Website für eine Hilfsorganisation",
+          "role": "Art Direction, UX-Konzeption und UI-Design",
+          "tasks": "Bildkonzeption, Webentwicklung und Tests",
+          "sections": [
+            {
+              "heading": "Auftrag und Zielgruppe",
+              "paragraphs": [
+                "Sunflower Care unterstützt besonders schutzbedürftige Menschen aus der Ukraine: Menschen mit Behinderungen, neurodivergente Personen und Kriegsverletzte. Zur Arbeit der Organisation gehören Evakuierungen, barrierefreie medizinische Transporte, Unterkünfte bei dringendem medizinischem Bedarf und Hilfe bei Transportkosten.",
+                "Die Website sollte diese Angebote verständlich erklären und zugleich die Organisation vorstellen. Dazu gehören auch Unterstützung im deutschen Gesundheitssystem, Übersetzung und humanitäre Hilfe. Hilfesuchende und Menschen, die spenden oder mitarbeiten möchten, brauchen jeweils einen klaren Einstieg."
+              ],
+              "images": [
+                1,
+                0,
+                2,
+                3
+              ]
+            },
+            {
+              "heading": "Von der Information zur konkreten Hilfe",
+              "paragraphs": [
+                "Der Auftrag umfasste drei Formulare mit unterschiedlichen Abläufen. Sie ermöglichen auch das Hochladen von Unterlagen; in einem Fall werden die Angaben automatisch in ein Ticket in Favro übernommen. So gehört zum Entwurf nicht nur die sichtbare Seite, sondern auch die Weitergabe einer Anfrage an die Organisation.",
+                "Weitere Bestandteile waren eine zugängliche Gestaltung, mehrsprachige Inhalte und eine Spendenfunktion. Die Leistungsbeschreibungen erklären, welche Unterstützung angeboten wird; die Kontaktmöglichkeiten führen zur passenden Anfrage."
+              ],
+              "images": [
+                4,
+                5
+              ]
+            },
+            {
+              "heading": "Die Organisation sichtbar machen",
+              "paragraphs": [
+                "Neben den Hilfsangeboten zeigt die Website Spendenprojekte, Blogbeiträge, Kontakt, Werte und Team. Der Kontext der Arbeit bleibt dabei sichtbar: die Solidarität mit geflüchteten Menschen mit Behinderungen und die Haltung gegen Ableismus.",
+                "Mein Beitrag umfasste Art Direction, UX- und UI-Design, Bildkonzeption mit generativen Werkzeugen, Webentwicklung und Tests. Die Bildstrecke zeigt die einzelnen Bereiche des Website-Entwurfs."
+              ],
+              "images": [
+                6,
+                7,
+                8,
+                9
+              ]
+            }
+          ],
+          "captions": [
+            "Unterstützung in drei Bereichen: lokale Hilfe, Hilfslieferungen und Rettung.",
+            "Startseite mit dem Einstieg für Hilfesuchende und Unterstützer.",
+            "Übersicht der Spendenprojekte mit ihren jeweiligen Zielen.",
+            "Darstellung der Arbeit der Organisation auf der Startseite.",
+            "Hilfsformular: Angaben zur Person und zur benötigten Unterstützung.",
+            "Detailseite eines Hilfsprojekts mit Hintergrundinformationen.",
+            "Blogübersicht mit Beiträgen aus der Arbeit der Organisation.",
+            "Kontaktbereich mit Nachricht und Kontaktmöglichkeiten.",
+            "Werte und Haltung der Organisation als eigener Website-Bereich.",
+            "Teamübersicht: die Menschen hinter Sunflower Care."
+          ],
+          "tools": "Webflow, Cloudflare, Stripe, Python, JavaScript, Zapier, HREFs und Figma. Bildkonzeption mit DALL·E 3 und Midjourney; Unterstützung bei Texten mit ChatGPT."
+        }
       },
       {
         "id": "eeloy",
@@ -160,7 +219,64 @@
         "same_as_current": null,
         "displayed_original_addresses": [
           "eeloy.com"
-        ]
+        ],
+        "case_study": {
+          "title": "Eeloy AG",
+          "summary": "Das Redesign eines gewachsenen B2B-Kundenportals für Direktmailings verbindet einen einfacheren Einstieg mit den Arbeitsabläufen erfahrener Nutzer.",
+          "what": "Redesign der Direktmailing-Anwendung Seeds",
+          "role": "UX-Konzeption und UI-Design",
+          "tasks": "Nutzertests und Illustrationen",
+          "sections": [
+            {
+              "heading": "Ein gewachsenes System neu ordnen",
+              "paragraphs": [
+                "Seeds ist eine B2B-Anwendung für Direktmailings, die von Mercedes-Autohäusern genutzt wird. Nach acht Jahren sollte das Kundenportal überarbeitet werden: nach Material-Design-Prinzipien und mit einer Navigation, in der sich neue Kunden leichter zurechtfinden.",
+                "Die besondere Anforderung war, dabei die etablierten Arbeitsabläufe nicht zu unterbrechen. Das System war über Jahre gewachsen; seine Daten und Funktionen mussten auch für langjährige Nutzer erreichbar bleiben."
+              ],
+              "images": [
+                0,
+                3
+              ]
+            },
+            {
+              "heading": "Einfacher Einstieg und Expertenmodus",
+              "paragraphs": [
+                "Der Lösungsansatz trennt einen vereinfachten Standardmodus von einem Expertenmodus. Neue Nutzer erhalten einen übersichtlicheren Zugang, während erfahrene Nutzer weiterhin auf die benötigten Details zugreifen können.",
+                "Für die Einrichtung wurde ein mehrstufiger Ablauf mit Formularen, Statusprüfungen und einer Ampellogik vorgesehen. Sie macht erkennbar, welche Schritte bereits erledigt sind und wo Angaben fehlen oder geprüft werden müssen. Die Wirksamkeit dieser Elemente wurde zum Zeitpunkt der Portfolio-Dokumentation noch evaluiert."
+              ],
+              "images": [
+                4,
+                2,
+                5,
+                6
+              ]
+            },
+            {
+              "heading": "Kampagnen verständlich zusammenführen",
+              "paragraphs": [
+                "Die Ansichten zeigen Kampagnen, Empfängerkriterien und die weitere Eingrenzung einer Auswahl. Übersichten und Statusanzeigen ordnen die Informationen so, dass der Weg von der Einrichtung bis zur Kampagnenauswahl nachvollziehbar bleibt.",
+                "Mein Beitrag umfasste UX- und UI-Design, Nutzertests und Illustrationen. Die Beispiele dokumentieren das Redesign und seinen Umgang mit der Komplexität des bestehenden Portals."
+              ],
+              "images": [
+                1,
+                7,
+                8
+              ]
+            }
+          ],
+          "captions": [
+            "Prüfdienst HU: eine ausführliche Fachansicht innerhalb des Kundenportals.",
+            "AutoSelect: Kampagnen und ihre jeweiligen Bearbeitungsstände.",
+            "Empfängerkriterien als geordneter Schritt bei der Kampagneneinrichtung.",
+            "Kampagnenübersicht mit Filtern und zusammengefassten Informationen.",
+            "Einrichtung des Kontos mit sichtbaren Schritten und Statusangaben.",
+            "Die Auswahl anhand weiterer Kriterien eingrenzen.",
+            "Ampellogik und Fehlermeldung in der Empfängerauswahl.",
+            "Weitere Ansicht der Kampagnenübersicht.",
+            "Illustrationen für die angebotenen Leistungen."
+          ],
+          "tools": "Figma, Adobe Creative Cloud, Asana, PHP, React, Nextcloud und Material Design 3."
+        }
       },
       {
         "id": "wespro",
@@ -188,7 +304,62 @@
         "same_as_current": null,
         "displayed_original_addresses": [
           "wespro-retail.de"
-        ]
+        ],
+        "case_study": {
+          "title": "Werbespitze / Wespro",
+          "summary": "Eine interne Prozessanwendung verbindet die Arbeitsschritte eines Werbetechnikbetriebs vom ersten Angebot über Gestaltung und Produktion bis zur Montage und Abrechnung.",
+          "what": "Interne Software für Geschäfts- und Produktionsprozesse",
+          "role": "Geschäftsprozessanalyse, UX- und UI-Design",
+          "tasks": "Projektmanagement, IT-Beratung und Tests",
+          "sections": [
+            {
+              "heading": "Ein durchgehender Ablauf",
+              "paragraphs": [
+                "Der Auftrag war, die Schritte von der Planung bis zur Auslieferung in einem System zusammenzuführen. Dazu gehören Angebote, Vereinbarungen mit Kunden, Rechnungen, Grafikdesign, Druck, Qualitätsprüfung, Lieferung und Montage sowie die Nachverfolgung von Rechnungen.",
+                "Die Anwendung sollte Arbeitsabläufe und Kundenkommunikation über diese Stationen hinweg verbinden. Mein Beitrag umfasste die Analyse der Geschäftsprozesse, UX- und UI-Design, Projektmanagement, IT-Beratung und Tests."
+              ],
+              "images": [
+                0,
+                1,
+                2
+              ]
+            },
+            {
+              "heading": "Unterschiedliche Aufträge, ein kleines Team",
+              "paragraphs": [
+                "Der Betrieb bearbeitet sehr unterschiedliche Projekte: vom kleinen Druckauftrag bis zu umfangreichen Bau- und Montagearbeiten. Die Herausforderung war, diese Vielfalt in einem gemeinsamen Ablauf abzubilden. Ein kleines Team muss dabei mehrere Bereiche von der ersten Planung bis zum Aufbau vor Ort koordinieren.",
+                "Hinzu kommen enge Fristen und kurzfristige Installationen in Geschäften. Die Entwürfe machen deshalb Aufgaben, Zuständigkeiten und Projektstände sichtbar. Die Bildstrecke zeigt dafür unter anderem Ablaufplanung, Statusansichten und die Übergaben zwischen den Produktionsschritten."
+              ],
+              "images": [
+                3,
+                5,
+                7
+              ]
+            },
+            {
+              "heading": "Produktion und Daten im Blick",
+              "paragraphs": [
+                "Eine weitere Vorgabe war die Datenhaltung auf einem privaten Server des Unternehmens. Der Schutz der Geschäftsdaten musste mit einer gemeinsamen Arbeitsgrundlage für die beteiligten Bereiche zusammenpassen.",
+                "Die Produktionsansichten führen Aufträge und Terminierung zusammen. Sie ergänzen die frühen Verkaufs- und Gestaltungsansichten um den operativen Teil des Prozesses bis zur Lieferung, Montage und abschließenden Abrechnung."
+              ],
+              "images": [
+                4,
+                6
+              ]
+            }
+          ],
+          "captions": [
+            "Projektübersicht mit Priorität und den wesentlichen Auftragsangaben.",
+            "Verkaufsphase mit den Schritten vom Kundenkontakt bis zum Vertrag.",
+            "Gestaltungsvorbereitung und Abstimmung innerhalb eines Auftrags.",
+            "Ablaufplanung mit Aufgaben, Reihenfolge und Zuständigkeiten.",
+            "Produktionsplanung für Druckaufträge und ihre Terminierung.",
+            "Projektleiter- und Kundenansicht mit ausgewählten Auftragsdetails.",
+            "Druckaufträge mit Bearbeitungsständen und Produktionsangaben.",
+            "Ablauf vom Design über Produktion und Montage bis zur Schlussrechnung."
+          ],
+          "tools": "Figma, Nextcloud, AWS, PHP, Vue.js und Jira Cloud. Die Vorgabe zur privaten Datenhaltung ist in der ursprünglichen Projektbeschreibung festgehalten."
+        }
       },
       {
         "id": "getme",
@@ -213,7 +384,58 @@
         "same_as_current": null,
         "displayed_original_addresses": [
           "getme.global"
-        ]
+        ],
+        "case_study": {
+          "title": "Getme",
+          "summary": "Eine Marktplatzplattform für Beratung und Feedback: Menschen finden passende Fähigkeiten, stellen gezielte Fragen und können hilfreiche Rückmeldungen vergüten.",
+          "what": "Marktplatz, Website und Designsystem",
+          "role": "Art Direction, UX- und UI-Design",
+          "tasks": "Projektmanagement, Marketing, Inhalte und Fehlerbehebung",
+          "sections": [
+            {
+              "heading": "Passende Menschen finden und Vertrauen aufbauen",
+              "paragraphs": [
+                "Getme sollte Menschen mit anderen zusammenbringen, deren Fähigkeiten zu einer konkreten Frage oder Aufgabe passen. Die Herausforderung geht über eine Suchfunktion hinaus: Wer unbekannte Fachleute anspricht, braucht auch eine Grundlage, um deren Einschätzungen zu vertrauen.",
+                "Dafür verbindet das Konzept einen Marktplatz mit einem Reputationssystem. Zwei zentrale Funktionen sind gezielte Fragen über einen Fragebogen und ein Feedbackmechanismus, über den hilfreiche Rückmeldungen bezahlt werden können."
+              ],
+              "images": [
+                0,
+                1
+              ]
+            },
+            {
+              "heading": "Arbeiten teilen und Rückmeldung erhalten",
+              "paragraphs": [
+                "Eine Hürde war, Nutzer zum Hochladen ihrer Inhalte für Feedback zu bewegen. Als Ansatz dienten mögliche Belohnungen und Chancen zur Zusammenarbeit. Die Entwürfe zeigen dazu hochgeladene Projekte, unterschiedliche Arten von Inhalten und eine Ansicht für Audiofeedback.",
+                "Zur Plattform gehören außerdem Videoanrufe, Rechnungsstellung und eine erweiterte Kontaktverwaltung. Sie sollen die Interaktion zwischen den Beteiligten und die Organisation ihrer Zusammenarbeit unterstützen."
+              ],
+              "images": [
+                2,
+                3,
+                4
+              ]
+            },
+            {
+              "heading": "Bezahlung und Reputation verbinden",
+              "paragraphs": [
+                "Eine weitere Herausforderung war eine mit einem Klick bedienbare Zahlungsabwicklung, die gegen Manipulation abgesichert sein sollte. Die ursprüngliche Projektbeschreibung nennt dafür ein eigens entwickeltes Rechnungskonzept. Die Darstellung des Reputationsablaufs ergänzt diesen Teil des Plattformkonzepts.",
+                "Mein Beitrag umfasste Art Direction, UX- und UI-Design sowie das Designsystem, Projektmanagement, Marketing, Content-Erstellung und Fehlerbehebung. Die gezeigten Ansichten dokumentieren unterschiedliche Teile der Plattform."
+              ],
+              "images": [
+                5
+              ]
+            }
+          ],
+          "captions": [
+            "Gezielte Fragen stellen und Menschen mit passenden Fähigkeiten finden.",
+            "Entwurf für einen Wettbewerb mit Bewertung eingereichter Arbeiten.",
+            "Eigene hochgeladene Projekte und die dazugehörigen Rückmeldungen.",
+            "Beispiel einer Auswahl von Arbeiten mit einer zugehörigen Feedbackansicht.",
+            "Audiofeedback mit Bezug auf einen konkreten Abschnitt der Aufnahme.",
+            "Ablaufdarstellung des Rateback-Reputationssystems."
+          ],
+          "tools": "Figma, Adobe Creative Cloud, AWS EC2, Lambda, Elastic Encoder, Stripe Connect, AngularJS, TypeScript, Ruby on Rails, Next.js, Solana, Jitsi, Ethereum und Jira Cloud."
+        }
       },
       {
         "id": "barkett",
