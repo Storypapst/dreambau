@@ -1,3 +1,4 @@
+import {run as runStories} from './reference-stories.mjs';
 import path from 'node:path';
 import fs from 'node:fs';
 import {run as runRepairs} from './references-repairs.mjs';
@@ -14,7 +15,7 @@ export async function run({browser,base,artifact,ok,root}) {
  await page.screenshot({path:path.join(artifact,'references-desktop-selected.png')});
  ok('A01: the wide selected panel has the approved 440 px width',Math.abs((await page.locator('.c-side').boundingBox()).width-440)<1);
  await page.reload();await page.waitForTimeout(150);
- ok('A02: reloading a shared address keeps the selected project',await page.locator('.c-side .pv-title').textContent()==='SF Care');
+ ok('A02: reloading a shared address keeps the selected project',await page.locator('.c-side .pv-title').textContent()==='Sunflower Care e.V.');
  await page.keyboard.press('Escape');await page.waitForTimeout(150);
  ok('A02: closing returns focus to the selected entry',await page.locator('.nd[data-id="sf-care"]').evaluate(n=>n===document.activeElement));
  await page.locator('#q').fill('Eeloy');
@@ -55,7 +56,7 @@ export async function run({browser,base,artifact,ok,root}) {
  ok('A11: reduced motion disables every animated element',await page.evaluate(()=>[...document.querySelectorAll('*')].every(n=>getComputedStyle(n).animationName==='none')));
  ok('A11: the real nginx browser path has no runtime or CSP errors',errors.length===0);
  for(const [device,width,height] of [['desktop',1440,900],['tablet',820,1180],['phone',390,844]]){await page.setViewportSize({width,height});await page.goto(base+'/referenzen/#getme');await page.waitForTimeout(200);await page.screenshot({path:path.join(artifact,'references-'+device+'-getme.png')});}
- await page.goto(base+'/referenzen/?lang=ar#getme');await page.waitForTimeout(200);ok('A11: RTL surroundings keep the English original in its own direction',await page.locator('.pv-title').last().evaluate(n=>n.dir==='ltr'&&document.documentElement.dir==='rtl'));
+ await page.goto(base+'/referenzen/?lang=ar#getme');await page.waitForTimeout(200);ok('A11: RTL chrome keeps German stories and English sources left to right',await page.locator('.case-study').last().evaluate(n=>n.lang==='de'&&n.dir==='ltr'&&document.documentElement.dir==='rtl')&&await page.locator('.case-study .original').last().evaluate(n=>n.lang==='en'&&n.dir==='ltr'));
  await page.screenshot({path:path.join(artifact,'references-phone-rtl.png')});
  } finally {await context.close();}
  const fast=await browser.newContext({viewport:{width:820,height:1180},reducedMotion:'reduce'}), burst=await fast.newPage();
@@ -88,4 +89,5 @@ export async function run({browser,base,artifact,ok,root}) {
  ok('A22: no-JS footer retains honest pending legal text',(await fallback.locator('.foot').innerText()).includes('Impressum · Angaben noch offen')&&(await fallback.locator('.foot').innerText()).includes('Datenschutz · Freigabe noch offen'));
  ok('A01: without JavaScript every genuine entry remains readable',await fallback.locator('article').count()===12);ok('A02: English original content remains readable without JavaScript',(await fallback.locator('article#eeloy').textContent()).includes('Redesign the 8 Years old Direct Mailing solution'));}finally{await nojs.close();}
  await runRepairs({browser,base,artifact,ok});
+ await runStories({browser,base,artifact,ok});
 }

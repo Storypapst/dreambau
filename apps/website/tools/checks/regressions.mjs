@@ -48,6 +48,7 @@ export async function run({browser,base,artifact,ok,root,dist,policy}){
   const nojs=await browser.newContext({javaScriptEnabled:false,viewport:{width:390,height:844}}),page=await nojs.newPage();
   const normal=s=>s.replace(/\s+/g,' ').trim();
   await page.goto(base+'/referenzen/');
+  for(const summary of await page.getByText('Originaltext · EN',{exact:true}).all())await summary.click();
   let text=normal(await page.locator('body').innerText());
   for(const entry of data.references.older_references){
     ok('no-JS original remains readable: '+entry.client,text.includes(normal(entry.scope)));
