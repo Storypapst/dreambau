@@ -5,7 +5,7 @@ export function renderReferenceStory(entry,study){
  const image=index=>{
   const media=entry.images[index],caption=study.captions[index];
   if(!media||!caption)throw new Error('Missing reference image or caption: '+entry.id+'/'+index);
-  return `<figure><a class="project-image" href="${esc(media.src)}" data-reference-image aria-label="${esc(caption)} · Bild vergrößern"><img loading="lazy" src="${esc(media.src)}" alt="${esc(caption)}"><span class="image-action" aria-hidden="true">Bild vergrößern ↗</span></a><figcaption>${esc(caption)}</figcaption></figure>`;
+  return `<figure><a class="project-image" href="${esc(media.src)}" data-reference-image aria-label="${esc(caption)} · Bild vergrößern"><img loading="lazy" width="${esc(media.width)}" height="${esc(media.height)}" src="${esc(media.src)}" alt="${esc(caption)}"><span class="image-action" aria-hidden="true">Bild vergrößern ↗</span></a><figcaption>${esc(caption)}</figcaption></figure>`;
  };
  const indices=study.sections.flatMap(s=>s.images);
  if(indices.length!==entry.images.length||new Set(indices).size!==entry.images.length)throw new Error('Reference story must include each source image once: '+entry.id);

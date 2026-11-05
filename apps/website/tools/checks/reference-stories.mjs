@@ -1,4 +1,5 @@
 import path from 'node:path';
+import {run as runImageLoading} from './reference-image-loading.mjs';
 
 // Catches missing narrative content in either rendering path, lost source images,
 // and a gallery that leaves screenshots unreadable on a phone.
@@ -38,4 +39,5 @@ export async function run({browser,base,artifact,ok}) {
   await page.locator('#cs').waitFor({state:'hidden'});
   ok('stories: a second Escape closes the project',new URL(page.url()).hash==='');
  }finally{await enhanced.close();await plain.close();}
+ await runImageLoading({browser,base,ok});
 }

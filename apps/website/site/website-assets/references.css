@@ -285,7 +285,7 @@ html[dir=rtl] [dir=ltr][lang]:not(#strip){text-align:right}
 
 .nojs{padding:24px;max-width:900px;margin:auto}.nojs article{padding:24px 0;border-bottom:1px solid rgba(var(--fg),.2)}.nojs p{white-space:pre-line}.nojs img{max-width:100%;height:auto}html:has(.nojs) body{overflow:auto}.pv-hd img.pv-art{object-fit:cover}.pv-gal img{width:100%;height:auto;border-radius:8px}.original{white-space:pre-line}.node.row .nd{cursor:default}.cs .mf .pill{min-height:48px}
 
-.pv-gal img,.pv-sl img{display:block;width:100%;aspect-ratio:16/10;object-fit:contain;border-radius:8px;border:1px solid rgba(var(--fg),.16);background:#06080d}
+.pv-gal img,.pv-sl img{display:block;width:100%;object-fit:contain;border-radius:8px;border:1px solid rgba(var(--fg),.16);background:#06080d}
 .nojs summary{min-height:44px;cursor:pointer}
 
 /* Project stories use the same typography and rhythm in every rendering path. */
@@ -305,7 +305,7 @@ html[dir=rtl] [dir=ltr][lang]:not(#strip){text-align:right}
 .case-study .pv-gal figcaption{font-size:12px;line-height:1.55;color:rgba(var(--fg),.78);overflow-wrap:anywhere}
 .project-image{position:relative;display:block;min-width:0;border-radius:8px;border:1px solid rgba(var(--fg),.2);overflow:hidden;background:var(--bg)}
 .project-image:hover{border-color:rgb(var(--old))}
-.case-study .project-image img{aspect-ratio:auto;height:auto;width:100%;object-fit:contain;border:0;border-radius:0}
+.case-study .project-image img{height:auto;width:100%;object-fit:contain;border:0;border-radius:0}
 .image-action{display:block;padding:9px 12px;min-height:36px;border-top:1px solid rgba(var(--fg),.14);font:500 11px/1.5 var(--mono);color:rgba(var(--fg),.82)}
 .case-tools{padding-top:24px;border-top:1px solid rgba(var(--fg),.14)}
 .case-original .original,.case-original>a{display:block;margin-top:16px}
