@@ -131,13 +131,15 @@ test("taxonomy settings are editable and persist", async ({ page }, testInfo) =>
   await login(page);
   const originalTopics = await page.evaluate(async () => (await (await fetch("/testmails/api/taxonomies")).json()).topics as string[]);
   expect(originalTopics).toHaveLength(16);
+  await page.getByTestId("advanced-toggle").click();
   await page.getByRole("button", { name: "Themen filtern" }).click();
   await expect(page.getByText("Schulden", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Auswahllisten" }).click();
-  const settingsDialog = page.getByRole("dialog", { name: "Auswahllisten" });
+  await page.getByTestId("more-toggle").click();
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  const settingsDialog = page.getByRole("dialog", { name: "Rollen und Themen bearbeiten" });
   await expect(settingsDialog.getByText("Schulden", { exact: true })).toBeVisible();
-  const newTopicInput = settingsDialog.getByLabel("Neues Themengebiete-Tag");
+  const newTopicInput = settingsDialog.getByLabel("Neues Thema");
   await newTopicInput.fill("E2E Thema");
   await newTopicInput.press("Enter");
   await expect(settingsDialog.getByText("E2E Thema", { exact: true })).toBeVisible();
@@ -149,7 +151,7 @@ test("taxonomy settings are editable and persist", async ({ page }, testInfo) =>
   } else {
     await saveButton.click();
   }
-  await expect(page.getByText("Auswahllisten gespeichert")).toBeVisible();
+  await expect(page.getByText("Rollen und Themen gespeichert")).toBeVisible();
   const topics = await page.evaluate(async () => (await (await fetch("/testmails/api/taxonomies")).json()).topics as string[]);
   expect(topics).toContain("E2E Thema");
   await page.evaluate(async (values) => { await fetch("/testmails/api/taxonomies/topics", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values }) }); }, originalTopics);

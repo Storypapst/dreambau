@@ -12,5 +12,5 @@ export function testFixtureDateSuffix(date = new Date()) {
 }
 
 export function testUsernameFromEmail(email: string) {
-  return email.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + testFixtureDateSuffix();
+  return email.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") + testFixtureDateSuffix();
 }

@@ -35,3 +35,51 @@ it("opens the filter on an approved value and preserves the native menu elsewher
     container.remove();
   }
 });
+
+it("offers filtering for unmarked catalogue text and blocks a selection crossing a credential", async () => {
+  const host = document.body.appendChild(document.createElement("div"));
+  const root = createRoot(host);
+  const search = vi.fn();
+  const savedRectangle = Object.getOwnPropertyDescriptor(Range.prototype, "getBoundingClientRect");
+  Object.defineProperty(Range.prototype, "getBoundingClientRect", { configurable: true, value: () => new DOMRect(20, 60, 80, 15) });
+  try {
+    await act(async () => root.render(<>
+      <section data-testmails-selection-scope>
+        <span id="topic">Housing advice</span>
+        <code data-testmails-search-private>fixture-secret</code>
+        <span id="role">Consultant</span>
+      </section>
+      <SearchSelection locale="en" onSearch={search} />
+    </>));
+    const topic = host.querySelector("#topic")!.firstChild!;
+    const role = host.querySelector("#role")!.firstChild!;
+    async function select(end: Node, offset: number) {
+      await act(async () => {
+        const range = document.createRange();
+        range.setStart(topic, 0);
+        range.setEnd(end, offset);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.dispatchEvent(new Event("selectionchange"));
+      });
+    }
+    await select(role, 4);
+    expect(host.querySelector("button")).toBeNull();
+    await select(topic, 7);
+    const button = host.querySelector("button")!;
+    expect(button?.textContent).toBe("Filter by selection");
+    const copy = new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true });
+    document.dispatchEvent(copy);
+    expect(copy.defaultPrevented).toBe(false);
+    expect(window.getSelection()?.toString()).toBe("Housing");
+    await act(async () => button.click());
+    expect(search).toHaveBeenCalledExactlyOnceWith("Housing");
+  } finally {
+    if (savedRectangle) Object.defineProperty(Range.prototype, "getBoundingClientRect", savedRectangle);
+    else Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+    window.getSelection()?.removeAllRanges();
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});

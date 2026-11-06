@@ -9,12 +9,13 @@ export const metadataPatchSchema = z.object({
   lifecycleStatus: z.enum(lifecycleStatuses).optional(), project: z.enum(projects).optional(), roles: z.array(z.string().min(1)).optional(), topics: z.array(z.string().min(1)).optional(), agencies: z.array(z.string().trim().min(1).max(255)).optional(),
   conversationTypes: z.array(z.string().min(1)).optional(), fixtureQuality: z.enum(fixtureQualities).optional(),
   sampleFileCount: z.number().int().min(0).optional(), notes: z.string().max(4000).optional(),
+  documentedUsername: z.string().trim().max(255).optional(),
   carrier: z.string().trim().max(255).optional(), postalCode: z.string().trim().max(16).optional(),
   supervisor: z.string().trim().max(255).optional(), otpDelivery: z.enum(["mail", "app"]).optional(),
   loginTargetUrl: z.union([z.literal(""), loginTargetUrlSchema]).optional()
 }).strict();
 export type MetadataPatch = z.infer<typeof metadataPatchSchema>;
-type WorkspaceMetadataKey = "carrier" | "postalCode" | "supervisor" | "otpDelivery" | "loginTargetUrl";
+type WorkspaceMetadataKey = "documentedUsername" | "carrier" | "postalCode" | "supervisor" | "otpDelivery" | "loginTargetUrl";
 export const workspaceMetadataSchema = metadataPatchSchema.pick({ carrier: true, postalCode: true, supervisor: true, otpDelivery: true, loginTargetUrl: true });
 export type AccountMetadata = Required<Omit<MetadataPatch, WorkspaceMetadataKey>> & Pick<MetadataPatch, WorkspaceMetadataKey> & { email: string; updatedAt: string };
 

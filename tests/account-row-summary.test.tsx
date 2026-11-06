@@ -58,7 +58,7 @@ it("copies the current OTP after waiting without rendering it", async () => {
 });
 
 
-it("copies a hyphenated username with today's Berlin date from the compact row", async () => {
+it("copies an underscore-separated username with today's Berlin date from the compact row", async () => {
   const container = document.body.appendChild(document.createElement("div"));
   const root = createRoot(container);
   const clipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
@@ -70,7 +70,7 @@ it("copies a hyphenated username with today's Berlin date from the compact row",
     const button = container.querySelector<HTMLButtonElement>('button[aria-label="Benutzernamen erzeugen und kopieren"]');
     expect(button).not.toBeNull();
     await act(async () => button!.click());
-    expect(clipboard.writeText).toHaveBeenCalledExactlyOnceWith("abe-test-qa-oriso-org-sep23");
+    expect(clipboard.writeText).toHaveBeenCalledExactlyOnceWith("abe_test_qa_oriso_org-sep23");
   } finally {
     await act(async () => root.unmount());
     container.remove();

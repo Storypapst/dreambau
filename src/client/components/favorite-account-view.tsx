@@ -100,6 +100,10 @@ function FavoriteIdentity({ account, locale }: { account: AccountView; locale: L
       {visibleRoles.length > 0 && <div className="mb-1.5 flex flex-wrap gap-1">
         {visibleRoles.map((role) => <Badge key={role} variant="secondary" className="max-w-full whitespace-normal [overflow-wrap:anywhere]" data-testmails-search-text>{labelRole(locale, role)}</Badge>)}
       </div>}
+      {account.metadata.documentedUsername && <dl>
+        <dt className={groupLabel}>{de ? "Dokumentierter Benutzername" : "Documented username"}</dt>
+        <dd><code className="text-xs [overflow-wrap:anywhere]" data-testmails-search-text>{account.metadata.documentedUsername}</code></dd>
+      </dl>}
       {usernames.length > 0 && <dl>
         <dt className={groupLabel}>{de ? "Benutzername" : "Username"}</dt>
         {usernames.map((username) => <dd key={username}><code className="text-xs [overflow-wrap:anywhere]" data-testmails-search-text>{username}</code></dd>)}
@@ -118,7 +122,7 @@ function MailboxPassword({ account, locale }: { account: AccountView; locale: Lo
     <div className="flex min-w-0 flex-col gap-1">
       <div className={groupLabel}>{de ? "Mail-Passwort" : "Mailbox password"}</div>
       <div className="flex min-w-0 items-center gap-1">
-        <code className="min-w-0 flex-1 truncate text-xs">{revealed ? account.password : "••••••••"}</code>
+        <code data-testmails-search-private className="min-w-0 flex-1 truncate text-xs">{revealed ? account.password : "••••••••"}</code>
         <Button type="button" variant="ghost" size="icon-sm" onClick={() => setRevealed(!revealed)} aria-label={revealLabel}>
           {revealed ? <EyeOffIcon /> : <EyeIcon />}
         </Button>

@@ -357,7 +357,7 @@ export function OrisoProvisioningDialog({
     <DialogTrigger asChild>
       <Button type="button" variant="outline" size="sm">
         {hasLinkedAccess
-          ? <><RefreshCwIcon data-icon="inline-start" />{locale === "de" ? "ORISO-Status" : "ORISO status"}</>
+          ? <><RefreshCwIcon data-icon="inline-start" />Status</>
           : <><MailPlusIcon data-icon="inline-start" />{locale === "de" ? "ORISO-Konto anlegen" : "Provision ORISO account"}</>}
       </Button>
     </DialogTrigger>

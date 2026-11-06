@@ -63,6 +63,9 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
       && orisoProvisioningEnvironments.includes(record.environment))
       .map((record) => <OrisoAdminDeletionDialog key={record.id} account={account} linked={record} locale={locale} onDeleted={onProvisioned} />)
     : null;
+  const managementActions = (provisioningDialog || deletionDialogs?.length) ? (
+    <div className="inline-flex shrink-0 items-center gap-1">{provisioningDialog}{deletionDialogs}</div>
+  ) : null;
   const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);
   const [applicationSecret, setApplicationSecret] = useState<{ email: string; accountId: string; value: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -91,8 +94,8 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
     setSecretCopied(false);
     setSecretError(false);
   }, [account.email, linked?.id]);
-  if (linked?.deletionPending) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Löschung prüfen" : "Check ORISO deletion"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
-  if (linked?.deleted) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Konto gelöscht" : "ORISO account deleted"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
+  if (linked?.deletionPending) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Löschung prüfen" : "Check ORISO deletion"} ({linked.environment})</Badge>{managementActions}</div>;
+  if (linked?.deleted) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Konto gelöscht" : "ORISO account deleted"} ({linked.environment})</Badge>{managementActions}</div>;
   if (!linked) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div>;
 
   async function requestApplicationSecret(): Promise<string | null> {
@@ -186,7 +189,7 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
         {!favorite && <Badge variant="secondary">{locale === "de" ? "Fest zugewiesen" : "Permanently assigned"}</Badge>}
       </div>
       <div className="flex min-w-0 items-center gap-1">
-        <code className="min-w-0 flex-1 truncate text-xs">
+        <code data-testmails-search-private className="min-w-0 flex-1 truncate text-xs">
           {secretRevealed && displayedApplicationSecret ? displayedApplicationSecret : favorite ? "••••••••" : "••••••••••••••••"}
         </code>
         <Button
@@ -237,9 +240,8 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
           ? (locale === "de" ? "App-2FA verwenden" : "Use App 2FA")
           : (locale === "de" ? "Mail-2FA verwenden" : "Use Mail 2FA")}
       </Button>}
-      {provisioningDialog}
-      {deletionDialogs}
-      {!usesMailOtp && displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
+      {managementActions}
+      {!usesMailOtp && displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code data-testmails-search-private className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
     </div>
     {!usesMailOtp && <>
       {waitingUntil && <OtpValidity expiresAt={waitingUntil} locale={locale} waiting />}

@@ -41,7 +41,7 @@ export function conversationTypesEndpoint(project: TeamProject) {
 const projectLabels = { oriso: "ORISO", orimo: "ORIMO", dreambau: "Dreambau" };
 const contextNameLimit = 255;
 const agencyDraftLimit = 1000;
-const emptyDraft = { carrier: "", agencies: "", postalCode: "", supervisor: "" };
+const emptyDraft = { documentedUsername: "", carrier: "", agencies: "", postalCode: "", supervisor: "" };
 
 export interface AccountTestContextOptions {
   projectConversationTypes?: ProjectConversationTypes;
@@ -50,30 +50,27 @@ export interface AccountTestContextOptions {
   onTypesChanged?: (project: TeamProject, values: string[], previous?: string, value?: string) => void;
 }
 
-export function AccountTestContext({ account, locale, projectConversationTypes, projectLoginTargets, onLoginTargetsChanged, onSaved, onTypesChanged }: AccountTestContextOptions & {
+type AccountTestContextProps = {
   account: AccountView;
   locale: Locale;
   onSaved: (metadata: AccountMetadata) => void;
-}) {
+};
+
+export function AccountTestContext({ account, locale, onSaved }: AccountTestContextProps) {
   const de = locale === "de";
-  const project = accountTestProject(account);
   const metadata = account.metadata;
-  const selected = metadata.conversationTypes;
   const passwordDate = accountPasswordDate(account, locale);
   const usernames = [...new Set((account.linkedAccess ?? []).filter((access) => !access.deleted).map((access) => access.username))];
-  const options = projectConversationTypes?.[project] ?? [];
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [typesOpen, setTypesOpen] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
-  const [previous, setPrevious] = useState("");
-  const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const fields = [
     { key: "carrier", label: de ? "Träger" : "Provider", value: metadata.carrier, max: contextNameLimit },
     { key: "agencies", label: de ? "Beratungsstellen" : "Counselling centres", value: metadata.agencies?.join(", "), max: agencyDraftLimit },
     { key: "postalCode", label: de ? "Postleitzahl" : "Postcode", value: metadata.postalCode, max: 16 },
-    { key: "supervisor", label: "Supervisor", value: metadata.supervisor, max: 255 }
+    { key: "supervisor", label: "Supervisor", value: metadata.supervisor, max: 255 },
+    { key: "documentedUsername", label: de ? "Dokumentierter Benutzername" : "Documented username", value: metadata.documentedUsername, max: 255 }
   ] as const;
 
   async function generateName(key: "carrier" | "agencies") {
@@ -110,6 +107,7 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
     setError("");
     try {
       onSaved(await saveMetadataPatch(account.email, {
+        documentedUsername: draft.documentedUsername,
         carrier: draft.carrier,
         agencies: [...new Set(draft.agencies.split("\n").map((name) => name.trim()).filter(Boolean))],
         postalCode: draft.postalCode,
@@ -123,36 +121,6 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
     }
   }
 
-  async function saveTypes(event: FormEvent) {
-    event.preventDefault();
-    if (!value.trim()) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await api<{ values: string[] }>(conversationTypesEndpoint(project), {
-        method: "PATCH",
-        body: JSON.stringify({ value: value.trim(), ...(previous ? { previous } : {}) })
-      });
-      onTypesChanged?.(project, result.values, previous || undefined, value.trim());
-      setTypesOpen(false);
-    } catch {
-      setError(de ? "Gesprächstyp konnte nicht gespeichert werden." : "Could not save conversation type.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function selectTypes(conversationTypes: string[]) {
-    setBusy(true);
-    setError("");
-    try {
-      onSaved(await saveMetadataPatch(account.email, { conversationTypes }));
-    } catch {
-      setError(de ? "Auswahl konnte nicht gespeichert werden." : "Could not save selection.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <section className="min-w-0 space-y-2 border-t pt-2" aria-label={de ? "Testkontext" : "Test context"}>
@@ -163,6 +131,7 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
           setDetailsOpen(open);
           setError("");
           if (open) setDraft({
+            documentedUsername: metadata.documentedUsername ?? "",
             carrier: metadata.carrier ?? "", agencies: metadata.agencies?.join("\n") ?? "",
             postalCode: metadata.postalCode ?? "", supervisor: metadata.supervisor ?? ""
           });
@@ -203,7 +172,7 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
       </div>
       <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
         <div className="col-span-2 min-w-0">
-          <dt className="text-muted-foreground">{de ? "Benutzername" : "Username"}</dt>
+          <dt className="text-muted-foreground">{de ? "Verknüpfter Benutzername" : "Linked username"}</dt>
           <dd className="space-y-0.5 break-all font-mono font-medium">
             {usernames.length ? usernames.map((username) => <div key={username} data-testmails-search-text>{username}</div>) : "–"}
           </dd>
@@ -222,6 +191,54 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
       {passwordDate && <p className="text-xs text-muted-foreground">
         {de ? "App-Passwort gesetzt am" : "App password set on"} <span data-testmails-search-text>{passwordDate}</span>
       </p>}
+    </section>
+  );
+}
+
+export function AccountTestSettings({ account, locale, projectConversationTypes, projectLoginTargets, onSaved, onTypesChanged, onLoginTargetsChanged }: AccountTestContextProps & AccountTestContextOptions) {
+  const de = locale === "de";
+  const project = accountTestProject(account);
+  const selected = account.metadata.conversationTypes;
+  const options = projectConversationTypes?.[project] ?? [];
+  const [typesOpen, setTypesOpen] = useState(false);
+  const [previous, setPrevious] = useState("");
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function saveTypes(event: FormEvent) {
+    event.preventDefault();
+    if (!value.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{ values: string[] }>(conversationTypesEndpoint(project), {
+        method: "PATCH",
+        body: JSON.stringify({ value: value.trim(), ...(previous ? { previous } : {}) })
+      });
+      onTypesChanged?.(project, result.values, previous || undefined, value.trim());
+      setTypesOpen(false);
+    } catch {
+      setError(de ? "Gesprächstyp konnte nicht gespeichert werden." : "Could not save conversation type.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function selectTypes(conversationTypes: string[]) {
+    setBusy(true);
+    setError("");
+    try {
+      onSaved(await saveMetadataPatch(account.email, { conversationTypes }));
+    } catch {
+      setError(de ? "Auswahl konnte nicht gespeichert werden." : "Could not save selection.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="min-w-0 space-y-2 border-t pt-2">
       <AccountLoginTarget account={account} locale={locale} project={project} options={projectLoginTargets?.[project] ?? []} onSaved={onSaved} onOptionsChanged={onLoginTargetsChanged} />
       <div className="space-y-1">
         <p className="text-xs font-medium text-muted-foreground">{de ? "Areas in Use · Gesprächstypen" : "Areas in use · conversation types"}</p>
@@ -260,9 +277,9 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
             </DialogContent>
           </Dialog>}
         </div>
-        {selected.length > 0 && <div className="flex flex-wrap gap-1">{selected.map((type) => <span key={type} className="tag-pill tag-conversation">{labelConversation(locale, type)}</span>)}</div>}
-        {error && !detailsOpen && !typesOpen && <p role="alert" className="text-xs text-destructive">{error}</p>}
+        {selected.length > 0 && <div className="flex flex-wrap gap-1">{selected.map((type) => <span key={type} className="tag-pill tag-conversation" data-testmails-search-text>{labelConversation(locale, type)}</span>)}</div>}
+        {error && !typesOpen && <p role="alert" className="text-xs text-destructive">{error}</p>}
       </div>
-    </section>
+    </div>
   );
 }

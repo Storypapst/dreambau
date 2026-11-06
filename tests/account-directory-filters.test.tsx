@@ -100,12 +100,12 @@ describe("AccountDirectory filter state", () => {
   });
 
   it("searches linked usernames and displayed context fields", async () => {
-    const lisa = account("lisa@oriso.org", { carrier: "Springfield QA", supervisor: "Marge Simpson" });
+    const lisa = account("lisa@oriso.org", { carrier: "Springfield QA", supervisor: "Marge Simpson", documentedUsername: "fixture_lisa_nov06" });
     lisa.linkedAccess = [{ id: "oriso/dev/lisa", username: "test-lisa-02", project: "oriso", environment: "dev", kind: "app-user",
       displayName: "Lisa", email: lisa.email, roles: ["consultant"], loginUrl: "https://dev.oriso.org", hasTotp: true }];
     await render([lisa, account("homer@oriso.org")]);
     const search = container.querySelector<HTMLInputElement>('input[placeholder]')!;
-    for (const term of ["test-lisa-02", "Marge Simpson", "Springfield QA", "Berater"]) {
+    for (const term of ["test-lisa-02", "Marge Simpson", "Springfield QA", "Berater", "fixture_lisa_nov06"]) {
       await act(async () => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, term);
         search.dispatchEvent(new Event("input", { bubbles: true }));
@@ -169,11 +169,30 @@ describe("AccountDirectory filter state", () => {
     expect(localStorage.getItem("testmails-filters")).toBeNull();
   });
 
+  it.each([
+    ["de", ["Status", "Projekt", "Testdaten"], ["Alle Status", "Alle Projekte", "Alle Testdaten"]],
+    ["en", ["Status", "Project", "Test data"], ["All statuses", "All projects", "All test data"]],
+  ] as const)("labels the structured selectors in %s", async (locale, labels, values) => {
+    await render(accounts, locale);
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="advanced-toggle"]')!;
+    await act(async () => toggle.click());
+
+    const panel = container.querySelector<HTMLDivElement>("#advanced-filters")!;
+    expect(panel.hidden).toBe(false);
+    const selectors = Array.from(panel.querySelectorAll('[role="combobox"]')).slice(0, 3);
+    expect(selectors.map((selector) => document.getElementById(selector.getAttribute("aria-labelledby") ?? "")?.textContent)).toEqual(labels);
+    expect(selectors.map((selector) => selector.textContent)).toEqual(values);
+  });
+
   it("restores filters from the URL on load", async () => {
     window.history.replaceState(null, "", "/testmails/?domain=oriso.org&roles=admin");
     await render();
     expect(rows()).toBe("rows:1");
     expect(reset()?.textContent).toContain("Zurücksetzen (2)");
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="advanced-toggle"]')!;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toContain("Filter (2)");
+    expect(container.querySelector<HTMLDivElement>("#advanced-filters")?.hidden).toBe(true);
     expect((container.querySelector('input[placeholder]') as HTMLInputElement).value).toBe("");
   });
 
