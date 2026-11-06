@@ -53,6 +53,44 @@ describe("OtpAccess", () => {
     expect(api).toHaveBeenCalledWith(`/accounts/${encodeURIComponent(account.email)}/otp?accountId=${encodeURIComponent(account.linkedAccess![0].id)}`);
     expect(container.textContent).not.toContain("mailbox-password");
     expect(container.textContent).toContain("Platform Admin");
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+  });
+
+  it("remembers Mail 2FA for this account and lets the user switch back to app codes", async () => {
+    const onMetadataSaved = vi.fn();
+    const mailMetadata = { ...account.metadata, otpDelivery: "mail" as const };
+    vi.mocked(api).mockResolvedValueOnce(mailMetadata);
+    await act(async () => root.render(<OtpAccess account={account} locale="en" onMetadataSaved={onMetadataSaved} />));
+
+    const useMail = [...container.querySelectorAll("button")].find((button) => button.textContent === "Use Mail 2FA");
+    expect(useMail).toBeDefined();
+    await act(async () => useMail!.click());
+    expect(api).toHaveBeenLastCalledWith(`/accounts/${encodeURIComponent(account.email)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ otpDelivery: "mail" })
+    });
+    expect(onMetadataSaved).toHaveBeenLastCalledWith(mailMetadata);
+
+    await act(async () => root.render(<OtpAccess account={{ ...account, metadata: mailMetadata }} locale="en" onMetadataSaved={onMetadataSaved} />));
+    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Mail 2FA");
+    expect(webmail?.href).toBe("https://mail.dreambau.com/");
+    expect(webmail?.target).toBe("_blank");
+    expect(container.textContent).not.toContain("Get OTP");
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+
+    const appMetadata = { ...account.metadata, otpDelivery: "app" as const };
+    vi.mocked(api).mockResolvedValueOnce(appMetadata);
+    const useApp = [...container.querySelectorAll("button")].find((button) => button.textContent === "Use App 2FA");
+    expect(useApp).toBeDefined();
+    await act(async () => useApp!.click());
+    expect(api).toHaveBeenLastCalledWith(`/accounts/${encodeURIComponent(account.email)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ otpDelivery: "app" })
+    });
+    expect(onMetadataSaved).toHaveBeenLastCalledWith(appMetadata);
+
+    await act(async () => root.render(<OtpAccess account={{ ...account, metadata: appMetadata }} locale="en" onMetadataSaved={onMetadataSaved} />));
+    expect(container.textContent).toContain("Get OTP");
   });
 
   it.each(["de", "en"] as const)("uses readable linked-role badges without changing stored keys in %s", async (locale) => {

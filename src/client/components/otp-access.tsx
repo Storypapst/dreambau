@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
-import { labelRole, labelLinkedEnvironment, type Locale } from "@/i18n";
+import { labelRole, labelLinkedEnvironment, t, type Locale } from "@/i18n";
 import type { AccountMetadata, AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "./copy-button";
+import { saveMetadataPatch } from "./inline-metadata-controls";
 import { OtpValidity } from "./otp-validity";
 import { OrisoProvisioningDialog } from "./oriso-provisioning-dialog";
 import { TotpEnrollmentDialog } from "./totp-enrollment-dialog";
@@ -39,13 +40,14 @@ export function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null
   return ORISO_ENVIRONMENT_BY_DOMAIN[account.domain.trim().toLowerCase()] ?? null;
 }
 
-export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned }: {
+export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned, onMetadataSaved }: {
   account: AccountView;
   locale: Locale;
   compact?: boolean;
   canDeleteOrisoAdmin?: boolean;
   orisoProvisioningEnvironments?: HumanEntitlements["orisoProvisioning"]["environments"];
   onProvisioned?: (email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) => void;
+  onMetadataSaved?: (metadata: AccountMetadata) => void;
 }) {
   const linked = account.linkedAccess?.[0];
   const environment = orisoEnvironment(account);
@@ -67,9 +69,11 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
   const [secretRevealed, setSecretRevealed] = useState(false);
   const [secretCopied, setSecretCopied] = useState(false);
   const [error, setError] = useState(false);
+  const [otpDeliverySaving, setOtpDeliverySaving] = useState(false);
   const [secretError, setSecretError] = useState(false);
   const [enrolledRecordIds, setEnrolledRecordIds] = useState<Set<string>>(() => new Set());
   const hasTotp = Boolean(linked?.hasTotp || (linked && enrolledRecordIds.has(linked.id)));
+  const usesMailOtp = account.metadata.otpDelivery === "mail";
   const displayedResult = result?.email === account.email && result.accountId === linked?.id ? result.value : null;
   const displayedExpiresAt = displayedResult ? result?.expiresAt : undefined;
   const displayedApplicationSecret = applicationSecret?.email === account.email && applicationSecret.accountId === linked?.id
@@ -157,6 +161,20 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
     }
   }
 
+  async function changeOtpDelivery(otpDelivery: NonNullable<AccountMetadata["otpDelivery"]>) {
+    setOtpDeliverySaving(true);
+    try {
+      const metadata = await saveMetadataPatch(account.email, { otpDelivery });
+      setResult(null);
+      setError(false);
+      onMetadataSaved?.(metadata);
+    } catch {
+      toast.error(t(locale, "page.saveFailed"));
+    } finally {
+      setOtpDeliverySaving(false);
+    }
+  }
+
   const hasQualifiedAdmin = linked.roles.some((role) => ["platform-admin", "tenant-admin", "agency-admin"].includes(role));
   const displayedRoles = hasQualifiedAdmin ? linked.roles.filter((role) => role !== "admin" && role !== "Admin") : linked.roles;
   return <div className="flex min-w-0 flex-col gap-2">
@@ -201,8 +219,10 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
     </div>
     {secretError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "App-Passwort konnte nicht abgerufen werden." : "Could not retrieve app password."}</p>}
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      {hasTotp
-        ? <Button type="button" variant="outline" size="sm" disabled={busy} onClick={requestOtp}>
+      {usesMailOtp ? <Button asChild variant="outline" size="sm">
+        <a href="https://mail.dreambau.com/" target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />Mail 2FA</a>
+      </Button> : hasTotp
+        ? <Button type="button" variant="outline" size="sm" disabled={busy || otpDeliverySaving} onClick={requestOtp}>
             <KeyRoundIcon data-icon="inline-start" />{busy ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…") : (locale === "de" ? "OTP abrufen" : "Get OTP")}
           </Button>
         : <TotpEnrollmentDialog
@@ -211,13 +231,21 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
             locale={locale}
             onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
           />}
+      {onMetadataSaved && <Button type="button" variant="ghost" size="sm" disabled={busy || otpDeliverySaving}
+        onClick={() => changeOtpDelivery(usesMailOtp ? "app" : "mail")}>
+        {usesMailOtp
+          ? (locale === "de" ? "App-2FA verwenden" : "Use App 2FA")
+          : (locale === "de" ? "Mail-2FA verwenden" : "Use Mail 2FA")}
+      </Button>}
       {provisioningDialog}
       {deletionDialogs}
-      {displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
+      {!usesMailOtp && displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
     </div>
-    {waitingUntil && <OtpValidity expiresAt={waitingUntil} locale={locale} waiting />}
-    {displayedResult?.source === "totp" && displayedExpiresAt !== undefined && <OtpValidity expiresAt={displayedExpiresAt} locale={locale} />}
-    {error && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "OTP konnte nicht abgerufen werden." : "Could not retrieve OTP."}</p>}
+    {!usesMailOtp && <>
+      {waitingUntil && <OtpValidity expiresAt={waitingUntil} locale={locale} waiting />}
+      {displayedResult?.source === "totp" && displayedExpiresAt !== undefined && <OtpValidity expiresAt={displayedExpiresAt} locale={locale} />}
+      {error && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "OTP konnte nicht abgerufen werden." : "Could not retrieve OTP."}</p>}
+    </>}
     {!compact && account.access?.latest && <p className="text-xs text-muted-foreground">{locale === "de" ? "Zuletzt verwendet" : "Last used"}: {new Date(account.access.latest.createdAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB")} · {account.access.latest.actorId}</p>}
   </div>;
 }

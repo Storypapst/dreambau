@@ -5,6 +5,7 @@ export type FixtureQuality = "empty" | "synthetic" | "realistic" | "gold";
 export type Project = "NONE" | "ORI" | "ORISO" | "ORIMO" | "TRAIL.IST" | "DREAMBAU" | "OTHER";
 export interface AccountMetadata {
   email: string; shippedVersion: string; lifecycleStatus: LifecycleStatus; project: Project; roles: string[]; topics: string[]; agencies?: string[];
+  carrier?: string; postalCode?: string; supervisor?: string; otpDelivery?: "mail" | "app"; loginTargetUrl?: string;
   conversationTypes: string[]; fixtureQuality: FixtureQuality; sampleFileCount: number; notes: string; updatedAt: string;
 }
 export interface AccountView {

@@ -1,0 +1,202 @@
+import { useState, type FormEvent } from "react";
+import { PencilIcon, PlusIcon } from "lucide-react";
+import { api } from "@/api";
+import { labelConversation, type Locale } from "@/i18n";
+import type { AccountMetadata, AccountView, TeamProject } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { AccountLoginTarget, type LoginTarget, type ProjectLoginTargets } from "./account-login-target";
+import { MultiSelect } from "./multi-select";
+import { saveMetadataPatch } from "./inline-metadata-controls";
+
+export type ProjectConversationTypes = Partial<Record<TeamProject, string[]>>;
+
+export function accountTestProject(account: AccountView): TeamProject {
+  const project = account.metadata.project;
+  if (project === "ORISO" || project === "ORIMO" || project === "DREAMBAU") {
+    return project.toLowerCase() as TeamProject;
+  }
+  if (project === "TRAIL.IST" || account.domain === "trail.ist") return "orimo";
+  if (account.domain === "oriso.org" || account.domain === "openresilience.cc") return "oriso";
+  return "dreambau";
+}
+
+export function conversationTypesEndpoint(project: TeamProject) {
+  return `/taxonomies/conversationTypes/${project}`;
+}
+
+const projectLabels = { oriso: "ORISO", orimo: "ORIMO", dreambau: "Dreambau" };
+const emptyDraft = { carrier: "", agencies: "", postalCode: "", supervisor: "" };
+
+export interface AccountTestContextOptions {
+  projectConversationTypes?: ProjectConversationTypes;
+  projectLoginTargets?: ProjectLoginTargets;
+  onLoginTargetsChanged?: (project: TeamProject, values: LoginTarget[]) => void;
+  onTypesChanged?: (project: TeamProject, values: string[], previous?: string, value?: string) => void;
+}
+
+export function AccountTestContext({ account, locale, projectConversationTypes, projectLoginTargets, onLoginTargetsChanged, onSaved, onTypesChanged }: AccountTestContextOptions & {
+  account: AccountView;
+  locale: Locale;
+  onSaved: (metadata: AccountMetadata) => void;
+}) {
+  const de = locale === "de";
+  const project = accountTestProject(account);
+  const metadata = account.metadata;
+  const selected = metadata.conversationTypes;
+  const options = projectConversationTypes?.[project] ?? [];
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [typesOpen, setTypesOpen] = useState(false);
+  const [draft, setDraft] = useState(emptyDraft);
+  const [previous, setPrevious] = useState("");
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const fields = [
+    { key: "carrier", label: de ? "Träger" : "Provider", value: metadata.carrier, max: 255 },
+    { key: "agencies", label: de ? "Beratungsstelle" : "Counselling centre", value: metadata.agencies?.join(", "), max: 1000 },
+    { key: "postalCode", label: de ? "Postleitzahl" : "Postcode", value: metadata.postalCode, max: 16 },
+    { key: "supervisor", label: "Supervisor", value: metadata.supervisor, max: 255 }
+  ] as const;
+
+  async function saveDetails(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      onSaved(await saveMetadataPatch(account.email, {
+        carrier: draft.carrier,
+        agencies: [...new Set(draft.agencies.split("\n").map((name) => name.trim()).filter(Boolean))],
+        postalCode: draft.postalCode,
+        supervisor: draft.supervisor
+      }));
+      setDetailsOpen(false);
+    } catch {
+      setError(de ? "Testkontext konnte nicht gespeichert werden." : "Could not save test context.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTypes(event: FormEvent) {
+    event.preventDefault();
+    if (!value.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{ values: string[] }>(conversationTypesEndpoint(project), {
+        method: "PATCH",
+        body: JSON.stringify({ value: value.trim(), ...(previous ? { previous } : {}) })
+      });
+      onTypesChanged?.(project, result.values, previous || undefined, value.trim());
+      setTypesOpen(false);
+    } catch {
+      setError(de ? "Gesprächstyp konnte nicht gespeichert werden." : "Could not save conversation type.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function selectTypes(conversationTypes: string[]) {
+    setBusy(true);
+    setError("");
+    try {
+      onSaved(await saveMetadataPatch(account.email, { conversationTypes }));
+    } catch {
+      setError(de ? "Auswahl konnte nicht gespeichert werden." : "Could not save selection.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="min-w-0 space-y-2 border-t pt-2" aria-label={de ? "Testkontext" : "Test context"}>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-muted-foreground">{de ? "Testkontext" : "Test context"}</h3>
+        <Dialog open={detailsOpen} onOpenChange={(open) => {
+          if (busy) return;
+          setDetailsOpen(open);
+          setError("");
+          if (open) setDraft({
+            carrier: metadata.carrier ?? "", agencies: metadata.agencies?.join("\n") ?? "",
+            postalCode: metadata.postalCode ?? "", supervisor: metadata.supervisor ?? ""
+          });
+        }}>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label={de ? "Testkontext bearbeiten" : "Edit test context"}><PencilIcon /></Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>{de ? "Testkontext bearbeiten" : "Edit test context"}</DialogTitle><DialogDescription>{account.email}</DialogDescription></DialogHeader>
+            <form className="grid gap-3" onSubmit={saveDetails}>
+              {fields.map(({ key, label, max }) => (
+                <Field key={key}>
+                  <FieldLabel className="flex-col items-stretch">
+                    {label}
+                    {key === "agencies" ? (
+                      <Textarea value={draft[key]} maxLength={max} rows={2}
+                        onChange={(event) => setDraft({ ...draft, agencies: event.target.value })} />
+                    ) : (
+                      <Input value={draft[key]} maxLength={max}
+                        onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} />
+                    )}
+                  </FieldLabel>
+                </Field>
+              ))}
+              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+              <DialogFooter><Button type="submit" disabled={busy}>{de ? "Speichern" : "Save"}</Button></DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+        {fields.map(({ key, label, value: text }) => (
+          <div key={key} className="min-w-0"><dt className="text-muted-foreground">{label}</dt><dd className="break-words font-medium">{text || "–"}</dd></div>
+        ))}
+      </dl>
+      <AccountLoginTarget account={account} locale={locale} project={project} options={projectLoginTargets?.[project] ?? []} onSaved={onSaved} onOptionsChanged={onLoginTargetsChanged} />
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">{de ? "Areas in Use · Gesprächstypen" : "Areas in use · conversation types"}</p>
+        <div className="flex min-w-0 gap-1">
+          <MultiSelect locale={locale} compact label={de ? "Gesprächstypen wählen" : "Select conversation types"} options={[...new Set([...options, ...selected])]} value={selected} onChange={(next) => void selectTypes(next)} disabled={busy} formatOption={(option) => labelConversation(locale, option)} />
+          {onTypesChanged && <Dialog open={typesOpen} onOpenChange={(open) => {
+            if (busy) return;
+            setTypesOpen(open);
+            setError("");
+            if (open) { setPrevious(""); setValue(""); }
+          }}>
+            <DialogTrigger asChild>
+              <Button type="button" variant="outline" size="icon-sm" aria-label={de ? "Projektliste bearbeiten" : "Edit project list"}><PlusIcon /></Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{projectLabels[project]} · {de ? "Gesprächstypen" : "Conversation types"}</DialogTitle>
+                <DialogDescription>{de ? "Füge einen Eintrag hinzu oder benenne ihn für dieses Projekt um." : "Add or rename an option for this project."}</DialogDescription>
+              </DialogHeader>
+              <form className="grid gap-3" onSubmit={saveTypes}>
+                <Field>
+                  <FieldLabel className="flex-col items-stretch">{de ? "Eintrag wählen" : "Choose an option"}
+                    <select className="min-h-9 rounded-md border bg-background px-2" value={previous} onChange={(event) => {
+                      setPrevious(event.target.value);
+                      setValue(event.target.value);
+                    }}>
+                      <option value="">{de ? "Neuen Eintrag hinzufügen" : "Add a new option"}</option>
+                      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </FieldLabel>
+                </Field>
+                <Field><FieldLabel className="flex-col items-stretch">Name<Input value={value} maxLength={80} onChange={(event) => setValue(event.target.value)} /></FieldLabel></Field>
+                {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                <DialogFooter><Button type="submit" disabled={busy || !value.trim() || value.trim() === previous}>{de ? "Speichern" : "Save"}</Button></DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>}
+        </div>
+        {selected.length > 0 && <div className="flex flex-wrap gap-1">{selected.map((type) => <span key={type} className="tag-pill tag-conversation">{labelConversation(locale, type)}</span>)}</div>}
+        {error && !detailsOpen && !typesOpen && <p role="alert" className="text-xs text-destructive">{error}</p>}
+      </div>
+    </section>
+  );
+}
