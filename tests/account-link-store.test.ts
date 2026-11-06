@@ -29,6 +29,17 @@ function record(patch: Partial<TestAccessRecord> = {}): TestAccessRecord {
 }
 
 describe("persistent Test Access record links", () => {
+  it("does not reuse a previous password date for a replaced record with the same ID", () => {
+    const database = createDatabase(":memory:");
+    const original = record();
+    const passwordDate = "2026-07-29T11:00:00.000Z";
+    expect(database.getApplicationPasswordSetAt(original)).toBeUndefined();
+    database.recordApplicationPasswordSetAt(original, passwordDate);
+    expect(database.getApplicationPasswordSetAt(original)).toBe(passwordDate);
+    expect(database.getApplicationPasswordSetAt(record({ createdAt: "2026-07-30T08:00:00.000Z" }))).toBeUndefined();
+    database.close();
+  });
+
   it("reconciles exact known emails idempotently without persisting secrets", () => {
     const database = createDatabase(":memory:");
     const seenAt = "2026-07-29T10:00:00.000Z";

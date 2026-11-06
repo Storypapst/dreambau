@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import type { RequestHandler, Router } from "express";
+import type { RequestHandler, Response, Router } from "express";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
 import {
   generateAuthenticationOptions,
@@ -194,6 +194,39 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
     const principal = res.locals.session as SessionPrincipal;
     return principal.userId ?? null;
   };
+
+  const historyCursor = z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(z.number().int().safe());
+  const historyPath = "/auth/me/search-history";
+  const searchOwner = (res: Response) => {
+    const userId = preferenceOwner(res);
+    return userId && options.store.getUser(userId)?.status === "active" ? userId : null;
+  };
+  router.get(historyPath, options.requireSession, (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const userId = searchOwner(res);
+    if (!userId) return res.status(403).json({ error: "user_session_required" });
+    const before = historyCursor.optional().safeParse(req.query.before);
+    if (!before.success) return res.status(400).json({ error: "invalid_request" });
+    res.json(options.store.getSearchHistory(userId, before.data));
+  });
+  router.post(historyPath, options.requireSession, (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const userId = searchOwner(res);
+    if (!userId) return res.status(403).json({ error: "user_session_required" });
+    const input = z.object({ phrase: z.string().trim().min(1).max(200) }).strict().safeParse(req.body);
+    if (!input.success) return res.status(400).json({ error: "invalid_request" });
+    options.store.rememberSearch(userId, input.data.phrase);
+    res.json({ saved: true });
+  });
+  router.delete(`${historyPath}/:id`, options.requireSession, (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const userId = searchOwner(res);
+    if (!userId) return res.status(403).json({ error: "user_session_required" });
+    const id = historyCursor.safeParse(req.params.id);
+    if (!id.success) return res.status(400).json({ error: "invalid_request" });
+    if (!options.store.deleteSearch(userId, id.data)) return res.status(404).json({ error: "search_not_found" });
+    res.json({ deleted: true });
+  });
 
   router.get("/auth/me/preferences/:key", options.requireSession, (req, res) => {
     const key = preferenceKeySchema.safeParse(req.params.key);

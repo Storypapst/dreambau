@@ -51,6 +51,8 @@ export interface RegistryDatabase {
   clearOrisoAdminDeletion(accountId: string): void;
   recordAccountAccess(event: AccountAccessEventInput): AccountAccessEvent;
   getAccountAccess(email: string, limit?: number): AccountAccessSummary;
+  recordApplicationPasswordSetAt(record: TestAccessRecord, at: string): void;
+  getApplicationPasswordSetAt(record: TestAccessRecord): string | undefined;
   reconcileTestAccessLinks(accounts: string[], records: TestAccessRecord[], seenAt?: string): TestAccessLinkReconciliation;
   getTestAccessLinks(email: string): TestAccessRecordLink[];
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
@@ -106,6 +108,11 @@ export function createDatabase(path: string): RegistryDatabase {
       action TEXT NOT NULL,
       created_at TEXT NOT NULL,
       context TEXT NOT NULL DEFAULT '{}'
+    );
+    CREATE TABLE IF NOT EXISTS test_access_password_dates (
+      record_id TEXT PRIMARY KEY,
+      record_created_at TEXT NOT NULL,
+      password_set_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS test_access_record_links (
       record_id TEXT PRIMARY KEY,
@@ -343,6 +350,17 @@ export function createDatabase(path: string): RegistryDatabase {
         JSON.stringify(event.context)
       );
       return { id: Number(result.lastInsertRowid), ...event };
+    },
+    recordApplicationPasswordSetAt(record, at) {
+      sqlite.prepare(`INSERT INTO test_access_password_dates(record_id, record_created_at, password_set_at)
+        VALUES(?,?,?) ON CONFLICT(record_id) DO UPDATE SET
+        record_created_at=excluded.record_created_at, password_set_at=excluded.password_set_at`)
+        .run(record.id, record.createdAt, at);
+    },
+    getApplicationPasswordSetAt(record) {
+      const result = sqlite.prepare("SELECT password_set_at FROM test_access_password_dates WHERE record_id=? AND record_created_at=?")
+        .get(record.id, record.createdAt) as { password_set_at: string } | undefined;
+      return result?.password_set_at;
     },
     getAccountAccess(email, limit = 10) {
       const boundedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));

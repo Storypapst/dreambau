@@ -198,7 +198,10 @@ export function createApp(options: AppOptions = {}) {
     if (!linked) return null;
     if (database.isOrisoAdminDeleted(record.id)) return { ...linked, deleted: true, hasTotp: false };
     if (database.isOrisoAdminDeletionPending(record.id)) return { ...linked, deletionPending: true, hasTotp: false };
-    return linked;
+    const applicationPasswordSetAt = record.provisioningStatus === "ready"
+      ? record.accountSetup?.submittedAt ?? database.getApplicationPasswordSetAt(record)
+      : undefined;
+    return applicationPasswordSetAt ? { ...linked, applicationPasswordSetAt } : linked;
   };
   const accountMutations = new Set<string>();
   const guardAccountMutation = (handler: express.RequestHandler): express.RequestHandler => async (req, res, next) => {
@@ -1031,6 +1034,7 @@ export function createApp(options: AppOptions = {}) {
         throw error;
       }
       reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
+      if (provisioned.created) database.recordApplicationPasswordSetAt(linkedRecord, (options.now?.() ?? new Date()).toISOString());
       database.recordAccountAccess({
         accountId: linkedRecord.id,
         email,

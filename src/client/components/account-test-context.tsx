@@ -24,6 +24,13 @@ export function accountTestProject(account: AccountView): TeamProject {
   return "dreambau";
 }
 
+export function accountPasswordDate(account: AccountView, locale: Locale) {
+  if (account.metadata.shippedVersion) return undefined;
+  const timestamp = account.linkedAccess?.find((access) => !access.deleted && !access.deletionPending)?.applicationPasswordSetAt;
+  if (!timestamp || !Number.isFinite(Date.parse(timestamp))) return undefined;
+  return new Intl.DateTimeFormat(locale === "de" ? "de-DE" : "en-GB", { dateStyle: "medium" }).format(new Date(timestamp));
+}
+
 export function conversationTypesEndpoint(project: TeamProject) {
   return `/taxonomies/conversationTypes/${project}`;
 }
@@ -47,6 +54,8 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
   const project = accountTestProject(account);
   const metadata = account.metadata;
   const selected = metadata.conversationTypes;
+  const passwordDate = accountPasswordDate(account, locale);
+  const usernames = [...new Set((account.linkedAccess ?? []).filter((access) => !access.deleted).map((access) => access.username))];
   const options = projectConversationTypes?.[project] ?? [];
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
@@ -57,7 +66,7 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
   const [error, setError] = useState("");
   const fields = [
     { key: "carrier", label: de ? "Träger" : "Provider", value: metadata.carrier, max: 255 },
-    { key: "agencies", label: de ? "Beratungsstelle" : "Counselling centre", value: metadata.agencies?.join(", "), max: 1000 },
+    { key: "agencies", label: de ? "Beratungsstellen" : "Counselling centres", value: metadata.agencies?.join(", "), max: 1000 },
     { key: "postalCode", label: de ? "Postleitzahl" : "Postcode", value: metadata.postalCode, max: 16 },
     { key: "supervisor", label: "Supervisor", value: metadata.supervisor, max: 255 }
   ] as const;
@@ -151,11 +160,27 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
           </DialogContent>
         </Dialog>
       </div>
-      <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+      <dl data-testmails-search-text className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+        <div className="col-span-2 min-w-0">
+          <dt className="text-muted-foreground">{de ? "Benutzername" : "Username"}</dt>
+          <dd className="space-y-0.5 break-all font-mono font-medium">
+            {usernames.length ? usernames.map((username) => <div key={username}>{username}</div>) : "–"}
+          </dd>
+        </div>
         {fields.map(({ key, label, value: text }) => (
-          <div key={key} className="min-w-0"><dt className="text-muted-foreground">{label}</dt><dd className="break-words font-medium">{text || "–"}</dd></div>
+          <div key={key} className="min-w-0">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="break-words font-medium">
+              {key === "agencies" && metadata.agencies?.length
+                ? <ul className="space-y-0.5">{metadata.agencies.map((agency) => <li key={agency}>{agency}</li>)}</ul>
+                : text || "–"}
+            </dd>
+          </div>
         ))}
       </dl>
+      {passwordDate && <p data-testmails-search-text className="text-xs text-muted-foreground">
+        {de ? "App-Passwort gesetzt am" : "App password set on"} {passwordDate}
+      </p>}
       <AccountLoginTarget account={account} locale={locale} project={project} options={projectLoginTargets?.[project] ?? []} onSaved={onSaved} onOptionsChanged={onLoginTargetsChanged} />
       <div className="space-y-1">
         <p className="text-xs font-medium text-muted-foreground">{de ? "Areas in Use · Gesprächstypen" : "Areas in use · conversation types"}</p>

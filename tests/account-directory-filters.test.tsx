@@ -71,6 +71,21 @@ describe("AccountDirectory filter state", () => {
     expect(rows()).toBe("rows:1");
   });
 
+  it("searches linked usernames and displayed context fields", async () => {
+    const lisa = account("lisa@oriso.org", { carrier: "Springfield QA", supervisor: "Marge Simpson" });
+    lisa.linkedAccess = [{ id: "oriso/dev/lisa", username: "test-lisa-02", project: "oriso", environment: "dev", kind: "app-user",
+      displayName: "Lisa", email: lisa.email, roles: ["consultant"], loginUrl: "https://dev.oriso.org", hasTotp: true }];
+    await render([lisa, account("homer@oriso.org")]);
+    const search = container.querySelector<HTMLInputElement>('input[placeholder]')!;
+    for (const term of ["test-lisa-02", "Marge Simpson", "Springfield QA", "Berater"]) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, term);
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(rows()).toBe("rows:1");
+    }
+  });
+
   it.each(["de", "en"] as const)("accepts an expanded catalogue and derives encryption counts in %s", async (locale) => {
     const expanded = Array.from({ length: 272 }, (_, index) => ({
       ...account(`test.${index}@oriso.org`),

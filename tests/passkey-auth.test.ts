@@ -258,6 +258,40 @@ describe("passkey authentication", () => {
     passkeyStore.close();
   });
 
+  it("paginates the latest search phrases and allows only their owner to delete them", async () => {
+    const { app, passkeyStore, user } = setup();
+    const other = passkeyStore.createUser({ email: "other@dreambau.com", name: "Other", projects: ["oriso"], role: "member" });
+    const path = "/testmails/api/auth/me/search-history";
+    const agents = [];
+    for (const owner of [user, other]) {
+      const id = owner.id === user.id ? "credential-id" : "other-credential";
+      passkeyStore.addCredential({ id, userId: owner.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+      const agent = request.agent(app);
+      const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: owner.email });
+      await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id } }).expect(200);
+      agents.push(agent);
+    }
+    const [owner, outsider] = agents;
+    await request(app).get(path).expect(401);
+    for (let index = 1; index <= 12; index += 1) {
+      await owner.post(path).send({ phrase: `Suchbegriff ${index}` }).expect(200);
+    }
+    await owner.post(path).send({ phrase: " SUCHBEGRIFF 1 " }).expect(200);
+    const first = await owner.get(path).expect(200);
+    expect(first.body.entries).toHaveLength(10);
+    expect(first.body.entries[0].phrase).toBe("SUCHBEGRIFF 1");
+    const second = await owner.get(path).query({ before: first.body.nextBefore }).expect(200);
+    expect(second.body.entries.map((entry: { phrase: string }) => entry.phrase)).toEqual(["Suchbegriff 3", "Suchbegriff 2"]);
+    expect(second.body.nextBefore).toBeNull();
+    const id = first.body.entries[0].id;
+    await outsider.get(path).expect(200, { entries: [], nextBefore: null });
+    await outsider.delete(`${path}/${id}`).expect(404);
+    await owner.delete(`${path}/${id}`).expect(200);
+    expect((await owner.get(path)).body.entries[0].phrase).toBe("Suchbegriff 12");
+    await owner.get(path).query({ before: "invalid" }).expect(400);
+    passkeyStore.close();
+  });
+
   it("lets a passkey session add, list, rename and delete passkeys but never the last one", async () => {
     const { app, passkeyStore, user, webauthn } = setup();
     passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1, 2, 3]), counter: 0, transports: ["hybrid"], deviceType: "multiDevice", backedUp: true, name: "Pixel (Google)" });

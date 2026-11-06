@@ -135,6 +135,7 @@ export function AccountInlineNotes({ account, locale, onSaved }: AccountInlineNo
       </div>
       <Textarea
         id={id}
+        data-testmails-search-input
         className="min-h-9 max-h-40"
         rows={1}
         maxLength={4000}
