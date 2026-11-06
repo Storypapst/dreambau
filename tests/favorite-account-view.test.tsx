@@ -54,7 +54,7 @@ describe("FavoriteAccountView", () => {
 
   function render(overrides: Partial<ComponentProps<typeof FavoriteAccountView>> = {}) {
     return act(async () => root.render(<FavoriteAccountView accounts={[account]} locale="en"
-      display={{ testContext: true, notes: true }} onSaved={() => undefined}
+      display={{ testContext: true, notes: true }} expandedEmail={email} onToggleExpanded={() => undefined} onSaved={() => undefined}
       onMove={() => undefined} onToggleFavorite={() => undefined} {...overrides} />));
   }
 
@@ -68,7 +68,8 @@ describe("FavoriteAccountView", () => {
     expect(container.textContent).toContain("Platform Admin");
     expect(container.textContent).toContain("Debt advice Berlin");
     expect(container.textContent).toContain("Family advice Hamburg");
-    expect(container.textContent).toContain("Springfield QA · 10115");
+    expect(container.textContent).toContain("Provider Springfield QA");
+    expect(container.textContent).toContain("Postal code 10115");
     expect(container.textContent).toContain("Supervisor · Marge");
     expect(container.textContent).toContain("Version 2.02");
     expect(container.textContent).not.toContain("mailbox-password");

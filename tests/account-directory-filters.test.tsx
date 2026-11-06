@@ -59,9 +59,23 @@ describe("AccountDirectory filter state", () => {
   function render(initialAccounts = accounts, locale: "de" | "en" = "de") {
     return act(async () => root.render(<AccountDirectory initialAccounts={initialAccounts} initialTaxonomies={taxonomies} locale={locale} onLocaleChange={() => undefined} onLogout={() => undefined} isAdmin entitlements={entitlements} />));
   }
-  const rows = () => container.querySelector('[data-testid="table"]')?.textContent;
+  const rows = () => {
+    const count = container.querySelectorAll("[data-account-expander]").length;
+    return count ? `rows:${count}` : undefined;
+  };
   const favoriteRows = () => container.querySelector('[data-testid="favorite-rows"]')?.textContent;
   const reset = () => container.querySelector('[data-testid="reset-filters"]') as HTMLButtonElement | null;
+
+  it("keeps one account expanded and toggles to another compact row", async () => {
+    await render();
+    const summaries = () => [...container.querySelectorAll<HTMLButtonElement>("[data-account-expander]")];
+    expect(summaries()).toHaveLength(3);
+    expect(summaries().filter((button) => button.getAttribute("aria-expanded") === "true")).toHaveLength(1);
+    const closed = summaries().find((button) => button.getAttribute("aria-expanded") === "false")!;
+    await act(async () => closed.click());
+    expect(closed.getAttribute("aria-expanded")).toBe("true");
+    expect(summaries().filter((button) => button.getAttribute("aria-expanded") === "true")).toEqual([closed]);
+  });
 
   it("finds an account by documented agency without guessing unknown agencies", async () => {
     await render([account("new@oriso.org", { agencies: ["Debt advice Berlin", "Family advice Hamburg"] }), account("old@oriso.org")]);
@@ -97,7 +111,7 @@ describe("AccountDirectory filter state", () => {
     expect(container.textContent).toContain("272");
     expect(container.textContent).toContain("1 S/MIME");
     expect(container.textContent).toContain(locale === "de" ? "271 ohne Verschlüsselung" : "271 unencrypted");
-    expect(container.textContent).not.toContain("180");
+    expect(container.textContent).not.toMatch(/180 (von|of) 180/);
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 

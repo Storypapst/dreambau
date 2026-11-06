@@ -160,11 +160,11 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
           </DialogContent>
         </Dialog>
       </div>
-      <dl data-testmails-search-text className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+      <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
         <div className="col-span-2 min-w-0">
           <dt className="text-muted-foreground">{de ? "Benutzername" : "Username"}</dt>
           <dd className="space-y-0.5 break-all font-mono font-medium">
-            {usernames.length ? usernames.map((username) => <div key={username}>{username}</div>) : "–"}
+            {usernames.length ? usernames.map((username) => <div key={username} data-testmails-search-text>{username}</div>) : "–"}
           </dd>
         </div>
         {fields.map(({ key, label, value: text }) => (
@@ -172,14 +172,14 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
             <dt className="text-muted-foreground">{label}</dt>
             <dd className="break-words font-medium">
               {key === "agencies" && metadata.agencies?.length
-                ? <ul className="space-y-0.5">{metadata.agencies.map((agency) => <li key={agency}>{agency}</li>)}</ul>
-                : text || "–"}
+                ? <ul className="space-y-0.5">{metadata.agencies.map((agency) => <li key={agency} data-testmails-search-text>{agency}</li>)}</ul>
+                : text ? <span data-testmails-search-text>{text}</span> : "–"}
             </dd>
           </div>
         ))}
       </dl>
-      {passwordDate && <p data-testmails-search-text className="text-xs text-muted-foreground">
-        {de ? "App-Passwort gesetzt am" : "App password set on"} {passwordDate}
+      {passwordDate && <p className="text-xs text-muted-foreground">
+        {de ? "App-Passwort gesetzt am" : "App password set on"} <span data-testmails-search-text>{passwordDate}</span>
       </p>}
       <AccountLoginTarget account={account} locale={locale} project={project} options={projectLoginTargets?.[project] ?? []} onSaved={onSaved} onOptionsChanged={onLoginTargetsChanged} />
       <div className="space-y-1">

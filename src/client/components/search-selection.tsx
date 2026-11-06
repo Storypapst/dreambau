@@ -1,43 +1,79 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/i18n";
 
 interface SelectionAnchor { phrase: string; top: number; left: number }
+const valueSelector = "[data-testmails-search-text]";
+const notesSelector = "textarea[data-testmails-search-input]";
+
+function searchableElement(node: Node | null) {
+  return (node instanceof Element ? node : node?.parentElement)?.closest(valueSelector);
+}
+
+function selectedValue() {
+  const field = document.activeElement;
+  if (field instanceof HTMLTextAreaElement && field.matches(notesSelector)) {
+    const phrase = field.value.slice(field.selectionStart, field.selectionEnd).trim();
+    if (phrase) return { phrase, element: field, rect: () => field.getBoundingClientRect() };
+  }
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return;
+  const element = searchableElement(selection.anchorNode);
+  if (!element || element !== searchableElement(selection.focusNode)) return;
+  return { phrase: selection.toString().trim(), element, rect: () => selection.getRangeAt(0).getBoundingClientRect() };
+}
 
 export function SearchSelection({ locale, onSearch }: { locale: Locale; onSearch: (phrase: string) => void }) {
   const [anchor, setAnchor] = useState<SelectionAnchor>();
+  const contextOpen = useRef(false);
   useEffect(() => {
-    function update() {
-      const field = document.activeElement;
-      const selectedInput = field instanceof HTMLTextAreaElement && field.hasAttribute("data-testmails-search-input");
-      const selection = window.getSelection();
-      const range = selection?.rangeCount === 1 ? selection.getRangeAt(0) : undefined;
-      const phrase = selectedInput
-        ? field.value.slice(field.selectionStart, field.selectionEnd).trim()
-        : selection?.toString().trim() ?? "";
-      const element = range?.commonAncestorContainer.parentElement;
-      if (!phrase || phrase.length > 200 || (!selectedInput && !element?.closest("[data-testmails-search-text]"))) {
-        setAnchor(undefined);
-        return;
-      }
-      const rect = selectedInput ? field.getBoundingClientRect() : range!.getBoundingClientRect();
+    function show(phrase: string, left: number, top: number) {
       setAnchor({
         phrase,
-        top: rect.top < 48 ? rect.bottom + 6 : rect.top - 38,
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 182))
+        left: Math.max(8, Math.min(left, window.innerWidth - 182)),
+        top: Math.max(8, Math.min(top, window.innerHeight - 42))
       });
     }
-    function dismiss() { setAnchor(undefined); }
+    function dismiss() {
+      contextOpen.current = false;
+      setAnchor(undefined);
+    }
+    function update() {
+      if (contextOpen.current) return;
+      const selected = selectedValue();
+      if (!selected?.phrase || selected.phrase.length > 200) return dismiss();
+      const rect = selected.rect();
+      show(selected.phrase, rect.left, rect.top < 48 ? rect.bottom + 6 : rect.top - 38);
+    }
+    function openContext(event: MouseEvent) {
+      if (event.defaultPrevented || !(event.target instanceof Element)) return;
+      const selected = selectedValue();
+      const element = event.target.closest(valueSelector);
+      const phrase = selected?.element.contains(event.target)
+        ? selected.phrase
+        : element?.textContent?.trim();
+      if (!phrase || phrase.length > 200 || phrase === "–") return dismiss();
+      event.preventDefault();
+      contextOpen.current = true;
+      show(phrase, event.clientX, event.clientY);
+    }
+    function outside(event: PointerEvent) {
+      if (event.target instanceof Element && !event.target.closest("[data-selection-filter]")) dismiss();
+    }
     function escape(event: KeyboardEvent) { if (event.key === "Escape") dismiss(); }
     document.addEventListener("selectionchange", update);
     document.addEventListener("select", update);
+    document.addEventListener("contextmenu", openContext);
+    document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
     window.addEventListener("scroll", dismiss, true);
     window.addEventListener("resize", dismiss);
     return () => {
       document.removeEventListener("selectionchange", update);
       document.removeEventListener("select", update);
+      document.removeEventListener("contextmenu", openContext);
+      document.removeEventListener("pointerdown", outside);
       document.removeEventListener("keydown", escape);
       window.removeEventListener("scroll", dismiss, true);
       window.removeEventListener("resize", dismiss);
@@ -46,8 +82,9 @@ export function SearchSelection({ locale, onSearch }: { locale: Locale; onSearch
   if (!anchor) return null;
   return (
     <Button className="fixed z-40 shadow-md" style={{ left: anchor.left, top: anchor.top }} size="sm" type="button"
-      onMouseDown={(event) => event.preventDefault()}
+      data-selection-filter onMouseDown={(event) => event.preventDefault()}
       onClick={() => {
+        contextOpen.current = false;
         onSearch(anchor.phrase);
         window.getSelection()?.removeAllRanges();
         setAnchor(undefined);

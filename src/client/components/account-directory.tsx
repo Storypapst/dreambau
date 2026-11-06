@@ -11,6 +11,8 @@ import { SearchSelection } from "./search-selection";
 import { AccountCard } from "./account-card";
 import { AccountDetailSheet } from "./account-detail-sheet";
 import { AccountTable } from "./account-table";
+import { AccountRowSummary } from "./account-row-summary";
+import { FavoriteButton } from "./favorite-button";
 import { useFavoriteDisplay, useFavorites } from "@/favorites";
 import { FavoriteAccountView } from "./favorite-account-view";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -149,6 +151,11 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   }), [favorites, visibleByEmail]);
   const visibleFavorites = useMemo(() => new Set(favoriteAccounts.map((account) => account.email)), [favoriteAccounts]);
   const visibleAccounts = onlyFavorites ? favoriteAccounts : managedAccounts;
+  const [selectedRow, setSelectedRow] = useState<string | null>();
+  const expandedEmail = selectedRow === null || visibleAccounts.some((account) => account.email === selectedRow)
+    ? selectedRow ?? null
+    : visibleAccounts[0]?.email ?? null;
+  const toggleRow = (email: string) => setSelectedRow(expandedEmail === email ? null : email);
   const replaceMetadata = useCallback((metadata: AccountMetadata) => {
     const update = (account: AccountView) => account.email === metadata.email
       && (account.metadata.updatedAt ?? "") <= metadata.updatedAt ? { ...account, metadata } : account;
@@ -230,9 +237,33 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
     </div></div></header>
     <section className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-6 lg:px-8"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{t(locale, "page.filteredCount", { shown: visibleAccounts.length, total: accounts.length })}</p>{!onlyFavorites && <div className="flex gap-2"><Badge variant="outline">{encryptedCount} S/MIME</Badge><Badge variant="secondary">{unencryptedCount} {locale === "de" ? "ohne Verschlüsselung" : "unencrypted"}</Badge></div>}</div>{duplicateEmails > 0 && <Alert variant="destructive"><AlertTitle>{locale === "de" ? "Doppelte Mailadressen" : "Duplicate mailbox addresses"}</AlertTitle><AlertDescription>{locale === "de" ? "Der geladene Katalog enthält doppelte Mailadressen. Bitte den Katalog prüfen." : "The loaded catalogue contains duplicate mailbox addresses. Please check the catalogue."}</AlertDescription></Alert>}{visibleAccounts.length ? onlyFavorites ? (
       <FavoriteAccountView accounts={favoriteAccounts} locale={locale} display={favoriteDisplay.display}
+        expandedEmail={expandedEmail} onToggleExpanded={toggleRow}
         onSaved={replaceMetadata} onToggleFavorite={(email) => void toggleFavoriteAccount(email)}
         onMove={(email, direction) => void moveFavorite(email, direction, visibleFavorites)} />
-    ) : <><AccountTable {...contextOptions} canDeleteOrisoAdmin={isAdmin && canManagePasskeys} favoritesReady={favoritesReady} favorites={favoriteSet} onToggleFavorite={(email) => void toggleFavoriteAccount(email)} accounts={managedAccounts} taxonomies={taxonomies} locale={locale} onSaved={replaceMetadata} onDetail={(account) => { setSelected(account); setDetailOpen(true); }} onEdit={edit} orisoProvisioningEnvironments={entitlements.orisoProvisioning.environments} onProvisioned={attachLinkedAccess} /><div className="grid min-w-0 grid-cols-1 gap-4">{managedAccounts.map((account) => <AccountCard {...contextOptions} canDeleteOrisoAdmin={isAdmin && canManagePasskeys} favoritesReady={favoritesReady} key={account.email} favorite={favoriteSet.has(account.email)} onToggleFavorite={() => void toggleFavoriteAccount(account.email)} account={account} taxonomies={taxonomies} locale={locale} onSaved={replaceMetadata} onDetail={() => { setSelected(account); setDetailOpen(true); }} onEdit={() => edit(account)} orisoProvisioningEnvironments={entitlements.orisoProvisioning.environments} onProvisioned={attachLinkedAccess} />)}</div></> : <Card><CardContent><Empty><EmptyHeader><EmptyTitle>{onlyFavorites && activeFilterCount === 1 ? (locale === "de" ? "Noch keine Favoriten" : "No favorites yet") : t(locale, "page.noAccounts")}</EmptyTitle><EmptyDescription>{onlyFavorites && activeFilterCount === 1 ? (locale === "de" ? "Markiere in der Kontoverwaltung die Konten, die du häufig nutzt." : "Star the accounts you use often in Manage accounts.") : t(locale, "page.adjustFilters")}</EmptyDescription></EmptyHeader></Empty></CardContent></Card>}</section>
+    ) : (
+      <ul role="list" className="min-w-0 divide-y rounded-xl border bg-card">
+        {managedAccounts.map((account) => {
+          const expanded = expandedEmail === account.email;
+          const openDetail = () => { setSelected(account); setDetailOpen(true); };
+          const detailProps = {
+            ...contextOptions, locale, taxonomies, onSaved: replaceMetadata, onDetail: openDetail,
+            canDeleteOrisoAdmin: isAdmin && canManagePasskeys,
+            orisoProvisioningEnvironments: entitlements.orisoProvisioning.environments,
+            onProvisioned: attachLinkedAccess
+          };
+          return <li key={account.email}>
+            <AccountRowSummary account={account} locale={locale} expanded={expanded} onToggle={() => toggleRow(account.email)}>
+              <FavoriteButton disabled={!favoritesReady} favorite={favoriteSet.has(account.email)} locale={locale}
+                name={account.displayName} onToggle={() => void toggleFavoriteAccount(account.email)} />
+            </AccountRowSummary>
+            {expanded && <div className="px-2 pb-2 sm:px-3">
+              <AccountTable {...detailProps} accounts={[account]} onEdit={edit} />
+              <AccountCard {...detailProps} account={account} onEdit={() => edit(account)} />
+            </div>}
+          </li>;
+        })}
+      </ul>
+    ) : <Card><CardContent><Empty><EmptyHeader><EmptyTitle>{onlyFavorites && activeFilterCount === 1 ? (locale === "de" ? "Noch keine Favoriten" : "No favorites yet") : t(locale, "page.noAccounts")}</EmptyTitle><EmptyDescription>{onlyFavorites && activeFilterCount === 1 ? (locale === "de" ? "Markiere in der Kontoverwaltung die Konten, die du häufig nutzt." : "Star the accounts you use often in Manage accounts.") : t(locale, "page.adjustFilters")}</EmptyDescription></EmptyHeader></Empty></CardContent></Card>}</section>
     <SearchSelection locale={locale} onSearch={executeSearch} />
     <AccountDetailSheet onSaved={replaceMetadata} account={selected} locale={locale} open={detailOpen} onOpenChange={setDetailOpen} onEdit={() => selected && edit(selected)} /><MetadataEditor account={selected} taxonomies={taxonomies} projectConversationTypes={projectConversationTypes} locale={locale} open={editOpen} onOpenChange={setEditOpen} onSaved={replaceMetadata} />
   </main>;

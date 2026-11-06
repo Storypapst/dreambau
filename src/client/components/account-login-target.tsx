@@ -102,7 +102,7 @@ export function AccountLoginTarget({ account, locale, project, options, onSaved,
         )}
       </div>
       {current && (
-        <a className="inline-flex max-w-full items-center gap-1 break-all text-xs font-medium underline" href={current.url} target="_blank" rel="noreferrer">
+        <a data-testmails-search-text className="inline-flex max-w-full items-center gap-1 break-all text-xs font-medium underline" href={current.url} target="_blank" rel="noreferrer">
           <ExternalLinkIcon className="size-3 shrink-0" />{current.label}
         </a>
       )}
