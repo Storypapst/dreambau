@@ -189,9 +189,9 @@ const roleAliases: Record<string, string> = {
   admin: "Admin"
 };
 export const canonicalRole = (value: string) => roleAliases[value] ?? value;
-export function roleSearchTerms(locale: Locale, role: string): string[] {
+export function roleSearchTerms(role: string): string[] {
   const canonical = canonicalRole(role);
-  return [role, canonical, labelRole(locale, role), ...Object.keys(roleAliases).filter((alias) => roleAliases[alias] === canonical)];
+  return [role, canonical, labelRole("de", role), labelRole("en", role), ...Object.keys(roleAliases).filter((alias) => roleAliases[alias] === canonical)];
 }
 
 

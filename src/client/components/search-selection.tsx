@@ -26,7 +26,7 @@ function selectedValue() {
 
 export function SearchSelection({ locale, onSearch }: { locale: Locale; onSearch: (phrase: string) => void }) {
   const [anchor, setAnchor] = useState<SelectionAnchor>();
-  const contextOpen = useRef(false);
+  const contextOrigin = useRef<{ element: Element; left: number; top: number } | null>(null);
   useEffect(() => {
     function show(phrase: string, left: number, top: number) {
       setAnchor({
@@ -36,11 +36,11 @@ export function SearchSelection({ locale, onSearch }: { locale: Locale; onSearch
       });
     }
     function dismiss() {
-      contextOpen.current = false;
+      contextOrigin.current = null;
       setAnchor(undefined);
     }
     function update() {
-      if (contextOpen.current) return;
+      if (contextOrigin.current) return;
       const selected = selectedValue();
       if (!selected?.phrase || selected.phrase.length > 200) return dismiss();
       const rect = selected.rect();
@@ -55,8 +55,19 @@ export function SearchSelection({ locale, onSearch }: { locale: Locale; onSearch
         : element?.textContent?.trim();
       if (!phrase || phrase.length > 200 || phrase === "–") return dismiss();
       event.preventDefault();
-      contextOpen.current = true;
+      const target = element ?? event.target;
+      const { left, top } = target.getBoundingClientRect();
+      contextOrigin.current = { element: target, left, top };
       show(phrase, event.clientX, event.clientY);
+    }
+    function onScroll() {
+      const origin = contextOrigin.current;
+      if (origin?.element.isConnected) {
+        const { left, top } = origin.element.getBoundingClientRect();
+        // A scroll event queued before the right-click can arrive after it.
+        if (left === origin.left && top === origin.top) return;
+      }
+      dismiss();
     }
     function outside(event: PointerEvent) {
       if (event.target instanceof Element && !event.target.closest("[data-selection-filter]")) dismiss();
@@ -67,7 +78,7 @@ export function SearchSelection({ locale, onSearch }: { locale: Locale; onSearch
     document.addEventListener("contextmenu", openContext);
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
-    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", dismiss);
     return () => {
       document.removeEventListener("selectionchange", update);
@@ -75,7 +86,7 @@ export function SearchSelection({ locale, onSearch }: { locale: Locale; onSearch
       document.removeEventListener("contextmenu", openContext);
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("keydown", escape);
-      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", dismiss);
     };
   }, []);
@@ -84,7 +95,7 @@ export function SearchSelection({ locale, onSearch }: { locale: Locale; onSearch
     <Button className="fixed z-40 shadow-md" style={{ left: anchor.left, top: anchor.top }} size="sm" type="button"
       data-selection-filter onMouseDown={(event) => event.preventDefault()}
       onClick={() => {
-        contextOpen.current = false;
+        contextOrigin.current = null;
         onSearch(anchor.phrase);
         window.getSelection()?.removeAllRanges();
         setAnchor(undefined);

@@ -21,7 +21,10 @@ it("opens the filter on an approved value and preserves the native menu elsewher
       return event;
     };
     await act(async () => { expect(rightClick("span").defaultPrevented).toBe(true); });
-    await act(async () => document.dispatchEvent(new Event("selectionchange")));
+    await act(async () => {
+      document.dispatchEvent(new Event("selectionchange"));
+      document.dispatchEvent(new Event("scroll"));
+    });
     expect(container.querySelector("button")?.textContent).toBe("Danach filtern");
     await act(async () => container.querySelector("button")!.click());
     expect(search).toHaveBeenCalledExactlyOnceWith("Springfield QA Dev");

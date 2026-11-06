@@ -87,6 +87,18 @@ describe("AccountDirectory filter state", () => {
     expect(rows()).toBe("rows:1");
   });
 
+  it.each(["de", "en"] as const)("finds translated status and conversation names in %s", async (locale) => {
+    await render([account("test@oriso.org", { lifecycleStatus: "active", conversationTypes: ["Termin"] }), account("old@oriso.org")], locale);
+    const input = container.querySelector<HTMLInputElement>("input[placeholder]")!;
+    for (const phrase of ["Im Einsatz", "In use", "Termin", "Appointment"]) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, phrase);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(rows()).toBe("rows:1");
+    }
+  });
+
   it("searches linked usernames and displayed context fields", async () => {
     const lisa = account("lisa@oriso.org", { carrier: "Springfield QA", supervisor: "Marge Simpson" });
     lisa.linkedAccess = [{ id: "oriso/dev/lisa", username: "test-lisa-02", project: "oriso", environment: "dev", kind: "app-user",

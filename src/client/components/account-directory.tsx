@@ -38,6 +38,7 @@ import { FilterPresets } from "./filter-presets";
 import { CoordinationDashboard } from "./coordination-dashboard";
 import { ReleaseListPage } from "./release-list";
 
+const searchLanguages: Locale[] = ["de", "en"];
 const WEBMAIL_URL = "https://mail.dreambau.com/";
 
 export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, onLocaleChange, onLogout, isAdmin, canManagePasskeys, entitlements, projects }: { initialAccounts: AccountView[]; initialTaxonomies: Taxonomies; locale: Locale; onLocaleChange: (locale: Locale) => void; onLogout: () => void; isAdmin: boolean; canManagePasskeys: boolean; entitlements: HumanEntitlements; projects?: TeamProject[] }) {
@@ -125,24 +126,27 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
     const loginTarget = projectLoginTargets[accountTestProject(account)]?.find((target) => target.url === metadata.loginTargetUrl);
     const searchable = [
       account.displayName, account.email, account.domain,
-      metadata.shippedVersion, metadata.shippedVersion && `v${metadata.shippedVersion}`, accountPasswordDate(account, locale),
-      metadata.lifecycleStatus, labelLifecycle(locale, metadata.lifecycleStatus),
-      metadata.project, labelProject(locale, metadata.project),
-      metadata.fixtureQuality, labelFixture(locale, metadata.fixtureQuality),
+      metadata.shippedVersion, metadata.shippedVersion && `v${metadata.shippedVersion}`,
+      metadata.lifecycleStatus, metadata.project, metadata.fixtureQuality,
       metadata.notes, metadata.carrier, metadata.postalCode, metadata.supervisor,
       loginTarget?.label, metadata.loginTargetUrl, ...(metadata.agencies ?? []),
-      ...metadata.roles.flatMap((role) => roleSearchTerms(locale, role)),
-      ...metadata.topics.flatMap((topic) => [topic, labelTopic(locale, topic)]),
-      ...metadata.conversationTypes.flatMap((type) => [type, labelConversation(locale, type)]),
+      ...metadata.topics, ...metadata.conversationTypes,
+      ...metadata.roles.flatMap(roleSearchTerms),
+      ...searchLanguages.flatMap((language) => [
+        accountPasswordDate(account, language), labelLifecycle(language, metadata.lifecycleStatus),
+        labelProject(language, metadata.project), labelFixture(language, metadata.fixtureQuality),
+        ...metadata.topics.map((topic) => labelTopic(language, topic)),
+        ...metadata.conversationTypes.map((type) => labelConversation(language, type))
+      ]),
       ...(account.linkedAccess ?? []).filter((access) => !access.deleted).flatMap((access) => [
-        access.username, access.environment, labelLinkedEnvironment(locale, [access]),
-        ...access.roles.flatMap((role) => roleSearchTerms(locale, role))
+        access.username, access.environment, ...searchLanguages.map((language) => labelLinkedEnvironment(language, [access])),
+        ...access.roles.flatMap(roleSearchTerms)
       ])
     ];
     const matchesSearch = searchable.some((value) => value?.toLocaleLowerCase().includes(normalizedQuery));
     const aboveVersion = !versionAfter || (account.metadata.shippedVersion && compareVersions(account.metadata.shippedVersion, versionAfter) > 0);
     return (selectedDomains.length === 0 || selectedDomains.includes(account.domain)) && (status === "all" || account.metadata.lifecycleStatus === status) && (project === "all" || account.metadata.project === project) && (quality === "all" || account.metadata.fixtureQuality === quality) && aboveVersion && roleFilters.every((item) => account.metadata.roles.some((role) => canonicalRole(role) === canonicalRole(item))) && topicFilters.every((item) => account.metadata.topics.includes(item)) && conversationFilters.every((item) => account.metadata.conversationTypes.includes(item)) && matchesSearch;
-  }), [accounts, domain, status, project, quality, normalizedQuery, versionAfter, roleFilters, topicFilters, conversationFilters, locale, projectLoginTargets]);
+  }), [accounts, domain, status, project, quality, normalizedQuery, versionAfter, roleFilters, topicFilters, conversationFilters, projectLoginTargets]);
   const managedAccounts = useMemo(() => sortAccountsForWork(filtered), [filtered]);
   const visibleByEmail = useMemo(() => new Map(filtered.map((account) => [account.email, account])), [filtered]);
   const favoriteAccounts = useMemo(() => favorites.flatMap((email) => {

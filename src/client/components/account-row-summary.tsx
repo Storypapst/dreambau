@@ -3,6 +3,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/i18n";
 import type { AccountView } from "@/types";
+import { AccountQuickCopy, cancelPendingAccountCopy } from "./account-quick-copy";
 import { CopyButton } from "./copy-button";
 
 export function AccountRowSummary({ account, locale, expanded, onToggle, children, showAgencies = true }: {
@@ -31,13 +32,14 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
         : "flex min-w-0 flex-1 items-center gap-0.5"}>
         <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={account.email}
           data-testmails-search-text>{account.email}</span>
-        <CopyButton value={account.email} label={de ? "E-Mail kopieren" : "Copy email"} compact />
+        <CopyButton value={account.email} label={de ? "E-Mail kopieren" : "Copy email"} locale={locale} beforeCopy={cancelPendingAccountCopy} compact />
       </div>}
       {expanded && <span className="flex-1" />}
       {!expanded && agencies.length > 0 && <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground sm:max-w-[30%] sm:flex-none"
         title={agencies.join(" · ")}>{agencies.map((agency, index) => <span key={agency}>
           {index > 0 && " · "}<span data-testmails-search-text>{agency}</span>
         </span>)}</span>}
+      <AccountQuickCopy account={account} locale={locale} />
       {children}
     </div>
   );
