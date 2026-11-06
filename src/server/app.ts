@@ -13,7 +13,7 @@ import { loadConfig } from "./config.js";
 import { createDatabase, type RegistryDatabase } from "./db.js";
 import { acquireAccountMutationLock } from "./account-mutation-lock.js";
 import { lifecycleStatuses, metadataPatchSchema } from "./metadata.js";
-import { taxonomyKindSchema, taxonomyValuesSchema } from "./taxonomies.js";
+import { accountTaxonomyProject, conversationTypePatchSchema, loginTargetSchema, taxonomyKindSchema, taxonomyProjectSchema, taxonomyValuesSchema, type TaxonomyProject } from "./taxonomies.js";
 import { z } from "zod";
 import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
 import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
@@ -293,14 +293,7 @@ export function createApp(options: AppOptions = {}) {
       next();
     });
   const accountViews = () => accountLoader().map((account) => ({ ...account, metadata: database.getMetadata(account.email) }));
-  const viewProject = (view: ReturnType<typeof accountViews>[number]) => {
-    if (view.metadata.project === "ORISO") return "oriso" as const;
-    if (view.metadata.project === "ORIMO" || view.metadata.project === "TRAIL.IST") return "orimo" as const;
-    if (view.metadata.project === "DREAMBAU") return "dreambau" as const;
-    if (view.domain === "oriso.org" || view.domain === "openresilience.cc") return "oriso" as const;
-    if (view.domain === "trail.ist") return "orimo" as const;
-    return "dreambau" as const;
-  };
+  const viewProject = (view: ReturnType<typeof accountViews>[number]) => accountTaxonomyProject(view.metadata.project, view.domain);
   const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
   const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
@@ -1102,6 +1095,37 @@ export function createApp(options: AppOptions = {}) {
     try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const allowed = new Set(scopedAccountViews(res.locals.humanUser).map((account) => account.email)); if (body.emails.some((email) => !allowed.has(email))) return res.status(403).json({ error: "scope_denied" }); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
   });
   api.get("/taxonomies", requireActiveHumanSession, (_req, res) => res.json(database.getTaxonomies()));
+  const requireTaxonomyProjectSession: express.RequestHandler = (req, res, next) =>
+    requireActiveHumanSession(req, res, () => {
+      const project = taxonomyProjectSchema.safeParse(req.params.project);
+      if (!project.success) return handleValidation(project.error, res);
+      if (!(res.locals.humanUser as HumanUser).projects.includes(project.data)) return res.status(403).json({ error: "scope_denied" });
+      res.locals.taxonomyProject = project.data;
+      next();
+    });
+  const projectTypesPath = "/taxonomies/conversationTypes/:project";
+  api.get(projectTypesPath, requireTaxonomyProjectSession, (_req, res) => {
+    res.json({ values: database.getProjectConversationTypes(res.locals.taxonomyProject as TaxonomyProject) });
+  });
+  api.patch(projectTypesPath, requireTaxonomyProjectSession, async (req, res) => {
+    try {
+      const result = database.patchProjectConversationType(res.locals.taxonomyProject as TaxonomyProject, conversationTypePatchSchema.parse(req.body));
+      if ("error" in result) return res.status(result.error === "conversation_type_not_found" ? 404 : 409).json(result);
+      await regenerate();
+      return res.json(result);
+    } catch (error) { return handleValidation(error, res); }
+  });
+  const loginTargetsPath = "/taxonomies/loginTargets/:project";
+  api.get(loginTargetsPath, requireTaxonomyProjectSession, (_req, res) => {
+    res.json({ values: database.getProjectLoginTargets(res.locals.taxonomyProject as TaxonomyProject) });
+  });
+  api.post(loginTargetsPath, requireTaxonomyProjectSession, (req, res) => {
+    try {
+      const values = database.addProjectLoginTarget(res.locals.taxonomyProject as TaxonomyProject, loginTargetSchema.parse(req.body));
+      if (!values) return res.status(409).json({ error: "login_target_exists" });
+      return res.json({ values });
+    } catch (error) { return handleValidation(error, res); }
+  });
   api.get("/machine-identities/usage", requireAdminSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
   const coordinationProjects = (user: HumanUser) =>
     user.projects.filter((project): project is CoordinationProject =>

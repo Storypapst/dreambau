@@ -1,7 +1,17 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { metadataPatchSchema, emptyMetadata, type AccountMetadata, type MetadataPatch } from "./metadata.js";
-import type { Taxonomies } from "./taxonomies.js";
+import { metadataPatchSchema, workspaceMetadataSchema, emptyMetadata, type AccountMetadata, type MetadataPatch } from "./metadata.js";
+import {
+  accountTaxonomyProject,
+  defaultConversationTypes,
+  defaultOrisoLoginTargets,
+  taxonomyProjectSchema,
+  type ConversationTypePatch,
+  type ConversationTypeResult,
+  type LoginTarget,
+  type TaxonomyProject,
+  type Taxonomies
+} from "./taxonomies.js";
 import * as schema from "./schema.js";
 import { topicKeys } from "./catalog.js";
 import { TestResourceStore } from "./test-resource-store.js";
@@ -44,6 +54,10 @@ export interface RegistryDatabase {
   reconcileTestAccessLinks(accounts: string[], records: TestAccessRecord[], seenAt?: string): TestAccessLinkReconciliation;
   getTestAccessLinks(email: string): TestAccessRecordLink[];
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
+  getProjectConversationTypes(project: TaxonomyProject): string[];
+  patchProjectConversationType(project: TaxonomyProject, patch: ConversationTypePatch): ConversationTypeResult;
+  getProjectLoginTargets(project: TaxonomyProject): LoginTarget[];
+  addProjectLoginTarget(project: TaxonomyProject, target: LoginTarget): LoginTarget[] | null;
   getCoordinationMetadata(itemId: string): CoordinationMetadata;
   addCoordinationTag(itemId: string, tag: string): CoordinationMetadata;
   addCoordinationDiscussion(itemId: string, discussion: CoordinationDiscussion): CoordinationMetadata;
@@ -63,6 +77,19 @@ export function createDatabase(path: string): RegistryDatabase {
       fixture_quality TEXT NOT NULL DEFAULT 'empty', sample_file_count INTEGER NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS taxonomy_values (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS project_conversation_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, project TEXT NOT NULL, value TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS project_conversation_type_value ON project_conversation_types(project, value);
+    CREATE TABLE IF NOT EXISTS project_conversation_type_aliases (
+      project TEXT NOT NULL, value TEXT NOT NULL, type_id INTEGER NOT NULL REFERENCES project_conversation_types(id),
+      PRIMARY KEY(project, value)
+    );
+    CREATE TABLE IF NOT EXISTS project_login_targets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, project TEXT NOT NULL, label TEXT NOT NULL, url TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS project_login_target_label ON project_login_targets(project, label);
+    CREATE UNIQUE INDEX IF NOT EXISTS project_login_target_url ON project_login_targets(project, url);
     CREATE TABLE IF NOT EXISTS machine_identity_usage (
       identity_id TEXT PRIMARY KEY,
       last_used_at TEXT NOT NULL
@@ -186,14 +213,78 @@ export function createDatabase(path: string): RegistryDatabase {
   const metadataColumns = new Set((sqlite.prepare("PRAGMA table_info(account_metadata)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!metadataColumns.has("project")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN project TEXT NOT NULL DEFAULT 'NONE'");
   if (!metadataColumns.has("agencies")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN agencies TEXT NOT NULL DEFAULT '[]'");
+  if (!metadataColumns.has("workspace_metadata")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN workspace_metadata TEXT NOT NULL DEFAULT '{}'");
   const seed = sqlite.prepare("INSERT OR IGNORE INTO taxonomy_values(kind,value) VALUES (?,?)");
   const seedTransaction = sqlite.transaction(() => { for (const [kind, values] of Object.entries(seeds)) for (const value of values) seed.run(kind, value); });
   seedTransaction();
 
+  const readProjectTypes = sqlite.prepare<[TaxonomyProject], { value: string }>(
+    "SELECT value FROM project_conversation_types WHERE project=? ORDER BY id"
+  );
+  const insertProjectType = sqlite.prepare("INSERT INTO project_conversation_types(project,value) VALUES (?,?)");
+  const insertLoginTarget = sqlite.prepare("INSERT INTO project_login_targets(project,label,url) VALUES (?,?,?) ON CONFLICT DO NOTHING");
+  const readLoginTargets = sqlite.prepare<[TaxonomyProject], LoginTarget>(
+    "SELECT label,url FROM project_login_targets WHERE project=? ORDER BY id"
+  );
+  sqlite.transaction(() => {
+    for (const project of taxonomyProjectSchema.options) {
+      if (readProjectTypes.get(project)) continue;
+      for (const value of defaultConversationTypes) insertProjectType.run(project, value);
+    }
+    for (const { label, url } of defaultOrisoLoginTargets) insertLoginTarget.run("oriso", label, url);
+  }).immediate();
+
+  const readSelections = sqlite.prepare<[], { email: string; project: string; conversation_types: string }>(
+    "SELECT email,project,conversation_types FROM account_metadata WHERE conversation_types <> '[]' ORDER BY email"
+  );
+  const metadataProject = (project: string, email: string) => accountTaxonomyProject(project, email.slice(email.lastIndexOf("@") + 1));
+  const projectSelections = (project: TaxonomyProject) => readSelections.all()
+    .filter((row) => metadataProject(row.project, row.email) === project)
+    .map((row) => ({ email: row.email, values: JSON.parse(row.conversation_types) as string[] }));
+  const projectTypesWithSelections = (project: TaxonomyProject, selections: ReturnType<typeof projectSelections>) => [
+    ...new Set([...readProjectTypes.all(project).map((row) => row.value), ...selections.flatMap((entry) => entry.values)])
+  ];
+  const writeSelection = sqlite.prepare("UPDATE account_metadata SET conversation_types=?,updated_at=? WHERE email=?");
+  const renameProjectType = sqlite.prepare("UPDATE project_conversation_types SET value=? WHERE project=? AND value=?");
+  const writeProjectTypeAlias = sqlite.prepare(`INSERT INTO project_conversation_type_aliases(project,value,type_id)
+    SELECT project,?,id FROM project_conversation_types WHERE project=? AND value=?
+    ON CONFLICT(project,value) DO UPDATE SET type_id=excluded.type_id`);
+  // If an old name is deliberately reused as a new type, the current type takes precedence.
+  const readProjectTypeAliases = sqlite.prepare<[TaxonomyProject], { previous: string; value: string }>(`
+    SELECT alias.value AS previous, current.value FROM project_conversation_type_aliases AS alias
+    JOIN project_conversation_types AS current ON current.id=alias.type_id
+    WHERE alias.project=? AND NOT EXISTS (
+      SELECT 1 FROM project_conversation_types WHERE project=alias.project AND value=alias.value
+    )`);
+  const projectTypeAliases = (project: TaxonomyProject) => new Map(readProjectTypeAliases.all(project).map(({ previous, value }) => [previous, value]));
+  const patchProjectConversationType = sqlite.transaction((project: TaxonomyProject, { previous, value }: ConversationTypePatch): ConversationTypeResult => {
+    const selections = projectSelections(project);
+    const values = projectTypesWithSelections(project, selections);
+    if (previous !== undefined && !values.includes(previous)) {
+      return projectTypeAliases(project).get(previous) === value ? { values } : { error: "conversation_type_not_found" };
+    }
+    if (value === previous || (previous === undefined && values.includes(value))) return { values };
+    if (values.includes(value)) return { error: "conversation_type_exists" };
+    if (previous === undefined || renameProjectType.run(value, project, previous).changes === 0) {
+      insertProjectType.run(project, value);
+    }
+    if (previous !== undefined) {
+      writeProjectTypeAlias.run(previous, project, value);
+      const now = new Date().toISOString();
+      for (const selection of selections) {
+        if (!selection.values.includes(previous)) continue;
+        const renamed = selection.values.map((selected) => selected === previous ? value : selected);
+        writeSelection.run(JSON.stringify(renamed), now, selection.email);
+      }
+    }
+    return { values: projectTypesWithSelections(project, projectSelections(project)) };
+  });
+
   const rowToMetadata = (row: any): AccountMetadata => ({
     email: row.email, shippedVersion: row.shipped_version, lifecycleStatus: row.lifecycle_status, project: row.project,
     roles: JSON.parse(row.roles), agencies: JSON.parse(row.agencies), topics: JSON.parse(row.topics), conversationTypes: JSON.parse(row.conversation_types),
-    fixtureQuality: row.fixture_quality, sampleFileCount: row.sample_file_count, notes: row.notes, updatedAt: row.updated_at
+    fixtureQuality: row.fixture_quality, sampleFileCount: row.sample_file_count, notes: row.notes, updatedAt: row.updated_at,
+    ...workspaceMetadataSchema.parse(JSON.parse(row.workspace_metadata))
   });
   if (!(sqlite.pragma("table_info(oriso_admin_deletions)") as Array<{ name: string }>).some((column) => column.name === "state")) {
     sqlite.exec("ALTER TABLE oriso_admin_deletions ADD COLUMN state TEXT NOT NULL DEFAULT 'deleted'");
@@ -212,13 +303,19 @@ export function createDatabase(path: string): RegistryDatabase {
     tableNames: () => (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((row) => row.name),
     getMetadata(email) { const row = sqlite.prepare("SELECT * FROM account_metadata WHERE email=?").get(email); return row ? rowToMetadata(row) : emptyMetadata(email); },
     getAllMetadata: () => (sqlite.prepare("SELECT * FROM account_metadata ORDER BY email").all() as any[]).map(rowToMetadata),
-    upsertMetadata(email, input) {
+    upsertMetadata: sqlite.transaction((email: string, input: MetadataPatch) => {
       const patch = metadataPatchSchema.parse(input); const current = api.getMetadata(email); const next = { ...current, ...patch, email, updatedAt: new Date().toISOString() };
-      sqlite.prepare(`INSERT INTO account_metadata(email,shipped_version,lifecycle_status,project,roles,agencies,topics,conversation_types,fixture_quality,sample_file_count,notes,updated_at)
-        VALUES(@email,@shippedVersion,@lifecycleStatus,@project,@roles,@agencies,@topics,@conversationTypes,@fixtureQuality,@sampleFileCount,@notes,@updatedAt)
-        ON CONFLICT(email) DO UPDATE SET shipped_version=excluded.shipped_version,lifecycle_status=excluded.lifecycle_status,project=excluded.project,roles=excluded.roles,agencies=excluded.agencies,topics=excluded.topics,conversation_types=excluded.conversation_types,fixture_quality=excluded.fixture_quality,sample_file_count=excluded.sample_file_count,notes=excluded.notes,updated_at=excluded.updated_at`).run({ ...next, roles: JSON.stringify(next.roles), agencies: JSON.stringify(next.agencies), topics: JSON.stringify(next.topics), conversationTypes: JSON.stringify(next.conversationTypes) });
+      if (patch.conversationTypes?.length) {
+        const aliases = projectTypeAliases(metadataProject(next.project, email));
+        if (aliases.size) next.conversationTypes = [...new Set(next.conversationTypes.map((value) => aliases.get(value) ?? value))];
+      }
+      sqlite.prepare(`INSERT INTO account_metadata(email,shipped_version,lifecycle_status,project,roles,agencies,topics,conversation_types,fixture_quality,sample_file_count,notes,updated_at,workspace_metadata)
+        VALUES(@email,@shippedVersion,@lifecycleStatus,@project,@roles,@agencies,@topics,@conversationTypes,@fixtureQuality,@sampleFileCount,@notes,@updatedAt,@workspaceMetadata)
+        ON CONFLICT(email) DO UPDATE SET shipped_version=excluded.shipped_version,lifecycle_status=excluded.lifecycle_status,project=excluded.project,roles=excluded.roles,agencies=excluded.agencies,topics=excluded.topics,conversation_types=excluded.conversation_types,fixture_quality=excluded.fixture_quality,sample_file_count=excluded.sample_file_count,notes=excluded.notes,updated_at=excluded.updated_at,workspace_metadata=excluded.workspace_metadata`).run({ ...next,
+          workspaceMetadata: JSON.stringify({ carrier: next.carrier, postalCode: next.postalCode, supervisor: next.supervisor, otpDelivery: next.otpDelivery, loginTargetUrl: next.loginTargetUrl }),
+          roles: JSON.stringify(next.roles), agencies: JSON.stringify(next.agencies), topics: JSON.stringify(next.topics), conversationTypes: JSON.stringify(next.conversationTypes) });
       return next;
-    },
+    }).immediate,
     bulkStatus(emails, status) { const parsed = metadataPatchSchema.pick({ lifecycleStatus: true }).parse({ lifecycleStatus: status }); const transaction = sqlite.transaction(() => { for (const email of [...new Set(emails)]) api.upsertMetadata(email, parsed); }); transaction(); return new Set(emails).size; },
     recordMachineIdentityUse(identityId, usedAt = new Date().toISOString()) {
       sqlite.prepare(`INSERT INTO machine_identity_usage(identity_id,last_used_at) VALUES(?,?)
@@ -340,6 +437,16 @@ export function createDatabase(path: string): RegistryDatabase {
       return result;
     },
     putTaxonomy(kind, values) { const transaction = sqlite.transaction(() => { sqlite.prepare("DELETE FROM taxonomy_values WHERE kind=?").run(kind); const insert = sqlite.prepare("INSERT INTO taxonomy_values(kind,value) VALUES (?,?)"); for (const value of [...new Set(values)].sort((a,b) => a.localeCompare(b,"de"))) insert.run(kind, value); }); transaction(); return api.getTaxonomies(); },
+    getProjectConversationTypes: sqlite.transaction((project: TaxonomyProject) =>
+      projectTypesWithSelections(project, projectSelections(project))
+    ).deferred,
+    patchProjectConversationType: patchProjectConversationType.immediate,
+    getProjectLoginTargets: (project) => readLoginTargets.all(project),
+    addProjectLoginTarget: sqlite.transaction((project: TaxonomyProject, { label, url }: LoginTarget) => {
+      const added = insertLoginTarget.run(project, label, url).changes > 0;
+      const values = readLoginTargets.all(project);
+      return added || values.some((target) => target.label === label && target.url === url) ? values : null;
+    }).immediate,
     getCoordinationMetadata(itemId) {
       const row = sqlite.prepare("SELECT tags,discussions FROM coordination_item_metadata WHERE item_id=?").get(itemId) as { tags: string; discussions: string } | undefined;
       return row ? { tags: JSON.parse(row.tags), discussions: JSON.parse(row.discussions) } : { tags: [], discussions: [] };
