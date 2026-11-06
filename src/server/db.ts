@@ -55,6 +55,8 @@ export interface RegistryDatabase {
   getApplicationPasswordSetAt(record: TestAccessRecord): string | undefined;
   reconcileTestAccessLinks(accounts: string[], records: TestAccessRecord[], seenAt?: string): TestAccessLinkReconciliation;
   getTestAccessLinks(email: string): TestAccessRecordLink[];
+  unlinkTestAccessCandidates(records: TestAccessRecord[], actorId: string, now: string): number;
+  allowTestAccessRelink(record: TestAccessRecord): void;
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
   getProjectConversationTypes(project: TaxonomyProject): string[];
   patchProjectConversationType(project: TaxonomyProject, patch: ConversationTypePatch): ConversationTypeResult;
@@ -122,6 +124,10 @@ export function createDatabase(path: string): RegistryDatabase {
       environment TEXT NOT NULL,
       kind TEXT NOT NULL,
       last_seen_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS test_access_unlinked_records (
+      record_id TEXT PRIMARY KEY,
+      record_created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS coordination_item_metadata (
       item_id TEXT PRIMARY KEY,
@@ -391,8 +397,13 @@ export function createDatabase(path: string): RegistryDatabase {
         .sort((left, right) => left.id.localeCompare(right.id));
       const mappedEmails = new Set<string>();
       const unmappedRecords: string[] = [];
+      const isUnlinked = sqlite.prepare("SELECT 1 FROM test_access_unlinked_records WHERE record_id=? AND record_created_at=?");
       const transaction = sqlite.transaction(() => {
         for (const record of applicationRecords) {
+          if (isUnlinked.get(record.id, record.createdAt)) {
+            unmappedRecords.push(record.id);
+            continue;
+          }
           const email = record.email.trim().toLowerCase();
           if (!knownAccounts.has(email)) {
             unmappedRecords.push(record.id);
@@ -427,6 +438,38 @@ export function createDatabase(path: string): RegistryDatabase {
         unmappedRecords,
         unmappedAccounts: [...knownAccounts.keys()].filter((email) => !mappedEmails.has(email)).sort()
       };
+    },
+    unlinkTestAccessCandidates(records, actorId, now) {
+      const unlink = sqlite.prepare("DELETE FROM test_access_record_links WHERE record_id=? AND email=?");
+      const remember = sqlite.prepare(`INSERT INTO test_access_unlinked_records (record_id, record_created_at)
+        VALUES (?,?) ON CONFLICT(record_id) DO UPDATE SET record_created_at=excluded.record_created_at`);
+      return sqlite.transaction(() => {
+        const leased = api.testRuns.leasedAccountIds();
+        const affected = new Set<string>();
+        let count = 0;
+        for (const record of records) {
+          const email = record.email?.trim().toLowerCase();
+          if (!email || leased.has(record.id) || api.getMetadata(email).lifecycleStatus !== "delete_candidate") {
+            throw new Error("cleanup_preview_stale");
+          }
+          if (unlink.run(record.id, email).changes !== 1) throw new Error("cleanup_preview_stale");
+          remember.run(record.id, record.createdAt);
+          api.recordAccountAccess({
+            accountId: record.id, email, actorId, action: "record_unlinked", createdAt: now,
+            context: { environment: record.environment }
+          });
+          affected.add(email);
+          count += 1;
+        }
+        for (const email of affected) {
+          if (!api.getTestAccessLinks(email).length) api.upsertMetadata(email, { lifecycleStatus: "unused" });
+        }
+        return count;
+      })();
+    },
+    allowTestAccessRelink(record) {
+      sqlite.prepare("DELETE FROM test_access_unlinked_records WHERE record_id=? AND record_created_at=?")
+        .run(record.id, record.createdAt);
     },
     getTestAccessLinks(email) {
       return (sqlite.prepare(`SELECT email,record_id,secret_name,project,environment,kind,last_seen_at

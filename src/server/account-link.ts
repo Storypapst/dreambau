@@ -25,6 +25,7 @@ export const accountAccessActions = [
   "totp_enrolled",
   "doctor_checked",
   "record_linked",
+  "record_unlinked",
   "application_password_updated",
   "environment_requested",
   "browser_session_opened",
