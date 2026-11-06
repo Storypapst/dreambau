@@ -41,35 +41,28 @@ const items: CoordinationItem[] = [
   {
     id: "oriso-delivery",
     title: "ORISO Delivery",
-    summary: "Vom Feature Request bis zum menschlich freigegebenen Dev-Stand.",
-    problem: "Verhindert, dass KI schnell Code erzeugt, aber Entscheidungsgrund, Testbeweis und Verantwortlichkeit verloren gehen.",
+    summary: "Ablaufhilfe vom GitHub-Ticket bis zum bestätigten Test auf Dev.",
+    problem: "Ein Review, ein Merge, ein laufendes Deployment und ein bestandener Test sind getrennte Nachweise. Den aktuellen Ticketstand zeigt das ORISO Roadmap-Board.",
     projects: ["oriso"],
     diagram: `flowchart LR
-      A["Feature Request"] --> B["Wayfinder Dialog"]
-      B --> C["Grill with Docs"]
-      C --> D["ADR"]
-      D --> E["Specs"]
-      E --> F["Parent Issue + Sub-Issues"]
-      F --> G["Draft PR"]
-      G --> H["Self Review"]
-      H --> I["Pre-Dev E2E"]
-      I --> J["Human Dev Gate"]
-      J --> K["Dev Smoke + E2E"]`,
+      A["GitHub issue"] --> B["PR against dev"]
+      B --> C["Human review and merge"]
+      C --> D["Confirm deployment"]
+      D --> E["Verify on Dev"]`,
     details: [
-      { title: "Feature Request", description: "Hält Problem, Nutzerwert und erwartetes Ergebnis in GitHub fest." },
-      { title: "ADR", description: "Dokumentiert die tragende Entscheidung samt Alternativen und Folgen auf einer Zeitachse." },
-      { title: "Parent Issue + Sub-Issues", description: "Teilt die freigegebene Spezifikation in kleine, überprüfbare Arbeitspakete." },
-      { title: "Draft PR", description: "Verbindet Code, Tests, Issue-Status und Reviewbeweis ohne automatischen Merge." },
-      { title: "Pre-Dev E2E", description: "Beweist die Funktion auf dem internen Quality Gate mit echten Browserabläufen." },
-      { title: "Human Dev Gate", description: "Ein Mensch entscheidet über den Übergang in das kundenzeigbare Dev-Staging." },
-      { title: "Dev Smoke + E2E", description: "Prüft nach dem Merge erneut die tatsächlich laufende Umgebung." }
+      { title: "Ticket klären", description: "Problem, Ziel und überprüfbares Ergebnis im GitHub-Ticket festhalten." },
+      { title: "Änderung vorbereiten", description: "Von dev abzweigen, lokal prüfen und einen Pull Request gegen dev mit Testbelegen und Reviewern öffnen." },
+      { title: "Review und Merge", description: "Ein Mensch prüft die Änderung und entscheidet, ob und wann der Pull Request gemergt wird." },
+      { title: "Deployment abgleichen", description: "Prüfen, welches Image tatsächlich auf Dev läuft." },
+      { title: "Auf Dev nachtesten", description: "Die betroffene Funktion in der laufenden Umgebung prüfen und das Ergebnis im Ticket festhalten." }
     ],
     resources: [
+      { kind: "tool", title: "ORISO Roadmap", description: "Aktuelle Tickets und ihre Zustände.", url: "https://github.com/orgs/OpenResilienceInitiative/projects/1" },
+      { kind: "tool", title: "Understand Anything", description: "ORISO-Plattformgraph, Repositories und ihre Zusammenhänge.", url: "https://understand.oriso.org/" },
+      { kind: "observability", title: "SigNoz Dev", description: "Traces, Logs und Metriken für ORISO Dev.", url: "https://signoz.oriso.org" },
       { kind: "rule", title: "AGENTS.md Router", description: "Lädt globale, projekt- und repositoryspezifische Regeln progressiv." },
-      { kind: "prompt", title: "Issue Prompt", description: "Kanonische Vorlage für Feature Requests, Bugs und Sub-Issues." },
-      { kind: "adr", title: "ADR Timeline", description: "Chronologische Architekturentscheidungen mit aktuellem Gültigkeitsstatus." },
-      { kind: "observability", title: "SigNoz", description: "Traces, Logs, Metriken und Alerts für Pre-Dev und Dev.", url: "https://signoz.oriso-dev.site" },
-      { kind: "tool", title: "Understand Anything", description: "Durchsuchbarer Wissensgraph und Projektfragen über API." }
+      { kind: "prompt", title: "Issue Prompt", description: "Vorlage für Feature Requests, Bugs und Sub-Issues." },
+      { kind: "adr", title: "ADR Timeline", description: "Chronologische Architekturentscheidungen mit aktuellem Gültigkeitsstatus." }
     ]
   },
   {
@@ -89,9 +82,7 @@ const items: CoordinationItem[] = [
       { kind: "tool", title: "Kio Bugfix", description: "Slack Intake, private Artefakte und Draft-PR-Automation.", url: "https://sunflowercare.slack.com/archives/C0BHAEENLE7" },
       { kind: "rule", title: "Project Router", description: "Trennt Dreambau-, ORISO-, ORIMO- und private Kontexte." },
       { kind: "prompt", title: "Prompt Registry", description: "Source of Truth für Systemprompts, Skills und Toolregeln." },
-      { kind: "adr", title: "ADR Timeline", description: "Betriebs- und Architekturentscheidungen mit Links zum Diskussionskontext." },
-      { kind: "observability", title: "SigNoz", description: "Gemeinsamer Einstieg zu Live-Systemzuständen.", url: "https://signoz.oriso-dev.site" },
-      { kind: "tool", title: "Understand Anything", description: "Projektwissen und Fragen per API." }
+      { kind: "adr", title: "ADR Timeline", description: "Betriebs- und Architekturentscheidungen mit Links zum Diskussionskontext." }
     ]
   },
   {

@@ -3,6 +3,17 @@ import { describe, expect, it } from "vitest";
 import { RuntimeStatusCards } from "../src/client/components/runtime-status-cards.js";
 
 describe("RuntimeStatusCards", () => {
+  it("distinguishes graph reachability from publication age", () => {
+    const html = renderToStaticMarkup(<RuntimeStatusCards locale="en" initialStatuses={[
+      { id: "understand-anything", name: "Understand Anything", project: "oriso", environment: "dev", state: "healthy", checkedAt: "2026-11-06T12:00:00.000Z", latencyMs: 18, publishedAt: "2026-09-21T12:52:42.456966+00:00", url: "https://understand.oriso.org/" }
+    ]} />);
+
+    expect(html).toContain("Manifest reachable");
+    expect(html).toContain("Published snapshot");
+    expect(html).toMatch(/21 Sept? 2026/);
+    expect(html).not.toContain("Healthy");
+  });
+
   it("renders clear environment and health states", () => {
     const html = renderToStaticMarkup(<RuntimeStatusCards locale="de" initialStatuses={[
       { id: "signoz-dev", name: "SigNoz", project: "oriso", environment: "dev", state: "healthy", checkedAt: "2026-07-15T12:00:00.000Z", latencyMs: 14, url: "https://signoz.oriso.org" },

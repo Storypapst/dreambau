@@ -64,6 +64,7 @@ export interface RuntimeStatusView {
   latencyMs: number | null;
   url: string;
   metrics?: RuntimeMetricsView;
+  publishedAt?: string;
 }
 
 type Request = <T>(path: string, init?: RequestInit) => Promise<T>;

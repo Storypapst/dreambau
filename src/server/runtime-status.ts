@@ -1,4 +1,3 @@
-import { resolve4 } from "node:dns/promises";
 import type { CoordinationProject } from "./coordination.js";
 
 export type RuntimeState = "healthy" | "degraded" | "offline" | "unavailable";
@@ -10,8 +9,7 @@ interface RuntimeTarget {
   environment: "pre-dev" | "dev" | "platform";
   url: string;
   healthUrl?: string;
-  healthShape?: "status-ok" | "message-ok" | "kio-status";
-  expectedAddress?: string;
+  healthShape?: "status-ok" | "message-ok" | "kio-status" | "understand-manifest";
 }
 
 export interface RuntimeMetrics {
@@ -36,19 +34,10 @@ export interface RuntimeStatus {
   latencyMs: number | null;
   url: string;
   metrics?: RuntimeMetrics;
+  publishedAt?: string;
 }
 
 export const runtimeTargets: readonly RuntimeTarget[] = [
-  {
-    id: "signoz-predev",
-    name: "SigNoz Pre-Dev",
-    project: "oriso",
-    environment: "pre-dev",
-    url: "https://signoz.oriso-dev.site",
-    healthUrl: "https://signoz.oriso-dev.site/api/v1/health",
-    healthShape: "status-ok",
-    expectedAddress: "46.224.170.69"
-  },
   {
     id: "signoz-dev",
     name: "SigNoz Dev",
@@ -57,6 +46,15 @@ export const runtimeTargets: readonly RuntimeTarget[] = [
     url: "https://signoz.oriso.org",
     healthUrl: "https://signoz.oriso.org/api/v1/health",
     healthShape: "status-ok"
+  },
+  {
+    id: "understand-anything",
+    name: "Understand Anything",
+    project: "oriso",
+    environment: "dev",
+    url: "https://understand.oriso.org/",
+    healthUrl: "https://understand.oriso.org/ua/current/manifest.json",
+    healthShape: "understand-manifest"
   },
   {
     id: "infisical",
@@ -75,13 +73,6 @@ export const runtimeTargets: readonly RuntimeTarget[] = [
     url: "https://kio.dreambau.com",
     healthUrl: "https://kio.dreambau.com/api/bug-intake/status",
     healthShape: "kio-status"
-  },
-  {
-    id: "understand-anything",
-    name: "Understand Anything",
-    project: "dreambau",
-    environment: "platform",
-    url: "https://dreambau.com/testmails/"
   }
 ] as const;
 
@@ -89,7 +80,6 @@ export async function loadRuntimeStatuses(
   projects: CoordinationProject[],
   dependencies: {
     fetcher?: typeof fetch;
-    resolver?: (hostname: string) => Promise<string[]>;
     timeoutMs?: number;
     now?: () => Date;
     clock?: () => number;
@@ -98,7 +88,6 @@ export async function loadRuntimeStatuses(
   const allowed = new Set(projects);
   const targets = runtimeTargets.filter((target) => allowed.has(target.project));
   const fetcher = dependencies.fetcher ?? fetch;
-  const resolver = dependencies.resolver ?? resolve4;
   const timeoutMs = dependencies.timeoutMs ?? 2_500;
   const now = dependencies.now ?? (() => new Date());
   const clock = dependencies.clock ?? Date.now;
@@ -108,13 +97,6 @@ export async function loadRuntimeStatuses(
     if (!target.healthUrl) return { ...publicTarget(target), state: "unavailable", checkedAt, latencyMs: null };
     const startedAt = clock();
     try {
-      if (target.expectedAddress) {
-        const hostname = new URL(target.healthUrl).hostname;
-        const addresses = await withTimeout(resolver(hostname), timeoutMs);
-        if (!addresses.includes(target.expectedAddress)) {
-          return { ...publicTarget(target), state: "degraded", checkedAt, latencyMs: null };
-        }
-      }
       const response = await fetcher(target.healthUrl, {
         method: "GET",
         headers: { Accept: "application/json" },
@@ -123,6 +105,11 @@ export async function loadRuntimeStatuses(
       const latencyMs = Math.max(0, clock() - startedAt);
       if (!response.ok) return { ...publicTarget(target), state: "degraded", checkedAt, latencyMs };
       const body = await response.json().catch(() => null) as Record<string, unknown> | null;
+      if (target.healthShape === "understand-manifest") {
+        const publishedAt = graphPublicationDate(body);
+        if (!publishedAt) return { ...publicTarget(target), state: "degraded", checkedAt, latencyMs };
+        return { ...publicTarget(target), state: "healthy", checkedAt, latencyMs, publishedAt };
+      }
       if (target.healthShape === "kio-status") {
         const metrics = kioMetrics(body);
         const state = body?.state === "healthy" ? "healthy" : "degraded";
@@ -134,6 +121,16 @@ export async function loadRuntimeStatuses(
       return { ...publicTarget(target), state: "offline", checkedAt, latencyMs: null };
     }
   }));
+}
+
+function graphPublicationDate(body: Record<string, unknown> | null): string | undefined {
+  if (body?.schemaVersion !== "oriso.ua.generation/v1" ||
+      typeof body.generationId !== "string" || !body.generationId ||
+      typeof body.generatedAt !== "string" || !Number.isFinite(Date.parse(body.generatedAt)) ||
+      !Array.isArray(body.graphs) ||
+      !body.graphs.some((graph: unknown) => isRecord(graph) && graph.kind === "platform" &&
+        typeof graph.path === "string" && Boolean(graph.path))) return undefined;
+  return body.generatedAt;
 }
 
 function kioMetrics(body: Record<string, unknown> | null): RuntimeMetrics | null {
@@ -158,20 +155,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isCount(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
-}
-
-async function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      operation,
-      new Promise<T>((_resolve, reject) => {
-        timeout = setTimeout(() => reject(new Error("runtime probe timed out")), timeoutMs);
-      })
-    ]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
 }
 
 function publicTarget(target: RuntimeTarget) {
