@@ -1,6 +1,6 @@
 import argon2 from "argon2";
 import type { NextFunction, Request, Response, Router } from "express";
-import { cookieName, cookieOptions, SessionStore, type SessionBackend } from "./sessions.js";
+import { cookieName, cookieOptions, SessionStore, type SessionBackend, type SessionPrincipal } from "./sessions.js";
 
 interface FailureWindow { count: number; startedAt: number }
 
@@ -18,19 +18,22 @@ export function installAuth(
   const failures = new Map<string, FailureWindow>();
   const windowMs = 15 * 60 * 1000;
 
+  const viewerChanged = (req: Request, principal?: SessionPrincipal | null) => {
+    const viewer = req.get("X-Testmails-Viewer");
+    return viewer !== undefined && viewer !== principal?.userId;
+  };
   const requireSession = (req: Request, res: Response, next: NextFunction) => {
     const principal = sessions.get(req.cookies?.[cookieName]);
     if (!principal) return res.status(401).json({ error: "unauthorized" });
+    if (viewerChanged(req, principal)) return res.status(401).json({ error: "session_changed" });
     res.locals.session = principal;
     next();
   };
-  const requireStrongSession = (req: Request, res: Response, next: NextFunction) => {
-    const principal = sessions.get(req.cookies?.[cookieName]);
-    if (!principal) return res.status(401).json({ error: "unauthorized" });
-    if (principal.method !== "passkey") return res.status(403).json({ error: "passkey_required" });
-    res.locals.session = principal;
-    next();
-  };
+  const requireStrongSession = (req: Request, res: Response, next: NextFunction) =>
+    requireSession(req, res, () => {
+      if (res.locals.session.method !== "passkey") return res.status(403).json({ error: "passkey_required" });
+      next();
+    });
 
   router.post("/auth/login", async (req, res) => {
     if (!passwordLoginAllowed()) return res.status(410).json({ error: "bootstrap_disabled" });
@@ -53,6 +56,8 @@ export function installAuth(
   router.get("/auth/bootstrap-status", (_req, res) => res.json({ enabled: passwordLoginAllowed() }));
 
   router.post("/auth/logout", (req, res) => {
+    const principal = sessions.get(req.cookies?.[cookieName]);
+    if (viewerChanged(req, principal)) return res.status(401).json({ error: "session_changed" });
     sessions.destroy(req.cookies?.[cookieName]);
     res.clearCookie(cookieName, cookieOptions(secureCookies));
     res.json({ authenticated: false });

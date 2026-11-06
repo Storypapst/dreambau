@@ -120,6 +120,14 @@ export function createPasskeyStore(path: string) {
       last_seen_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS human_sessions_expires ON human_sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS human_search_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES human_users(id) ON DELETE CASCADE,
+      normalized_phrase TEXT NOT NULL,
+      phrase TEXT NOT NULL,
+      UNIQUE(user_id, normalized_phrase)
+    );
+    CREATE INDEX IF NOT EXISTS human_search_history_owner_id ON human_search_history(user_id, id DESC);
     CREATE TABLE IF NOT EXISTS human_user_preferences (
       user_id TEXT NOT NULL REFERENCES human_users(id) ON DELETE CASCADE,
       key TEXT NOT NULL,
@@ -386,6 +394,23 @@ export function createPasskeyStore(path: string) {
       sqlite.prepare(`INSERT INTO human_user_preferences(user_id,key,value_json,updated_at) VALUES(?,?,?,?)
         ON CONFLICT(user_id,key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at`)
         .run(userId, key, JSON.stringify(value), new Date().toISOString());
+    },
+    getSearchHistory(userId: string, before?: number) {
+      const rows = sqlite.prepare(`SELECT id, phrase FROM human_search_history
+        WHERE user_id = ? ${before === undefined ? "" : "AND id < ?"}
+        ORDER BY id DESC LIMIT 11`).all(...(before === undefined ? [userId] : [userId, before])) as Array<{ id: number; phrase: string }>;
+      const entries = rows.slice(0, 10);
+      return { entries, nextBefore: rows.length > entries.length ? entries.at(-1)!.id : null };
+    },
+    rememberSearch(userId: string, phrase: string) {
+      const normalized = phrase.normalize("NFKC").toLowerCase();
+      sqlite.transaction(() => {
+        sqlite.prepare("DELETE FROM human_search_history WHERE user_id=? AND normalized_phrase=?").run(userId, normalized);
+        sqlite.prepare("INSERT INTO human_search_history(user_id, normalized_phrase, phrase) VALUES(?,?,?)").run(userId, normalized, phrase);
+      })();
+    },
+    deleteSearch(userId: string, id: number) {
+      return sqlite.prepare("DELETE FROM human_search_history WHERE user_id=? AND id=?").run(userId, id).changes === 1;
     },
     deletePreference(userId: string, key: string) {
       return sqlite.prepare("DELETE FROM human_user_preferences WHERE user_id=? AND key=?").run(userId, key).changes === 1;

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { Button } from "@/components/ui/button";
@@ -9,25 +9,65 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Textarea } from "@/components/ui/textarea";
 import type { AccountMetadata, AccountView, FixtureQuality, LifecycleStatus, Taxonomies } from "@/types";
 import { MultiSelect } from "./multi-select";
+import { accountTestProject, type ProjectConversationTypes } from "./account-test-context";
 import { distinctRoleOptions, labelConversation, labelFixture, labelLifecycle, labelProject, labelRoleWithEnvironment, labelTopic, type Locale } from "@/i18n";
 import type { Project } from "@/types";
 
-export function MetadataEditor({ account, taxonomies, locale, open, onOpenChange, onSaved }: { account: AccountView | null; taxonomies: Taxonomies; locale: Locale; open: boolean; onOpenChange: (value: boolean) => void; onSaved: (metadata: AccountMetadata) => void }) {
-  const [value, setValue] = useState<AccountMetadata | null>(account?.metadata ?? null); const [agencyText, setAgencyText] = useState((account?.metadata.agencies ?? []).join("\n")); const [busy, setBusy] = useState(false);
-  useEffect(() => { setValue(account?.metadata ?? null); setAgencyText((account?.metadata.agencies ?? []).join("\n")); }, [account]);
-  if (!account || !value) return null;
+type MetadataEditorProps = {
+  account: AccountView | null;
+  taxonomies: Taxonomies;
+  projectConversationTypes?: ProjectConversationTypes;
+  locale: Locale;
+  open: boolean;
+  onOpenChange: (value: boolean) => void;
+  onSaved: (metadata: AccountMetadata) => void;
+};
+
+export function MetadataEditor({ account, open, onOpenChange, ...props }: MetadataEditorProps) {
+  if (!account) return null;
+
+  return <Sheet open={open} onOpenChange={onOpenChange}>
+    <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+      <SheetHeader>
+        <SheetTitle>{props.locale === "de" ? "Testprofil bearbeiten" : "Edit test profile"}</SheetTitle>
+        <SheetDescription>{account.email}</SheetDescription>
+      </SheetHeader>
+      {open && <MetadataEditorForm key={account.email} account={account} onOpenChange={onOpenChange} {...props} />}
+    </SheetContent>
+  </Sheet>;
+}
+
+function MetadataEditorForm({ account, taxonomies, projectConversationTypes, locale, onOpenChange, onSaved }:
+  Omit<MetadataEditorProps, "account" | "open"> & { account: AccountView }) {
+  const [initial] = useState(account.metadata);
+  const [value, setValue] = useState(initial);
+  const [agencyText, setAgencyText] = useState((initial.agencies ?? []).join("\n"));
+  const [busy, setBusy] = useState(false);
   const email = account.email;
-  const currentValue = value;
-  const originalRoles = account.metadata.roles;
+  const draftProject = accountTestProject({ ...account, metadata: value });
+  const projectOptions = projectConversationTypes
+    ? projectConversationTypes[draftProject] ?? []
+    : taxonomies.conversationTypes;
+  const conversationOptions = [...new Set([...projectOptions, ...value.conversationTypes])];
+
   async function submit(event: FormEvent) {
-    event.preventDefault(); setBusy(true);
-    const { email: _email, updatedAt: _updatedAt, roles, ...fields } = currentValue;
-    const rolesChanged = roles.length !== originalRoles.length || roles.some((role, index) => role !== originalRoles[index]);
-    const patch = { ...fields, ...(rolesChanged ? { roles } : {}), agencies: [...new Set(agencyText.split("\n").map((name) => name.trim()).filter(Boolean))] };
+    event.preventDefault();
+    setBusy(true);
+    const agencies = [...new Set(agencyText.split("\n").map((name) => name.trim()).filter(Boolean))];
+    const fields = ["shippedVersion", "project", "lifecycleStatus", "roles", "topics", "conversationTypes",
+      "fixtureQuality", "sampleFileCount", "notes"] as const;
+    const patch = Object.fromEntries(fields.filter((field) => {
+      const previous = initial[field];
+      const next = value[field];
+      return Array.isArray(previous) && Array.isArray(next)
+        ? previous.length !== next.length || next.some((item, index) => item !== previous[index])
+        : previous !== next;
+    }).map((field) => [field, value[field]]));
+    if (agencyText !== (initial.agencies ?? []).join("\n")) patch.agencies = agencies;
     try { const saved = await api<AccountMetadata>(`/accounts/${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify(patch) }); onSaved(saved); toast.success(locale === "de" ? "Metadaten gespeichert" : "Metadata saved"); onOpenChange(false); }
     catch { toast.error(locale === "de" ? "Speichern fehlgeschlagen" : "Could not save"); } finally { setBusy(false); }
   }
-  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="w-full overflow-y-auto sm:max-w-xl"><SheetHeader><SheetTitle>{locale === "de" ? "Testprofil bearbeiten" : "Edit test profile"}</SheetTitle><SheetDescription>{account.email}</SheetDescription></SheetHeader><form onSubmit={submit} className="px-4"><FieldGroup>
+  return <form onSubmit={submit} className="px-4"><FieldGroup>
     <SheetFooter className="px-0"><Button type="submit" disabled={busy}>{busy ? (locale === "de" ? "Speichert …" : "Saving …") : (locale === "de" ? "Speichern" : "Save")}</Button></SheetFooter>
     <Field><FieldLabel htmlFor="version">{locale === "de" ? "Verschifft in Version" : "Shipped in version"}</FieldLabel><Input id="version" placeholder="3.1.0" value={value.shippedVersion} onChange={(e) => setValue({ ...value, shippedVersion: e.target.value })} pattern="^$|^\d+(\.\d+){0,2}$" /></Field>
     <Field><FieldLabel>{locale === "de" ? "Projekt" : "Project"}</FieldLabel><Select value={value.project} onValueChange={(project) => setValue({ ...value, project: project as Project })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(["NONE","ORI","ORISO","ORIMO","TRAIL.IST","DREAMBAU","OTHER"] as Project[]).map((item) => <SelectItem key={item} value={item}>{labelProject(locale, item)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
@@ -35,9 +75,9 @@ export function MetadataEditor({ account, taxonomies, locale, open, onOpenChange
     <Field><FieldLabel>{locale === "de" ? "Rollen" : "Roles"}</FieldLabel><MultiSelect locale={locale} label={locale === "de" ? "Rollen wählen" : "Choose roles"} options={distinctRoleOptions(taxonomies.roles, value.roles)} value={value.roles} onChange={(roles) => setValue({ ...value, roles })} formatOption={(item) => labelRoleWithEnvironment(locale, item, account.linkedAccess)} /></Field>
     <Field><FieldLabel htmlFor="agencies">{locale === "de" ? "Beratungsstellen (Dokumentation)" : "Counselling agencies (documentation)"}</FieldLabel><Textarea id="agencies" value={agencyText} onChange={(event) => setAgencyText(event.target.value)} aria-describedby="agencies-help" /><p id="agencies-help" className="text-sm text-muted-foreground">{locale === "de" ? "Eine Beratungsstelle pro Zeile. Diese Angaben dokumentieren das Testkonto und ändern keine ORISO-Zuordnung oder Berechtigung. Leer bedeutet: nicht hinterlegt." : "One agency per line. These notes document the test account and do not change ORISO assignments or permissions. Empty means not documented."}</p></Field>
     <Field><FieldLabel>{locale === "de" ? "Themengebiete" : "Topics"}</FieldLabel><MultiSelect locale={locale} label={locale === "de" ? "Themen wählen" : "Choose topics"} options={taxonomies.topics} value={value.topics} onChange={(topics) => setValue({ ...value, topics })} formatOption={(item) => labelTopic(locale, item)} /></Field>
-    <Field><FieldLabel>{locale === "de" ? "Konversationstypen" : "Conversation types"}</FieldLabel><MultiSelect locale={locale} label={locale === "de" ? "Typen wählen" : "Choose types"} options={taxonomies.conversationTypes} value={value.conversationTypes} onChange={(conversationTypes) => setValue({ ...value, conversationTypes })} formatOption={(item) => labelConversation(locale, item)} /></Field>
+    <Field><FieldLabel>{locale === "de" ? "Konversationstypen" : "Conversation types"}</FieldLabel><MultiSelect locale={locale} label={locale === "de" ? "Typen wählen" : "Choose types"} options={conversationOptions} value={value.conversationTypes} onChange={(conversationTypes) => setValue({ ...value, conversationTypes })} formatOption={(item) => labelConversation(locale, item)} /></Field>
     <Field><FieldLabel>{locale === "de" ? "Beispieldaten" : "Sample data"}</FieldLabel><Select value={value.fixtureQuality} onValueChange={(v) => setValue({ ...value, fixtureQuality: v as FixtureQuality })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(["empty","synthetic","realistic","gold"] as FixtureQuality[]).map((item) => <SelectItem key={item} value={item}>{labelFixture(locale, item)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
     <Field><FieldLabel htmlFor="files">{locale === "de" ? "Beispieldateien" : "Sample files"}</FieldLabel><Input id="files" type="number" min="0" value={value.sampleFileCount} onChange={(e) => setValue({ ...value, sampleFileCount: Number(e.target.value) })} /></Field>
     <Field><FieldLabel htmlFor="notes">{locale === "de" ? "Notizen" : "Notes"}</FieldLabel><Textarea id="notes" value={value.notes} onChange={(e) => setValue({ ...value, notes: e.target.value })} /></Field>
-  </FieldGroup></form></SheetContent></Sheet>;
+  </FieldGroup></form>;
 }

@@ -1,6 +1,7 @@
 import { createOrisoIdentityObserver, type OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import { loadProgrammeGuide } from "./teamwork-guides.js";
 import { installOrisoAdminDeletionRoutes } from "./oriso-admin-deletion-router.js";
+import { createHash } from "node:crypto";
 import cookieParser from "cookie-parser";
 import express from "express";
 import path from "node:path";
@@ -13,7 +14,7 @@ import { loadConfig } from "./config.js";
 import { createDatabase, type RegistryDatabase } from "./db.js";
 import { acquireAccountMutationLock } from "./account-mutation-lock.js";
 import { lifecycleStatuses, metadataPatchSchema } from "./metadata.js";
-import { taxonomyKindSchema, taxonomyValuesSchema } from "./taxonomies.js";
+import { accountTaxonomyProject, conversationTypePatchSchema, loginTargetSchema, taxonomyKindSchema, taxonomyProjectSchema, taxonomyValuesSchema, type TaxonomyProject } from "./taxonomies.js";
 import { z } from "zod";
 import { generateMarkdown, writeMarkdownAtomically } from "./markdown.js";
 import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js";
@@ -198,7 +199,10 @@ export function createApp(options: AppOptions = {}) {
     if (!linked) return null;
     if (database.isOrisoAdminDeleted(record.id)) return { ...linked, deleted: true, hasTotp: false };
     if (database.isOrisoAdminDeletionPending(record.id)) return { ...linked, deletionPending: true, hasTotp: false };
-    return linked;
+    const applicationPasswordSetAt = record.provisioningStatus === "ready"
+      ? record.accountSetup?.submittedAt ?? database.getApplicationPasswordSetAt(record)
+      : undefined;
+    return applicationPasswordSetAt ? { ...linked, applicationPasswordSetAt } : linked;
   };
   const accountMutations = new Set<string>();
   const guardAccountMutation = (handler: express.RequestHandler): express.RequestHandler => async (req, res, next) => {
@@ -293,23 +297,21 @@ export function createApp(options: AppOptions = {}) {
       next();
     });
   const accountViews = () => accountLoader().map((account) => ({ ...account, metadata: database.getMetadata(account.email) }));
-  const viewProject = (view: ReturnType<typeof accountViews>[number]) => {
-    if (view.metadata.project === "ORISO") return "oriso" as const;
-    if (view.metadata.project === "ORIMO" || view.metadata.project === "TRAIL.IST") return "orimo" as const;
-    if (view.metadata.project === "DREAMBAU") return "dreambau" as const;
-    if (view.domain === "oriso.org" || view.domain === "openresilience.cc") return "oriso" as const;
-    if (view.domain === "trail.ist") return "orimo" as const;
-    return "dreambau" as const;
-  };
+  const viewProject = (view: ReturnType<typeof accountViews>[number]) => accountTaxonomyProject(view.metadata.project, view.domain);
   const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
-  const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
-  // A degraded boot must not overwrite a good export with an empty catalogue.
-  const regenerate = async () => {
-    if (!exportPath || accountViews().length === 0) return;
-    await writeMarkdownAtomically(exportPath, markdown());
+  let pendingExport = Promise.resolve();
+  const regenerate = () => {
+    if (!exportPath) return Promise.resolve();
+    const write = pendingExport.then(async () => {
+      const accounts = accountViews();
+      // A degraded boot must not overwrite a good export with an empty catalogue.
+      if (accounts.length) await writeMarkdownAtomically(exportPath, generateMarkdown(accounts, database.getTaxonomies()));
+    });
+    pendingExport = write.catch(() => {});
+    return write;
   };
-  void regenerate();
+  void regenerate().catch(() => console.error("account catalogue export refresh failed at startup"));
   const environments: TestEnvironment[] = ["local", "pre-dev", "dev", "production-test"];
   const runtimeRegistryProvider = () => {
     if (config.registryProvider !== "infisical" || !config.infisical) return createAccountRegistryProvider(accountLoader, database);
@@ -709,9 +711,12 @@ export function createApp(options: AppOptions = {}) {
       // with the same role; a different role would leave record and ORISO
       // identity in contradiction.
       const existingRecords = await registryProvider.list();
-      const existingRecord = orisoLinkedRecord(email, existingRecords, environment)
-        ?? linkedApplicationRecordsForEmail(email, existingRecords)
-          .find((record) => record.project === "oriso" && record.environment === environment) ?? null;
+      const matchingRecords = linkedApplicationRecordsForEmail(email, existingRecords)
+        .filter((record) => record.project === "oriso" && record.environment === environment);
+      if (matchingRecords.some((record) => database.isTestAccessLinkSuppressed(record))) {
+        return res.status(409).json({ error: "test_access_record_unlinked" });
+      }
+      const existingRecord = orisoLinkedRecord(email, existingRecords, environment) ?? matchingRecords.at(0) ?? null;
       if (body.applicationUsername !== undefined && existingRecord && body.applicationUsername !== existingRecord.username) {
         return res.status(409).json({ error: "record_username_conflict" });
       }
@@ -1038,6 +1043,7 @@ export function createApp(options: AppOptions = {}) {
         throw error;
       }
       reconcileRecords([...records.filter((record) => record.id !== linkedRecord!.id), linkedRecord]);
+      if (provisioned.created) database.recordApplicationPasswordSetAt(linkedRecord, (options.now?.() ?? new Date()).toISOString());
       database.recordAccountAccess({
         accountId: linkedRecord.id,
         email,
@@ -1101,7 +1107,90 @@ export function createApp(options: AppOptions = {}) {
   api.post("/accounts/bulk-status", requireActiveHumanSession, async (req, res) => {
     try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const allowed = new Set(scopedAccountViews(res.locals.humanUser).map((account) => account.email)); if (body.emails.some((email) => !allowed.has(email))) return res.status(403).json({ error: "scope_denied" }); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
   });
+  const accountMutationInProgress = (record: TestAccessRecord) =>
+    accountMutations.has(`${record.environment}:${record.email?.trim().toLowerCase()}`);
+  const candidateCleanup = async (user: HumanUser) => {
+    const records = await registryProvider.list();
+    reconcileRecords(records);
+    const protectedIds = new Set(Object.values(config.orisoProvisioningTargets).map((target) => target?.adminRecordId));
+    const candidates = scopedAccountViews(user).filter((account) =>
+      viewProject(account) === "oriso" && account.metadata.lifecycleStatus === "delete_candidate"
+    );
+    const linked = candidates.flatMap((account) => linkedFromStore(account.email, records))
+      .filter((record) => record.project === "oriso" && (record.environment === "dev" || record.environment === "pre-dev"))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const eligible = linked.filter((record) =>
+      !protectedIds.has(record.id) && !database.testRuns.hasAccountLease(record)
+        && !database.isOrisoAdminDeletionPending(record.id) && !accountMutationInProgress(record)
+    );
+    const revision = createHash("sha256").update(JSON.stringify(
+      eligible.map((record) => [record.id, record.email, record.createdAt, record.updatedAt])
+    )).digest("hex");
+    return { eligible, revision, skipped: linked.length - eligible.length };
+  };
+  api.get("/accounts/delete-candidate-cleanup", requireAdminSession, async (_req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      const { eligible, revision, skipped } = await candidateCleanup(res.locals.humanUser);
+      res.json({ revision, skipped, links: eligible.map(({ id, email, environment }) => ({ id, email, environment })) });
+    } catch (error) { next(error); }
+  });
+  api.post("/accounts/delete-candidate-cleanup", requireAdminSession, async (req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    const origin = req.get("Origin");
+    if (origin && origin !== (options.expectedOrigin ?? "https://dreambau.com")) {
+      return res.status(403).json({ error: "origin_denied" });
+    }
+    const input = z.object({ revision: z.string().regex(/^[0-9a-f]{64}$/) }).strict().safeParse(req.body);
+    if (!input.success) return res.status(400).json({ error: "validation_failed" });
+    try {
+      const user = res.locals.humanUser as HumanUser;
+      const { eligible, revision } = await candidateCleanup(user);
+      if (input.data.revision !== revision || eligible.some(accountMutationInProgress)) {
+        return res.status(409).json({ error: "cleanup_preview_stale" });
+      }
+      const count = database.unlinkTestAccessCandidates(eligible, user.id, (options.now?.() ?? new Date()).toISOString());
+      await regenerate().catch(() => console.error("account catalogue export refresh failed after candidate cleanup"));
+      res.json({ count });
+    } catch (error) {
+      if (error instanceof Error && error.message === "cleanup_preview_stale") {
+        return res.status(409).json({ error: "cleanup_preview_stale" });
+      }
+      next(error);
+    }
+  });
   api.get("/taxonomies", requireActiveHumanSession, (_req, res) => res.json(database.getTaxonomies()));
+  const requireTaxonomyProjectSession: express.RequestHandler = (req, res, next) =>
+    requireActiveHumanSession(req, res, () => {
+      const project = taxonomyProjectSchema.safeParse(req.params.project);
+      if (!project.success) return handleValidation(project.error, res);
+      if (!(res.locals.humanUser as HumanUser).projects.includes(project.data)) return res.status(403).json({ error: "scope_denied" });
+      res.locals.taxonomyProject = project.data;
+      next();
+    });
+  const projectTypesPath = "/taxonomies/conversationTypes/:project";
+  api.get(projectTypesPath, requireTaxonomyProjectSession, (_req, res) => {
+    res.json({ values: database.getProjectConversationTypes(res.locals.taxonomyProject as TaxonomyProject) });
+  });
+  api.patch(projectTypesPath, requireTaxonomyProjectSession, async (req, res) => {
+    try {
+      const result = database.patchProjectConversationType(res.locals.taxonomyProject as TaxonomyProject, conversationTypePatchSchema.parse(req.body));
+      if ("error" in result) return res.status(result.error === "conversation_type_not_found" ? 404 : 409).json(result);
+      await regenerate();
+      return res.json(result);
+    } catch (error) { return handleValidation(error, res); }
+  });
+  const loginTargetsPath = "/taxonomies/loginTargets/:project";
+  api.get(loginTargetsPath, requireTaxonomyProjectSession, (_req, res) => {
+    res.json({ values: database.getProjectLoginTargets(res.locals.taxonomyProject as TaxonomyProject) });
+  });
+  api.post(loginTargetsPath, requireTaxonomyProjectSession, (req, res) => {
+    try {
+      const values = database.addProjectLoginTarget(res.locals.taxonomyProject as TaxonomyProject, loginTargetSchema.parse(req.body));
+      if (!values) return res.status(409).json({ error: "login_target_exists" });
+      return res.json({ values });
+    } catch (error) { return handleValidation(error, res); }
+  });
   api.get("/machine-identities/usage", requireAdminSession, (_req, res) => res.json(database.getMachineIdentityUsage()));
   const coordinationProjects = (user: HumanUser) =>
     user.projects.filter((project): project is CoordinationProject =>

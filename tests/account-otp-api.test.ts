@@ -1,6 +1,7 @@
 import path from "node:path";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import Database from "better-sqlite3";
 import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/server/app.js";
@@ -11,6 +12,7 @@ import { createPasskeyStore } from "../src/server/passkey-store.js";
 import type { WebAuthnAdapter } from "../src/server/passkey-auth.js";
 import type { TestMailReader } from "../src/server/test-mail.js";
 import type { RegistryWriter } from "../src/server/infisical-writer.js";
+import type { OrisoProvisioningService } from "../src/server/oriso-provisioning.js";
 
 function mailbox(email = "abe.simpson@dreambau.de"): AccountRecord {
   const domain = email.split("@")[1];
@@ -81,6 +83,8 @@ async function authenticatedSetup(options: {
   records?: TestAccessRecord[];
   mailReader?: TestMailReader;
   registryWriter?: RegistryWriter;
+  orisoProvisioning?: OrisoProvisioningService;
+  exportPath?: string;
 } = {}) {
   const abe = mailbox();
   const records = options.records ?? [appRecord(abe.email)];
@@ -90,7 +94,8 @@ async function authenticatedSetup(options: {
     async get(id) { return records.find((candidate) => candidate.id === id) ?? null; }
   };
   const root = mkdtempSync(path.join(tmpdir(), "account-otp-"));
-  const database = createDatabase(path.join(root, "catalog.sqlite"));
+  const databasePath = path.join(root, "catalog.sqlite");
+  const database = createDatabase(databasePath);
   database.upsertMetadata(abe.email, { project: "ORISO", roles: [], shippedVersion: "2.02", lifecycleStatus: "active" });
   const passkeyStore = createPasskeyStore(path.join(root, "auth.sqlite"));
   const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso"], role: "admin" });
@@ -103,6 +108,8 @@ async function authenticatedSetup(options: {
     passkeyStore,
     registryProvider,
     registryWriter: options.registryWriter,
+    orisoProvisioning: options.orisoProvisioning,
+    exportPath: options.exportPath,
     mailReader: options.mailReader,
     webauthn,
     now: () => new Date(59_000),
@@ -113,8 +120,151 @@ async function authenticatedSetup(options: {
   const agent = request.agent(app);
   const authOptions = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
   await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: authOptions.body.flowId, response: { id: "credential-id" } });
-  return { agent, database, abe, record };
+  return { agent, database, databasePath, abe, record };
 }
+
+describe("ORISO delete candidate cleanup", () => {
+  const endpoint = "/testmails/api/accounts/delete-candidate-cleanup";
+
+  it("removes approved links atomically and preserves the mailbox and typed access history", async () => {
+    const email = "abe.simpson@dreambau.de";
+    const { preDevConsultant, devAdviceSeeker } = crossEnvironmentRecords(email);
+    const records = [preDevConsultant, devAdviceSeeker];
+    const { agent, database, databasePath } = await authenticatedSetup({ records });
+    database.upsertMetadata(email, { lifecycleStatus: "delete_candidate" });
+    database.recordAccountAccess({
+      accountId: preDevConsultant.id, email, actorId: "qa", action: "otp_requested",
+      createdAt: "2026-07-18T00:00:00.000Z", context: { environment: "pre-dev" }
+    });
+
+    const preview = await agent.get(endpoint).expect(200);
+    expect(preview.body.links).toEqual([
+      { id: devAdviceSeeker.id, email, environment: "dev" },
+      { id: preDevConsultant.id, email, environment: "pre-dev" }
+    ]);
+    await agent.post(endpoint).send({ revision: preview.body.revision }).expect(200, { count: 2 });
+
+    const catalogue = await agent.get("/testmails/api/accounts").expect(200);
+    expect(catalogue.body[0]).toMatchObject({ email, linkedAccess: [], metadata: { lifecycleStatus: "unused" } });
+    expect(catalogue.body[0].access.events.map((event: { action: string }) => event.action)).toEqual(["otp_requested"]);
+    const sqlite = new Database(databasePath);
+    try {
+      const audit = sqlite.prepare("SELECT record_id, email FROM test_access_unlink_audit ORDER BY id").all();
+      expect(audit).toEqual([{ record_id: devAdviceSeeker.id, email }, { record_id: preDevConsultant.id, email }]);
+    } finally { sqlite.close(); }
+    expect(records).toHaveLength(2);
+    await agent.post(endpoint).send({ revision: preview.body.revision }).expect(409);
+    await request(createApp({ passwordHash: "unused", secureCookies: false, loadAccounts: () => [] }))
+      .get(endpoint).expect(401);
+  });
+
+  it("rejects stale previews and never unlinks a candidate whose status changed", async () => {
+    const { agent, database, abe } = await authenticatedSetup();
+    database.upsertMetadata(abe.email, { lifecycleStatus: "delete_candidate" });
+    const preview = await agent.get(endpoint).expect(200);
+    database.upsertMetadata(abe.email, { lifecycleStatus: "active" });
+    await agent.post(endpoint).send({ revision: preview.body.revision }).expect(409);
+    expect(database.getTestAccessLinks(abe.email)).toHaveLength(1);
+  });
+
+  it("protects a mailbox lease only for the matching project and target environment", async () => {
+    const email = "abe.simpson@dreambau.de";
+    const { preDevConsultant, devAdviceSeeker } = crossEnvironmentRecords(email);
+    const { agent, database } = await authenticatedSetup({ records: [preDevConsultant, devAdviceSeeker] });
+    database.upsertMetadata(email, { lifecycleStatus: "delete_candidate" });
+    const previous = await agent.get(endpoint).expect(200);
+    database.testRuns.create({
+      project: "oriso", targetEnvironment: "pre-dev", poolEnvironment: "dev", applicationVersion: "1",
+      commitSha: "a".repeat(40), scenario: "smoke", roles: [{ role: "consultant", count: 1 }]
+    }, [{ accountId: `mailbox:${email}`, email: ` ${email.toUpperCase()} `, roles: ["consultant"] }],
+    { id: "qa", type: "human" }, new Date().toISOString(), "leased-run");
+    expect(() => database.unlinkTestAccessCandidates([devAdviceSeeker, preDevConsultant], "qa", new Date().toISOString()))
+      .toThrow("cleanup_preview_stale");
+    expect(database.getTestAccessLinks(email)).toHaveLength(2);
+    await agent.post(endpoint).send({ revision: previous.body.revision }).expect(409);
+    const current = await agent.get(endpoint).expect(200);
+    expect(current.body.skipped).toBe(1);
+    expect(current.body.links).toEqual([{ id: devAdviceSeeker.id, email, environment: "dev" }]);
+    await agent.post(endpoint).send({ revision: current.body.revision }).expect(200, { count: 1 });
+    expect(database.getTestAccessLinks(email).map((link) => link.recordId)).toEqual([preDevConsultant.id]);
+    expect(database.getMetadata(email).lifecycleStatus).toBe("delete_candidate");
+  });
+
+  it("blocks a rollback-era link insert and clears suppression when the record ID is reused", async () => {
+    const records = [appRecord("abe.simpson@dreambau.de")];
+    const { agent, database, databasePath, abe, record } = await authenticatedSetup({ records });
+    database.upsertMetadata(abe.email, { lifecycleStatus: "delete_candidate" });
+    const preview = await agent.get(endpoint).expect(200);
+    await agent.post(endpoint).send({ revision: preview.body.revision }).expect(200, { count: 1 });
+
+    const sqlite = new Database(databasePath);
+    try {
+      const legacyInsert = sqlite.prepare(`INSERT INTO test_access_record_links
+        (record_id,email,secret_name,project,environment,kind,last_seen_at) VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT(record_id) DO UPDATE SET last_seen_at=excluded.last_seen_at`);
+      expect(legacyInsert.run(record.id, abe.email, "secret-name", record.project, record.environment, record.kind, record.updatedAt).changes)
+        .toBe(0);
+      records[0] = { ...record, createdAt: "2026-07-18T00:00:00.000Z" };
+      database.allowTestAccessRelink(records[0]);
+      const older = await agent.get("/testmails/api/accounts").expect(200);
+      expect(older.body[0].linkedAccess).toEqual([]);
+      expect(sqlite.prepare("SELECT record_created_at FROM test_access_unlinked_records").get())
+        .toEqual({ record_created_at: record.createdAt });
+      records[0] = { ...record, createdAt: "2026-11-31T00:00:00.000Z" };
+      const invalid = await agent.get("/testmails/api/accounts").expect(200);
+      expect(invalid.body[0].linkedAccess).toEqual([]);
+      records[0] = { ...record, createdAt: "2026-07-20T00:00:00.000Z", updatedAt: "2026-07-20T00:00:00.000Z" };
+      const catalogue = await agent.get("/testmails/api/accounts").expect(200);
+      expect(catalogue.body[0].linkedAccess).toMatchObject([{ id: record.id }]);
+      expect(sqlite.prepare("SELECT record_id FROM test_access_unlinked_records").all()).toEqual([]);
+    } finally { sqlite.close(); }
+  });
+
+  it("reports committed cleanup even when refreshing the disk export fails", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "candidate-export-"));
+    const exportPath = path.join(directory, "accounts.md");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { agent, database, abe } = await authenticatedSetup({ exportPath });
+      await vi.waitFor(() => expect(existsSync(exportPath)).toBe(true));
+      rmSync(exportPath);
+      mkdirSync(exportPath);
+      database.upsertMetadata(abe.email, { lifecycleStatus: "delete_candidate" });
+      const preview = await agent.get(endpoint).expect(200);
+      await agent.post(endpoint).send({ revision: preview.body.revision }).expect(200, { count: 1 });
+      expect(database.getTestAccessLinks(abe.email)).toEqual([]);
+      expect(database.getMetadata(abe.email).lifecycleStatus).toBe("unused");
+      expect(readdirSync(directory)).toEqual(["accounts.md"]);
+      expect(log).toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects provisioning before reaching ORISO or Infisical when the matching record is unlinked", async () => {
+    const service: OrisoProvisioningService = {
+      target: {
+        environment: "pre-dev", apiBaseUrl: "https://api.example.test", tokenUrl: "https://auth.example.test",
+        clientId: "test", adminRecordId: "different-admin", adminBaseUrl: "https://admin.example.test",
+        appBaseUrl: "https://app.example.test", defaultTenantId: 1, defaultAgencyId: 1,
+        defaultConsultingType: "1", defaultPostcode: "10115", defaultMainTopicId: 1
+      },
+      status: vi.fn(async () => null), ensureInvite: vi.fn(), provision: vi.fn()
+    };
+    const writer: RegistryWriter = { enrollTotp: vi.fn(), createRecord: vi.fn(), updateRecord: vi.fn() };
+    const { agent, database, abe } = await authenticatedSetup({ orisoProvisioning: service, registryWriter: writer });
+    database.upsertMetadata(abe.email, { lifecycleStatus: "delete_candidate" });
+    const preview = await agent.get(endpoint).expect(200);
+    await agent.post(endpoint).send({ revision: preview.body.revision }).expect(200, { count: 1 });
+    await agent.post(`/testmails/api/accounts/${encodeURIComponent(abe.email)}/oriso-provisioning`)
+      .send({ environment: "pre-dev", role: "platform-admin" })
+      .expect(409, { error: "test_access_record_unlinked" });
+    expect(service.provision).not.toHaveBeenCalled();
+    expect(service.status).not.toHaveBeenCalled();
+    expect(writer.updateRecord).not.toHaveBeenCalled();
+  });
+});
 
 describe("human Springfield OTP access", () => {
   it("keeps Dev roles out of a PreDev mailbox row with the same email", async () => {

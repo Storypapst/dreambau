@@ -68,6 +68,7 @@ export interface LinkedTestAccount {
   roles: string[];
   loginUrl: string;
   hasTotp: boolean;
+  applicationPasswordSetAt?: string;
 }
 
 export interface TestAccessRecordLink {

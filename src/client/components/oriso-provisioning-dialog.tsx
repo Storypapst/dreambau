@@ -92,6 +92,9 @@ function StateSummary({
 }
 
 function provisioningErrorMessage(code: string, locale: Locale) {
+  if (code === "test_access_record_unlinked") return locale === "de"
+    ? "Diese Testmails-Verknüpfung wurde bereinigt. Synchronisiere das Konto erneut mit dem Test-Access-Katalog, bevor du es einrichtest."
+    : "This Testmails link was cleared. Sync the account with the Test Access catalogue before setting it up.";
   if (code === "record_username_conflict") return locale === "de"
     ? "Das Konto ist bereits mit einem anderen Benutzernamen verknüpft. Der bestehende Zugang wurde nicht geändert."
     : "This account is already linked with another username. The existing access was not changed.";

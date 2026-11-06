@@ -1,4 +1,5 @@
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AccountRecord } from "./accounts.js";
 import type { AccountMetadata } from "./metadata.js";
@@ -24,6 +25,12 @@ export function generateMarkdown(accounts: AccountView[], taxonomies: Taxonomies
 
 export async function writeMarkdownAtomically(filePath: string, contents: string) {
   await mkdir(path.dirname(filePath), { recursive: true });
-  const temporary = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temporary, contents, { mode: 0o600 }); await rename(temporary, filePath);
+  const temporary = `${filePath}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, contents, { mode: 0o600 });
+    await rename(temporary, filePath);
+  } catch (error) {
+    await rm(temporary, { force: true }).catch(() => {});
+    throw error;
+  }
 }

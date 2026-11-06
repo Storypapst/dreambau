@@ -189,6 +189,11 @@ const roleAliases: Record<string, string> = {
   admin: "Admin"
 };
 export const canonicalRole = (value: string) => roleAliases[value] ?? value;
+export function roleSearchTerms(locale: Locale, role: string): string[] {
+  const canonical = canonicalRole(role);
+  return [role, canonical, labelRole(locale, role), ...Object.keys(roleAliases).filter((alias) => roleAliases[alias] === canonical)];
+}
+
 
 // Keep legacy selections intact while avoiding duplicate translated choices.
 export function distinctRoleOptions(options: string[], selected: string[] = []) {

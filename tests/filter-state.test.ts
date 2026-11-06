@@ -63,7 +63,8 @@ describe("filter persistence", () => {
 
   it("remembers the last non-default state and forgets a reset", () => {
     saveLastFilters(busy);
-    expect(loadLastFilters()).toEqual(busy);
+    expect(loadLastFilters()).toEqual({ ...busy, query: "" });
+    expect(localStorage.getItem("testmails-filters")).not.toContain("marge");
     saveLastFilters(DEFAULT_FILTERS);
     expect(loadLastFilters()).toBeNull();
   });
@@ -76,8 +77,8 @@ describe("filter persistence", () => {
   it("mirrors the state into the address bar and reads it back", () => {
     expect(readFiltersFromLocation()).toBeNull();
     writeFiltersToLocation(busy);
-    expect(window.location.search).toBe(`?${serializeFilters(busy).toString()}`);
-    expect(readFiltersFromLocation()).toEqual(busy);
+    expect(window.location.search).not.toContain("marge");
+    expect(readFiltersFromLocation()).toEqual({ ...busy, query: "" });
     writeFiltersToLocation(DEFAULT_FILTERS);
     expect(window.location.search).toBe("");
     expect(window.location.pathname).toBe("/testmails/");
@@ -85,10 +86,10 @@ describe("filter persistence", () => {
 
   it("prefers the URL over the remembered state over the defaults", () => {
     expect(initialFilters()).toEqual(DEFAULT_FILTERS);
-    saveLastFilters({ ...DEFAULT_FILTERS, query: "remembered" });
-    expect(initialFilters().query).toBe("remembered");
-    window.history.replaceState(null, "", "/testmails/?q=from-url");
-    expect(initialFilters().query).toBe("from-url");
+    localStorage.setItem("testmails-filters", JSON.stringify({ query: "remembered", domain: "oriso.org" }));
+    expect(initialFilters()).toEqual({ ...DEFAULT_FILTERS, domain: "oriso.org" });
+    window.history.replaceState(null, "", "/testmails/?q=from-url&domain=trail.ist");
+    expect(initialFilters()).toEqual({ ...DEFAULT_FILTERS, domain: "trail.ist" });
   });
 
   it("keeps several domains in list order and drops unknown ones", () => {

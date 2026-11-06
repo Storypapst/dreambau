@@ -5,11 +5,30 @@ export const accountMetadata = sqliteTable("account_metadata", {
   lifecycleStatus: text("lifecycle_status").notNull().default("unused"), project: text("project").notNull().default("NONE"), roles: text("roles").notNull().default("[]"),
   agencies: text("agencies").notNull().default("[]"), topics: text("topics").notNull().default("[]"), conversationTypes: text("conversation_types").notNull().default("[]"),
   fixtureQuality: text("fixture_quality").notNull().default("empty"), sampleFileCount: integer("sample_file_count").notNull().default(0),
-  notes: text("notes").notNull().default(""), updatedAt: text("updated_at").notNull()
+  notes: text("notes").notNull().default(""), workspaceMetadata: text("workspace_metadata").notNull().default("{}"), updatedAt: text("updated_at").notNull()
 });
 export const taxonomyValues = sqliteTable("taxonomy_values", {
   id: integer("id").primaryKey({ autoIncrement: true }), kind: text("kind").notNull(), value: text("value").notNull()
 }, (table) => [uniqueIndex("taxonomy_kind_value").on(table.kind, table.value)]);
+export const projectConversationTypes = sqliteTable("project_conversation_types", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  project: text("project").notNull(),
+  value: text("value").notNull()
+}, (table) => [uniqueIndex("project_conversation_type_value").on(table.project, table.value)]);
+export const projectConversationTypeAliases = sqliteTable("project_conversation_type_aliases", {
+  project: text("project").notNull(),
+  value: text("value").notNull(),
+  typeId: integer("type_id").notNull().references(() => projectConversationTypes.id)
+}, (table) => [primaryKey({ columns: [table.project, table.value] })]);
+export const projectLoginTargets = sqliteTable("project_login_targets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  project: text("project").notNull(),
+  label: text("label").notNull(),
+  url: text("url").notNull()
+}, (table) => [
+  uniqueIndex("project_login_target_label").on(table.project, table.label),
+  uniqueIndex("project_login_target_url").on(table.project, table.url)
+]);
 export const coordinationItemMetadata = sqliteTable("coordination_item_metadata", {
   itemId: text("item_id").primaryKey(),
   tags: text("tags").notNull().default("[]"),

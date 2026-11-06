@@ -4,7 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/api";
-import { useFavorites } from "../src/client/favorites.js";
+import { useFavoriteDisplay, useFavorites } from "../src/client/favorites.js";
 import { FavoriteButton } from "../src/client/components/favorite-button.js";
 
 vi.mock("@/api", () => ({ api: vi.fn() }));
@@ -181,5 +181,93 @@ describe("useFavorites", () => {
     expect(state.favorites).toEqual(["existing@example.test", "first@example.test"]);
     await act(async () => { void state.toggle("retry@example.test"); });
     expect(savedValues()[2]).toEqual(["existing@example.test", "first@example.test", "retry@example.test"]);
+  });
+
+  it("queues a move after a toggle and rolls it back if the order fails to save", async () => {
+    await finishLoad();
+    await act(async () => {
+      void state.toggle("new@example.test");
+      void state.move("new@example.test", -1);
+    });
+    expect(state.favorites).toEqual(["new@example.test", "existing@example.test"]);
+    expect(savedValues()).toEqual([["existing@example.test", "new@example.test"]]);
+    await act(async () => saves[0].resolve({ value: ["existing@example.test", "new@example.test"] }));
+    expect(savedValues()[1]).toEqual(["new@example.test", "existing@example.test"]);
+    expect(state.favorites).toEqual(["new@example.test", "existing@example.test"]);
+    await act(async () => saves[1].reject(new Error("HTTP 500")));
+    expect(state.favorites).toEqual(["existing@example.test", "new@example.test"]);
+    expect(state.error).toBe(true);
+  });
+
+  it("moves between visible favorites while preserving hidden positions", async () => {
+    await finishLoad();
+    await act(async () => {
+      void state.toggle("hidden@example.test");
+      void state.toggle("visible@example.test");
+      void state.move("visible@example.test", -1, new Set(["existing@example.test", "visible@example.test"]));
+    });
+    expect(state.favorites).toEqual(["visible@example.test", "hidden@example.test", "existing@example.test"]);
+    for (let index = 0; index < 3; index += 1) {
+      await act(async () => saves[index].resolve({ value: savedValues()[index] }));
+    }
+    expect(savedValues()[2]).toEqual(state.favorites);
+  });
+
+  it("skips moves beyond the list or for an unknown address", async () => {
+    await finishLoad();
+    await act(async () => {
+      await state.move("existing@example.test", -1);
+      await state.move("existing@example.test", 1);
+      await state.move("unknown@example.test", 1);
+    });
+    expect(state.favorites).toEqual(["existing@example.test"]);
+    expect(savedValues()).toEqual([]);
+  });
+});
+
+describe("useFavoriteDisplay", () => {
+  it("defaults unknown fields to visible and queues independent field changes", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const root = createRoot(document.createElement("div"));
+    const load = deferred<{ value: unknown }>();
+    const saves = [deferred<{ value: unknown }>(), deferred<{ value: unknown }>()];
+    const writes: unknown[] = [];
+    vi.mocked(api).mockReset();
+    vi.mocked(api).mockImplementation((path, init) => {
+      expect(path).toBe("/auth/me/preferences/favorite-display");
+      if (init?.method !== "PUT") return load.promise;
+      const save = saves[writes.length];
+      writes.push(JSON.parse(String(init.body)).value);
+      return save.promise;
+    });
+    let state!: ReturnType<typeof useFavoriteDisplay>;
+    function Probe() {
+      state = useFavoriteDisplay();
+      return null;
+    }
+
+    try {
+      await act(async () => root.render(<Probe />));
+      await act(async () => state.setDisplay({ notes: false }));
+      expect(state.ready).toBe(false);
+      expect(writes).toEqual([]);
+      await act(async () => load.resolve({ value: { testContext: "unknown" } }));
+      expect(state.ready).toBe(true);
+      expect(state.display).toEqual({ testContext: true, notes: true });
+      await act(async () => {
+        void state.setDisplay({ notes: false });
+        void state.setDisplay({ testContext: false });
+      });
+      expect(state.display).toEqual({ testContext: false, notes: false });
+      expect(writes).toEqual([{ testContext: true, notes: false }]);
+      await act(async () => saves[0].resolve({ value: { testContext: true, notes: false } }));
+      expect(writes[1]).toEqual({ testContext: false, notes: false });
+      await act(async () => saves[1].reject(new Error("HTTP 500")));
+      expect(state.display).toEqual({ testContext: true, notes: false });
+      expect(state.error).toBeTruthy();
+    } finally {
+      await act(async () => root.unmount());
+      vi.unstubAllGlobals();
+    }
   });
 });

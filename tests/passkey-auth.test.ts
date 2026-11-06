@@ -255,7 +255,91 @@ describe("passkey authentication", () => {
     const otherOptions = await otherAgent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: other.email });
     await otherAgent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: otherOptions.body.flowId, response: { id: "other-credential" } });
     expect((await otherAgent.get(path)).body.value).toBeNull();
+    const reordered = ["lisa.simpson@oriso.org", "abe.simpson@oriso.org"];
+    expect((await agent.put(path).send({ value: reordered })).status).toBe(200);
+    const secondDevice = request.agent(app);
+    const secondOptions = await secondDevice.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
+    await secondDevice.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: secondOptions.body.flowId, response: { id: "credential-id" } });
+    expect((await secondDevice.get(path)).body.value).toEqual(reordered);
+
+    const displayPath = "/testmails/api/auth/me/preferences/favorite-display";
+    expect((await request(app).get(displayPath)).status).toBe(401);
+    expect((await agent.get(displayPath)).body).toEqual({ key: "favorite-display", value: null });
+    const display = { testContext: false, notes: true };
+    expect((await agent.put(displayPath).send({ value: display })).status).toBe(200);
+    expect((await secondDevice.get(displayPath)).body.value).toEqual(display);
+    expect((await otherAgent.get(displayPath)).body.value).toBeNull();
+    expect((await agent.put(displayPath).send({ value: { ...display, notes: "true" } })).status).toBe(400);
+    expect((await agent.put(displayPath).send({ value: { notes: true } })).status).toBe(400);
+    expect((await agent.get(path)).body.value).toEqual(reordered);
     passkeyStore.close();
+  });
+
+  it("paginates the latest search phrases and allows only their owner to delete them", async () => {
+    const { app, passkeyStore, user } = setup();
+    const other = passkeyStore.createUser({ email: "other@dreambau.com", name: "Other", projects: ["oriso"], role: "member" });
+    const path = "/testmails/api/auth/me/search-history";
+    const agents = [];
+    for (const owner of [user, other]) {
+      const id = owner.id === user.id ? "credential-id" : "other-credential";
+      passkeyStore.addCredential({ id, userId: owner.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+      const agent = request.agent(app);
+      const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: owner.email });
+      await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id } }).expect(200);
+      agents.push(agent);
+    }
+    const [owner, outsider] = agents;
+    await request(app).get(path).expect(401);
+    await owner.post(path).send({ phrase: " ".repeat(4) }).expect(400);
+    await owner.post(path).send({ phrase: "x".repeat(201) }).expect(400);
+    await owner.post(path).send({ phrase: "valid", userId: other.id }).expect(400);
+    for (let index = 1; index <= 12; index += 1) {
+      await owner.post(path).send({ phrase: `Suchbegriff ${index}` }).expect(200);
+    }
+    await owner.post(path).send({ phrase: " SUCHBEGRIFF 1 " }).expect(200);
+    const first = await owner.get(path).expect(200);
+    expect(first.body.entries).toHaveLength(10);
+    expect(first.body.entries[0].phrase).toBe("SUCHBEGRIFF 1");
+    const second = await owner.get(path).query({ before: first.body.nextBefore }).expect(200);
+    expect(second.body.entries.map((entry: { phrase: string }) => entry.phrase)).toEqual(["Suchbegriff 3", "Suchbegriff 2"]);
+    expect(second.body.nextBefore).toBeNull();
+    const id = first.body.entries[0].id;
+    await outsider.get(path).expect(200, { entries: [], nextBefore: null });
+    await outsider.delete(`${path}/${id}`).expect(404);
+    await owner.delete(`${path}/${id}`).expect(200);
+    expect((await owner.get(path)).body.entries[0].phrase).toBe("Suchbegriff 12");
+    await owner.get(path).query({ before: "invalid" }).expect(400);
+    passkeyStore.close();
+  });
+
+  it("rejects search and favorite writes from an old viewer after a shared browser signs in as someone else", async () => {
+    const { app, passkeyStore, user } = setup();
+    const nextUser = passkeyStore.createUser({ email: "next@dreambau.com", name: "Next", projects: ["oriso"] });
+    const browser = request.agent(app);
+    const history = "/testmails/api/auth/me/search-history";
+    const favorites = "/testmails/api/auth/me/preferences/favorite-accounts";
+
+    async function signIn(owner: typeof user, id: string) {
+      passkeyStore.addCredential({ id, userId: owner.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
+      const options = await browser.post("/testmails/api/auth/passkeys/authentication/options").send({ email: owner.email });
+      await browser.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id } }).expect(200);
+    }
+
+    try {
+      await signIn(user, "credential-id");
+      await browser.post(history).set("x-testmails-viewer", user.id).send({ phrase: "first employee's note" }).expect(200);
+      await browser.post("/testmails/api/auth/logout").set("x-testmails-viewer", user.id).expect(200);
+      await signIn(nextUser, "other-credential");
+
+      await browser.post(history).set("x-testmails-viewer", user.id).send({ phrase: "stale private note" })
+        .expect(401, { error: "session_changed" });
+      await browser.put(favorites).set("x-testmails-viewer", user.id).send({ value: ["abe.simpson@oriso.org"] })
+        .expect(401, { error: "session_changed" });
+      await browser.get(history).set("x-testmails-viewer", nextUser.id).expect(200, { entries: [], nextBefore: null });
+      await browser.get(favorites).set("x-testmails-viewer", nextUser.id).expect(200, { key: "favorite-accounts", value: null });
+    } finally {
+      passkeyStore.close();
+    }
   });
 
   it("lets a passkey session add, list, rename and delete passkeys but never the last one", async () => {
@@ -366,6 +450,17 @@ describe("passkey authentication", () => {
     const recovery = request.agent(app);
     expect((await recovery.post("/testmails/api/auth/recovery").send({ email: user.email, code: generated.body.codes[0] })).status).toBe(200);
     expect((await recovery.get("/testmails/api/accounts")).status).toBe(403);
+    const history = "/testmails/api/auth/me/search-history";
+    await agent.post(history).send({ phrase: "private account note" }).expect(200);
+    const entryId = (await agent.get(history).expect(200)).body.entries[0].id;
+    await recovery.get(history).expect(403);
+    await recovery.post(history).send({ phrase: "replacement" }).expect(403);
+    await recovery.delete(`${history}/${entryId}`).expect(403);
+    const favorites = "/testmails/api/auth/me/preferences/favorite-accounts";
+    await agent.put(favorites).send({ value: ["lisa@oriso.org"] }).expect(200);
+    await recovery.get(favorites).expect(403);
+    await recovery.put(favorites).send({ value: [] }).expect(403);
+    await recovery.delete(favorites).expect(403);
     expect((await recovery.post("/testmails/api/auth/passkeys/registration/options").send({})).status).toBe(200);
     expect((await request(app).post("/testmails/api/auth/recovery").send({ email: user.email, code: generated.body.codes[0] })).status).toBe(401);
     expect(JSON.stringify(passkeyStore.debugRecoveryCodes(user.id))).not.toContain(generated.body.codes[1]);
