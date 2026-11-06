@@ -46,7 +46,11 @@ export function DeleteCandidateCleanup({ locale, onCleaned }: { locale: Locale; 
       setPreview(undefined);
       setOpen(false);
       toast.success(de ? `${count} Verknüpfungen entfernt.` : `${count} links removed.`);
-      await onCleaned();
+      await onCleaned().catch(() => {
+        toast.error(de
+          ? "Die Kontenliste konnte nicht aktualisiert werden. Bitte lade die Seite neu."
+          : "Could not refresh the account list. Reload the page.");
+      });
     } catch (failure) {
       if (failure instanceof Error && failure.message === "cleanup_preview_stale") {
         await loadPreview();

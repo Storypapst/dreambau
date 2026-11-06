@@ -144,7 +144,7 @@ describe("project login destinations", () => {
     await request(app).get(`${loginTargetsPath}/oriso`).expect(401);
     await agent.get(`${loginTargetsPath}/orimo`).expect(403, { error: "scope_denied" });
     await agent.post(`${loginTargetsPath}/orimo`).send({ label: "Preview", url: "https://example.com/preview" }).expect(403, { error: "scope_denied" });
-    for (const url of ["http://example.com/preview", "javascript:alert(1)", "https://user:secret@example.com/preview"]) {
+    for (const url of ["http://example.com/preview", "javascript:alert(1)", "https://user:secret@example.com/preview", `https://example.com/${"ä".repeat(400)}`]) {
       await agent.post(`${loginTargetsPath}/oriso`).send({ label: "Invalid", url }).expect(400);
     }
     await agent.post(`${loginTargetsPath}/oriso`).send({ label: "Duplicate", url: "https://dev.oriso.org/admin/login" }).expect(409, { error: "login_target_exists" });

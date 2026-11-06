@@ -1,8 +1,8 @@
 import type { FixtureQuality, LifecycleStatus, Project } from "./types";
 
 /**
- * Every filter of the account directory in one value, so it can travel
- * through the URL, be remembered between visits and be saved as a preset.
+ * All directory filters, including free text kept in the signed-in view.
+ * Structured filters can travel through the URL and be remembered between visits.
  */
 export interface FilterState {
   query: string;
@@ -115,28 +115,46 @@ export function coerceFilters(input: unknown): FilterState {
 export function loadLastFilters(): FilterState | null {
   try {
     const raw = localStorage.getItem(LAST_FILTERS_KEY);
-    return raw ? coerceFilters(JSON.parse(raw)) : null;
+    if (!raw) return null;
+    const filters = { ...coerceFilters(JSON.parse(raw)), query: "" };
+    return countActiveFilters(filters) === 0 ? null : filters;
   } catch { return null; }
 }
 
 export function saveLastFilters(state: FilterState) {
   try {
-    if (countActiveFilters(state) === 0) localStorage.removeItem(LAST_FILTERS_KEY);
-    else localStorage.setItem(LAST_FILTERS_KEY, JSON.stringify(state));
+    const filters = { ...state, query: "" };
+    if (countActiveFilters(filters) === 0) localStorage.removeItem(LAST_FILTERS_KEY);
+    else localStorage.setItem(LAST_FILTERS_KEY, JSON.stringify(filters));
   } catch { /* storage unavailable */ }
 }
 
 /** Filters from the current address bar, or null when the URL carries none. */
 export function readFiltersFromLocation(): FilterState | null {
   const params = new URLSearchParams(window.location.search);
+  params.delete(PARAM.query);
   return Array.from(params.keys()).some((key) => Object.values(PARAM).includes(key)) ? parseFilters(params) : null;
 }
 
 /** Mirrors the state into the address bar without adding history entries. */
 export function writeFiltersToLocation(state: FilterState) {
-  const search = serializeFilters(state).toString();
+  const search = serializeFilters({ ...state, query: "" }).toString();
+  replaceLocationQuery(search);
+}
+
+function replaceLocationQuery(search: string) {
   const next = `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`;
   if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", next);
+}
+
+/** Scrub text saved by older versions, even while no user is signed in. */
+export function clearPrivateSearchPersistence() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has(PARAM.query)) {
+    params.delete(PARAM.query);
+    replaceLocationQuery(params.toString());
+  }
+  saveLastFilters(loadLastFilters() ?? DEFAULT_FILTERS);
 }
 
 /** A named filter state saved per user on the server. */

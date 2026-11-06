@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useSyncExternalStore } from "react";
 import { toast } from "sonner";
+import { getActiveViewer } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,7 +14,7 @@ type AccountInlineNotesProps = {
   onSaved: (metadata: AccountMetadata) => void;
 };
 
-type Draft = { notes: string; locale: Locale } & (
+type Draft = { notes: string; locale: Locale; viewer: string | null } & (
   | { state: "pending" | "saving" | "error" }
   | { state: "saved"; updatedAt: string }
 );
@@ -38,6 +39,10 @@ function createNotesStore(email: string, onSaved: AccountInlineNotesProps["onSav
 
   async function save() {
     if (saving || timer !== undefined || draft?.state !== "pending") return;
+    if (draft.viewer !== getActiveViewer()) {
+      update(undefined);
+      return;
+    }
     const request: Draft = { ...draft, state: "saving" };
     saving = true;
     update(request);
@@ -78,7 +83,7 @@ function createNotesStore(email: string, onSaved: AccountInlineNotesProps["onSav
     change(notes: string, locale: Locale) {
       clearTimer();
       timer = setTimeout(flush, SAVE_DELAY_MS);
-      update({ notes, locale, state: "pending" });
+      update({ notes, locale, viewer: getActiveViewer(), state: "pending" });
     },
     flush,
     retry() {

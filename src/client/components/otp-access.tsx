@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
+import { cn } from "@/lib/utils";
 import { labelRole, labelLinkedEnvironment, t, type Locale } from "@/i18n";
 import type { AccountMetadata, AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
@@ -40,10 +41,11 @@ export function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null
   return ORISO_ENVIRONMENT_BY_DOMAIN[account.domain.trim().toLowerCase()] ?? null;
 }
 
-export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned, onMetadataSaved }: {
+export function OtpAccess({ account, locale, compact = false, favorite = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned, onMetadataSaved }: {
   account: AccountView;
   locale: Locale;
   compact?: boolean;
+  favorite?: boolean;
   canDeleteOrisoAdmin?: boolean;
   orisoProvisioningEnvironments?: HumanEntitlements["orisoProvisioning"]["environments"];
   onProvisioned?: (email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) => void;
@@ -51,11 +53,11 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
 }) {
   const linked = account.linkedAccess?.[0];
   const environment = orisoEnvironment(account);
-  const provisioningDialog = environment && orisoProvisioningEnvironments.includes(environment) && onProvisioned
+  const provisioningDialog = !favorite && environment && orisoProvisioningEnvironments.includes(environment) && onProvisioned
     && (!linked || (linked.project === "oriso" && linked.environment === environment))
     ? <OrisoProvisioningDialog account={account} locale={locale} hasLinkedAccess={Boolean(linked)} onProvisioned={onProvisioned} />
     : null;
-  const deletionDialogs = canDeleteOrisoAdmin && onProvisioned
+  const deletionDialogs = !favorite && canDeleteOrisoAdmin && onProvisioned
     ? account.linkedAccess?.filter((record) => record.project === "oriso" && record.kind === "admin"
       && (record.environment === "dev" || record.environment === "pre-dev")
       && orisoProvisioningEnvironments.includes(record.environment))
@@ -89,9 +91,9 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
     setSecretCopied(false);
     setSecretError(false);
   }, [account.email, linked?.id]);
-  if (linked?.deletionPending) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Löschung prüfen" : "Check ORISO deletion"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
-  if (linked?.deleted) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Konto gelöscht" : "ORISO account deleted"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
-  if (!linked) return <div className="flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div>;
+  if (linked?.deletionPending) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Löschung prüfen" : "Check ORISO deletion"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
+  if (linked?.deleted) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Konto gelöscht" : "ORISO account deleted"} ({linked.environment})</Badge>{provisioningDialog}{deletionDialogs}</div>;
+  if (!linked) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div>;
 
   async function requestApplicationSecret(): Promise<string | null> {
     const requestedEmail = account.email;
@@ -177,21 +179,15 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
 
   const hasQualifiedAdmin = linked.roles.some((role) => ["platform-admin", "tenant-admin", "agency-admin"].includes(role));
   const displayedRoles = hasQualifiedAdmin ? linked.roles.filter((role) => role !== "admin" && role !== "Admin") : linked.roles;
-  return <div className="flex min-w-0 flex-col gap-2">
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Badge variant="secondary">{labelLinkedEnvironment(locale, [linked]) ?? linked.environment}</Badge>
-      {displayedRoles.map((role) => <Badge key={role} variant="outline">{labelRole(locale, role)}</Badge>)}
-      {!compact && <code className="min-w-0 truncate text-xs">{linked.username}</code>}
-      {!compact && <Button asChild variant="ghost" size="sm"><a href={linked.loginUrl} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />{locale === "de" ? "App öffnen" : "Open app"}</a></Button>}
-    </div>
-    <div className="flex min-w-0 flex-col gap-1 rounded-lg border p-2">
+  const applicationAccess = <>
+    <div className={cn("flex min-w-0 flex-col gap-1", !favorite && "rounded-lg border p-2")}>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-muted-foreground">{locale === "de" ? "ORISO-App-Passwort" : "ORISO app password"}</span>
-        <Badge variant="secondary">{locale === "de" ? "Fest zugewiesen" : "Permanently assigned"}</Badge>
+        {!favorite && <Badge variant="secondary">{locale === "de" ? "Fest zugewiesen" : "Permanently assigned"}</Badge>}
       </div>
       <div className="flex min-w-0 items-center gap-1">
         <code className="min-w-0 flex-1 truncate text-xs">
-          {secretRevealed && displayedApplicationSecret ? displayedApplicationSecret : "••••••••••••••••"}
+          {secretRevealed && displayedApplicationSecret ? displayedApplicationSecret : favorite ? "••••••••" : "••••••••••••••••"}
         </code>
         <Button
           type="button"
@@ -218,20 +214,24 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
       </div>
     </div>
     {secretError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "App-Passwort konnte nicht abgerufen werden." : "Could not retrieve app password."}</p>}
+  </>;
+
+  const otpAccess = <>
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      {usesMailOtp ? <Button asChild variant="outline" size="sm">
+      {usesMailOtp ? <Button asChild variant={favorite ? "secondary" : "outline"} size="sm" className={favorite ? "w-full justify-start" : undefined}>
         <a href="https://mail.dreambau.com/" target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />Mail 2FA</a>
       </Button> : hasTotp
-        ? <Button type="button" variant="outline" size="sm" disabled={busy || otpDeliverySaving} onClick={requestOtp}>
+        ? <Button type="button" variant={favorite ? "secondary" : "outline"} size="sm" className={favorite ? "w-full justify-start" : undefined} disabled={busy || otpDeliverySaving} onClick={requestOtp}>
             <KeyRoundIcon data-icon="inline-start" />{busy ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…") : (locale === "de" ? "OTP abrufen" : "Get OTP")}
           </Button>
+        : favorite ? <Badge variant="secondary">{locale === "de" ? "App-2FA nicht eingerichtet" : "App 2FA not set up"}</Badge>
         : <TotpEnrollmentDialog
             email={account.email}
             linked={linked}
             locale={locale}
             onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
           />}
-      {onMetadataSaved && <Button type="button" variant="ghost" size="sm" disabled={busy || otpDeliverySaving}
+      {!favorite && onMetadataSaved && <Button type="button" variant="ghost" size="sm" disabled={busy || otpDeliverySaving}
         onClick={() => changeOtpDelivery(usesMailOtp ? "app" : "mail")}>
         {usesMailOtp
           ? (locale === "de" ? "App-2FA verwenden" : "Use App 2FA")
@@ -246,6 +246,22 @@ export function OtpAccess({ account, locale, compact = false, canDeleteOrisoAdmi
       {displayedResult?.source === "totp" && displayedExpiresAt !== undefined && <OtpValidity expiresAt={displayedExpiresAt} locale={locale} />}
       {error && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "OTP konnte nicht abgerufen werden." : "Could not retrieve OTP."}</p>}
     </>}
+  </>;
+
+  if (favorite) return <>
+    <div className="col-span-full flex min-w-0 flex-col gap-1.5">{otpAccess}</div>
+    <div className="min-w-0">{applicationAccess}</div>
+  </>;
+
+  return <div className="flex min-w-0 flex-col gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <Badge variant="secondary">{labelLinkedEnvironment(locale, [linked]) ?? linked.environment}</Badge>
+      {displayedRoles.map((role) => <Badge key={role} variant="outline">{labelRole(locale, role)}</Badge>)}
+      {!compact && <code className="min-w-0 truncate text-xs">{linked.username}</code>}
+      {!compact && <Button asChild variant="ghost" size="sm"><a href={linked.loginUrl} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />{locale === "de" ? "App öffnen" : "Open app"}</a></Button>}
+    </div>
+    {applicationAccess}
+    {otpAccess}
     {!compact && account.access?.latest && <p className="text-xs text-muted-foreground">{locale === "de" ? "Zuletzt verwendet" : "Last used"}: {new Date(account.access.latest.createdAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB")} · {account.access.latest.actorId}</p>}
   </div>;
 }

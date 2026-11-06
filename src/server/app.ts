@@ -300,13 +300,18 @@ export function createApp(options: AppOptions = {}) {
   const viewProject = (view: ReturnType<typeof accountViews>[number]) => accountTaxonomyProject(view.metadata.project, view.domain);
   const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
-  const markdown = () => generateMarkdown(accountViews(), database.getTaxonomies());
-  // A degraded boot must not overwrite a good export with an empty catalogue.
-  const regenerate = async () => {
-    if (!exportPath || accountViews().length === 0) return;
-    await writeMarkdownAtomically(exportPath, markdown());
+  let pendingExport = Promise.resolve();
+  const regenerate = () => {
+    if (!exportPath) return Promise.resolve();
+    const write = pendingExport.then(async () => {
+      const accounts = accountViews();
+      // A degraded boot must not overwrite a good export with an empty catalogue.
+      if (accounts.length) await writeMarkdownAtomically(exportPath, generateMarkdown(accounts, database.getTaxonomies()));
+    });
+    pendingExport = write.catch(() => {});
+    return write;
   };
-  void regenerate();
+  void regenerate().catch(() => console.error("account catalogue export refresh failed at startup"));
   const environments: TestEnvironment[] = ["local", "pre-dev", "dev", "production-test"];
   const runtimeRegistryProvider = () => {
     if (config.registryProvider !== "infisical" || !config.infisical) return createAccountRegistryProvider(accountLoader, database);
@@ -706,9 +711,12 @@ export function createApp(options: AppOptions = {}) {
       // with the same role; a different role would leave record and ORISO
       // identity in contradiction.
       const existingRecords = await registryProvider.list();
-      const existingRecord = orisoLinkedRecord(email, existingRecords, environment)
-        ?? linkedApplicationRecordsForEmail(email, existingRecords)
-          .find((record) => record.project === "oriso" && record.environment === environment) ?? null;
+      const matchingRecords = linkedApplicationRecordsForEmail(email, existingRecords)
+        .filter((record) => record.project === "oriso" && record.environment === environment);
+      if (matchingRecords.some((record) => database.isTestAccessLinkSuppressed(record))) {
+        return res.status(409).json({ error: "test_access_record_unlinked" });
+      }
+      const existingRecord = orisoLinkedRecord(email, existingRecords, environment) ?? matchingRecords.at(0) ?? null;
       if (body.applicationUsername !== undefined && existingRecord && body.applicationUsername !== existingRecord.username) {
         return res.status(409).json({ error: "record_username_conflict" });
       }
@@ -1099,11 +1107,12 @@ export function createApp(options: AppOptions = {}) {
   api.post("/accounts/bulk-status", requireActiveHumanSession, async (req, res) => {
     try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const allowed = new Set(scopedAccountViews(res.locals.humanUser).map((account) => account.email)); if (body.emails.some((email) => !allowed.has(email))) return res.status(403).json({ error: "scope_denied" }); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
   });
+  const accountMutationInProgress = (record: TestAccessRecord) =>
+    accountMutations.has(`${record.environment}:${record.email?.trim().toLowerCase()}`);
   const candidateCleanup = async (user: HumanUser) => {
     const records = await registryProvider.list();
     reconcileRecords(records);
     const protectedIds = new Set(Object.values(config.orisoProvisioningTargets).map((target) => target?.adminRecordId));
-    const leased = database.testRuns.leasedAccountIds();
     const candidates = scopedAccountViews(user).filter((account) =>
       viewProject(account) === "oriso" && account.metadata.lifecycleStatus === "delete_candidate"
     );
@@ -1111,7 +1120,8 @@ export function createApp(options: AppOptions = {}) {
       .filter((record) => record.project === "oriso" && (record.environment === "dev" || record.environment === "pre-dev"))
       .sort((left, right) => left.id.localeCompare(right.id));
     const eligible = linked.filter((record) =>
-      !protectedIds.has(record.id) && !leased.has(record.id) && !database.isOrisoAdminDeletionPending(record.id)
+      !protectedIds.has(record.id) && !database.testRuns.hasAccountLease(record)
+        && !database.isOrisoAdminDeletionPending(record.id) && !accountMutationInProgress(record)
     );
     const revision = createHash("sha256").update(JSON.stringify(
       eligible.map((record) => [record.id, record.email, record.createdAt, record.updatedAt])
@@ -1136,9 +1146,11 @@ export function createApp(options: AppOptions = {}) {
     try {
       const user = res.locals.humanUser as HumanUser;
       const { eligible, revision } = await candidateCleanup(user);
-      if (input.data.revision !== revision) return res.status(409).json({ error: "cleanup_preview_stale" });
+      if (input.data.revision !== revision || eligible.some(accountMutationInProgress)) {
+        return res.status(409).json({ error: "cleanup_preview_stale" });
+      }
       const count = database.unlinkTestAccessCandidates(eligible, user.id, (options.now?.() ?? new Date()).toISOString());
-      await regenerate();
+      await regenerate().catch(() => console.error("account catalogue export refresh failed after candidate cleanup"));
       res.json({ count });
     } catch (error) {
       if (error instanceof Error && error.message === "cleanup_preview_stale") {

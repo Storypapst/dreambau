@@ -7,10 +7,11 @@ import { AccountDirectory } from "../src/client/components/account-directory.js"
 import type { AccountView, Taxonomies } from "../src/client/types.js";
 
 const favoriteState = { favorites: [] as string[] };
-vi.mock("@/favorites", () => ({ useFavorites: () => ({ favorites: favoriteState.favorites, ready: true, error: false, toggle: vi.fn() }) }));
+vi.mock("@/favorites", () => ({ useFavorites: () => ({ favorites: favoriteState.favorites, ready: true, error: false, toggle: vi.fn(), move: vi.fn() }), useFavoriteDisplay: () => ({ display: { testContext: true, notes: true }, ready: true, error: null, setDisplay: vi.fn() }) }));
 vi.mock("@/api", () => ({ api: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
 // The table, cards and dialogs are covered elsewhere; here only the filter row matters.
 vi.mock("../src/client/components/account-table.js", () => ({ AccountTable: ({ accounts }: { accounts: unknown[] }) => <div data-testid="table">rows:{accounts.length}</div> }));
+vi.mock("../src/client/components/favorite-account-view.js", () => ({ FavoriteAccountView: ({ accounts }: { accounts: AccountView[] }) => <div data-testid="favorite-rows">{accounts.map((account) => account.email).join(",")}</div> }));
 vi.mock("../src/client/components/account-card.js", () => ({ AccountCard: () => null }));
 vi.mock("../src/client/components/account-detail-sheet.js", () => ({ AccountDetailSheet: () => null }));
 vi.mock("../src/client/components/metadata-editor.js", () => ({ MetadataEditor: () => null }));
@@ -59,6 +60,7 @@ describe("AccountDirectory filter state", () => {
     return act(async () => root.render(<AccountDirectory initialAccounts={initialAccounts} initialTaxonomies={taxonomies} locale={locale} onLocaleChange={() => undefined} onLogout={() => undefined} isAdmin entitlements={entitlements} />));
   }
   const rows = () => container.querySelector('[data-testid="table"]')?.textContent;
+  const favoriteRows = () => container.querySelector('[data-testid="favorite-rows"]')?.textContent;
   const reset = () => container.querySelector('[data-testid="reset-filters"]') as HTMLButtonElement | null;
 
   it("finds an account by documented agency without guessing unknown agencies", async () => {
@@ -116,7 +118,7 @@ describe("AccountDirectory filter state", () => {
     expect(window.location.search).toBe("");
   });
 
-  it("mirrors the search into the URL and localStorage and resets everything at once", async () => {
+  it("keeps search text private while remembering structured filters and resetting both", async () => {
     await render();
     const search = container.querySelector('input[placeholder]') as HTMLInputElement;
     await act(async () => {
@@ -124,13 +126,14 @@ describe("AccountDirectory filter state", () => {
       search.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(rows()).toBe("rows:1");
-    expect(window.location.search).toBe("?q=marge");
-    expect(JSON.parse(localStorage.getItem("testmails-filters") ?? "{}").query).toBe("marge");
+    expect(window.location.search).toBe("");
+    expect(localStorage.getItem("testmails-filters")).toBeNull();
     expect(reset()?.textContent).toContain("Zurücksetzen (1)");
 
     const orisoToggle = Array.from(container.querySelectorAll("button")).find((item) => item.textContent === "oriso.org");
     await act(async () => orisoToggle?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(window.location.search).toBe("?q=marge&domain=oriso.org");
+    expect(window.location.search).toBe("?domain=oriso.org");
+    expect(localStorage.getItem("testmails-filters")).not.toContain("marge");
     expect(reset()?.textContent).toContain("Zurücksetzen (2)");
 
     await act(async () => reset()?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
@@ -149,14 +152,14 @@ describe("AccountDirectory filter state", () => {
   });
 
   it("restores the last remembered filters when the URL carries none", async () => {
-    localStorage.setItem("testmails-filters", JSON.stringify({ query: "lisa" }));
+    localStorage.setItem("testmails-filters", JSON.stringify({ query: "lisa", domain: "oriso.org" }));
     await render();
-    expect(rows()).toBe("rows:1");
-    expect(window.location.search).toBe("?q=lisa");
+    expect(rows()).toBe("rows:2");
+    expect(window.location.search).toBe("?domain=oriso.org");
   });
 
   it("follows browser back and forward", async () => {
-    window.history.replaceState(null, "", "/testmails/?q=homer");
+    window.history.replaceState(null, "", "/testmails/?domain=dreambau.com");
     await render();
     expect(rows()).toBe("rows:1");
     window.history.replaceState(null, "", "/testmails/");
@@ -187,11 +190,12 @@ describe("AccountDirectory filter state", () => {
 
   it("resets favorites together with URL filters and restores every account", async () => {
     favoriteState.favorites = ["lisa.simpson@oriso.org"];
-    window.history.replaceState(null, "", "/testmails/?q=lisa&domain=oriso.org");
+    window.history.replaceState(null, "", "/testmails/?domain=oriso.org");
     await render();
     const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
     await act(async () => chip.click());
-    expect(rows()).toBe("rows:1");
+    expect(favoriteRows()).toBe("lisa.simpson@oriso.org");
+    expect(rows()).toBeUndefined();
     expect(chip.getAttribute("aria-pressed")).toBe("true");
     const resetLabel = reset()?.textContent;
 
@@ -202,7 +206,7 @@ describe("AccountDirectory filter state", () => {
     expect(reset()).toBeNull();
     expect(window.location.search).toBe("");
     expect(localStorage.getItem("testmails-filters")).toBeNull();
-    expect(resetLabel).toContain("Zurücksetzen (3)");
+    expect(resetLabel).toContain("Zurücksetzen (2)");
   });
 
   it("offers reset for favorites alone and restores every account", async () => {
@@ -210,7 +214,8 @@ describe("AccountDirectory filter state", () => {
     await render();
     const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
     await act(async () => chip.click());
-    expect(rows()).toBe("rows:1");
+    expect(favoriteRows()).toBe("lisa.simpson@oriso.org");
+    expect(rows()).toBeUndefined();
     expect(reset()?.textContent).toContain("Zurücksetzen (1)");
 
     await act(async () => reset()?.click());
@@ -227,7 +232,8 @@ describe("AccountDirectory filter state", () => {
     const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
     expect(chip.textContent).toContain("(1)");
     await act(async () => chip.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(rows()).toBe("rows:1");
+    expect(favoriteRows()).toBe("lisa.simpson@oriso.org");
+    expect(rows()).toBeUndefined();
     expect(window.location.search).toBe("");
   });
 });

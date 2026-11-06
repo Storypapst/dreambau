@@ -18,7 +18,8 @@ export const loginTargetUrlSchema = z.string().trim().max(2048)
   .pipe(z.url({ protocol: /^https$/ }))
   .transform((value) => new URL(value))
   .refine((url) => !url.username && !url.password, "Login URLs cannot contain credentials")
-  .transform((url) => url.href);
+  .transform((url) => url.href)
+  .pipe(z.string().max(2048));
 export const loginTargetSchema = z.object({ label: z.string().trim().min(1).max(120), url: loginTargetUrlSchema }).strict();
 export type LoginTarget = z.infer<typeof loginTargetSchema>;
 export const defaultOrisoLoginTargets: LoginTarget[] = [

@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setActiveViewer } from "../src/client/api.js";
 import { AccountInlineNotes } from "../src/client/components/account-inline-notes.js";
 import type { AccountMetadata, AccountView } from "../src/client/types.js";
 
@@ -65,6 +66,7 @@ describe("inline account notes", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     container.remove();
+    setActiveViewer(null);
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -141,6 +143,15 @@ describe("inline account notes", () => {
 
     expect(onSaved).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ notes: "Keep this note" }));
     expect(container.querySelector("[role=alert]")).toBeNull();
+  });
+
+  it("never flushes a draft under a different signed-in viewer", async () => {
+    setActiveViewer("first-viewer");
+    await act(async () => renderNotes());
+    await act(async () => setNotes(input(), "A private draft"));
+    setActiveViewer("second-viewer");
+    await act(async () => root.render(null));
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("adopts a later saved note from the full metadata editor", async () => {

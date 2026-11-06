@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, onUnauthorized } from "@/api";
 import { App } from "../src/client/app.js";
-vi.mock("@/api", () => ({ api: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
+vi.mock("@/api", () => ({ api: vi.fn(), setActiveViewer: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
 vi.mock("@/components/login-form", () => ({ LoginForm: ({ onAuthenticated }: { onAuthenticated: () => void }) => <button onClick={onAuthenticated}>Sign in</button> }));
 vi.mock("@/components/passkey-enrollment", () => ({ PasskeyEnrollment: () => <div>Enrollment</div> }));
 vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));

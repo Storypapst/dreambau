@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { api, onUnauthorized } from "@/api";
 import { App } from "../src/client/app.js";
 
-vi.mock("@/api", () => ({ api: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
+vi.mock("@/api", () => ({ api: vi.fn(), setActiveViewer: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
 vi.mock("@/components/account-directory", () => ({
   AccountDirectory: ({ initialAccounts, onLogout, isAdmin, entitlements }: { initialAccounts: unknown[]; onLogout: () => void; isAdmin: boolean; entitlements: { orisoProvisioning: { environments: string[] } } }) => <div data-testid="directory">accounts:{initialAccounts.length};admin:{String(isAdmin)};oriso:{entitlements.orisoProvisioning.environments.join(",")}<button onClick={onLogout}>logout</button></div>
 }));

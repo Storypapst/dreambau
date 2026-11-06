@@ -26,7 +26,7 @@ import {
   type TestAccessLinkReconciliation,
   type TestAccessRecordLink
 } from "./account-link.js";
-import type { TestAccessRecord } from "./infisical-provider.js";
+import { testAccessRecordSchema, type TestAccessRecord } from "./infisical-provider.js";
 import { secretNameForRecord } from "./infisical-import.js";
 
 const seeds = {
@@ -55,6 +55,7 @@ export interface RegistryDatabase {
   getApplicationPasswordSetAt(record: TestAccessRecord): string | undefined;
   reconcileTestAccessLinks(accounts: string[], records: TestAccessRecord[], seenAt?: string): TestAccessLinkReconciliation;
   getTestAccessLinks(email: string): TestAccessRecordLink[];
+  isTestAccessLinkSuppressed(record: Pick<TestAccessRecord, "id" | "createdAt">): boolean;
   unlinkTestAccessCandidates(records: TestAccessRecord[], actorId: string, now: string): number;
   allowTestAccessRelink(record: TestAccessRecord): void;
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
@@ -129,6 +130,20 @@ export function createDatabase(path: string): RegistryDatabase {
       record_id TEXT PRIMARY KEY,
       record_created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS test_access_unlink_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      record_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      environment TEXT
+    );
+    CREATE TRIGGER IF NOT EXISTS suppress_unlinked_test_access_record
+    BEFORE INSERT ON test_access_record_links
+    WHEN EXISTS (SELECT 1 FROM test_access_unlinked_records WHERE record_id=NEW.record_id)
+    BEGIN
+      SELECT RAISE(IGNORE);
+    END;
     CREATE TABLE IF NOT EXISTS coordination_item_metadata (
       item_id TEXT PRIMARY KEY,
       tags TEXT NOT NULL DEFAULT '[]',
@@ -223,6 +238,21 @@ export function createDatabase(path: string): RegistryDatabase {
     CREATE INDEX IF NOT EXISTS account_access_events_account ON account_access_events(account_id,created_at DESC,id DESC);
     CREATE INDEX IF NOT EXISTS test_access_record_links_email ON test_access_record_links(email,project,environment);
   `);
+  // Prior binaries read the access ledger using a closed enum.
+  sqlite.transaction(() => {
+    sqlite.prepare(`INSERT INTO test_access_unlink_audit (record_id,email,actor_id,created_at,environment)
+      SELECT account_id,email,actor_id,created_at,json_extract(context,'$.environment')
+      FROM account_access_events WHERE action='record_unlinked'`).run();
+    sqlite.prepare("DELETE FROM account_access_events WHERE action='record_unlinked'").run();
+  }).immediate();
+  const suppressedLink = sqlite.prepare<[string], { record_created_at: string }>(
+    "SELECT record_created_at FROM test_access_unlinked_records WHERE record_id=?"
+  );
+  const removeSuppression = sqlite.prepare("DELETE FROM test_access_unlinked_records WHERE record_id=? AND record_created_at=?");
+  const supersedesSuppression = (createdAt: string, suppressedAt: string) =>
+    testAccessRecordSchema.shape.createdAt.safeParse(createdAt).success
+    && testAccessRecordSchema.shape.createdAt.safeParse(suppressedAt).success
+    && Date.parse(createdAt) > Date.parse(suppressedAt);
   const metadataColumns = new Set((sqlite.prepare("PRAGMA table_info(account_metadata)").all() as Array<{ name: string }>).map((column) => column.name));
   if (!metadataColumns.has("project")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN project TEXT NOT NULL DEFAULT 'NONE'");
   if (!metadataColumns.has("agencies")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN agencies TEXT NOT NULL DEFAULT '[]'");
@@ -397,12 +427,16 @@ export function createDatabase(path: string): RegistryDatabase {
         .sort((left, right) => left.id.localeCompare(right.id));
       const mappedEmails = new Set<string>();
       const unmappedRecords: string[] = [];
-      const isUnlinked = sqlite.prepare("SELECT 1 FROM test_access_unlinked_records WHERE record_id=? AND record_created_at=?");
       const transaction = sqlite.transaction(() => {
         for (const record of applicationRecords) {
-          if (isUnlinked.get(record.id, record.createdAt)) {
-            unmappedRecords.push(record.id);
-            continue;
+          const suppressed = suppressedLink.get(record.id);
+          if (suppressed) {
+            if (!supersedesSuppression(record.createdAt, suppressed.record_created_at)) {
+              unmappedRecords.push(record.id);
+              continue;
+            }
+            // The old binary's INSERT carries only the record ID.
+            removeSuppression.run(record.id, suppressed.record_created_at);
           }
           const email = record.email.trim().toLowerCase();
           if (!knownAccounts.has(email)) {
@@ -432,44 +466,47 @@ export function createDatabase(path: string): RegistryDatabase {
           mappedEmails.add(email);
         }
       });
-      transaction();
+      transaction.immediate();
       return {
         linked: applicationRecords.length - unmappedRecords.length,
         unmappedRecords,
         unmappedAccounts: [...knownAccounts.keys()].filter((email) => !mappedEmails.has(email)).sort()
       };
     },
+    isTestAccessLinkSuppressed(record) {
+      const suppressed = suppressedLink.get(record.id);
+      return Boolean(suppressed && !supersedesSuppression(record.createdAt, suppressed.record_created_at));
+    },
     unlinkTestAccessCandidates(records, actorId, now) {
-      const unlink = sqlite.prepare("DELETE FROM test_access_record_links WHERE record_id=? AND email=?");
+      const unlink = sqlite.prepare(`DELETE FROM test_access_record_links
+        WHERE record_id=? AND email=? AND project=? AND environment=? AND kind=?`);
       const remember = sqlite.prepare(`INSERT INTO test_access_unlinked_records (record_id, record_created_at)
         VALUES (?,?) ON CONFLICT(record_id) DO UPDATE SET record_created_at=excluded.record_created_at`);
+      const audit = sqlite.prepare(`INSERT INTO test_access_unlink_audit (record_id,email,actor_id,created_at,environment)
+        VALUES (?,?,?,?,?)`);
       return sqlite.transaction(() => {
-        const leased = api.testRuns.leasedAccountIds();
         const affected = new Set<string>();
-        let count = 0;
         for (const record of records) {
           const email = record.email?.trim().toLowerCase();
-          if (!email || leased.has(record.id) || api.getMetadata(email).lifecycleStatus !== "delete_candidate") {
+          if (!email || api.testRuns.hasAccountLease(record) || api.isOrisoAdminDeletionPending(record.id)
+            || api.getMetadata(email).lifecycleStatus !== "delete_candidate") {
             throw new Error("cleanup_preview_stale");
           }
-          if (unlink.run(record.id, email).changes !== 1) throw new Error("cleanup_preview_stale");
+          if (unlink.run(record.id, email, record.project, record.environment, record.kind).changes !== 1) {
+            throw new Error("cleanup_preview_stale");
+          }
           remember.run(record.id, record.createdAt);
-          api.recordAccountAccess({
-            accountId: record.id, email, actorId, action: "record_unlinked", createdAt: now,
-            context: { environment: record.environment }
-          });
+          audit.run(record.id, email, actorId, now, record.environment);
           affected.add(email);
-          count += 1;
         }
         for (const email of affected) {
           if (!api.getTestAccessLinks(email).length) api.upsertMetadata(email, { lifecycleStatus: "unused" });
         }
-        return count;
-      })();
+        return records.length;
+      }).immediate();
     },
     allowTestAccessRelink(record) {
-      sqlite.prepare("DELETE FROM test_access_unlinked_records WHERE record_id=? AND record_created_at=?")
-        .run(record.id, record.createdAt);
+      removeSuppression.run(record.id, record.createdAt);
     },
     getTestAccessLinks(email) {
       return (sqlite.prepare(`SELECT email,record_id,secret_name,project,environment,kind,last_seen_at

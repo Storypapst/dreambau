@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { api, onUnauthorized } from "@/api";
+import { api, onUnauthorized, setActiveViewer } from "@/api";
 import { ProgrammeGuide } from "@/components/programme-guide";
 import { LoginForm } from "@/components/login-form";
 import { AccountDirectory } from "@/components/account-directory";
@@ -13,6 +13,7 @@ import type { AccountView, HumanUser, Taxonomies } from "@/types";
 import type { Locale } from "@/i18n";
 import { PasskeyEnrollment } from "@/components/passkey-enrollment";
 import { clearRememberedLoginEmail } from "@/login-hint";
+import { clearPrivateSearchPersistence } from "@/filter-state";
 
 type Session = { authenticated: false } | { authenticated: true; method: "password-bootstrap" | "passkey" | "recovery" | "email-otp"; userId: string | null };
 
@@ -30,8 +31,12 @@ export function App() {
   const [loadError, setLoadError] = useState(false);
   const [currentUser, setCurrentUser] = useState<HumanUser | null>(null);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
-  async function refreshSession() { setSession(await api<Session>("/auth/session").catch(() => ({ authenticated: false } as const))); }
-  useEffect(() => { void refreshSession(); }, []);
+  async function refreshSession() {
+    const current = await api<Session>("/auth/session").catch(() => ({ authenticated: false } as const));
+    setActiveViewer(current.authenticated ? current.userId : null);
+    setSession(current);
+  }
+  useEffect(() => { clearPrivateSearchPersistence(); void refreshSession(); }, []);
   const sessionRef = useRef<Session | null>(null);
   useEffect(() => { sessionRef.current = session; }, [session]);
   useEffect(() => onUnauthorized(() => {
@@ -42,6 +47,9 @@ export function App() {
         ? "Die Sitzung ist abgelaufen. Bitte erneut anmelden."
         : "The session has expired. Please sign in again.");
     }
+    // Keep the previous viewer bound until sign-in, including during child cleanup.
+    sessionRef.current = { authenticated: false };
+    clearPrivateSearchPersistence();
     setSession({ authenticated: false });
     setAccounts([]);
     setCurrentUser(null);
@@ -61,7 +69,7 @@ export function App() {
     return () => { current = false; };
   }, [session, guideId]);
   function setLocale(locale: Locale) { localStorage.setItem("testmails-locale", locale); document.documentElement.lang = locale; setLocaleState(locale); }
-  function loggedOut() { clearRememberedLoginEmail(); setSession({ authenticated: false }); setAccounts([]); setCurrentUser(null); setAccountsLoaded(false); }
+  function loggedOut() { clearPrivateSearchPersistence(); clearRememberedLoginEmail(); setSession({ authenticated: false }); setAccounts([]); setCurrentUser(null); setAccountsLoaded(false); }
   const needsEnrollment = session?.authenticated && session.method !== "passkey" && session.method !== "email-otp";
   if (guideId) return <TooltipProvider>
     <div className="teamwork-guide-theme">
@@ -75,5 +83,5 @@ export function App() {
       <Toaster />
     </div>
   </TooltipProvider>;
-  return <TooltipProvider>{needsEnrollment ? <PasskeyEnrollment locale={locale} onComplete={refreshSession} /> : session?.authenticated && accountsLoaded && currentUser ? <AccountDirectory initialAccounts={accounts} initialTaxonomies={taxonomies} locale={locale} onLocaleChange={setLocale} isAdmin={currentUser.role === "admin"} canManagePasskeys={session.method === "passkey"} entitlements={currentUser.entitlements} projects={currentUser.projects} onLogout={() => { clearRememberedLoginEmail(); setSession({ authenticated: false }); setAccounts([]); setCurrentUser(null); setAccountsLoaded(false); }} /> : session?.authenticated === false ? <LoginForm locale={locale} onLocaleChange={setLocale} onAuthenticated={refreshSession} /> : loadError ? <main className="grid min-h-screen place-items-center p-6"><Alert variant="destructive" className="max-w-lg"><AlertTitle>{locale === "de" ? "Konten konnten nicht geladen werden" : "Accounts could not be loaded"}</AlertTitle><AlertDescription>{locale === "de" ? "Bitte Seite neu laden oder den Serverstatus prüfen." : "Reload the page or check the server status."}</AlertDescription></Alert></main> : <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-4 p-8"><Skeleton className="h-16 w-2/3" /><Skeleton className="h-12 w-full" /><Skeleton className="h-72 w-full" /></main>}<Toaster /></TooltipProvider>;
+  return <TooltipProvider>{needsEnrollment ? <PasskeyEnrollment locale={locale} onComplete={refreshSession} /> : session?.authenticated && accountsLoaded && currentUser ? <AccountDirectory key={currentUser.id} initialAccounts={accounts} initialTaxonomies={taxonomies} locale={locale} onLocaleChange={setLocale} isAdmin={currentUser.role === "admin"} canManagePasskeys={session.method === "passkey"} entitlements={currentUser.entitlements} projects={currentUser.projects} onLogout={loggedOut} /> : session?.authenticated === false ? <LoginForm locale={locale} onLocaleChange={setLocale} onAuthenticated={refreshSession} /> : loadError ? <main className="grid min-h-screen place-items-center p-6"><Alert variant="destructive" className="max-w-lg"><AlertTitle>{locale === "de" ? "Konten konnten nicht geladen werden" : "Accounts could not be loaded"}</AlertTitle><AlertDescription>{locale === "de" ? "Bitte Seite neu laden oder den Serverstatus prüfen." : "Reload the page or check the server status."}</AlertDescription></Alert></main> : <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-4 p-8"><Skeleton className="h-16 w-2/3" /><Skeleton className="h-12 w-full" /><Skeleton className="h-72 w-full" /></main>}<Toaster /></TooltipProvider>;
 }

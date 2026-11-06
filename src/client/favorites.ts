@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/api";
 
-const PREFERENCE_PATH = "/auth/me/preferences/favorite-accounts";
-// A reopened directory must read after a dispatched write has settled.
-let dispatchedWrite: Promise<void> = Promise.resolve();
+type FavoritePreference = "favorite-accounts" | "favorite-display";
+
+// A reopened directory waits for the last dispatched write for each preference.
+const dispatchedWrites: Partial<Record<FavoritePreference, Promise<void>>> = {};
+
+export type FavoriteDisplay = {
+  testContext: boolean;
+  notes: boolean;
+};
 
 /** Normalises the server value of the `favorite-accounts` preference into a list of e-mail addresses. */
 export function coerceFavorites(input: unknown): string[] {
@@ -16,71 +22,110 @@ export function toggleFavorite(favorites: string[], email: string): string[] {
   return favorites.includes(email) ? favorites.filter((item) => item !== email) : [...favorites, email];
 }
 
-/**
- * Favorite accounts of the signed-in employee. They live on the server per
- * user (like saved filters), so the same stars appear on every device. A
- * toggle shows at once. Saves run in order; a failed final save rolls back
- * to the last confirmed value without undoing newer queued choices.
- */
-export function useFavorites() {
-  const [favorites, setFavorites] = useState<string[]>([]);
+function coerceFavoriteDisplay(input: unknown): FavoriteDisplay {
+  if (!input || typeof input !== "object") return { testContext: true, notes: true };
+  return {
+    testContext: !("testContext" in input) || input.testContext !== false,
+    notes: !("notes" in input) || input.notes !== false
+  };
+}
+
+function useFavoritePreference<T>(key: FavoritePreference, coerce: (input: unknown) => T) {
+  const path = `/auth/me/preferences/${key}`;
+  const [value, setValue] = useState(() => coerce(null));
   const [ready, setReady] = useState(false);
-  const [error, setError] = useState(false);
-  const latest = useRef<string[]>([]);
-  const confirmed = useRef<string[]>([]);
-  const loaded = useRef(false);
-  const live = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const latest = useRef(value);
+  const confirmed = useRef(value);
+  const loadedSession = useRef<object | null>(null);
   const revision = useRef(0);
   const pending = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     let active = true;
-    live.current = true;
-    dispatchedWrite
+    const session = {};
+    (dispatchedWrites[key] ?? Promise.resolve())
       .then(async () => {
         if (!active) return;
-        const result = await api<{ value: unknown }>(PREFERENCE_PATH);
+        const result = await api<{ value: unknown }>(path);
         if (!active) return;
-        latest.current = confirmed.current = coerceFavorites(result.value);
-        loaded.current = true;
-        setFavorites(latest.current);
+        latest.current = confirmed.current = coerce(result.value);
+        loadedSession.current = session;
+        setValue(latest.current);
         setReady(true);
       })
-      .catch(() => { if (active) setError(true); });
-    return () => { active = false; live.current = false; loaded.current = false; };
-  }, []);
+      .catch(() => { if (active) setError("load_failed"); });
+    return () => { active = false; loadedSession.current = null; };
+  }, [coerce, key, path]);
 
-  const toggle = useCallback(async (email: string) => {
-    // Never replace an unknown server preference with a list built from [].
-    if (!loaded.current) return;
+  const update = useCallback(async (change: (current: T) => T) => {
+    // Wait for the stored preference before composing changes with it.
+    const session = loadedSession.current;
+    if (!session) return;
+    const next = change(latest.current);
+    if (next === latest.current) return;
     const currentRevision = ++revision.current;
-    const next = toggleFavorite(latest.current, email);
     latest.current = next;
-    setFavorites(next); setError(false);
+    setValue(next);
+    setError(null);
     pending.current = pending.current.then(async () => {
       // The cookie may belong to another employee after logout. Cancel old intent.
-      if (!live.current) return;
+      if (session !== loadedSession.current) return;
       try {
-        const request = api<{ value: unknown }>(PREFERENCE_PATH, { method: "PUT", body: JSON.stringify({ value: next }) });
-        dispatchedWrite = request.then(() => {}, () => {});
+        const request = api<{ value: unknown }>(path, { method: "PUT", body: JSON.stringify({ value: next }) });
+        dispatchedWrites[key] = request.then(() => {}, () => {});
         const result = await request;
-        confirmed.current = coerceFavorites(result.value);
-        if (live.current && currentRevision === revision.current) {
-          latest.current = confirmed.current;
-          setFavorites(latest.current);
-          setError(false);
-        }
-      } catch {
-        if (!live.current) return;
+        if (session !== loadedSession.current) return;
+        confirmed.current = coerce(result.value);
         if (currentRevision === revision.current) {
           latest.current = confirmed.current;
-          setFavorites(latest.current);
+          setValue(latest.current);
+          setError(null);
         }
-        setError(true);
+      } catch {
+        if (session !== loadedSession.current) return;
+        if (currentRevision === revision.current) {
+          latest.current = confirmed.current;
+          setValue(latest.current);
+        }
+        setError("save_failed");
       }
     });
     await pending.current;
-  }, []);
+  }, [coerce, key, path]);
 
-  return { favorites, ready, error, toggle };
+  return { value, ready, error, update };
+}
+
+/**
+ * The signed-in employee's favorites in their chosen order. Saves run in
+ * order, and a failed final save rolls back to the last confirmed value.
+ */
+export function useFavorites() {
+  const { value: favorites, ready, error, update } = useFavoritePreference("favorite-accounts", coerceFavorites);
+  const toggle = useCallback((email: string) => update((current) => toggleFavorite(current, email)), [update]);
+  const move = useCallback((email: string, direction: -1 | 1, visible?: ReadonlySet<string>) => update((current) => {
+    const ordered = visible ? current.filter((address) => visible.has(address)) : current;
+    const from = current.indexOf(email);
+    const visibleIndex = ordered.indexOf(email);
+    if (visibleIndex < 0) return current;
+    const target = ordered[visibleIndex + direction];
+    if (target === undefined) return current;
+    const to = current.indexOf(target);
+    const next = [...current];
+    next[from] = current[to];
+    next[to] = email;
+    return next;
+  }), [update]);
+
+  return { favorites, ready, error: error !== null, toggle, move };
+}
+
+export function useFavoriteDisplay() {
+  const { value: display, ready, error, update } = useFavoritePreference("favorite-display", coerceFavoriteDisplay);
+  const setDisplay = useCallback((patch: Partial<FavoriteDisplay>) => update((current) => ({
+    testContext: patch.testContext ?? current.testContext,
+    notes: patch.notes ?? current.notes
+  })), [update]);
+  return { display, ready, error, setDisplay };
 }

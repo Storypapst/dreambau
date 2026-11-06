@@ -171,10 +171,8 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
     } catch (error) { next(error); }
   });
 
-  // Per-user preferences (saved filter presets and favorite accounts). Any user-bound
-  // session may read and write its own; the value is validated per key so the
-  // table never becomes a dumping ground.
-  const preferenceKeySchema = z.enum(["filter-presets", "favorite-accounts"]);
+  // An active employee session may read and write its own preferences.
+  const preferenceKeySchema = z.enum(["filter-presets", "favorite-accounts", "favorite-display"]);
   const filterStateSchema = z.object({
     query: z.string().max(200).default(""),
     domain: z.string().max(200).default("all"),
@@ -188,22 +186,20 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
   });
   const preferenceValueSchemas: Record<z.infer<typeof preferenceKeySchema>, z.ZodTypeAny> = {
     "filter-presets": z.array(z.object({ id: z.string().min(1).max(64), name: z.string().trim().min(1).max(60), filters: filterStateSchema })).max(50),
-    "favorite-accounts": z.array(z.string().trim().min(3).max(200)).max(300).transform((emails) => [...new Set(emails)])
+    "favorite-accounts": z.array(z.string().trim().min(3).max(200)).max(300).transform((emails) => [...new Set(emails)]),
+    "favorite-display": z.strictObject({ testContext: z.boolean(), notes: z.boolean() })
   };
-  const preferenceOwner = (res: any): string | null => {
-    const principal = res.locals.session as SessionPrincipal;
-    return principal.userId ?? null;
+  const preferenceOwner = (res: Response): string | null => {
+    const { method, userId } = res.locals.session as SessionPrincipal;
+    if ((method !== "passkey" && method !== "email-otp") || !userId) return null;
+    return options.store.getUser(userId)?.status === "active" ? userId : null;
   };
 
   const historyCursor = z.string().regex(/^[1-9]\d*$/).transform(Number).pipe(z.number().int().safe());
   const historyPath = "/auth/me/search-history";
-  const searchOwner = (res: Response) => {
-    const userId = preferenceOwner(res);
-    return userId && options.store.getUser(userId)?.status === "active" ? userId : null;
-  };
   router.get(historyPath, options.requireSession, (req, res) => {
     res.set("Cache-Control", "no-store");
-    const userId = searchOwner(res);
+    const userId = preferenceOwner(res);
     if (!userId) return res.status(403).json({ error: "user_session_required" });
     const before = historyCursor.optional().safeParse(req.query.before);
     if (!before.success) return res.status(400).json({ error: "invalid_request" });
@@ -211,7 +207,7 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
   });
   router.post(historyPath, options.requireSession, (req, res) => {
     res.set("Cache-Control", "no-store");
-    const userId = searchOwner(res);
+    const userId = preferenceOwner(res);
     if (!userId) return res.status(403).json({ error: "user_session_required" });
     const input = z.object({ phrase: z.string().trim().min(1).max(200) }).strict().safeParse(req.body);
     if (!input.success) return res.status(400).json({ error: "invalid_request" });
@@ -220,7 +216,7 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
   });
   router.delete(`${historyPath}/:id`, options.requireSession, (req, res) => {
     res.set("Cache-Control", "no-store");
-    const userId = searchOwner(res);
+    const userId = preferenceOwner(res);
     if (!userId) return res.status(403).json({ error: "user_session_required" });
     const id = historyCursor.safeParse(req.params.id);
     if (!id.success) return res.status(400).json({ error: "invalid_request" });

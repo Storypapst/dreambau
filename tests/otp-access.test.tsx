@@ -56,6 +56,33 @@ describe("OtpAccess", () => {
     expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
   });
 
+  it("puts app OTP before the masked application password in Favorites", async () => {
+    const linked = account.linkedAccess![0];
+    vi.mocked(api).mockResolvedValue({ accountId: linked.id, source: "totp", code: "287082", generatedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 30_000).toISOString() });
+    await act(async () => root.render(<OtpAccess account={account} locale="en" favorite />));
+
+    const otp = [...container.querySelectorAll("button")].find((button) => button.textContent === "Get OTP");
+    const password = container.querySelector('button[aria-label="Show ORISO app password"]')!;
+    expect(otp?.compareDocumentPosition(password)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(api).not.toHaveBeenCalled();
+
+    await act(async () => otp!.click());
+    expect(container.textContent).toContain("287082");
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+  });
+
+  it("shows Mail 2FA or an enrollment status in Favorites without setup controls", async () => {
+    const linked = { ...account.linkedAccess![0], hasTotp: false };
+    await act(async () => root.render(<OtpAccess account={{ ...account, linkedAccess: [linked] }} locale="en" favorite />));
+    expect(container.textContent).toContain("App 2FA not set up");
+    expect(container.textContent).not.toContain("Set up 2FA");
+
+    await act(async () => root.render(<OtpAccess account={{ ...account, metadata: { ...account.metadata, otpDelivery: "mail" } }} locale="en" favorite />));
+    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Mail 2FA");
+    expect(webmail?.href).toBe("https://mail.dreambau.com/");
+    expect(container.textContent).not.toContain("Get OTP");
+  });
+
   it("remembers Mail 2FA for this account and lets the user switch back to app codes", async () => {
     const onMetadataSaved = vi.fn();
     const mailMetadata = { ...account.metadata, otpDelivery: "mail" as const };

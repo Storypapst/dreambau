@@ -91,6 +91,56 @@ describe("MetadataEditor", () => {
     }
   });
 
+  it("preserves an open draft during a same-account refresh and submits only edited fields", async () => {
+    const onSaved = vi.fn();
+    const refreshed = { ...account, metadata: { ...account.metadata, notes: "Saved from the inline editor", updatedAt: "2026-08-14T00:00:00.000Z" } };
+    const render = (current: AccountView, open = true) => act(async () => root.render(
+      <MetadataEditor account={current} taxonomies={{ roles: ["Träger"], topics: [], conversationTypes: [] }} locale="en"
+        open={open} onOpenChange={() => undefined} onSaved={onSaved} />
+    ));
+    vi.mocked(api).mockResolvedValue({ ...refreshed.metadata, shippedVersion: "2.04" });
+    await render(account);
+    const version = document.querySelector<HTMLInputElement>("#version")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(version, "2.04");
+      version.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await render(refreshed);
+    expect(version.value).toBe("2.04");
+
+    await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(JSON.parse(vi.mocked(api).mock.calls[0][1]!.body as string)).toEqual({ shippedVersion: "2.04" });
+    await render(refreshed, false);
+    await render(refreshed);
+    expect(document.querySelector<HTMLTextAreaElement>("#notes")?.value).toBe("Saved from the inline editor");
+  });
+
+  it("offers conversation types for the draft project and keeps legacy selections removable", async () => {
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+    try {
+      const selected = { ...account, metadata: { ...account.metadata, conversationTypes: ["Previously selected"] } };
+      await act(async () => root.render(<MetadataEditor account={selected} taxonomies={{ roles: [], topics: [], conversationTypes: ["Global default"] }}
+        projectConversationTypes={{ oriso: ["ORISO type"], orimo: ["ORIMO type"] }} locale="en"
+        open onOpenChange={() => undefined} onSaved={() => undefined} />));
+      const project = [...document.querySelectorAll('[role="combobox"]')].find((node) => node.textContent === "ORISO")!;
+      await act(async () => project.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      const orimo = [...document.querySelectorAll('[role="option"]')].find((node) => node.textContent === "ORIMO")!;
+      expect(orimo).toBeTruthy();
+      await act(async () => orimo.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+      const choose = [...document.querySelectorAll("button")].find((button) => button.textContent === "Choose types")!;
+      await act(async () => choose.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      const options = [...document.querySelectorAll('[role="option"]')].map((node) => node.textContent);
+      expect(options).toEqual(["ORIMO type", "Previously selected"]);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousScroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScroll);
+      else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+  });
+
   it("places the save action before the first editable field", async () => {
     await act(async () => root.render(
       <MetadataEditor

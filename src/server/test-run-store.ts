@@ -198,6 +198,16 @@ export class TestRunStore {
     );
   }
 
+  hasAccountLease(record: { id: string; email?: string | null; project: TestRun["project"]; environment: TestRun["targetEnvironment"] }): boolean {
+    return Boolean(this.sqlite.prepare(`SELECT 1
+      FROM account_leases AS lease
+      JOIN test_runs AS run ON run.id = lease.run_id
+      LEFT JOIN test_run_accounts AS account ON account.run_id = lease.run_id AND account.account_id = lease.account_id
+      WHERE lease.account_id = ?
+        OR (run.project = ? AND run.target_environment = ? AND lower(trim(account.email)) = ?)
+      LIMIT 1`).get(record.id, record.project, record.environment, record.email?.trim().toLowerCase() ?? null));
+  }
+
   events(runId: string): TestRunEvent[] {
     const rows = this.sqlite.prepare(
       "SELECT id,run_id,event_type,actor_type,actor_id,created_at,payload FROM test_run_events WHERE run_id=? ORDER BY id"

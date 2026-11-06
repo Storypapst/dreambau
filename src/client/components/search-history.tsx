@@ -29,6 +29,7 @@ export function SearchHistory({ locale, onPick }: { locale: Locale; onPick: (phr
   const [failed, setFailed] = useState(false);
   const [removing, setRemoving] = useState<number | null>(null);
   const loading = useRef(false);
+  const deletion = useRef<Promise<void> | null>(null);
   const generation = useRef(0);
 
   async function load(before?: number) {
@@ -38,6 +39,9 @@ export function SearchHistory({ locale, onPick }: { locale: Locale; onPick: (phr
     setBusy(true);
     setFailed(false);
     try {
+      // A reopened history must read after its pending deletion has settled.
+      if (deletion.current) await deletion.current;
+      if (request !== generation.current) return;
       const page = await api<Page>(before === undefined ? endpoint : `${endpoint}?before=${before}`);
       if (request !== generation.current) return;
       setEntries((current) => before === undefined ? page.entries : [...current, ...page.entries]);
@@ -56,7 +60,6 @@ export function SearchHistory({ locale, onPick }: { locale: Locale; onPick: (phr
     setOpen(value);
     generation.current += 1;
     loading.current = false;
-    setRemoving(null);
     if (value) {
       setEntries([]);
       setNextBefore(null);
@@ -64,17 +67,16 @@ export function SearchHistory({ locale, onPick }: { locale: Locale; onPick: (phr
     }
   }
 
-  async function remove(id: number) {
-    const request = generation.current;
+  function remove(id: number) {
+    if (deletion.current) return;
     setRemoving(id);
-    try {
-      await api(`${endpoint}/${id}`, { method: "DELETE" });
-      if (request === generation.current) setEntries((current) => current.filter((entry) => entry.id !== id));
-    } catch {
-      if (request === generation.current) toast.error(de ? "Suchbegriff konnte nicht gelöscht werden." : "Could not remove the search phrase.");
-    } finally {
-      if (request === generation.current) setRemoving(null);
-    }
+    deletion.current = api(`${endpoint}/${id}`, { method: "DELETE" })
+      .then(() => setEntries((current) => current.filter((entry) => entry.id !== id)))
+      .catch(() => { toast.error(de ? "Suchbegriff konnte nicht gelöscht werden." : "Could not remove the search phrase."); })
+      .finally(() => {
+        deletion.current = null;
+        setRemoving(null);
+      });
   }
 
   return (
