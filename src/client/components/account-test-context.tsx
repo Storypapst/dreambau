@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { PencilIcon, PlusIcon, WandSparklesIcon } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/api";
 import { testFixtureDateSuffix } from "@/test-fixture-names";
 import { labelConversation, type Locale } from "@/i18n";
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { cancelPendingAccountCopy } from "./account-quick-copy";
 import { AccountLoginTarget, type LoginTarget, type ProjectLoginTargets } from "./account-login-target";
 import { MultiSelect } from "./multi-select";
 import { saveMetadataPatch } from "./inline-metadata-controls";
@@ -37,6 +39,8 @@ export function conversationTypesEndpoint(project: TeamProject) {
 }
 
 const projectLabels = { oriso: "ORISO", orimo: "ORIMO", dreambau: "Dreambau" };
+const contextNameLimit = 255;
+const agencyDraftLimit = 1000;
 const emptyDraft = { carrier: "", agencies: "", postalCode: "", supervisor: "" };
 
 export interface AccountTestContextOptions {
@@ -66,21 +70,38 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const fields = [
-    { key: "carrier", label: de ? "Träger" : "Provider", value: metadata.carrier, max: 255 },
-    { key: "agencies", label: de ? "Beratungsstellen" : "Counselling centres", value: metadata.agencies?.join(", "), max: 1000 },
+    { key: "carrier", label: de ? "Träger" : "Provider", value: metadata.carrier, max: contextNameLimit },
+    { key: "agencies", label: de ? "Beratungsstellen" : "Counselling centres", value: metadata.agencies?.join(", "), max: agencyDraftLimit },
     { key: "postalCode", label: de ? "Postleitzahl" : "Postcode", value: metadata.postalCode, max: 16 },
     { key: "supervisor", label: "Supervisor", value: metadata.supervisor, max: 255 }
   ] as const;
 
-  function generateName(key: "carrier" | "agencies") {
-    const kind = key === "carrier" ? "Träger" : "Beratung";
-    const name = `QA ${account.displayName} ${kind}${testFixtureDateSuffix()}`;
-    setDraft((current) => {
-      if (key === "carrier") return { ...current, carrier: name };
-      const names = current.agencies.split("\n").map((value) => value.trim()).filter(Boolean);
-      if (names.includes(name)) return current;
-      return { ...current, agencies: [...names, name].join("\n") };
-    });
+  async function generateName(key: "carrier" | "agencies") {
+    const prefix = "QA ";
+    const ending = ` ${key === "carrier" ? "Träger" : "Beratung"}${testFixtureDateSuffix()}`;
+    const displayName = account.displayName.slice(0, contextNameLimit - prefix.length - ending.length).trim();
+    const name = `${prefix}${displayName}${ending}`;
+    setError("");
+    if (key === "carrier") {
+      setDraft({ ...draft, carrier: name });
+    } else {
+      const names = draft.agencies.split("\n").map((value) => value.trim()).filter(Boolean);
+      if (!names.includes(name)) {
+        const agencies = [...names, name].join("\n");
+        if (agencies.length > agencyDraftLimit) {
+          setError(de ? "Bitte kürze die Liste der Beratungsstellen." : "Please shorten the list of counselling centres.");
+          return;
+        }
+        setDraft({ ...draft, agencies });
+      }
+    }
+    cancelPendingAccountCopy();
+    try {
+      await navigator.clipboard.writeText(name);
+      toast.success(de ? "Name kopiert" : "Name copied");
+    } catch {
+      toast.error(de ? "Name erzeugt. Kopieren fehlgeschlagen." : "Name generated. Could not copy it.");
+    }
   }
 
   async function saveDetails(event: FormEvent) {
@@ -169,7 +190,7 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
                     )}
                   </FieldLabel>
                   {canGenerate && <Button type="button" variant="outline" size="icon-sm"
-                    aria-label={generateLabel} title={generateLabel} disabled={busy} onClick={() => generateName(key)}>
+                    aria-label={generateLabel} title={generateLabel} disabled={busy} onClick={() => void generateName(key)}>
                     <WandSparklesIcon />
                   </Button>}
                 </Field>;
