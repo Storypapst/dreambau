@@ -1,6 +1,7 @@
 import { createOrisoIdentityObserver, type OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import { loadProgrammeGuide } from "./teamwork-guides.js";
 import { installOrisoAdminDeletionRoutes } from "./oriso-admin-deletion-router.js";
+import { createHash } from "node:crypto";
 import cookieParser from "cookie-parser";
 import express from "express";
 import path from "node:path";
@@ -1100,6 +1101,54 @@ export function createApp(options: AppOptions = {}) {
   });
   api.post("/accounts/bulk-status", requireActiveHumanSession, async (req, res) => {
     try { const body = z.object({ emails: z.array(z.string().email()).min(1), status: z.enum(lifecycleStatuses) }).parse(req.body); const allowed = new Set(scopedAccountViews(res.locals.humanUser).map((account) => account.email)); if (body.emails.some((email) => !allowed.has(email))) return res.status(403).json({ error: "scope_denied" }); const updated = database.bulkStatus(body.emails, body.status); await regenerate(); res.json({ updated }); } catch (error) { handleValidation(error, res); }
+  });
+  const candidateCleanup = async (user: HumanUser) => {
+    const records = await registryProvider.list();
+    reconcileRecords(records);
+    const protectedIds = new Set(Object.values(config.orisoProvisioningTargets).map((target) => target?.adminRecordId));
+    const leased = database.testRuns.leasedAccountIds();
+    const candidates = scopedAccountViews(user).filter((account) =>
+      viewProject(account) === "oriso" && account.metadata.lifecycleStatus === "delete_candidate"
+    );
+    const linked = candidates.flatMap((account) => linkedFromStore(account.email, records))
+      .filter((record) => record.project === "oriso" && (record.environment === "dev" || record.environment === "pre-dev"))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const eligible = linked.filter((record) =>
+      !protectedIds.has(record.id) && !leased.has(record.id) && !database.isOrisoAdminDeletionPending(record.id)
+    );
+    const revision = createHash("sha256").update(JSON.stringify(
+      eligible.map((record) => [record.id, record.email, record.createdAt, record.updatedAt])
+    )).digest("hex");
+    return { eligible, revision, skipped: linked.length - eligible.length };
+  };
+  api.get("/accounts/delete-candidate-cleanup", requireAdminSession, async (_req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      const { eligible, revision, skipped } = await candidateCleanup(res.locals.humanUser);
+      res.json({ revision, skipped, links: eligible.map(({ id, email, environment }) => ({ id, email, environment })) });
+    } catch (error) { next(error); }
+  });
+  api.post("/accounts/delete-candidate-cleanup", requireAdminSession, async (req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    const origin = req.get("Origin");
+    if (origin && origin !== (options.expectedOrigin ?? "https://dreambau.com")) {
+      return res.status(403).json({ error: "origin_denied" });
+    }
+    const input = z.object({ revision: z.string().regex(/^[0-9a-f]{64}$/) }).strict().safeParse(req.body);
+    if (!input.success) return res.status(400).json({ error: "validation_failed" });
+    try {
+      const user = res.locals.humanUser as HumanUser;
+      const { eligible, revision } = await candidateCleanup(user);
+      if (input.data.revision !== revision) return res.status(409).json({ error: "cleanup_preview_stale" });
+      const count = database.unlinkTestAccessCandidates(eligible, user.id, (options.now?.() ?? new Date()).toISOString());
+      await regenerate();
+      res.json({ count });
+    } catch (error) {
+      if (error instanceof Error && error.message === "cleanup_preview_stale") {
+        return res.status(409).json({ error: "cleanup_preview_stale" });
+      }
+      next(error);
+    }
   });
   api.get("/taxonomies", requireActiveHumanSession, (_req, res) => res.json(database.getTaxonomies()));
   api.get("/machine-identities/usage", requireAdminSession, (_req, res) => res.json(database.getMachineIdentityUsage()));

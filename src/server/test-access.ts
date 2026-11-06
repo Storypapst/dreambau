@@ -155,6 +155,7 @@ export function createTestAccessRouter(options: {
         createdAt: accessedAt(),
         context: { applicationVersion: metadata.shippedVersion, environment: match.environment }
       });
+      options.database.allowTestAccessRelink(match);
       res.json({ id: match.id, email: derived.email, metadata });
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: "validation_failed", fieldErrors: error.flatten().fieldErrors });

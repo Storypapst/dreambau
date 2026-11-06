@@ -116,6 +116,44 @@ async function authenticatedSetup(options: {
   return { agent, database, abe, record };
 }
 
+describe("ORISO delete candidate cleanup", () => {
+  const endpoint = "/testmails/api/accounts/delete-candidate-cleanup";
+
+  it("removes approved links atomically and preserves the mailbox and typed access history", async () => {
+    const email = "abe.simpson@dreambau.de";
+    const { preDevConsultant, devAdviceSeeker } = crossEnvironmentRecords(email);
+    const records = [preDevConsultant, devAdviceSeeker];
+    const { agent, database } = await authenticatedSetup({ records });
+    database.upsertMetadata(email, { lifecycleStatus: "delete_candidate" });
+
+    const preview = await agent.get(endpoint).expect(200);
+    expect(preview.body.links).toEqual([
+      { id: devAdviceSeeker.id, email, environment: "dev" },
+      { id: preDevConsultant.id, email, environment: "pre-dev" }
+    ]);
+    await agent.post(endpoint).send({ revision: preview.body.revision }).expect(200, { count: 2 });
+
+    const catalogue = await agent.get("/testmails/api/accounts").expect(200);
+    expect(catalogue.body[0]).toMatchObject({ email, linkedAccess: [], metadata: { lifecycleStatus: "unused" } });
+    expect(catalogue.body[0].access.events.map((event: { action: string }) => event.action)).toEqual([
+      "record_unlinked", "record_unlinked"
+    ]);
+    expect(records).toHaveLength(2);
+    await agent.post(endpoint).send({ revision: preview.body.revision }).expect(409);
+    await request(createApp({ passwordHash: "unused", secureCookies: false, loadAccounts: () => [] }))
+      .get(endpoint).expect(401);
+  });
+
+  it("rejects stale previews and never unlinks a candidate whose status changed", async () => {
+    const { agent, database, abe } = await authenticatedSetup();
+    database.upsertMetadata(abe.email, { lifecycleStatus: "delete_candidate" });
+    const preview = await agent.get(endpoint).expect(200);
+    database.upsertMetadata(abe.email, { lifecycleStatus: "active" });
+    await agent.post(endpoint).send({ revision: preview.body.revision }).expect(409);
+    expect(database.getTestAccessLinks(abe.email)).toHaveLength(1);
+  });
+});
+
 describe("human Springfield OTP access", () => {
   it("keeps Dev roles out of a PreDev mailbox row with the same email", async () => {
     const email = "abe.simpson@dreambau.de";
