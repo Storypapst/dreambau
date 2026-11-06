@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckIcon, KeyRoundIcon, LoaderCircleIcon, MailIcon, ShieldIcon } from "lucide-react";
+import { CheckIcon, KeyRoundIcon, LoaderCircleIcon, MailIcon, ShieldIcon, UserRoundIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/i18n";
 import { requestSafeOtp, TOTP_SAFETY_MARGIN_MS } from "@/safe-otp";
+import { testUsernameFromEmail } from "@/test-fixture-names";
 import type { AccountView, OtpResponse } from "@/types";
 
-type Credential = "mail" | "app" | "otp";
+type CopyKind = "username" | "mail" | "app" | "otp";
 
 // The most recent click owns the clipboard, even when the previous row is still waiting for an OTP.
 let pendingCopy: AbortController | undefined;
@@ -33,7 +34,7 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
   const linked = account.linkedAccess?.[0];
   const accountId = linked && !linked.deleted && !linked.deletionPending ? linked.id : undefined;
   const mailOtp = account.metadata.otpDelivery === "mail";
-  const [state, setState] = useState<{ kind: Credential; phase: "working" | "copied" }>();
+  const [state, setState] = useState<{ kind: CopyKind; phase: "working" | "copied" }>();
   const operation = useRef<AbortController | undefined>(undefined);
   const reset = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
@@ -44,7 +45,7 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
     };
   }, [accountId, mailOtp]);
 
-  async function copy(kind: Credential) {
+  async function copy(kind: CopyKind) {
     cancelPendingAccountCopy();
     clearTimeout(reset.current);
     const controller = new AbortController();
@@ -55,6 +56,7 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
     try {
       await writeFromClick(async () => {
         signal.throwIfAborted();
+        if (kind === "username") return testUsernameFromEmail(account.email);
         if (kind === "mail") return account.password;
         const path = `/accounts/${encodeURIComponent(account.email)}`;
         const target = `?accountId=${encodeURIComponent(accountId!)}`;
@@ -88,7 +90,7 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
     }
   }
 
-  function action(kind: Credential, label: string, Icon: typeof KeyRoundIcon) {
+  function action(kind: CopyKind, label: string, Icon: typeof KeyRoundIcon) {
     const working = state?.kind === kind && state.phase === "working";
     const copied = state?.kind === kind && state.phase === "copied";
     return (
@@ -101,6 +103,7 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
   }
 
   return <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label={de ? "Zugangsdaten kopieren" : "Copy credentials"}>
+    {action("username", de ? "Benutzernamen erzeugen und kopieren" : "Generate and copy username", UserRoundIcon)}
     {account.password && action("mail", de ? "Mail-Passwort kopieren" : "Copy mailbox password", MailIcon)}
     {accountId && action("app", de ? "App-Passwort kopieren" : "Copy app password", KeyRoundIcon)}
     {accountId && (mailOtp ? <Button asChild variant="ghost" size="icon-sm">

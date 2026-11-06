@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { PencilIcon, PlusIcon } from "lucide-react";
+import { PencilIcon, PlusIcon, WandSparklesIcon } from "lucide-react";
 import { api } from "@/api";
+import { testFixtureDateSuffix } from "@/test-fixture-names";
 import { labelConversation, type Locale } from "@/i18n";
 import type { AccountMetadata, AccountView, TeamProject } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,17 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
     { key: "supervisor", label: "Supervisor", value: metadata.supervisor, max: 255 }
   ] as const;
 
+  function generateName(key: "carrier" | "agencies") {
+    const kind = key === "carrier" ? "Träger" : "Beratung";
+    const name = `QA ${account.displayName} ${kind}${testFixtureDateSuffix()}`;
+    setDraft((current) => {
+      if (key === "carrier") return { ...current, carrier: name };
+      const names = current.agencies.split("\n").map((value) => value.trim()).filter(Boolean);
+      if (names.includes(name)) return current;
+      return { ...current, agencies: [...names, name].join("\n") };
+    });
+  }
+
   async function saveDetails(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -140,8 +152,12 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
           <DialogContent>
             <DialogHeader><DialogTitle>{de ? "Testkontext bearbeiten" : "Edit test context"}</DialogTitle><DialogDescription>{account.email}</DialogDescription></DialogHeader>
             <form className="grid gap-3" onSubmit={saveDetails}>
-              {fields.map(({ key, label, max }) => (
-                <Field key={key}>
+              {fields.map(({ key, label, max }) => {
+                const canGenerate = key === "carrier" || key === "agencies";
+                const generateLabel = key === "carrier"
+                  ? (de ? "Trägernamen generieren" : "Generate provider name")
+                  : (de ? "Namen für Beratungsstelle generieren" : "Generate counselling centre name");
+                return <Field key={key} className={canGenerate ? "grid grid-cols-[minmax(0,1fr)_auto] items-end" : undefined}>
                   <FieldLabel className="flex-col items-stretch">
                     {label}
                     {key === "agencies" ? (
@@ -152,8 +168,12 @@ export function AccountTestContext({ account, locale, projectConversationTypes, 
                         onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} />
                     )}
                   </FieldLabel>
-                </Field>
-              ))}
+                  {canGenerate && <Button type="button" variant="outline" size="icon-sm"
+                    aria-label={generateLabel} title={generateLabel} disabled={busy} onClick={() => generateName(key)}>
+                    <WandSparklesIcon />
+                  </Button>}
+                </Field>;
+              })}
               {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
               <DialogFooter><Button type="submit" disabled={busy}>{de ? "Speichern" : "Save"}</Button></DialogFooter>
             </form>

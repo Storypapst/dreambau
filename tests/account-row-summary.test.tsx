@@ -56,3 +56,26 @@ it("copies the current OTP after waiting without rendering it", async () => {
     vi.unstubAllGlobals();
   }
 });
+
+
+it("copies a hyphenated username with today's Berlin date from the compact row", async () => {
+  const container = document.body.appendChild(document.createElement("div"));
+  const root = createRoot(container);
+  const clipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
+  const savedClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: clipboard });
+  vi.useFakeTimers({ now: new Date("2026-09-22T22:30:00Z") });
+  try {
+    await act(async () => root.render(<AccountRowSummary account={{ ...account, email: "Abe.Test+QA@ORISO.org" }} locale="de" expanded={false} onToggle={() => undefined} />));
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="Benutzernamen erzeugen und kopieren"]');
+    expect(button).not.toBeNull();
+    await act(async () => button!.click());
+    expect(clipboard.writeText).toHaveBeenCalledExactlyOnceWith("abe-test-qa-oriso-org-sep23");
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    if (savedClipboard) Object.defineProperty(navigator, "clipboard", savedClipboard);
+    else Reflect.deleteProperty(navigator, "clipboard");
+    vi.useRealTimers();
+  }
+});
