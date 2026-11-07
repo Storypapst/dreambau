@@ -154,6 +154,26 @@ describe("test-access CLI", () => {
     );
   });
 
+  it.each([["session", "open"], ["playwright-login"]])("routes the strict App-TOTP switch through %j", async (...command) => {
+    const broker = vi.fn(async () => 0);
+    const writeError = vi.fn();
+    const dependencies = {
+      baseUrl: "https://dreambau.com/testmails/api/v1",
+      identity: "agent-fixture",
+      readKeychainToken: () => "synthetic-token",
+      fetch: vi.fn() as unknown as typeof fetch,
+      write: vi.fn(),
+      writeError,
+      playwrightLoginBroker: broker
+    };
+    const account = "oriso/dev/fixture";
+    expect(await runTestAccessCommand([...command, account, "--require-app-totp"], dependencies)).toBe(0);
+    expect(broker).toHaveBeenCalledWith(account, expect.objectContaining({ requireAppTotp: true }));
+    expect(await runTestAccessCommand([...command, account, "--require-app-top"], dependencies)).toBe(1);
+    expect(broker).toHaveBeenCalledTimes(1);
+    expect(writeError).toHaveBeenCalledWith(expect.stringContaining("--require-app-totp"));
+  });
+
   it("builds list, get, OTP, mail and env URLs without embedding a token", () => {
     const baseUrl = "https://dreambau.com/testmails/api/v1";
     expect(buildApiRequest(["list", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({

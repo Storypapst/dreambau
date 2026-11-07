@@ -1,12 +1,13 @@
-import { chmod, mkdir, mkdtemp } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { resolveBrowserProxy, type BrowserProxy } from "./browser-proxy.js";
 import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
+import { encodeOrisoUsername } from "./oriso-identity-observation.js";
 
-import type { BrowserContext, Locator, Page } from "@playwright/test";
+import type { BrowserContext, Locator, Page, Response as BrowserResponse } from "@playwright/test";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
 const FIELD_TIMEOUT_MS = 20_000;
@@ -18,6 +19,13 @@ const FIELD_TIMEOUT_MS = 20_000;
 const OTP_CHALLENGE_GRACE_MS = 6_000;
 const AUTH_STATE_TIMEOUT_MS = 10_000;
 const TOTP_SAFETY_MARGIN_MS = 8_000;
+const TEST_ACCESS_GATEWAY = "https://dreambau.com/testmails/api/v1";
+const ORISO_DEV_ORIGIN = "https://dev.oriso.org";
+const ORISO_LOGIN_PATHS = ["/", "/login", "/login/"];
+const ORISO_TOKEN_PATH = "/auth/realms/online-beratung/protocol/openid-connect/token";
+const APP_TOTP = "app-totp";
+
+class AppTotpVerificationError extends Error {}
 
 interface AccountMetadata {
   id: string;
@@ -34,6 +42,7 @@ export interface BrowserLoginRequest {
   loginUrl: string;
   statePath: string;
   ignoreHTTPSErrors: boolean;
+  requireAppTotp?: boolean;
   getOtp: () => Promise<string>;
   requiredAuthState?: {
     cookieNames: string[];
@@ -72,7 +81,8 @@ export interface BrokerDependencies extends MachineAuthOptions {
   identity: string;
   readKeychainToken: (identity: string) => string;
   fetch: typeof fetch;
-  login?: (request: BrowserLoginRequest) => Promise<void>;
+  requireAppTotp?: boolean;
+  login?: (request: BrowserLoginRequest) => Promise<void | typeof APP_TOTP>;
   stateRoot?: string;
   write: (value: string) => void;
   writeError?: (value: string) => void;
@@ -125,34 +135,40 @@ export function isOtpChallenge(
     && /(?:^|\/)login\/?$/i.test(current.pathname);
 }
 
-async function jsonRequest(http: ReturnType<typeof createMachineHttp>, url: string) {
-  const response = await http.fetch(url);
+async function jsonRequest(http: ReturnType<typeof createMachineHttp>, url: string, refuseRedirects = false) {
+  const response = await http.fetch(url, refuseRedirects ? { redirect: "error" } : undefined);
   if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
   return http.json(response) as Promise<any>;
 }
 
 export async function requestSafeOtpCode(
-  request: () => Promise<{ code?: unknown; source?: unknown; expiresAt?: unknown }>,
+  request: () => Promise<{ accountId?: unknown; code?: unknown; source?: unknown; expiresAt?: unknown }>,
   options: {
     now?: () => number;
     sleep?: (milliseconds: number) => Promise<void>;
+    requireTotpFor?: string;
   } = {}
 ) {
   const now = options.now ?? Date.now;
   const sleep = options.sleep ?? ((milliseconds: number) => delay(milliseconds));
   let response = await request();
-  const expiresAt = typeof response.expiresAt === "string"
-    ? new Date(response.expiresAt).getTime()
-    : Number.NaN;
-  const remaining = expiresAt - now();
+  const remainingMs = () => typeof response.expiresAt === "string" ? Date.parse(response.expiresAt) - now() : Number.NaN;
+  const isBoundTotp = () => response.source === "totp" && response.accountId === options.requireTotpFor;
+  if (options.requireTotpFor && !isBoundTotp()) {
+    throw new AppTotpVerificationError("Test Access did not verify the TOTP source for this account");
+  }
+  const remaining = remainingMs();
   if (
     response.source === "totp"
-    && Number.isFinite(expiresAt)
     && remaining > 0
     && remaining < TOTP_SAFETY_MARGIN_MS
   ) {
     await sleep(Math.max(0, remaining) + 150);
     response = await request();
+  }
+  if (options.requireTotpFor && (!isBoundTotp() || !(remainingMs() >= TOTP_SAFETY_MARGIN_MS)
+    || typeof response.code !== "string" || !/^\d{6}$/.test(response.code))) {
+    throw new AppTotpVerificationError("Test Access did not return a fresh TOTP for this account");
   }
   const code = String(response.code ?? "");
   if (!code) throw new Error("OTP is empty");
@@ -363,10 +379,134 @@ async function waitForChatUnlock(
   }
 }
 
+function isOrisoLoginPage(url: URL, origin: string) {
+  return url.origin === origin && ORISO_LOGIN_PATHS.includes(url.pathname)
+    && !url.username && !url.password && !url.search && !url.hash;
+}
+
+async function fillLoginField(field: Locator, value: string, privateOrigin?: string, timeout?: number) {
+  if (!privateOrigin) return field.fill(value, { timeout });
+  // A locator can resolve again after a redirect. Bind the write to the
+  // checked document so navigation cannot move a credential into another page.
+  const element = await field.elementHandle({ timeout: timeout ?? FIELD_TIMEOUT_MS });
+  if (!element) throw new AppTotpVerificationError("The ORISO Dev login field is missing");
+  try {
+    const approved = await element.evaluate((input, { origin, paths }) => {
+      const url = new URL(input.ownerDocument.URL);
+      return url.origin === origin && paths.includes(url.pathname) && !url.search && !url.hash;
+    }, { origin: privateOrigin, paths: ORISO_LOGIN_PATHS });
+    if (!approved) throw new AppTotpVerificationError("The ORISO Dev login page changed before entering a credential");
+    await element.fill(value, { timeout: timeout ?? FIELD_TIMEOUT_MS });
+  } finally {
+    await element.dispose();
+  }
+}
+
+async function verifyAppTotp(
+  page: Page,
+  request: BrowserLoginRequest,
+  origin: string,
+  submitPassword: () => Promise<void>
+) {
+  const tokenUrl = new URL(ORISO_TOKEN_PATH, origin).href;
+  const userDataUrl = new URL("/service/users/data", origin).href;
+  const usernames = [request.username, encodeOrisoUsername(request.username)];
+  const isMainFrameRequest = (response: BrowserResponse, url: string, method: string) => {
+    const request = response.request();
+    return request.url() === url && request.method() === method && !request.redirectedFrom()
+      && !request.serviceWorker() && request.frame() === page.mainFrame();
+  };
+  const passwordGrant = (response: BrowserResponse, expectedUsernames: string[]) => {
+    const grant = response.request();
+    if (!isMainFrameRequest(response, tokenUrl, "POST")
+      || grant.headers()["content-type"]?.split(";")[0].trim() !== "application/x-www-form-urlencoded") return null;
+    const form = new URLSearchParams(grant.postData() ?? "");
+    const fieldMatches = (name: string, expected: string) => form.getAll(name).length === 1 && form.get(name) === expected;
+    if (!expectedUsernames.some((username) => fieldMatches("username", username))
+      || !fieldMatches("password", request.password)
+      || !fieldMatches("client_id", "app") || !fieldMatches("grant_type", "password")) return null;
+    return form;
+  };
+  const [challenge] = await Promise.all([
+    page.waitForResponse((response) => {
+      // A 401 can trigger the app's own legacy username fallback.
+      const grant = passwordGrant(response, usernames);
+      return response.status() !== 401 && grant !== null && !grant.has("otp");
+    }, { timeout: FIELD_TIMEOUT_MS }),
+    submitPassword()
+  ]);
+  const challengeBody = challenge.status() === 400 ? await challenge.json().catch(() => null) : null;
+  const challengedUsername = passwordGrant(challenge, usernames)?.get("username");
+  if (challengeBody?.error !== "invalid_grant" || challengeBody.otpType !== "APP" || !challengedUsername) {
+    throw new AppTotpVerificationError("The ORISO Dev password grant did not require App-TOTP");
+  }
+
+  if (!isOrisoLoginPage(new URL(page.url()), origin)) {
+    throw new AppTotpVerificationError("The ORISO Dev login page changed before the App-TOTP challenge");
+  }
+  const otp = await resolveVisible(otpCandidates(page), "otp");
+  const code = await request.getOtp();
+  await fillLoginField(otp, code, origin);
+  const submit = await resolveVisible(submitCandidates(page), "submit");
+  let acceptedOtp = false;
+  const verifyAcceptance = page.waitForResponse((response) => {
+    const grant = passwordGrant(response, [challengedUsername]);
+    return response.status() !== 401 && grant !== null && grant.has("otp");
+  }, { timeout: FIELD_TIMEOUT_MS }).then((accepted) => {
+    const sent = passwordGrant(accepted, [challengedUsername])?.getAll("otp");
+    if (accepted.status() !== 200 || sent?.length !== 1 || sent[0] !== code) {
+      throw new AppTotpVerificationError("The ORISO Dev password grant did not accept the verified App-TOTP code");
+    }
+    acceptedOtp = true;
+  });
+  // Observe the app's protected user-data call after the successful grant.
+  // Its request headers survive the app navigation and bind the saved state
+  // to the token that actually opened this signed-in session.
+  const readAuthenticatedToken = page.waitForResponse(
+    (response) => acceptedOtp && isMainFrameRequest(response, userDataUrl, "GET"),
+    { timeout: FIELD_TIMEOUT_MS }
+  ).then(async (response) => {
+    const authorization = (await response.request().allHeaders()).authorization;
+    if (response.status() !== 200 || !authorization?.startsWith("Bearer ") || authorization.length <= 7) {
+      throw new AppTotpVerificationError("ORISO Dev did not confirm the authenticated app session");
+    }
+    return authorization.slice(7);
+  });
+  const [, token] = await Promise.all([
+    verifyAcceptance,
+    readAuthenticatedToken,
+    submit.click({ timeout: FIELD_TIMEOUT_MS })
+  ]);
+  return token;
+}
+
+function isOrisoAppPage(url: URL, origin: string) {
+  return url.origin === origin && ORISO_CHAT_UNLOCK_WAIT.appPath.test(url.pathname);
+}
+
+async function saveVerifiedAppState(page: Page, request: BrowserLoginRequest, origin: string, token: string) {
+  const state = await page.context().storageState({ indexedDB: Boolean(request.awaitChatUnlock) });
+  const hostname = new URL(origin).hostname;
+  const cookie = state.cookies.some((item) =>
+    item.name === "keycloak" && item.domain === hostname && item.path === "/" && item.value === token);
+  const fallback = state.origins.find((item) => item.origin === origin)?.localStorage
+    .some((item) => item.name === "auth.keycloak" && item.value === token);
+  if ((!cookie && !fallback) || !isOrisoAppPage(new URL(page.url()), origin)) {
+    throw new AppTotpVerificationError("The verified ORISO Dev App-TOTP session could not be restored");
+  }
+  await writeFile(request.statePath, JSON.stringify(state), { mode: 0o600, flag: "wx" });
+}
+
 export async function playwrightLogin(request: BrowserLoginRequest) {
   const { chromium } = await import("@playwright/test");
   const browser = await chromium.launch({ headless: true, proxy: request.proxy });
-  const context = await browser.newContext({ ignoreHTTPSErrors: request.ignoreHTTPSErrors });
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: !request.requireAppTotp && request.ignoreHTTPSErrors,
+    serviceWorkers: request.requireAppTotp ? "block" : undefined
+  }).catch(async (error) => {
+    await browser.close();
+    throw error;
+  });
   try {
     const page = await context.newPage();
     const matrix = request.awaitChatUnlock ? trackMatrixTraffic(page) : undefined;
@@ -379,20 +519,64 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
         submissionMayHaveStarted = true;
       }
     });
-    page.on("response", (response) => {
-      if (response.status() >= 400) failedResponses.push(`${response.status()} ${new URL(response.url()).pathname}`);
-    });
+    if (!request.requireAppTotp) {
+      page.on("response", (response) => {
+        if (response.status() >= 400) failedResponses.push(`${response.status()} ${new URL(response.url()).pathname}`);
+      });
+    }
+    const applicationOrigin = new URL(request.loginUrl).origin;
+    const privateOrigin = request.requireAppTotp ? applicationOrigin : undefined;
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
+    if (privateOrigin && !isOrisoLoginPage(new URL(page.url()), privateOrigin)) {
+      throw new AppTotpVerificationError("The ORISO Dev catalog login did not open the approved app page");
+    }
     const usernameField = await resolveVisible(usernameCandidates(page), "username");
-    await usernameField.fill(request.username);
+    await fillLoginField(usernameField, request.username, privateOrigin);
     const passwordField = await resolveVisible(passwordCandidates(page), "password");
-    await passwordField.fill(request.password);
+    await fillLoginField(passwordField, request.password, privateOrigin);
 
     const preSubmitUrl = page.url();
-    const applicationOrigin = new URL(request.loginUrl).origin;
     const otpWasVisibleBeforeSubmit = (await Promise.all(
       otpCandidates(page).map((candidate) => candidate.first().isVisible().catch(() => false))
     )).some(Boolean);
+    let recoveredFormReset = false;
+    const loginTransitionStarted = async () => {
+      if (submissionMayHaveStarted || page.url() !== preSubmitUrl) return true;
+      if (otpWasVisibleBeforeSubmit) return false;
+      for (const candidate of otpCandidates(page)) {
+        if (await candidate.first().isVisible().catch(() => false)) return true;
+      }
+      return false;
+    };
+    const submitPassword = () => activateLoginSubmit(
+      () => submitCandidates(page),
+      () => passwordField.press("Enter"),
+      loginTransitionStarted,
+      2_000,
+      undefined,
+      async () => {
+        if (recoveredFormReset || submissionMayHaveStarted || page.url() !== preSubmitUrl) return;
+        const username = await resolveVisible(usernameCandidates(page), "username", 2_000);
+        const password = await resolveVisible(passwordCandidates(page), "password", 2_000);
+        // A late login-page mount can replace both filled fields while click
+        // waits for actionability. Recover that reset once, before dispatch.
+        if (await username.inputValue() || await password.inputValue()) return;
+        if (await loginTransitionStarted()) return;
+        recoveredFormReset = true;
+        await fillLoginField(username, request.username, privateOrigin, 2_000);
+        if (await loginTransitionStarted()) return;
+        await fillLoginField(password, request.password, privateOrigin, 2_000);
+      }
+    );
+    if (privateOrigin) {
+      const token = await verifyAppTotp(page, request, privateOrigin, submitPassword);
+      await page.waitForURL((url) => isOrisoAppPage(url, privateOrigin),
+        { waitUntil: "domcontentloaded", timeout: FIELD_TIMEOUT_MS });
+      if (request.awaitChatUnlock && matrix) await waitForChatUnlock(page, request.awaitChatUnlock, matrix);
+      await saveVerifiedAppState(page, request, privateOrigin, token);
+      return APP_TOTP;
+    }
+
     const postLoginNavigation = page.waitForURL(
       (url) => url.href !== preSubmitUrl && url.origin === applicationOrigin,
       { waitUntil: "domcontentloaded", timeout: 15_000 }
@@ -436,35 +620,7 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     });
     otpChallenge.catch(() => {});
 
-    let recoveredFormReset = false;
-    const loginTransitionStarted = async () => {
-      if (submissionMayHaveStarted || page.url() !== preSubmitUrl) return true;
-      if (otpWasVisibleBeforeSubmit) return false;
-      for (const candidate of otpCandidates(page)) {
-        if (await candidate.first().isVisible().catch(() => false)) return true;
-      }
-      return false;
-    };
-    await activateLoginSubmit(
-      () => submitCandidates(page),
-      () => passwordField.press("Enter"),
-      loginTransitionStarted,
-      2_000,
-      undefined,
-      async () => {
-        if (recoveredFormReset || submissionMayHaveStarted || page.url() !== preSubmitUrl) return;
-        const username = await resolveVisible(usernameCandidates(page), "username", 2_000);
-        const password = await resolveVisible(passwordCandidates(page), "password", 2_000);
-        // A late login-page mount can replace both filled fields while click
-        // waits for actionability. Recover that reset once, not a rejected login.
-        if (await username.inputValue() || await password.inputValue()) return;
-        if (await loginTransitionStarted()) return;
-        recoveredFormReset = true;
-        await username.fill(request.username, { timeout: 2_000 });
-        if (await loginTransitionStarted()) return;
-        await password.fill(request.password, { timeout: 2_000 });
-      }
-    );
+    await submitPassword();
 
     try {
       await Promise.race([
@@ -490,61 +646,98 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     // IndexedDB carries the unlocked chat keys into the reused session.
     await context.storageState({ path: request.statePath, indexedDB: Boolean(request.awaitChatUnlock) });
   } finally {
-    await context.close();
-    await browser.close();
+    try {
+      await context.close();
+    } finally {
+      await browser.close();
+    }
   }
 }
 
 export async function runPlaywrightLoginBroker(accountId: string, dependencies: BrokerDependencies) {
   const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
   const secrets: string[] = [];
+  const requireAppTotp = dependencies.requireAppTotp === true;
+  let stateDirectory: string | undefined;
   try {
     if (!dependencies.identity) throw new Error("TEST_ACCESS_IDENTITY or --identity is required");
     if (!accountId) throw new Error("playwright-login requires an account id");
+    const baseUrl = dependencies.baseUrl.replace(/\/$/, "");
+    const scope = accountScope(accountId);
+    if (requireAppTotp) {
+      if (!/^oriso\/dev\/[^/]+$/.test(accountId) || baseUrl !== TEST_ACCESS_GATEWAY) {
+        throw new AppTotpVerificationError("App-TOTP verification requires a scoped ORISO Dev account and the Test Access gateway");
+      }
+      if (process.env.DEBUG || process.env.PWDEBUG || process.env.NODE_DEBUG) {
+        throw new AppTotpVerificationError("Disable browser and network debugging for App-TOTP verification");
+      }
+    }
     const http = createMachineHttp({ ...dependencies, service: "test-access" });
     if (http.token) secrets.push(http.token);
     const proxy = resolveBrowserProxy(dependencies.browserProxyMode, dependencies.proxyUrl, http.authMode === "network-proxy");
 
-    const baseUrl = dependencies.baseUrl.replace(/\/$/, "");
-    const scope = accountScope(accountId);
     const query = new URLSearchParams(scope);
-    const records = await jsonRequest(http, `${baseUrl}/accounts?${query}`) as AccountMetadata[];
+    const records = await jsonRequest(http, `${baseUrl}/accounts?${query}`, requireAppTotp) as AccountMetadata[];
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
+    if (requireAppTotp && (account.project !== scope.project || account.environment !== scope.environment
+      || !isOrisoLoginPage(new URL(account.loginUrl), ORISO_DEV_ORIGIN))) {
+      throw new AppTotpVerificationError("The catalog account does not use the canonical ORISO Dev counselling app");
+    }
     secrets.push(account.username);
 
     const encoded = encodeURIComponent(accountId);
-    const secretResponse = await jsonRequest(http, `${baseUrl}/accounts/${encoded}/secret`);
+    const secretResponse = await jsonRequest(http, `${baseUrl}/accounts/${encoded}/secret`, requireAppTotp);
+    if (requireAppTotp && secretResponse.id !== accountId) {
+      throw new AppTotpVerificationError("Test Access did not return the requested account credential");
+    }
     const password = String(secretResponse.secret ?? "");
     if (!password) throw new Error("account secret is empty");
     secrets.push(password);
 
     const stateRoot = dependencies.stateRoot ?? join(tmpdir(), "dreambau-test-access");
     await mkdir(stateRoot, { recursive: true, mode: 0o700 });
+    if (requireAppTotp) {
+      const root = await lstat(stateRoot);
+      if (!root.isDirectory() || root.uid !== process.getuid?.()) {
+        throw new AppTotpVerificationError("The private browser session directory is not owned by this runner");
+      }
+    }
     await chmod(stateRoot, 0o700);
-    const stateDirectory = await mkdtemp(join(stateRoot, "session-"));
+    stateDirectory = await mkdtemp(join(stateRoot, "session-"));
     await chmod(stateDirectory, 0o700);
     const statePath = join(stateDirectory, "storage-state.json");
     const getOtp = async () => {
+      const otpUrl = `${baseUrl}/accounts/${encoded}/otp${requireAppTotp ? "?source=totp" : ""}`;
       const code = await requestSafeOtpCode(
-        () => jsonRequest(http, `${baseUrl}/accounts/${encoded}/otp`),
-        { now: () => (dependencies.now?.() ?? new Date()).getTime() }
+        () => jsonRequest(http, otpUrl, requireAppTotp).catch((error) => {
+          if (!requireAppTotp) throw error;
+          throw new AppTotpVerificationError("Test Access did not supply an App-TOTP code for this account");
+        }),
+        {
+          now: () => (dependencies.now?.() ?? new Date()).getTime(),
+          requireTotpFor: requireAppTotp ? accountId : undefined
+        }
       );
       secrets.push(code);
       return code;
     };
 
-    await (dependencies.login ?? playwrightLogin)({
+    const factor = await (dependencies.login ?? playwrightLogin)({
       proxy,
       username: account.username,
       password,
       loginUrl: account.loginUrl,
       statePath,
       ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
+      ...(requireAppTotp ? { requireAppTotp } : {}),
       getOtp,
       requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined,
       awaitChatUnlock: account.project === "oriso" ? ORISO_CHAT_UNLOCK_WAIT : undefined
     });
+    if (requireAppTotp && factor !== APP_TOTP) {
+      throw new AppTotpVerificationError("The browser did not verify App-TOTP");
+    }
     await chmod(statePath, 0o600);
     (dependencies.scheduleCleanup ?? scheduleCleanup)(stateDirectory, STATE_TTL_MS);
 
@@ -552,11 +745,18 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     dependencies.write(`${JSON.stringify({
       accountId,
       storageState: statePath,
-      expiresAt: new Date(now.getTime() + STATE_TTL_MS).toISOString()
+      expiresAt: new Date(now.getTime() + STATE_TTL_MS).toISOString(),
+      ...(requireAppTotp ? { secondFactor: factor } : {})
     })}\n`);
     return 0;
   } catch (error) {
-    writeError(`${redact(error, secrets)}\n`);
+    if (requireAppTotp) {
+      if (stateDirectory) await rm(stateDirectory, { recursive: true, force: true }).catch(() => {});
+      const message = error instanceof AppTotpVerificationError ? error.message : "The ORISO Dev App-TOTP login could not be verified";
+      writeError(`${message}\n`);
+    } else {
+      writeError(`${redact(error, secrets)}\n`);
+    }
     return 1;
   }
 }
