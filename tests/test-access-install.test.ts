@@ -10,26 +10,33 @@ import { describe, expect, it } from "vitest";
 describe("portable test-access installer", () => {
   it("installs a working bundled command without a source-machine path", () => {
     const root = mkdtempSync(path.join(tmpdir(), "test-access-install-"));
-    const env = {
-      ...process.env,
-      HOME: path.join(root, "home"),
-      XDG_BIN_HOME: path.join(root, "bin"),
-      XDG_DATA_HOME: path.join(root, "data")
-    };
-    const installed = spawnSync("bash", ["scripts/install-test-access-cli.sh"], {
-      cwd: new URL("..", import.meta.url),
-      env,
-      encoding: "utf8"
-    });
-    const command = path.join(root, "bin", "test-access");
-    const invoked = spawnSync(command, ["list"], { env: { ...env, TEST_ACCESS_IDENTITY: "" }, encoding: "utf8" });
-    const bundle = readFileSync(path.join(root, "data", "dreambau-agent-tools", "test-access", "test-access.mjs"), "utf8");
+    try {
+      const env = {
+        ...process.env,
+        HOME: path.join(root, "home"),
+        XDG_BIN_HOME: path.join(root, "bin"),
+        XDG_DATA_HOME: path.join(root, "data")
+      };
+      const installed = spawnSync("bash", ["scripts/install-test-access-cli.sh"], {
+        cwd: new URL("..", import.meta.url),
+        env,
+        encoding: "utf8",
+        timeout: 10_000,
+        killSignal: "SIGKILL"
+      });
+      expect(installed.status, installed.error?.message ?? installed.stderr).toBe(0);
+      const command = path.join(root, "bin", "test-access");
+      const invoked = spawnSync(command, ["list"], { env: { ...env, TEST_ACCESS_IDENTITY: "" }, encoding: "utf8", timeout: 3_000, killSignal: "SIGKILL" });
+      const bundle = readFileSync(path.join(root, "data", "dreambau-agent-tools", "test-access", "test-access.mjs"), "utf8");
 
-    expect(installed.status).toBe(0);
-    expect(invoked.status).toBe(1);
-    expect(invoked.stderr).toContain("TEST_ACCESS_IDENTITY");
-    expect(bundle).not.toContain("/Users/frankgerhardt");
-  });
+      expect(invoked.status, invoked.error?.message ?? invoked.stderr).toBe(1);
+      expect(invoked.stderr).toContain("TEST_ACCESS_IDENTITY");
+      expect(bundle).not.toContain("/Users/frankgerhardt");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+    // Real bundling and the complete Playwright copy took 5,411 ms in CI.
+  }, 15_000);
 
   it("checks a private file credential without invoking Keychain and rejects unsafe files", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "test-access-file-install-"));

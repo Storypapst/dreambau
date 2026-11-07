@@ -155,6 +155,9 @@ export interface ProcessingOutcome {
 }
 
 export interface EvidenceStore {
+  fileCounts(runIds: string[]): Record<string, number>;
+  readRuns(filter: EvidenceReadFilter): EvidenceRun[];
+  readDocuments(filter: EvidenceReadFilter): Array<{ run: EvidenceRun; file: EvidenceFile }>;
   createRun(input: CreateRunInput, id: string, identityId: string, createdAt: string): EvidenceRun;
   getRun(id: string): EvidenceRun | null;
   getRunByPublicId(publicId: string): EvidenceRun | null;
@@ -199,6 +202,11 @@ export interface EvidenceStore {
   /** Cheapest possible proof that the database is reachable, for readiness. */
   schemaVersion(): number;
   close(): void;
+}
+
+export interface EvidenceReadFilter {
+  projects: string[]; environments: string[]; project?: string; environment?: string;
+  before?: { createdAt: string; id: string }; limit: number; q?: string; result?: string; ids?: string[];
 }
 
 interface RunRow {
@@ -279,7 +287,45 @@ export function createEvidenceStore(path: string, options: StoreOptions): Eviden
     return row;
   };
 
+  const readRows = (filter: EvidenceReadFilter, documents: boolean) => {
+    if (!filter.projects.length || !filter.environments.length) return [];
+    const clauses = [`r.project IN (${filter.projects.map(() => "?").join(",")})`, `r.environment IN (${filter.environments.map(() => "?").join(",")})`];
+    const values: unknown[] = [...filter.projects, ...filter.environments];
+    for (const [column, value] of [["project", filter.project], ["environment", filter.environment], ["result", filter.result]] as const) {
+      if (value) { clauses.push(`r.${column}=?`); values.push(value); }
+    }
+    const id = documents ? "f.id" : "r.id";
+    if (filter.before) {
+      clauses.push(`(r.created_at < ? OR (r.created_at = ? AND ${id} < ?))`);
+      values.push(filter.before.createdAt, filter.before.createdAt, filter.before.id);
+    }
+    if (filter.ids) {
+      if (!filter.ids.length) return [];
+      clauses.push(`r.id IN (${filter.ids.map(() => "?").join(",")})`); values.push(...filter.ids);
+    }
+    if (filter.q) {
+      const fields = documents ? ["r.title", "f.filename", "f.caption"] : ["r.title", "r.repository", "r.commit_sha", "CAST(r.pull_request_number AS TEXT)"];
+      clauses.push(`(${fields.map(field => `instr(lower(${field}),lower(?)) > 0`).join(" OR ")})`);
+      values.push(...fields.map(() => filter.q));
+    }
+    if (documents) clauses.push("f.kind='document'", "f.processing_state='ready'", "r.state NOT IN ('quarantined','archived')");
+    return sqlite.prepare(`SELECT r.*, r.id AS run_id${documents ? ", f.id AS file_id" : ""} FROM evidence_runs r ${documents ? "JOIN evidence_files f ON f.run_id=r.id" : ""}
+      WHERE ${clauses.join(" AND ")} ORDER BY r.created_at DESC, ${id} DESC LIMIT ?`).all(...values, filter.limit) as Array<RunRow & { run_id: string; file_id?: string }>;
+  };
+
   const store: EvidenceStore = {
+    fileCounts(runIds) {
+      if (!runIds.length) return {};
+      return Object.fromEntries((sqlite.prepare(`SELECT run_id,COUNT(*) count FROM evidence_files WHERE run_id IN (${runIds.map(() => "?").join(",")}) GROUP BY run_id`).all(...runIds) as Array<{ run_id: string; count: number }>).map(row => [row.run_id, row.count]));
+    },
+    readRuns(filter) { return readRows(filter, false).map(toRun); },
+    readDocuments(filter) {
+      const rows = readRows(filter, true);
+      if (!rows.length) return [];
+      const runs = new Map(rows.map(row => [row.run_id, row]));
+      const files = new Map((sqlite.prepare(`SELECT * FROM evidence_files WHERE id IN (${rows.map(() => "?").join(",")})`).all(...rows.map(row => row.file_id!)) as FileRow[]).map(file => [file.id, file]));
+      return rows.map(row => { const run = runs.get(row.run_id)!; return { run: toRun(run), file: toFile(files.get(row.file_id!)!, run) }; });
+    },
     createRun(input, id, identityId, createdAt) {
       sqlite.prepare(`INSERT INTO evidence_runs(
         id, schema_version, public_id, project, repository, pull_request_number, commit_sha,

@@ -20,6 +20,7 @@ import { metrics } from "../metrics.js";
 import { multipartChunkSize, preflightUpload } from "../security.js";
 import { objectKey, type ObjectStore } from "../storage.js";
 import type { EvidenceStore } from "../store.js";
+import { createEvidenceReadRouter } from "./read-router.js";
 
 /**
  * `head` carries the first bytes of the payload so magic-byte checks run before
@@ -55,10 +56,16 @@ export function createEvidenceRouter(options: EvidenceRouterOptions) {
   const newFileId = options.createFileId ?? createFileId;
   const newPublicId = options.createPublicId ?? createPublicId;
 
+  const readRouter = createEvidenceReadRouter(options);
   router.use((req, res, next) => {
     const identity = authenticateMachineToken(bearer(req.header("authorization")), options.identities(), options.now?.());
     if (!identity) return res.status(401).json({ error: "unauthenticated" });
     res.locals.machineIdentity = identity;
+    next();
+  });
+  // This nested router matches only its read endpoints; upload/publish retain their own actions.
+  router.use((req, res, next) => {
+    if ((req.method === "GET" || req.method === "HEAD") && (req.path === "/runs" || req.path === "/documents" || /^\/runs\/[^/]+\/files\/[^/]+\/content$/.test(req.path))) return readRouter(req, res, next);
     next();
   });
 
@@ -116,7 +123,7 @@ export function createEvidenceRouter(options: EvidenceRouterOptions) {
       ...file,
       receivedParts: options.store.listParts(file.id).map((part) => part.partNumber)
     }));
-    return res.json({ ...run, files, findings: options.store.listFindings(run.id) });
+    return res.json({ ...run, files, findings: options.store.listFindings(run.id), events: options.store.events(run.id) });
   });
 
   router.post("/runs/:runId/files/init", async (req, res, next) => {

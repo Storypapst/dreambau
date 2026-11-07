@@ -21,6 +21,7 @@ vi.mock("../src/client/components/employee-management.js", () => ({ EmployeeMana
 vi.mock("../src/client/components/passkey-manager.js", () => ({ PasskeyManager: () => null }));
 vi.mock("../src/client/components/filter-presets.js", () => ({ FilterPresets: () => null }));
 vi.mock("../src/client/components/coordination-dashboard.js", () => ({ CoordinationDashboard: () => null }));
+vi.mock("../src/client/components/evidence-workspace.js", () => ({ EvidenceWorkspace: ({ project, onBack, onProjectChange }: { project: string; onBack: () => void; onProjectChange: (project: string) => void }) => <div data-testid="workspace">{project}<button onClick={onBack}>Return to accounts</button><button onClick={() => onProjectChange("orimo")}>Select ORIMO</button></div> }));
 
 function account(email: string, extra: Partial<AccountView["metadata"]> = {}): AccountView {
   return {
@@ -65,6 +66,28 @@ describe("AccountDirectory filter state", () => {
   };
   const favoriteRows = () => container.querySelector('[data-testid="favorite-rows"]')?.textContent;
   const reset = () => container.querySelector('[data-testid="reset-filters"]') as HTMLButtonElement | null;
+
+  it("opens a real run workspace, preserves account filters, and follows browser history", async () => {
+    window.history.replaceState(null, "", "/testmails/?project=ORISO&status=active");
+    await render(accounts, "en", ["oriso", "orimo"]);
+    const accountUrl = window.location.pathname + window.location.search;
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Test runs and evidence"]')!.click());
+    expect(window.location.pathname).toBe("/testmails/runs");
+    expect(window.location.search).toBe("?project=ORISO");
+    expect(container.querySelector('[data-testid="workspace"]')?.textContent).toContain("oriso");
+    await act(async () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === "Select ORIMO")!.click());
+    expect(window.location.search).toBe("?project=ORIMO");
+    await act(async () => [...container.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === "Return to accounts")!.click());
+    expect(window.location.pathname + window.location.search).toBe(accountUrl);
+    expect(rows()).toBe("rows:1");
+    await act(async () => {
+      window.history.pushState(null, "", "/testmails/runs?project=ORIMO");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(container.querySelector('[data-testid="workspace"]')?.textContent).toContain("orimo");
+    await render(accounts, "en", ["oriso"]);
+    expect(container.querySelector('[data-testid="workspace"]')?.textContent).toContain("oriso");
+  });
 
   it("only offers granted projects, including an empty project, and falls back after revocation", async () => {
     window.history.replaceState(null, "", "/testmails/?project=DREAMBAU");

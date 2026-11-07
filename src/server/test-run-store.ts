@@ -191,6 +191,37 @@ export class TestRunStore {
     return rows.map((row) => this.get(row.id)!);
   }
 
+  /** Bounded human read model; both the target and pool must be granted. */
+  workspacePage(filter: { scopes: Array<{ project: string; environments: string[] }>; before?: { createdAt: string; id: string }; limit: number; project?: string; environment?: string; result?: string; q?: string }) {
+    const scopes = filter.scopes.filter(scope => scope.environments.length);
+    if (!scopes.length) return [];
+    const values: unknown[] = [];
+    const allowed = scopes.map(scope => {
+      values.push(scope.project, ...scope.environments, ...scope.environments);
+      const slots = scope.environments.map(() => "?").join(",");
+      return `(project=? AND target_environment IN (${slots}) AND pool_environment IN (${slots}))`;
+    });
+    const clauses = [`(${allowed.join(" OR ")})`];
+    if (filter.project) { clauses.push("project=?"); values.push(filter.project); }
+    if (filter.environment) { clauses.push("target_environment=?"); values.push(filter.environment); }
+    if (filter.before) { clauses.push("(created_at<? OR (created_at=? AND id<?))"); values.push(filter.before.createdAt, filter.before.createdAt, filter.before.id); }
+    if (filter.q) { clauses.push("(instr(lower(scenario),lower(?))>0 OR instr(lower(commit_sha),lower(?))>0 OR instr(lower(application_version),lower(?))>0 OR EXISTS(SELECT 1 FROM workspace_references wr WHERE wr.owner_source='test-run' AND wr.owner_id=test_runs.id AND instr(lower(wr.target),lower(?))>0))"); values.push(filter.q, filter.q, filter.q, filter.q); }
+    if (filter.result) {
+      if (filter.result !== "passed" && filter.result !== "failed") return [];
+      clauses.push("EXISTS(SELECT 1 FROM test_run_events e WHERE e.run_id=test_runs.id AND e.event_type=?)"); values.push(`run_${filter.result}`);
+    }
+    const rows = this.sqlite.prepare(`SELECT * FROM test_runs WHERE ${clauses.join(" AND ")} ORDER BY created_at DESC,id DESC LIMIT ?`).all(...values, filter.limit) as RunRow[];
+    return rows.map(row => ({ id: row.id, project: row.project, targetEnvironment: row.target_environment, poolEnvironment: row.pool_environment,
+      applicationVersion: row.application_version, commitSha: row.commit_sha, scenario: row.scenario, status: row.status,
+      requestedAccounts: row.requested_accounts, initiatedBy: { type: row.initiated_by_type, id: row.initiated_by_id }, createdAt: row.created_at } satisfies Omit<TestRun, "accounts">));
+  }
+
+  workspaceOutcomes(runIds: string[]): Map<string, TestRunEvent> {
+    if (!runIds.length) return new Map();
+    const rows = this.sqlite.prepare(`SELECT * FROM test_run_events WHERE run_id IN (${runIds.map(() => "?").join(",")}) AND event_type IN ('run_passed','run_failed') ORDER BY id`).all(...runIds) as Array<{ id: number; run_id: string; event_type: string; actor_type: RunActor["type"]; actor_id: string; created_at: string; payload: string }>;
+    return new Map(rows.map(row => [row.run_id, { id: row.id, runId: row.run_id, type: row.event_type, actor: { type: row.actor_type, id: row.actor_id }, createdAt: row.created_at, payload: JSON.parse(row.payload) as Record<string, unknown> }]));
+  }
+
   leasedAccountIds(): Set<string> {
     return new Set(
       (this.sqlite.prepare("SELECT account_id FROM account_leases ORDER BY account_id").all() as Array<{ account_id: string }>)

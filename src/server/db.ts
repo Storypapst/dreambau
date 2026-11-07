@@ -17,6 +17,7 @@ import { topicKeys } from "./catalog.js";
 import { TestResourceStore } from "./test-resource-store.js";
 import { TestFixturePlanStore } from "./test-fixture-plan-store.js";
 import { TestRunStore } from "./test-run-store.js";
+import { WorkspaceReferenceStore } from "./workspace-reference-store.js";
 import { ReleaseListStore } from "./release-list-store.js";
 import {
   accountAccessEventInputSchema,
@@ -36,6 +37,7 @@ const seeds = {
 };
 
 export interface RegistryDatabase {
+  workspaceReferences: WorkspaceReferenceStore;
   testRuns: TestRunStore;
   fixturePlans: TestFixturePlanStore;
   testResources: TestResourceStore;
@@ -342,6 +344,7 @@ export function createDatabase(path: string): RegistryDatabase {
   };
   const testResources = new TestResourceStore(sqlite);
   const api: RegistryDatabase = {
+    workspaceReferences: new WorkspaceReferenceStore(sqlite),
     testRuns: new TestRunStore(sqlite, testResources),
     fixturePlans: new TestFixturePlanStore(sqlite),
     testResources,
