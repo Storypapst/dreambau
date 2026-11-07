@@ -343,9 +343,20 @@ describe("ORISO PreDev provisioning service", () => {
   });
 
   it("does not trust an incomplete existing admin roster", async () => {
-    const oriso = fakeOriso({ invites: [invite()], rosterTotal: 2,
-      tenantAdmins: [{ id: "original-admin", email: "lisa.simpson@oriso.org", username: "existing", tenantId: "0" }] });
-    await expect(service(oriso.fetch).status("lisa.simpson@oriso.org")).rejects.toMatchObject({ code: "existing_admin_role_unavailable" });
+    const oriso = fakeOriso({ invites: [invite()] });
+    const pages: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = new URL(input);
+      if (!url.pathname.endsWith("/tenantadmins/search")) return oriso.fetch(input, init);
+      const page = url.searchParams.get("page")!;
+      pages.push(page);
+      const rows = page === "1" ? [{ _embedded: {
+        id: "original-admin", email: "lisa.simpson@oriso.org", username: "existing", tenantId: "0"
+      } }] : [];
+      return { ok: true, status: 200, async json() { return { total: 2, _embedded: rows }; } };
+    };
+    await expect(service(fetch).status("lisa.simpson@oriso.org")).rejects.toMatchObject({ code: "existing_admin_role_unavailable" });
+    expect(pages).toEqual(["1", "2"]);
   });
 
   it("reads the complete roster before accepting the exact-email identity on a later page", async () => {
