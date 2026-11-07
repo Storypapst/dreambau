@@ -19,6 +19,19 @@ const $ = (s, r = D) => r.querySelector(s), $$ = (s, r = D) => Array.from(r.quer
 const Q = new URLSearchParams(location.search);
 const E = JSON.parse(document.querySelector('#reference-data').content.textContent);
 const LABELS = {"de":{"title":"Referenzen","sub":"Was gebaut wurde und für wen.","back":"Startseite","cur":"Aktuelle Projekte","old":"Ältere Referenzen","search":"Suchen","searchPh":"Name, Jahr oder Stichwort","clear":"Suche leeren","filter":"Filter","filterTitle":"Filter","secTitle":"Bereich","secAll":"Alle","secCur":"Aktuell","secOld":"Älter","tagsTitle":"Tags","reset":"Filter zurücksetzen","show1":"1 Eintrag anzeigen","showN":"{n} Einträge anzeigen","showNone":"Keine Treffer","count":"{n} von {m} Einträgen","none":"Keine Treffer","noneHelp":"Suchbegriff kürzen oder den Filter zurücksetzen.","open":"Öffnen","close":"Schließen","closeView":"Projektansicht schließen","view":"Projektansicht","year":"Jahr","client":"Projekt / Auftraggeber","scope":"Umfang","short":"Kurztext","lang":"Sprache","now":"jetzt","entries":"Einträge","draft":"Entwurf, von Frank freizugeben","pending":"Kurztext folgt","linkPending":"Link folgt","st_live":"Online","st_soon":"Bald geht‘s los","st_unk":"Status folgt","enTitle":"Text auf Englisch","same":"siehe Aktuelle Projekte","noView":"ohne Projektansicht","what":"Was","role":"Rolle","tasks":"Aufgaben","status":"Status","links":"Links","imageSlot":"Bild oder Video (Platzhalter)","video":"Video (nicht eingebettet)","slides":"Folien","impressum":"Impressum","datenschutz":"Datenschutz","teamwork":"Teamwork","axis":"Zeitstrahl","axisBreak":"Skala gekürzt","hint":"Einen Punkt anwählen, um die Projektansicht zu öffnen.","legend":"Legende","tag":{"website":"Website","plattform":"Plattform","redesign":"Redesign","prozess":"Prozess-Software","opensource":"Open Source","bildung":"Bildung","designsystem":"Design-System"}},"fi":{"title":"Referenssit","sub":"Mitä on rakennettu ja kenelle.","back":"Takaisin etusivulle","cur":"Ajankohtaiset projektit","old":"Aiemmat referenssit","search":"Hae","searchPh":"Nimi, vuosi tai hakusana","clear":"Tyhjennä haku","filter":"Suodata","filterTitle":"Suodattimet","secTitle":"Osio","secAll":"Kaikki","secCur":"Ajankohtaiset","secOld":"Aiemmat","tagsTitle":"Tunnisteet","reset":"Palauta suodattimet","show1":"Näytä 1 kohde","showN":"Näytä {n} kohdetta","showNone":"Ei hakutuloksia","count":"{n} / {m} kohteesta","none":"Ei hakutuloksia","noneHelp":"Lyhennä hakusanaa tai palauta suodattimet.","open":"Avaa","close":"Sulje","closeView":"Sulje projektinäkymä","view":"Projektinäkymä","year":"Vuosi","client":"Projekti / toimeksiantaja","scope":"Laajuus","short":"Lyhyt kuvaus","lang":"Kieli","now":"nyt","entries":"kohdetta","draft":"Luonnos, Frankin hyväksyttävänä","pending":"Lyhyt kuvaus tulossa","linkPending":"Linkki tulossa","st_live":"Verkossa","st_soon":"Pian käynnistyy","st_unk":"Tila selviää myöhemmin","enTitle":"Teksti englanniksi","same":"katso Ajankohtaiset projektit","noView":"ei projektinäkymää","what":"Mitä","role":"Rooli","tasks":"Tehtävät","status":"Tila","links":"Linkit","imageSlot":"Kuva tai video (paikkamerkki)","video":"Video (ei upotettu)","slides":"Kuvat","impressum":"Julkaisijatiedot","datenschutz":"Tietosuoja","teamwork":"Teamwork","axis":"Aikajana","axisBreak":"Asteikkoa lyhennetty","hint":"Valitse piste avataksesi projektinäkymän.","legend":"Selite","tag":{"website":"Verkkosivusto","plattform":"Alusta","redesign":"Uudistus","prozess":"Prosessiohjelmisto","opensource":"Avoin lähdekoodi","bildung":"Koulutus","designsystem":"Suunnittelujärjestelmä"}},"ar":{"title":"المراجع","sub":"ما تم بناؤه ولمن.","back":"الصفحة الرئيسية","cur":"المشاريع الحالية","old":"المراجع السابقة","search":"بحث","searchPh":"الاسم أو السنة أو كلمة مفتاحية","clear":"مسح البحث","filter":"تصفية","filterTitle":"التصفية","secTitle":"القسم","secAll":"الكل","secCur":"الحالية","secOld":"السابقة","tagsTitle":"الوسوم","reset":"إعادة ضبط التصفية","show1":"عرض إدخال واحد","showN":"عرض {n} من الإدخالات","showNone":"لا توجد نتائج","count":"{n} من {m} إدخالات","none":"لا توجد نتائج","noneHelp":"اختصر كلمة البحث أو أعد ضبط التصفية.","open":"فتح","close":"إغلاق","closeView":"إغلاق عرض المشروع","view":"عرض المشروع","year":"السنة","client":"المشروع / العميل","scope":"النطاق","short":"نص قصير","lang":"اللغة","now":"الآن","entries":"إدخالات","draft":"مسودة، بانتظار موافقة فرانك","pending":"النص القصير لاحقًا","linkPending":"الرابط لاحقًا","st_live":"متاح على الإنترنت","st_soon":"يبدأ قريبًا","st_unk":"الحالة لاحقًا","enTitle":"النص بالإنجليزية","same":"انظر المشاريع الحالية","noView":"بدون عرض للمشروع","what":"ماذا","role":"الدور","tasks":"المهام","status":"الحالة","links":"الروابط","imageSlot":"صورة أو فيديو (عنصر نائب)","video":"فيديو (غير مضمّن)","slides":"الشرائح","impressum":"بيانات النشر","datenschutz":"حماية البيانات","teamwork":"Teamwork","axis":"الخط الزمني","axisBreak":"المقياس مختصر","hint":"اختر نقطة لفتح عرض المشروع.","legend":"المفتاح","tag":{"website":"موقع إلكتروني","plattform":"منصة","redesign":"إعادة تصميم","prozess":"برنامج العمليات","opensource":"مفتوح المصدر","bildung":"تعليم","designsystem":"نظام تصميم"}}};
+LABELS.en = {
+  title:'References',sub:'What we built and for whom.',back:'Home',cur:'Current projects',old:'Earlier work',search:'Search',
+  searchPh:'Name, year or keyword',clear:'Clear search',filter:'Filter',filterTitle:'Filter',secTitle:'Section',secAll:'All',
+  secCur:'Current',secOld:'Earlier',tagsTitle:'Tags',reset:'Reset filters',show1:'Show 1 result',showN:'Show {n} results',
+  showNone:'No results',count:'{n} of {m} entries',none:'No results',noneHelp:'Shorten the query or reset the filters.',
+  open:'Open',close:'Close',closeView:'Close project view',view:'Project view',year:'Year',client:'Project / client',
+  scope:'Scope',short:'Summary',lang:'Language',now:'now',entries:'entries',pending:'Summary pending',linkPending:'Link pending',
+  st_live:'Online',st_soon:'Coming soon',st_unk:'Status pending',enTitle:'Text in English',same:'See current projects',
+  noView:'No project view',what:'Work',role:'Role',tasks:'Tasks',status:'Status',links:'Links',imageSlot:'Illustration',
+  video:'Video',slides:'Screenshots',impressum:'Legal notice',datenschutz:'Privacy',teamwork:'Teamwork',axis:'Timeline',
+  axisBreak:'Scale shortened',hint:'Select a point to open the project.',legend:'Legend',
+  tag:{website:'Website',plattform:'Platform',redesign:'Redesign',prozess:'Process software',opensource:'Open source',bildung:'Education',designsystem:'Design system'}
+};
 const TAGS = ['website', 'plattform', 'redesign', 'prozess', 'opensource', 'bildung', 'designsystem'];
 const LANG = LABELS[Q.get('lang')] ? Q.get('lang') : 'de', DIR = LANG === 'ar' ? 'rtl' : 'ltr';
 R.lang = LANG; R.dir = DIR;
@@ -183,7 +196,7 @@ function viewHTML(e, o = {}) {
 <section class="pv-sec" data-css="--zc:${rgb}">${EN(v.stackLabel, 'h' + (H + 1))}${EN(v.stack, 'p')}</section>
 ${links}<details class="pv-sec"><summary class="pill">Originaltext · EN</summary><p class="original" lang="en" dir="ltr">${esc(e.original)}</p></details></article>`;
   }
-  const sent = e.sent ? `<p class="pv-sent" lang="de" dir="ltr">${esc(e.sent)}</p><span class="draft">${esc(L('draft'))}</span>` : `<p class="pv-sent pending">${esc(L('pending'))}</p>`;
+  const sent = e.sent ? `<p class="pv-sent" lang="de" dir="ltr">${esc(e.sent)}</p>` : `<p class="pv-sent pending">${esc(L('pending'))}</p>`;
   return `<article class="pv cur" aria-labelledby="pvt-${e.id}">
 <header class="pv-hd" data-css="--zc:${rgb}">${artHTML('pv-art', e.id + ':hd', e.motif, rgb, 13)}<div class="pv-tt"><h${H} class="pv-title" id="pvt-${e.id}">${esc(e.title)}</h${H}>${stChip(e)}</div></header>
 <div class="pv-body">${sent}${tagsHTML(e)}${links}</div>
@@ -222,6 +235,8 @@ function syncFilterUI() {
 function refresh() {
   S.vis = E.filter(matches).map(e => e.id); S.visSet = new Set(S.vis);
   syncFilterUI();
+  const featured = $('.featured-work');
+  if (featured) featured.hidden = Boolean(S.q.trim() || S.sec !== 'all' || S.tags.size);
   V.render(); layoutAll();
   if (S.open && !S.visSet.has(S.open) && !V.docked) closeEntry();
 }
@@ -363,9 +378,9 @@ function wire() {
 function skeleton() {
   D.body.insertAdjacentHTML('afterbegin', `<div id="stage" class="enhancing" inert><div id="frame"><div id="app" data-v="${V.id}">
 <canvas id="field" aria-hidden="true"></canvas>
-<header class="top"><a class="pill back" href="/">${svg(ICO.back, 16).replace('<svg ', '<svg class="flip" ')}<span>${esc(L('back'))}</span></a><h1 class="ttl"><span id="ttl">${esc(L('title'))}</span><i class="caret" aria-hidden="true"></i></h1><p class="kicker">${esc(L('sub'))}</p><p class="meta" id="meta" aria-hidden="true"></p></header>
+<header class="top"><a class="pill back" href="${LANG==='de'?'/':'/?lang='+LANG}">${svg(ICO.back, 16).replace('<svg ', '<svg class="flip" ')}<span>${esc(L('back'))}</span></a><h1 class="ttl"><span id="ttl">${esc(L('title'))}</span><i class="caret" aria-hidden="true"></i></h1><p class="kicker">${esc(L('sub'))}</p><p class="meta" id="meta" aria-hidden="true"></p></header>
 <section class="filter" role="search" aria-label="${esc(L('filter'))}">${filterHTML()}</section>
-<div class="scroll" id="scroll"><main id="content"></main><footer class="foot" aria-label="${esc(L('impressum'))}"><span class="pending" lang="de" dir="ltr">Impressum · Angaben noch offen</span><i aria-hidden="true">·</i><span class="pending" lang="de" dir="ltr">Datenschutz · Freigabe noch offen</span><i aria-hidden="true">·</i><a href="/teamwork/">${esc(L('teamwork'))}</a><i aria-hidden="true">·</i><a href="/glossar/">Glossar</a><i aria-hidden="true">·</i><a href="mailto:info@dreambau.com">Kontakt</a></footer></div>
+<div class="scroll" id="scroll"><main id="content"></main><footer class="foot" aria-label="${esc(L('impressum'))}"><span class="pending" lang="de" dir="ltr">Impressum · Angaben noch offen</span><i aria-hidden="true">·</i><a href="/homepage-assets/datenschutz.html">${esc(L('datenschutz'))}</a><i aria-hidden="true">·</i><a href="/teamwork/">${esc(L('teamwork'))}</a><i aria-hidden="true">·</i><a href="/glossar/">Glossar</a><i aria-hidden="true">·</i><a href="mailto:info@dreambau.com">Kontakt</a></footer></div>
 <div class="modal fs" id="fsheet" role="dialog" aria-modal="true" aria-labelledby="fs-t" aria-hidden="true" inert><div class="mbk"></div><section class="msheet" id="fs-sheet" tabindex="-1"><button type="button" class="grab" aria-label="${esc(L('close'))}"></button><header class="mh"><h2 id="fs-t">${esc(L('filterTitle'))}</h2><button type="button" class="pill" data-close data-autofocus>${esc(L('close'))}</button></header><div class="mb" id="fsbody"></div><footer class="mf"><button type="button" class="pill" id="fsreset">${esc(L('reset'))}</button><button type="button" class="pill pri" id="fsshow"></button></footer></section></div>
 </div></div></div><p class="sr" id="live" role="status" aria-live="polite"></p>`);
   app = $('#app');
@@ -393,7 +408,11 @@ function start(Vv) {
   wire();
   loop();
   if (!RM()) decode($('#ttl'), L('title'), { dur: 600 });
-  document.querySelector('.nojs').remove();
+  const featured = D.querySelector('.nojs .featured-work').cloneNode(true);
+  featured.querySelector('h2').textContent = { de:'Ausgewählte Arbeiten', en:'Selected work', fi:'Valitut työt', ar:'أعمال مختارة' }[LANG];
+  featured.hidden = Boolean(S.q.trim() || S.sec !== 'all' || S.tags.size);
+  $('#content').before(featured);
+  D.querySelector('.nojs').remove();
   $('#stage').classList.remove('enhancing'); $('#stage').inert = false;
  } catch (error) {
   resizeObs?.disconnect(); cancelAnimationFrame(raf); ARTS.clear();
@@ -433,7 +452,7 @@ function nodeHTML(e) {
   const name = cur ? hl(e.title, q) : `<span lang="en" dir="ltr">${hl(vt(e.client), q)}</span>`;
   const tags = e.tags.length ? `<span class="tags">${e.tags.map(t => `<span class="tag">${hl(tagL(t), q)}</span>`).join('')}</span>` : '';
   const ds = cur
-    ? (e.sent ? `<span lang="de" dir="ltr">${hl(e.sent, q)}</span><span class="draft">${esc(L('draft'))}</span>` : `<span class="pending">${hl(L('pending'), q)}</span>`) + tags
+    ? (e.sent ? `<span lang="de" dir="ltr">${hl(e.sent, q)}</span>` : `<span class="pending">${hl(L('pending'), q)}</span>`) + tags
     : `<span><span class="y">${hl(e.year, q)}</span> · ${eh(e.scope.trim(), q)}</span>${tags}`;
   const inner = `<span class="orb"><canvas class="oc" aria-hidden="true"></canvas>${e.openable ? '' : '<i class="ex" aria-hidden="true">↗</i>'}${cur ? '' : `<abbr class="en enb" title="${esc(L('enTitle'))}">EN</abbr>`}</span><span class="lb"><span class="nm">${name}</span><span class="mk">${cur ? stChip(e) : enChip(e)}</span><span class="ds">${ds}</span>${e.openable ? '' : `<span class="sr">${esc(L('noView'))}</span>`}</span>`;
   const main = e.openable
