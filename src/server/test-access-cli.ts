@@ -124,9 +124,11 @@ Uses independent SSH operator authorization; no machine bearer is used.
 Authentication environment:
   TEST_ACCESS_IDENTITY=<machine identity>
   TEST_ACCESS_AUTH_MODE=machine-token (default) or network-proxy
+  TEST_ACCESS_CREDENTIAL_PROVIDER=auto (default) or file
   HTTPS_PROXY=<http(s)://host:port> is required for network-proxy
 
 machine-token reads the local machine credential; network-proxy skips it.
+The file credential provider skips Keychain and requires the existing private credential file.
 network-proxy permits only https://dreambau.com/testmails/api/v1.
 `);
     return 0;
@@ -235,7 +237,10 @@ async function readHiddenTotpSecret(): Promise<string> {
 }
 
 function readTestAccessCredential(identity: string) {
-  return readMachineCredential(identity, { readKeychain: readMacOSKeychainCredential });
+  return readMachineCredential(identity, {
+    provider: process.env.TEST_ACCESS_CREDENTIAL_PROVIDER,
+    readKeychain: readMacOSKeychainCredential
+  });
 }
 
 /** Stamped by scripts/build-test-access-bundle.sh; "dev" when run from source. */

@@ -6,6 +6,8 @@ import { join } from "node:path";
 interface MachineCredentialOptions {
   home?: string;
   readKeychain: (identity: string) => string;
+  /** `auto` tries Keychain first; `file` only reads the private credential file. */
+  provider?: string;
   /** Directory under `~/.config` holding the file fallback. */
   configDirectory?: string;
   /** Named in errors, so an evidence failure does not point at Test Access. */
@@ -45,9 +47,22 @@ export function machineCredentialPath(identity: string, home = homedir(), config
   return join(home, ".config", configDirectory, "identities", `${identity}.token`);
 }
 
+function headerSafeCredential(credential: string) {
+  if (!/^[\x21-\x7e]+$/.test(credential)) {
+    throw new Error("machine credential must be a single header-safe token");
+  }
+  return credential;
+}
+
 export function readMachineCredential(identity: string, options: MachineCredentialOptions) {
-  const keychainCredential = options.readKeychain(identity).trim();
-  if (keychainCredential) return keychainCredential;
+  const provider = options.provider ?? "auto";
+  if (provider !== "auto" && provider !== "file") {
+    throw new Error("machine credential provider must be auto or file");
+  }
+  if (provider === "auto") {
+    const keychainCredential = options.readKeychain(identity).trim();
+    if (keychainCredential) return headerSafeCredential(keychainCredential);
+  }
 
   const subsystem = options.subsystem ?? "Test Access";
   const path = machineCredentialPath(identity, options.home, options.configDirectory);
@@ -63,5 +78,5 @@ export function readMachineCredential(identity: string, options: MachineCredenti
   }
   const fileCredential = readFileSync(path, "utf8").trim();
   if (!fileCredential) throw new Error(`${subsystem} machine credential is empty`);
-  return fileCredential;
+  return headerSafeCredential(fileCredential);
 }

@@ -1,7 +1,98 @@
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { buildApiRequest, runTestAccessCli, runTestAccessCommand } from "../src/server/test-access-cli.js";
 
 describe("test-access CLI", () => {
+  it.each([
+    {
+      name: "list with file provider", args: ["list", "--project", "oriso", "--environment", "dev"],
+      provider: "file", exitCode: 0, authorization: ["Bearer private-test-machine-token"], keychainCalled: false, error: null
+    },
+    {
+      name: "doctor with file provider", args: ["doctor"],
+      provider: "file", exitCode: 0, authorization: ["Bearer private-test-machine-token"], keychainCalled: false, error: null
+    },
+    {
+      name: "session open with file provider", args: ["session", "open", "oriso/dev/reusable-actor"],
+      provider: "file", exitCode: 1, authorization: ["Bearer private-test-machine-token"], keychainCalled: false,
+      error: "account not found in the identity scope"
+    },
+    {
+      name: "default auto provider after denied Keychain access", args: ["list"],
+      provider: undefined, exitCode: 1, authorization: [], keychainCalled: true, error: "macOS Keychain access was denied"
+    },
+    {
+      name: "unknown provider", args: ["list"],
+      provider: "unknown", exitCode: 1, authorization: [], keychainCalled: false, error: "machine credential provider must be auto or file"
+    },
+    {
+      name: "malformed private credential", args: ["list"],
+      provider: "file", exitCode: 1, authorization: [], keychainCalled: false,
+      credential: "synthetic-first-secret\r\nsynthetic-second-secret",
+      error: "machine credential must be a single header-safe token"
+    }
+  ])("honors credential selection through the normal CLI for $name", async (testCase) => {
+    const home = await mkdtemp(join(tmpdir(), "test-access-cli-home-"));
+    const directory = join(home, ".config", "dreambau-test-access", "identities");
+    const bin = join(home, "bin");
+    await mkdir(directory, { recursive: true });
+    await mkdir(bin);
+    const credential = testCase.credential ?? "private-test-machine-token";
+    await writeFile(join(directory, "file-provider-probe.token"), `${credential}\n`, { mode: 0o600 });
+    await writeFile(join(bin, "security"), '#!/bin/sh\nprintf called > "$HOME/security-called"\nexit 51\n', { mode: 0o755 });
+
+    const requests: string[] = [];
+    const authorization: Array<string | undefined> = [];
+    const server = createServer((request, response) => {
+      requests.push(request.url ?? "");
+      authorization.push(request.headers.authorization);
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end("[]");
+    });
+    try {
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("test server address unavailable");
+      const child = spawn(process.execPath, ["--import", "tsx", "src/server/test-access-cli.ts", ...testCase.args], {
+        cwd: fileURLToPath(new URL("../", import.meta.url)),
+        env: {
+          ...process.env,
+          HOME: home,
+          PATH: `${bin}:${process.env.PATH ?? ""}`,
+          TEST_ACCESS_IDENTITY: "file-provider-probe",
+          TEST_ACCESS_URL: `http://127.0.0.1:${address.port}`,
+          TEST_ACCESS_AUTH_MODE: "machine-token",
+          TEST_ACCESS_CREDENTIAL_PROVIDER: testCase.provider
+        },
+        stdio: ["ignore", "pipe", "pipe"]
+      });
+      let output = "";
+      let errors = "";
+      child.stdout.on("data", (chunk) => { output += String(chunk); });
+      child.stderr.on("data", (chunk) => { errors += String(chunk); });
+      const code = await new Promise<number | null>((resolve, reject) => {
+        child.on("error", reject);
+        child.on("close", resolve);
+      });
+
+      expect(code, errors).toBe(testCase.exitCode);
+      expect(requests).toHaveLength(testCase.authorization.length);
+      expect(authorization).toEqual(testCase.authorization);
+      expect(existsSync(join(home, "security-called"))).toBe(testCase.keychainCalled);
+      for (const part of credential.split(/\s+/)) expect(output + errors).not.toContain(part);
+      if (testCase.error) expect(errors).toContain(testCase.error);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it("dispatches versioned run commands through the same Keychain-backed client", async () => {
     const fetchMock = vi.fn(async () => Response.json([]));
     const result = await runTestAccessCommand(
