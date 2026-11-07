@@ -8,6 +8,7 @@ function fromFileOrEnv(fileName: string, envName: string) {
 }
 
 export interface RuntimeConfig {
+  workspaceGithubConfigFile: string | null;
   evidenceRead: { baseUrl: string; tokenFile: string } | null;
   teamworkGuidesPath: string | null;
   passwordHash: string;
@@ -170,6 +171,7 @@ export function loadConfig(): RuntimeConfig {
     passwordHash: fromFileOrEnv("password-hash", "TESTMAILS_PASSWORD_HASH"),
     sessionSecret: fromFileOrEnv("session-secret", "TESTMAILS_SESSION_SECRET"),
     evidenceRead: evidenceUrl ? { baseUrl: evidenceUrl, tokenFile: evidenceTokenFile } : null,
+    workspaceGithubConfigFile: process.env.TESTMAILS_GITHUB_CONFIG_FILE?.trim() || null,
     accountsPath: process.env.TESTMAILS_ACCOUNTS_PATH ?? "/run/secrets/testmails/accounts.json",
     // Opt-in, so switching the catalogue to Infisical is a deploy decision
     // rather than something that changes under an unrelated release.
