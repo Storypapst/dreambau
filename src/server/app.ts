@@ -21,6 +21,8 @@ import { loadMachineIdentities, type MachineIdentity } from "./machine-access.js
 import { createAccountRegistryProvider, createTestAccessRouter } from "./test-access.js";
 import { createUnderstandKitRouter } from "./understand-kit.js";
 import { createReleaseListRouter } from "./release-list-router.js";
+import { createWorkspaceRouter } from "./workspace-router.js";
+import { createWorkspaceEvidenceClient, type WorkspaceEvidenceClient } from "./workspace-evidence-client.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
 import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
@@ -57,6 +59,7 @@ import {
 } from "./oriso-provisioning.js";
 
 interface AppOptions {
+  workspaceEvidence?: WorkspaceEvidenceClient | null;
   teamworkGuidesPath?: string | null;
   passwordHash?: string;
   sessionSecret?: string;
@@ -307,6 +310,11 @@ export function createApp(options: AppOptions = {}) {
       res.locals.humanEntitlements = entitlements;
       next();
     });
+  const workspaceEvidence = options.workspaceEvidence === undefined
+    ? config.evidenceRead ? createWorkspaceEvidenceClient(config.evidenceRead) : null
+    : options.workspaceEvidence;
+  api.use("/workspace", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); }, requireActiveHumanSession,
+    createWorkspaceRouter({ database, evidence: workspaceEvidence, grantsFor: user => passkeyStore.grants.effective(user.id), now: options.now }));
   const accountViews = () => accountLoader().map((account) => ({ ...account, metadata: database.getMetadata(account.email) }));
   const viewProject = (view: ReturnType<typeof accountViews>[number]) => accountTaxonomyProject(view.metadata.project, view.domain);
   const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));

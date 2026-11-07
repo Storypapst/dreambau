@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDownIcon, ContactRoundIcon, DownloadIcon, MailIcon, FilterXIcon, LanguagesIcon, ListChecksIcon, LogOutIcon, RouteIcon, SearchIcon, SlidersHorizontalIcon, StarIcon, MoreHorizontalIcon } from "lucide-react";
+import { ChevronDownIcon, ContactRoundIcon, DownloadIcon, MailIcon, FilterXIcon, LanguagesIcon, ListChecksIcon, LogOutIcon, RouteIcon, SearchIcon, SlidersHorizontalIcon, StarIcon, MoreHorizontalIcon, FlaskConicalIcon } from "lucide-react";
 import { DEFAULT_FILTERS, countActiveFilters, domainList, domainValues, fixtureValues, initialFilters, lifecycleValues, readFiltersFromLocation, saveLastFilters, toggleDomain, writeFiltersToLocation, type FilterState } from "@/filter-state";
 import { api } from "@/api";
 import { distinctRoleOptions, labelConversation, labelFixture, labelLifecycle, canonicalRole, labelLinkedEnvironment, labelProject, labelRole, labelTopic, roleSearchTerms, t, type Locale } from "@/i18n";
@@ -37,6 +37,8 @@ import { PasskeyManager } from "./passkey-manager";
 import { FilterPresets } from "./filter-presets";
 import { CoordinationDashboard } from "./coordination-dashboard";
 import { ReleaseListPage } from "./release-list";
+import { EvidenceWorkspace } from "./evidence-workspace";
+import { directoryRoute, workspaceProject } from "@/directory-route";
 
 const searchLanguages: Locale[] = ["de", "en"];
 const projectNames = { oriso: "ORISO", orimo: "ORIMO", dreambau: "Dreambau" } as const;
@@ -46,19 +48,23 @@ const WEBMAIL_URL = "https://mail.dreambau.com/";
 export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, onLocaleChange, onLogout, isAdmin, canManagePasskeys, entitlements, projects }: { initialAccounts: AccountView[]; initialTaxonomies: Taxonomies; locale: Locale; onLocaleChange: (locale: Locale) => void; onLogout: () => void; isAdmin: boolean; canManagePasskeys: boolean; entitlements: HumanEntitlements; projects: TeamProject[] }) {
   const [showCoordination, setShowCoordination] = useState(false);
   // /testmails/releases is a shareable deep link; the server already answers it with the SPA shell.
-  const [showReleases, setShowReleasesState] = useState(() => window.location.pathname.startsWith("/testmails/releases"));
+  const [route, setRoute] = useState(() => directoryRoute(window.location.pathname));
+  const [runProject, setRunProject] = useState(() => workspaceProject(window.location.search, projects));
   const accountsUrl = useRef("/testmails/");
   function setShowReleases(show: boolean) {
     // Coming back restores the account view with its filter query string.
     if (show) accountsUrl.current = window.location.pathname + window.location.search;
     window.history.pushState(null, "", show ? "/testmails/releases" : accountsUrl.current);
-    setShowReleasesState(show);
+    setRoute(show ? "releases" : "accounts");
   }
   useEffect(() => {
-    const onPopState = () => setShowReleasesState(window.location.pathname.startsWith("/testmails/releases"));
+    const onPopState = () => {
+      setRoute(directoryRoute(window.location.pathname));
+      setRunProject(workspaceProject(window.location.search, projects));
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  }, [projects]);
   const [catalog, setAccounts] = useState(initialAccounts);
   const [projectConversationTypes, setProjectConversationTypes] = useState<ProjectConversationTypes>({});
   const [projectLoginTargets, setProjectLoginTargets] = useState<ProjectLoginTargets>({});
@@ -120,10 +126,10 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   const setConversationFilters = (update: string[] | ((current: string[]) => string[])) => setFilters((current) => ({ ...current, conversations: typeof update === "function" ? update(current.conversations) : update }));
   const activeFilterCount = countActiveFilters({ ...filters, project: "all" }) + (onlyFavorites ? 1 : 0);
   function resetFilters() { clearTimeout(searchTimer.current); setFilters({ ...DEFAULT_FILTERS, project }); setOnlyFavorites(false); }
-  const onReleasePage = () => window.location.pathname.startsWith("/testmails/releases");
-  useEffect(() => { if (onReleasePage()) return; writeFiltersToLocation(filters); saveLastFilters(filters); }, [filters]);
+  const onSpecialPage = () => directoryRoute(window.location.pathname) !== "accounts";
+  useEffect(() => { if (onSpecialPage()) return; writeFiltersToLocation(filters); saveLastFilters(filters); }, [filters]);
   useEffect(() => {
-    const onPopState = () => { if (!onReleasePage()) setFilters(readFiltersFromLocation() ?? DEFAULT_FILTERS); };
+    const onPopState = () => { if (!onSpecialPage()) setFilters(readFiltersFromLocation() ?? DEFAULT_FILTERS); };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
@@ -212,11 +218,23 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   function attachLinkedAccess(email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) { if (metadata) replaceMetadata(metadata); setAccounts((current) => current.map((account) => account.email === email ? { ...account, linkedAccess: account.linkedAccess?.some((existing) => existing.id === linked.id) ? account.linkedAccess.map((existing) => existing.id === linked.id ? linked : existing) : [linked, ...(account.linkedAccess ?? [])] } : account)); }
   function edit(account: AccountView) { setSelected(account); setDetailOpen(false); setEditOpen(true); }
   async function logout() { clearTimeout(searchTimer.current); await api("/auth/logout", { method: "POST" }); onLogout(); }
-  if (showReleases) return <ReleaseListPage locale={locale} onLocaleChange={onLocaleChange} onBack={() => setShowReleases(false)} />;
+  function openRuns(nextProject = selectedProject) {
+    if (!nextProject || !allowedProjects.includes(nextProject)) return;
+    if (route === "accounts") accountsUrl.current = window.location.pathname + window.location.search;
+    window.history.pushState(null, "", `/testmails/runs?project=${projectFilters[nextProject]}`);
+    setRunProject(nextProject);
+    setRoute("runs");
+  }
+  const permittedRunProject = workspaceProject(`?project=${runProject ?? ""}`, allowedProjects);
+  if (route === "runs" && permittedRunProject) return <EvidenceWorkspace locale={locale} project={permittedRunProject}
+    projects={allowedProjects} onProjectChange={openRuns} onLocaleChange={onLocaleChange}
+    onBack={() => { window.history.pushState(null, "", accountsUrl.current); setRoute("accounts"); }} />;
+  if (route === "releases") return <ReleaseListPage locale={locale} onLocaleChange={onLocaleChange} onBack={() => setShowReleases(false)} />;
   if (showCoordination) return <CoordinationDashboard locale={locale} onBack={() => setShowCoordination(false)} />;
   const de = locale === "de";
   const coordinationLabel = de ? "Koordinationszentrum" : "Coordination center";
   const releaseLabel = de ? "Release-Liste" : "Release list";
+  const runsLabel = de ? "Testläufe und Belege" : "Test runs and evidence";
   const manageLabel = de ? "Konten verwalten" : "Manage accounts";
   const filterLabel = (de ? "Filter" : "Filters") + (advancedCount ? ` (${advancedCount})` : "");
   const favoriteCount = accounts.filter((account) => favoriteSet.has(account.email)).length;
@@ -253,6 +271,7 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
           </h1>
           <div className="flex shrink-0 items-center gap-1.5">
             <div className="hidden items-center gap-1.5 sm:flex">
+              <Button type="button" variant="outline" size="icon" title={runsLabel} aria-label={runsLabel} disabled={!selectedProject} onClick={() => openRuns()}><FlaskConicalIcon /></Button>
               <Button type="button" variant="outline" size="icon" title={coordinationLabel} aria-label={coordinationLabel} onClick={() => setShowCoordination(true)}><RouteIcon /></Button>
               <Button variant="outline" size="icon" asChild><a href={WEBMAIL_URL} target="_blank" rel="noreferrer" title={t(locale, "page.webmail")} aria-label={t(locale, "page.webmail")}><MailIcon /></a></Button>
               <Button type="button" variant="outline" size="icon" title={releaseLabel} aria-label={releaseLabel} onClick={() => setShowReleases(true)}><ListChecksIcon /></Button>
@@ -261,6 +280,7 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
             <Popover>
               <PopoverTrigger asChild><Button type="button" variant="outline" size="icon" data-testid="more-toggle" title={de ? "Mehr" : "More"} aria-label={de ? "Mehr" : "More"}><MoreHorizontalIcon /></Button></PopoverTrigger>
               <PopoverContent align="end" className="flex max-h-[70vh] w-60 max-w-[calc(100vw-2rem)] flex-col gap-1.5 overflow-y-auto bg-card p-2">
+                <Button variant="ghost" className="justify-start sm:hidden" disabled={!selectedProject} onClick={() => openRuns()}><FlaskConicalIcon />{runsLabel}</Button>
                 <Button variant="ghost" className="justify-start sm:hidden" onClick={() => setShowCoordination(true)}><RouteIcon />{coordinationLabel}</Button>
                 <Button variant="ghost" className="justify-start sm:hidden" asChild><a href={WEBMAIL_URL} target="_blank" rel="noreferrer"><MailIcon />{t(locale, "page.webmail")}</a></Button>
                 <Button variant="ghost" className="justify-start sm:hidden" onClick={() => setShowReleases(true)}><ListChecksIcon />{releaseLabel}</Button>

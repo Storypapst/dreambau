@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { buildRunApiRequest, runTestRunCli } from "../src/server/test-run-cli.js";
 
 describe("test-access run CLI", () => {
+  it("accepts optional measured finish evidence while preserving old finish payloads", () => {
+    expect(buildRunApiRequest(["finish", "run-1", "--result", "failed", "--checks", "12", "--failures", "1", "--report-url", "https://evidence.dreambau.com/r/existing"])).toEqual({ method: "POST", path: "/runs/run-1/finish", body: { result: "failed", evidence: { checks: 12, failures: 1, reportUrl: "https://evidence.dreambau.com/r/existing" } } });
+    expect(buildRunApiRequest(["finish", "run-1", "--result", "passed"]).body).toEqual({ result: "passed" });
+    expect(() => buildRunApiRequest(["finish", "run-1", "--result", "passed", "--checks", "-1"])).toThrow();
+    expect(() => buildRunApiRequest(["finish", "run-1", "--result", "passed", "--report-url", "javascript:alert(1)"])).toThrow();
+    expect(() => buildRunApiRequest(["finish", "run-1", "--result", "passed", "--checks"])).toThrow();
+    expect(() => buildRunApiRequest(["finish", "run-1", "--result", "passed", "--report-url", "https://example.test/report?api_key=private-token"])).toThrow();
+  });
   it("builds a versioned cohort request from repeated role flags", () => {
     expect(buildRunApiRequest([
       "create",

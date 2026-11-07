@@ -8,6 +8,7 @@ function fromFileOrEnv(fileName: string, envName: string) {
 }
 
 export interface RuntimeConfig {
+  evidenceRead: { baseUrl: string; tokenFile: string } | null;
   teamworkGuidesPath: string | null;
   passwordHash: string;
   sessionSecret: string;
@@ -90,6 +91,9 @@ function orisoProvisioningTarget(
 }
 
 export function loadConfig(): RuntimeConfig {
+  const evidenceUrl = process.env.TESTMAILS_EVIDENCE_URL?.trim() ?? "";
+  const evidenceTokenFile = process.env.TESTMAILS_EVIDENCE_TOKEN_FILE?.trim() ?? "";
+  if (Boolean(evidenceUrl) !== Boolean(evidenceTokenFile)) throw new Error("Complete TESTMAILS_EVIDENCE_URL and TESTMAILS_EVIDENCE_TOKEN_FILE are required");
   const providerValue = process.env.TEST_ACCESS_PROVIDER?.trim() ?? "";
   if (providerValue && providerValue !== "file" && providerValue !== "infisical") {
     throw new Error("TEST_ACCESS_PROVIDER must be file or infisical");
@@ -165,6 +169,7 @@ export function loadConfig(): RuntimeConfig {
     teamworkGuidesPath: process.env.TEAMWORK_GUIDES_PATH?.trim() || path.join(path.dirname(process.env.TESTMAILS_DATABASE_PATH ?? "/data/testmails.sqlite"), "teamwork-guides.json"),
     passwordHash: fromFileOrEnv("password-hash", "TESTMAILS_PASSWORD_HASH"),
     sessionSecret: fromFileOrEnv("session-secret", "TESTMAILS_SESSION_SECRET"),
+    evidenceRead: evidenceUrl ? { baseUrl: evidenceUrl, tokenFile: evidenceTokenFile } : null,
     accountsPath: process.env.TESTMAILS_ACCOUNTS_PATH ?? "/run/secrets/testmails/accounts.json",
     // Opt-in, so switching the catalogue to Infisical is a deploy decision
     // rather than something that changes under an unrelated release.

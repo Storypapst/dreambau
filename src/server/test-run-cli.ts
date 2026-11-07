@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createRunInputSchema } from "./test-run-model.js";
 import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
+import { safeWorkspaceUrl } from "./workspace-url.js";
 
 export interface RunApiRequest {
   method: "GET" | "POST";
@@ -33,11 +34,12 @@ function required(args: string[], flag: string): string {
 
 function positionals(args: string[]): string[] {
   const flags = new Set([
-    "--project", "--target", "--pool", "--version", "--commit", "--scenario", "--role", "--result"
+    "--project", "--target", "--pool", "--version", "--commit", "--scenario", "--role", "--result", "--checks", "--failures", "--report-url"
   ]);
   const result: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     if (flags.has(args[index])) {
+      if (!args[index + 1] || args[index + 1].startsWith("--")) throw new Error(`missing value: ${args[index]}`);
       index += 1;
       continue;
     }
@@ -86,7 +88,18 @@ export function buildRunApiRequest(args: string[]): RunApiRequest {
   if (command === "release") return { method: "POST", path: `/runs/${encoded}/release` };
   if (command === "finish") {
     const result = z.enum(["passed", "failed"]).parse(required(args, "--result"));
-    return { method: "POST", path: `/runs/${encoded}/finish`, body: { result } };
+    const evidence: Record<string, unknown> = {};
+    for (const key of ["checks", "failures"] as const) {
+      const raw = values(args, `--${key}`)[0];
+      if (raw !== undefined) evidence[key] = z.coerce.number().int().nonnegative().parse(raw);
+    }
+    const report = values(args, "--report-url")[0];
+    if (report !== undefined) {
+      const url = safeWorkspaceUrl(z.url().parse(report));
+      if (!url) throw new Error("--report-url must be a safe HTTPS URL without credentials or fragments");
+      evidence.reportUrl = url;
+    }
+    return { method: "POST", path: `/runs/${encoded}/finish`, body: { result, ...(Object.keys(evidence).length ? { evidence } : {}) } };
   }
   throw new Error("usage: test-access run <create|list|show|start|finish|release> ...");
 }
