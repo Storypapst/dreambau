@@ -89,6 +89,57 @@ describe("OrisoProvisioningDialog", () => {
     return onProvisioned;
   }
 
+  it.each(["de", "en"] as const)("explains service sign-in failures while loading status (%s)", async (locale) => {
+    vi.mocked(api).mockRejectedValueOnce(new Error("oriso_authentication_failed"));
+    const onProvisioned = vi.fn();
+    await act(async () => root.render(
+      <OrisoProvisioningDialog account={account()} locale={locale} hasLinkedAccess={false} onProvisioned={onProvisioned} />
+    ));
+    await act(async () => container.querySelector("button")!.click());
+
+    const alert = document.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain(locale === "de"
+      ? "Testmails konnte sich mit seinem technischen Zugang nicht bei ORISO anmelden."
+      : "Testmails could not sign in to ORISO with its service access.");
+    expect(alert?.textContent).toContain(locale === "de"
+      ? "Das Passwort dieses Testkontos wurde noch nicht geprüft."
+      : "This test account's password has not been checked yet.");
+    expect(alert?.textContent).not.toContain("oriso_authentication_failed");
+    expect(onProvisioned).not.toHaveBeenCalled();
+    expect(api).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["de", "en"] as const)("explains unavailable service access while loading status (%s)", async (locale) => {
+    vi.mocked(api).mockRejectedValueOnce(new Error("admin_record_unavailable"));
+    const onProvisioned = vi.fn();
+    await act(async () => root.render(
+      <OrisoProvisioningDialog account={account()} locale={locale} hasLinkedAccess={false} onProvisioned={onProvisioned} />
+    ));
+    await act(async () => container.querySelector("button")!.click());
+
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain(locale === "de"
+      ? "Der technische ORISO-Zugang von Testmails ist derzeit nicht verfügbar. Das Passwort dieses Testkontos wurde noch nicht geprüft."
+      : "Testmails service access to ORISO is currently unavailable. This test account's password has not been checked yet.");
+    expect(onProvisioned).not.toHaveBeenCalled();
+    expect(api).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["de", "en"] as const)("keeps unknown status failures generic and hides raw details (%s)", async (locale) => {
+    vi.mocked(api).mockRejectedValueOnce(new Error("upstream internal@example.test synthetic-secret"));
+    const onProvisioned = vi.fn();
+    await act(async () => root.render(
+      <OrisoProvisioningDialog account={account()} locale={locale} hasLinkedAccess={false} onProvisioned={onProvisioned} />
+    ));
+    await act(async () => container.querySelector("button")!.click());
+
+    const alert = document.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain(locale === "de" ? "Status konnte nicht geladen werden." : "Could not load the provisioning status.");
+    expect(document.body.textContent).not.toContain("internal@example.test");
+    expect(document.body.textContent).not.toContain("synthetic-secret");
+    expect(onProvisioned).not.toHaveBeenCalled();
+    expect(api).toHaveBeenCalledTimes(1);
+  });
+
   const clientAccount = () => account({
     displayName: "Hugo Simpson", email: "hugo.simpson@trail.ist", domain: "trail.ist",
     metadata: { ...account().metadata, email: "hugo.simpson@trail.ist", project: "ORISO" }
