@@ -19,13 +19,26 @@ export class WorkspaceGithubStore {
   /** A known App denial invalidates old private facts, including nested closing-PR facts. */
   denyRepository(fullName: string, attemptedAt: string, retryAt: number) {
     const prefix = `https://github.com/${fullName.toLowerCase()}/`;
+    this.denyMatching(url => url.toLowerCase().startsWith(prefix), attemptedAt, retryAt, "github_access_denied");
+  }
+  /** A verified missing resource does not revoke access to its repository or siblings. */
+  denyReference(url: string, attemptedAt: string, retryAt: number) {
+    const key = url.toLowerCase();
+    this.denyMatching(value => value.toLowerCase() === key, attemptedAt, retryAt, "github_reference_unavailable");
+    this.put(key, { facts: null, observedAt: null, lastAttemptAt: attemptedAt, status: "denied", errorCode: "github_reference_unavailable", retryAt });
+  }
+  restoreReference(url: string) {
+    const key = url.toLowerCase(); const cached = this.get(key);
+    if (cached?.status === "denied" && cached.errorCode === "github_reference_unavailable") this.sqlite.prepare("DELETE FROM workspace_github_cache WHERE url=?").run(key);
+  }
+  private denyMatching(matches: (url: string) => boolean, attemptedAt: string, retryAt: number, errorCode: string) {
     const rows = this.sqlite.prepare("SELECT url,snapshot FROM workspace_github_cache").all() as Array<{ url: string; snapshot: string }>;
     this.sqlite.transaction(() => {
       for (const row of rows) {
         let snapshot: StoredGithubSnapshot; try { snapshot = JSON.parse(row.snapshot) as StoredGithubSnapshot; } catch { continue; }
-        if (row.url.toLowerCase().startsWith(prefix)) snapshot = { facts: null, observedAt: null, lastAttemptAt: attemptedAt, status: "denied", errorCode: "github_access_denied", retryAt };
+        if (matches(row.url)) snapshot = { facts: null, observedAt: null, lastAttemptAt: attemptedAt, status: "denied", errorCode, retryAt };
         else if (snapshot.facts) {
-          const filtered = snapshot.facts.closingPullRequests.filter(item => !item.url.toLowerCase().startsWith(prefix));
+          const filtered = snapshot.facts.closingPullRequests.filter(item => !matches(item.url));
           if (filtered.length === snapshot.facts.closingPullRequests.length) continue;
           snapshot = { ...snapshot, status: snapshot.status === "ready" ? "partial" : snapshot.status, facts: { ...snapshot.facts, closingPullRequests: filtered, closingPullRequestsComplete: false } };
         } else continue;

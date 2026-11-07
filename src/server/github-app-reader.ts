@@ -18,6 +18,27 @@ async function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T
   try { return await Promise.race([promise, aborted]); }
   finally { if (cancel) signal.removeEventListener("abort", cancel); }
 }
+async function responseText(response: Response, signal: AbortSignal, limit = 512 * 1024): Promise<string> {
+  const reader = response.body?.getReader(); if (!reader) return "";
+  let text = ""; let bytes = 0; const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const chunk = await abortable(reader.read(), signal); if (chunk.done) break;
+      bytes += chunk.value.byteLength; if (bytes > limit) throw new GithubReadError("github_response_too_large");
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally { void reader.cancel().catch(() => undefined); }
+}
+async function rateLimited(response: Response, signal: AbortSignal): Promise<boolean> {
+  if (response.status === 429) return true;
+  if (response.status !== 403) return false;
+  if (response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after")) return true;
+  try {
+    const value = JSON.parse(await responseText(response, signal, 8192)) as { message?: unknown };
+    return typeof value.message === "string" && /secondary rate limit|API rate limit exceeded/i.test(value.message);
+  } catch { return false; } // Unknown 403 bodies remain access denials, never stale-data fallbacks.
+}
 export function createGithubAppToken(options: {
   appId: string; installationId: string; privateKey: string; repositories: string[]; boards: boolean;
   transport?: typeof fetch; now?: () => number;
@@ -44,7 +65,7 @@ export function createGithubAppToken(options: {
             body: JSON.stringify({ repositories: options.repositories, permissions: { metadata: "read", issues: "read", pull_requests: "read", contents: "read", ...(options.boards ? { organization_projects: "read" } : {}) } })
           }), controller.signal);
           if (!response.ok) {
-            if (response.status === 429 || (response.status === 403 && (response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after")))) {
+            if (await rateLimited(response, controller.signal)) {
               throw new GithubReadError("rate_limited", rateLimitDeadline(response.headers, now()));
             }
             if ([401, 403, 404].includes(response.status)) throw new GithubReadError("github_auth_denied");
@@ -86,23 +107,15 @@ export function createGithubTransport(options: { token(signal?: AbortSignal): Pr
           body: body ? JSON.stringify(body) : undefined
         }), controller.signal);
         if (response.status === 304 && old) return old;
-        if (response.status === 429 || (response.status === 403 && (response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after")))) {
+        if (await rateLimited(response, controller.signal)) {
           retryAt = rateLimitDeadline(response.headers, now());
           throw new GithubReadError("rate_limited", retryAt);
         }
         if (!response.ok) {
           if (response.status >= 500 && attempt === 0) continue;
-          throw new GithubReadError(response.status === 401 ? "github_auth_denied" : response.status === 403 || response.status === 404 ? "github_access_denied" : "github_unavailable");
+          throw new GithubReadError(response.status === 401 ? "github_auth_denied" : response.status === 403 ? "github_access_denied" : response.status === 404 ? "github_not_found" : "github_unavailable");
         }
-        const reader = response.body?.getReader(); let text = ""; let bytes = 0; const decoder = new TextDecoder();
-        if (reader) try {
-          while (true) {
-            const chunk = await abortable(reader.read(), controller.signal); if (chunk.done) break;
-            bytes += chunk.value.byteLength; if (bytes > 512 * 1024) throw new GithubReadError("github_response_too_large");
-            text += decoder.decode(chunk.value, { stream: true });
-          }
-          text += decoder.decode();
-        } finally { void reader.cancel().catch(() => undefined); }
+        const text = await responseText(response, controller.signal); const bytes = Buffer.byteLength(text);
         const result: CachedResponse = { value: JSON.parse(text), next: /rel="next"/.test(response.headers.get("link") ?? ""), etag: response.headers.get("etag") ?? undefined, bytes };
         if (old) { cacheBytes -= old.bytes; cache.delete(key); }
         cache.set(key, result); cacheBytes += bytes;

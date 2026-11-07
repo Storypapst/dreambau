@@ -34,7 +34,7 @@ async function fixture(configured = true) {
 }
 const endpoint = "/testmails/api/workspace/runs/test-run/run/github";
 describe("selected-run GitHub HTTP boundary", () => {
-  it("does not resurrect a denied closing PR from an older concurrent outage fallback after cooldown expires", async () => {
+  it.each([403, 404])("does not resurrect a denied closing PR from an older concurrent outage fallback after cooldown expires (%s)", async deniedStatus => {
     const f = await fixture(); const issueUrl = "https://github.com/OpenResilienceInitiative/ORISO-Frontend/issues/1";
     const issue = [{ id: "issue", kind: "issue" as const, label: "", url: issueUrl }];
     await f.github!.read(issue, () => true); f.advance(61_000);
@@ -46,7 +46,8 @@ describe("selected-run GitHub HTTP boundary", () => {
         if (parentCalls === 1) return new Promise<Response>((_, reject) => { failParent = () => reject(new Error("offline")); started(); });
         throw new Error("offline");
       }
-      return new Response(null, { status: 403 });
+      if (new URL(url).pathname === "/repos/Storypapst/dreambau") return Response.json({ full_name: "Storypapst/dreambau" });
+      return new Response(null, { status: deniedStatus });
     });
     const parent = f.github!.read(issue, () => true, true); await parentStarted;
     await f.github!.read([{ id: "child", kind: "pull-request", label: "", url: "https://github.com/Storypapst/dreambau/pull/42" }], () => true, true);
@@ -62,6 +63,53 @@ describe("selected-run GitHub HTTP boundary", () => {
     f.advance(61_000);
     f.transport.mockImplementation(async () => Response.json({ title: "Successfully revalidated", state: "open", draft: false }));
     expect((await f.github!.read(child, () => true, true)).items[0]).toMatchObject({ status: "ready", facts: { title: "Successfully revalidated" } });
+  });
+  it("isolates a missing PR after a successful App repository check, preserving valid sibling and cached Issue facts", async () => {
+    const f = await fixture(); const issueUrl = "https://github.com/OpenResilienceInitiative/ORISO-Frontend/issues/1";
+    const original = f.transport.getMockImplementation()!;
+    const base = async (url: string | URL) => {
+      if (new URL(url).pathname === "/graphql") return Response.json({ data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [
+        { url: "https://github.com/Storypapst/dreambau/pull/42", repository: { nameWithOwner: "Storypapst/dreambau" } },
+        { url: "https://github.com/Storypapst/dreambau/pull/43", repository: { nameWithOwner: "Storypapst/dreambau" } }
+      ], pageInfo: { hasNextPage: false } } } } } });
+      if (new URL(url).pathname.endsWith("/pulls/43")) return Response.json({ title: "Valid sibling", state: "open", draft: false });
+      return original(url);
+    };
+    f.transport.mockImplementation(base);
+    await f.github!.read([{ id: "issue", kind: "issue", label: "", url: issueUrl }], () => true);
+    f.attach("https://github.com/Storypapst/dreambau/pull/42"); f.advance(1); f.attach("https://github.com/Storypapst/dreambau/pull/43");
+    await f.agent.get(endpoint).expect(200); f.advance(61_000);
+    f.transport.mockImplementation(async url => {
+      const path = new URL(url).pathname;
+      if (path === "/repos/Storypapst/dreambau/pulls/42") return new Response(null, { status: 404 });
+      if (path === "/repos/Storypapst/dreambau") return Response.json({ full_name: "Storypapst/dreambau" });
+      return base(url);
+    });
+    const response = await f.agent.post(`${endpoint}/refresh`).expect(200);
+    expect(response.body.items.find((item: { url: string }) => item.url.endsWith("/42"))).toMatchObject({ status: "denied", facts: null });
+    expect(response.body.items.find((item: { url: string }) => item.url.endsWith("/43"))).toMatchObject({ status: "ready", facts: { title: "Valid sibling" } });
+    expect(f.database.workspaceGithub.get(issueUrl)?.facts).toMatchObject({ title: "ORISO issue title", closingPullRequests: [{ url: "https://github.com/storypapst/dreambau/pull/43", title: "Valid sibling" }], closingPullRequestsComplete: false });
+    expect(f.database.workspaceGithub.get("https://github.com/Storypapst/dreambau/pull/43")?.facts?.title).toBe("Valid sibling");
+  });
+  it.each([403, 404])("keeps a valid core PR and its siblings readable when only release comparison fails (%s)", async status => {
+    const f = await fixture(); f.attach("https://github.com/Storypapst/dreambau/pull/42"); f.advance(1); f.attach("https://github.com/Storypapst/dreambau/pull/43");
+    f.transport.mockImplementation(async url => {
+      const path = new URL(url).pathname;
+      if (path.includes("/compare/")) return new Response(null, { status });
+      if (path.endsWith("/releases")) return Response.json([{ tag_name: "v2", name: "Release", html_url: "https://github.com/Storypapst/dreambau/releases/tag/v2", published_at: "2026-11-07T10:00:00Z", draft: false }]);
+      return Response.json({ title: "Valid PR", state: "closed", draft: false, merged_at: "2026-11-07T09:00:00Z", merge_commit_sha: "a".repeat(40) });
+    });
+    const response = await f.agent.get(endpoint).expect(200);
+    expect(response.body.items).toHaveLength(2);
+    for (const item of response.body.items) expect(item).toMatchObject({ status: "partial", facts: { title: "Valid PR", state: "merged", publishedReleases: [], releaseCoverage: "partial" } });
+    expect(f.transport.mock.calls.some(([url]) => new URL(url).pathname === "/repos/Storypapst/dreambau")).toBe(false);
+  });
+  it("recognizes GitHub's explicit secondary-rate-limit message without misclassifying it as permission revocation", async () => {
+    const f = await fixture(); f.attach("https://github.com/Storypapst/dreambau/pull/42");
+    await f.agent.get(endpoint).expect(200); f.advance(61_000);
+    f.transport.mockImplementation(async () => Response.json({ message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again." }, { status: 403 }));
+    const response = await f.agent.post(`${endpoint}/refresh`).expect(200);
+    expect(response.body.items[0]).toMatchObject({ status: "unavailable", stale: true, errorCode: "rate_limited", facts: { title: "Private Dreambau PR title" } });
   });
   it("shares pending work and the refresh cooldown across case variants of the same GitHub repository", async () => {
     const f = await fixture(); f.attach("https://github.com/Storypapst/dreambau/pull/42");

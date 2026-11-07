@@ -83,9 +83,7 @@ No raw GitHub bodies, private keys or tokens are persisted in the snapshot table
 
 This is selected-record loading, not a global scheduler. Manual refresh shares work with concurrent readers.
 Failures retain the last successful snapshot and its actual observation time, labeled stale/unavailable.
-Explicit authentication/access denial (401, non-rate-limit 403, 404) instead removes old private facts,
-including dependent closing-PR facts in other cached Issues. Installation authentication denial invalidates
-that installation's configured repositories. A 403 with rate-limit headers retains stale facts and honors backoff.
+Installation authentication denial removes old private facts across that installation. Core Issue/PR access denial removes the repository's facts, including dependent closing-PR facts in cached Issues. A core 404 first probes repository access through the same App and request budget: only a matching repository response permits invalidating just the missing reference and its dependent links. An unconfirmed probe fails closed. Secondary board/release/compare failures produce fresh partial facts without retaining denied auxiliary data or revoking a valid core read. A 403 with rate-limit headers or GitHub's bounded official rate-limit message retains stale facts and honors backoff.
 Permission-denial knowledge does not expire with the retry cooldown: a successful live core Issue/PR read
 is required to revalidate access. Concurrent outage fallbacks use the current sanitized SQLite value,
 so an older pending request cannot restore a denied closing PR from its captured snapshot.

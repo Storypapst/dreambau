@@ -9,9 +9,9 @@ import { type StoredGithubSnapshot, WorkspaceGithubStore } from "./workspace-git
 export interface WorkspaceGithubClient {
   read(references: WorkspaceReference[], canReadProject: (project: WorkspaceProject) => boolean, refresh?: boolean): Promise<WorkspaceGithubResponse>;
 }
-function filterClosingPullRequests(facts: StoredGithubSnapshot["facts"], canReadRepository: (fullName: string) => boolean): StoredGithubSnapshot["facts"] {
+function filterClosingPullRequests(facts: StoredGithubSnapshot["facts"], canReadReference: (fullName: string, url: string) => boolean): StoredGithubSnapshot["facts"] {
   if (!facts) return null;
-  const filtered = facts.closingPullRequests.filter(item => { const target = parseGithubReference(item.url); return target && canReadRepository(target.fullName); });
+  const filtered = facts.closingPullRequests.filter(item => { const target = parseGithubReference(item.url); return target && canReadReference(target.fullName, target.url); });
   return filtered.length === facts.closingPullRequests.length ? facts : { ...facts, closingPullRequests: filtered, closingPullRequestsComplete: false };
 }
 export function unconfiguredGithub(references: WorkspaceReference[]): WorkspaceGithubResponse {
@@ -24,7 +24,9 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
   const pending = new Map<string, Promise<StoredGithubSnapshot>>();
   const deniedUntil = new Map<string, number>();
   const knownDenied = new Set<string>();
-  const sanitizeFacts = (facts: StoredGithubSnapshot["facts"]) => filterClosingPullRequests(facts, name => !knownDenied.has(name.toLowerCase()));
+  let invalidationVersion = 0;
+  const referenceDenied = (url: string) => { const value = options.store.get(url); return value?.status === "denied" && value.errorCode === "github_reference_unavailable"; };
+  const sanitizeFacts = (facts: StoredGithubSnapshot["facts"]) => filterClosingPullRequests(facts, (name, url) => !knownDenied.has(name.toLowerCase()) && !referenceDenied(url));
   const privateKey = options.clients ? null : readFileSync(options.config.privateKeyFile, "utf8");
   for (const installation of options.config.installations) {
     const client = options.clients?.get(installation.installationId) ?? createGithubTransport({ token: createGithubAppToken({ appId: options.config.appId, installationId: installation.installationId,
@@ -40,17 +42,35 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
     const scopedClient = (fullName: string): GithubTransport | null => {
       const entry = allowed(fullName); if (!entry) return null;
       return { async request(path, body, requestBudget) {
+        const match = /^\/repos\/([^/]+\/[^/]+)\/(issues|pulls)\/([1-9]\d*)$/.exec(path);
+        const core = !body && match && match[1].toLowerCase() === fullName.toLowerCase() ? parseGithubReference(`https://github.com/${match[1]}/${match[2] === "issues" ? "issues" : "pull"}/${match[3]}`) : null;
         if (!allowed(fullName)) throw new GithubReadError("repository_scope_denied");
         if ((deniedUntil.get(fullName.toLowerCase()) ?? 0) > now()) throw new GithubReadError("github_access_denied");
+        if (core && referenceDenied(core.url) && (options.store.get(core.url)?.retryAt ?? 0) > now()) throw new GithubReadError("github_reference_unavailable");
         try {
           const response = await entry.client.request(path, body, requestBudget);
-          if (/^\/repos\/[^/]+\/[^/]+\/(issues|pulls)\/[1-9]\d*$/.test(path) && !body) { knownDenied.delete(fullName.toLowerCase()); deniedUntil.delete(fullName.toLowerCase()); }
+          if (core) { knownDenied.delete(fullName.toLowerCase()); deniedUntil.delete(fullName.toLowerCase()); options.store.restoreReference(core.url); }
           return response;
         }
         catch (error) {
-          if (error instanceof GithubReadError && ["github_auth_denied", "github_access_denied"].includes(error.code)) {
+          if (error instanceof GithubReadError && error.code === "github_not_found" && core) {
+            // A 404 can hide a private repository. Confirm App access before localizing the denial.
+            try {
+              if (!allowed(fullName)) throw new GithubReadError("repository_scope_denied");
+              const probe = await entry.client.request(`/repos/${fullName}`, undefined, requestBudget);
+              const value = probe.value as { full_name?: unknown } | null;
+              if (!value || typeof value.full_name !== "string" || value.full_name.toLowerCase() !== fullName.toLowerCase()) throw new GithubReadError("github_access_denied");
+              invalidationVersion++; options.store.denyReference(core.url, new Date(now()).toISOString(), now() + 60_000);
+              throw new GithubReadError("github_reference_unavailable");
+            } catch (probeError) {
+              if (probeError instanceof GithubReadError && ["github_reference_unavailable", "repository_scope_denied"].includes(probeError.code)) throw probeError;
+              error = probeError instanceof GithubReadError && probeError.code === "github_auth_denied" ? probeError : new GithubReadError("github_access_denied", probeError instanceof GithubReadError ? probeError.retryAt : undefined);
+            }
+          }
+          if (error instanceof GithubReadError && (error.code === "github_auth_denied" || error.code === "github_access_denied" && core)) {
             for (const [name, target] of registry) if (error.code === "github_auth_denied" ? target.installationId === entry.installationId : name === fullName.toLowerCase()) {
-              knownDenied.add(name); deniedUntil.set(name, now() + 60_000); options.store.denyRepository(name, new Date(now()).toISOString(), now() + 60_000);
+              const retryAt = Math.max(now() + 60_000, error.retryAt ?? 0);
+              knownDenied.add(name); deniedUntil.set(name, retryAt); options.store.denyRepository(name, new Date(now()).toISOString(), retryAt);
             }
           }
           throw error;
@@ -72,14 +92,20 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
         else {
           const job = (async (): Promise<StoredGithubSnapshot> => {
             const lastAttemptAt = new Date(now()).toISOString();
+            const startedVersion = invalidationVersion;
             try {
               const result = await readWorkspaceGithubFacts(scopedClient(parsed.fullName)!, entry.repo, parsed, budget, scopedClient);
               if (blocked(parsed.fullName)) throw new GithubReadError("github_access_denied");
-              const sanitized = sanitizeFacts(result.facts)!;
+              let sanitized = sanitizeFacts(result.facts)!;
+              if (startedVersion !== invalidationVersion) {
+                // A concurrently invalidated marker may itself be evicted from the bounded cache.
+                const current = new Set(options.store.get(parsed.url)?.facts?.closingPullRequests.map(pr => pr.url.toLowerCase()) ?? []);
+                sanitized = filterClosingPullRequests(sanitized, (_name, url) => current.has(url))!;
+              }
               const value: StoredGithubSnapshot = { ...result, facts: sanitized, status: sanitized !== result.facts && result.status === "ready" ? "partial" : result.status, observedAt: new Date(now()).toISOString(), lastAttemptAt, retryAt: Math.max(now() + 60_000, result.retryAt) };
               options.store.put(parsed.url, value); return value;
             } catch (error) {
-              const denied = blocked(parsed.fullName) || error instanceof GithubReadError && ["github_auth_denied", "github_access_denied", "repository_scope_denied"].includes(error.code);
+              const denied = blocked(parsed.fullName) || referenceDenied(parsed.url) || error instanceof GithubReadError && ["github_auth_denied", "github_access_denied", "github_reference_unavailable", "repository_scope_denied"].includes(error.code);
               // Another request may have invalidated nested facts since this job captured `prior`.
               const currentFallback = options.store.get(parsed.url);
               const value: StoredGithubSnapshot = { facts: denied ? null : sanitizeFacts(currentFallback?.facts ?? null), observedAt: denied ? null : currentFallback?.observedAt ?? null, lastAttemptAt, status: denied ? "denied" : "unavailable", errorCode: error instanceof GithubReadError ? error.code : "github_unavailable", retryAt: Math.max(now() + 60_000, error instanceof GithubReadError ? error.retryAt ?? 0 : 0) };
@@ -99,7 +125,7 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
       retryAfter = Math.max(retryAfter, snapshot.retryAt > now() ? snapshot.retryAt : 0);
       let facts = snapshot.facts; let status = snapshot.status;
       if (facts) {
-        const filtered = filterClosingPullRequests(facts, name => !!allowed(name) && !blocked(name));
+        const filtered = filterClosingPullRequests(facts, (name, url) => !!allowed(name) && !blocked(name) && !referenceDenied(url));
         if (filtered !== facts) { facts = filtered; if (status === "ready") status = "partial"; }
       }
       items.push({ referenceId: ref.id, url: parsed.url, status, facts, observedAt: snapshot.observedAt, lastAttemptAt: snapshot.lastAttemptAt, cached,
@@ -110,8 +136,9 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
       const target = parseGithubReference(item.url);
       if (target && !allowed(target.fullName)) { item.status = "denied"; item.facts = null; item.observedAt = null; item.lastAttemptAt = null; item.cached = false; item.stale = false; item.errorCode = "repository_scope_denied"; }
       else if (target && blocked(target.fullName)) { item.status = "denied"; item.facts = null; item.observedAt = null; item.stale = false; item.errorCode = "github_access_denied"; }
+      else if (target && referenceDenied(target.url)) { item.status = "denied"; item.facts = null; item.observedAt = null; item.stale = false; item.errorCode = "github_reference_unavailable"; }
       else if (item.facts) {
-        const filtered = filterClosingPullRequests(item.facts, name => !!allowed(name) && !blocked(name));
+        const filtered = filterClosingPullRequests(item.facts, (name, url) => !!allowed(name) && !blocked(name) && !referenceDenied(url));
         if (filtered !== item.facts) { item.facts = filtered; if (item.status === "ready") item.status = "partial"; }
       }
     }
