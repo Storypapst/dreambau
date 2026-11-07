@@ -43,6 +43,7 @@ export function createTestAccessRouter(options: {
   identities: MachineIdentitySource;
   registryProvider: RegistryProvider;
   fixtureObserver?: OrisoIdentityObserver;
+  headlessDevApprovalsFile?: string | null;
   registryWriter?: RegistryWriter;
   databasePath?: string;
   database: RegistryDatabase;
@@ -65,6 +66,7 @@ export function createTestAccessRouter(options: {
   router.use("/runs", createTestRunRouter({
     registryProvider: options.registryProvider,
     fixtureObserver: options.fixtureObserver,
+    headlessDevApprovalsFile: options.headlessDevApprovalsFile,
     database: options.database,
     now: options.now
   }));

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { headlessClaimInput, headlessOutcomeInput, headlessResourceId } from "./headless-registration-model.js";
 import { createRunInputSchema } from "./test-run-model.js";
 import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
 import { safeWorkspaceUrl } from "./workspace-url.js";
@@ -34,7 +35,8 @@ function required(args: string[], flag: string): string {
 
 function positionals(args: string[]): string[] {
   const flags = new Set([
-    "--project", "--target", "--pool", "--version", "--commit", "--scenario", "--role", "--result", "--checks", "--failures", "--report-url"
+    "--project", "--target", "--pool", "--version", "--commit", "--scenario", "--role", "--result", "--checks", "--failures", "--report-url",
+    "--binding-hash", "--resource-id"
   ]);
   const result: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -83,6 +85,15 @@ export function buildRunApiRequest(args: string[]): RunApiRequest {
   }
   if (!id) throw new Error(`${command || "run command"} requires a run id`);
   const encoded = encodeURIComponent(id);
+  if (command === "headless-prepare" || command === "headless-claim" || command === "headless-report") {
+    const path = `/runs/${z.uuid().parse(id)}/headless-registration`;
+    if (command === "headless-prepare") return { method: "GET", path };
+    if (command === "headless-claim") {
+      return { method: "POST", path, body: headlessClaimInput.parse({ bindingHash: required(args, "--binding-hash") }) };
+    }
+    const resourceId = headlessResourceId.parse(required(args, "--resource-id"));
+    return { method: "POST", path: `${path}/${resourceId}/outcome`, body: headlessOutcomeInput.parse({ result: required(args, "--result") }) };
+  }
   if (command === "show") return { method: "GET", path: `/runs/${encoded}` };
   if (command === "start") return { method: "POST", path: `/runs/${encoded}/start` };
   if (command === "release") return { method: "POST", path: `/runs/${encoded}/release` };
@@ -101,7 +112,7 @@ export function buildRunApiRequest(args: string[]): RunApiRequest {
     }
     return { method: "POST", path: `/runs/${encoded}/finish`, body: { result, ...(Object.keys(evidence).length ? { evidence } : {}) } };
   }
-  throw new Error("usage: test-access run <create|list|show|start|finish|release> ...");
+  throw new Error("usage: test-access run <create|list|show|start|finish|release|headless-prepare|headless-claim|headless-report> ...");
 }
 
 export async function runTestRunCli(args: string[], dependencies: TestRunCliDependencies): Promise<number> {

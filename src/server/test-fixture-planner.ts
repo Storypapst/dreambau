@@ -9,12 +9,12 @@ import type { RunActor, TestRunAccount } from "./test-run-store.js";
 function roleFor(tag: string): OrisoProvisioningRole | null {
   return orisoProvisioningRoles.find(role => role === tag) ?? provisioningRoleForRecord({ roles: [tag] });
 }
-function mailboxRole(tags: string[]): OrisoProvisioningRole | null {
+export function mailboxRole(tags: string[]): OrisoProvisioningRole | null {
   const roles = tags.map(roleFor);
   return roles.length > 0 && roles.every(role => role !== null && role === roles[0]) ? roles[0] : null;
 }
-function sameTags(a: string[], b: string[]) { return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort()); }
-function validRecordTime(record: TestAccessRecord, now: number) {
+export function sameTags(a: string[], b: string[]) { return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort()); }
+export function validRecordTime(record: TestAccessRecord, now: number) {
   return record.expiresAt === null || (Number.isFinite(Date.parse(record.expiresAt)) && Date.parse(record.expiresAt) > now);
 }
 
