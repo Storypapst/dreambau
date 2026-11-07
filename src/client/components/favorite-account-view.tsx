@@ -43,7 +43,7 @@ export function FavoriteAccountView({ accounts, locale, display, expandedEmail, 
         {accounts.map((account, index) => {
           const expanded = expandedEmail === account.email;
           return <li key={account.email}>
-            <AccountRowSummary account={account} locale={locale} expanded={expanded} showAgencies={display.testContext}
+            <AccountRowSummary account={account} locale={locale} expanded={expanded} showAgencies={display.testContext} showDomain={false}
               onToggle={() => onToggleExpanded(account.email)}>
               <FavoriteButton favorite locale={locale} name={account.displayName} onToggle={() => onToggleFavorite(account.email)} />
             </AccountRowSummary>
