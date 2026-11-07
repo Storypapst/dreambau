@@ -190,9 +190,10 @@ kit_subscribe() {
     local_version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' "$KIT_HOME/manifest.json" 2>/dev/null)"
   fi
 
-  # "newer" = a higher dotted-numeric version. Equal or older means: do nothing.
-  decision="$(python3 - "$remote_version" "$local_version" <<'PYEOF'
-import sys
+  # Older subscribers copy their own payload allowlist when upgrading themselves.
+  # Repair the new CLI helper they omitted, but only when this same release ships it.
+  decision="$(python3 - "$remote_version" "$local_version" "$tmp/manifest.json" "$KIT_HOME/test-access-install.sh" <<'PYEOF'
+import json, os, sys
 
 
 def key(value):
@@ -203,11 +204,18 @@ def key(value):
     return tuple(parts + [0] * (4 - len(parts)))
 
 
-remote, local = sys.argv[1], sys.argv[2]
-print("update" if not local or key(remote) > key(local) else "current")
+remote, local, manifest_path, helper = sys.argv[1:]
+advertises_helper = any(entry.get("path") == "test-access-install.sh"
+                        for entry in json.load(open(manifest_path)).get("files", []))
+if not local or key(remote) > key(local):
+    print("update")
+elif remote == local and advertises_helper and not os.path.isfile(helper):
+    print("repair")
+else:
+    print("current")
 PYEOF
 )"
-  if [ "$decision" != "update" ]; then
+  if [ "$decision" = "current" ]; then
     echo "[kit-subscribe] kit current (version $local_version)"
     return 0
   fi
@@ -265,7 +273,15 @@ PYEOF
     cp -R "$tmp/unpacked/$item" "$KIT_HOME/$item"
   done
   chmod +x "$KIT_HOME"/*.sh 2>/dev/null || true
-  echo "[kit-subscribe] updated ${local_version:-none} -> $remote_version in $KIT_HOME"
+  if [ "$decision" = "repair" ]; then
+    [ -f "$KIT_HOME/test-access-install.sh" ] || {
+      echo "[kit-subscribe] failed — CLI installer is still missing after repair"
+      return 1
+    }
+    echo "[kit-subscribe] repaired missing CLI installer (version $remote_version)"
+  else
+    echo "[kit-subscribe] updated ${local_version:-none} -> $remote_version in $KIT_HOME"
+  fi
   # The update just overwrote the kit's own files. Put the developer's adaptations back
   # on top, so an adaptation is made once and not once per release.
   [ -x "$KIT_HOME/kit-local.sh" ] && bash "$KIT_HOME/kit-local.sh" apply
