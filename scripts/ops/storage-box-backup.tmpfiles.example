@@ -1,0 +1,2 @@
+# Install as /etc/tmpfiles.d/storage-box-backup.conf; preserve an existing lock inode.
+f /run/lock/dreambau-evidence-data.lock 0600 root root - -

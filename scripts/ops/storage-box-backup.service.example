@@ -1,0 +1,29 @@
+[Unit]
+Description=Encrypted application backup to Storage Box
+Wants=network-online.target
+After=network-online.target docker.service systemd-tmpfiles-setup.service
+Requires=systemd-tmpfiles-setup.service
+AssertPathExists=/run/lock/dreambau-evidence-data.lock
+# The companion handler records failures locally; it sends no external messages.
+OnFailure=storage-box-backup-failure@%n.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 /usr/local/lib/storage-box-backup/storage-box-backup.py backup --config /etc/storage-box-backup/backup.json
+TimeoutStartSec=4h
+KillMode=control-group
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/storage-box-backup
+ReadWritePaths=/run/lock/dreambau-evidence-data.lock
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true

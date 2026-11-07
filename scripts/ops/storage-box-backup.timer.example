@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily encrypted application backup
+
+[Timer]
+# Reconcile with existing cold-backup and retention schedules before enabling.
+OnCalendar=*-*-* 02:15:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=storage-box-backup.service
+
+[Install]
+WantedBy=timers.target
