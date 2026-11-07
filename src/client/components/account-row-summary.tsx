@@ -20,14 +20,14 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
   const agencies = showAgencies ? account.metadata.agencies ?? [] : [];
   const de = locale === "de";
   return (
-    <div className="flex min-w-0 items-center gap-1 px-2 py-1 sm:gap-2 sm:px-3">
-      <Button type="button" variant="ghost" size="sm" className="min-w-0 flex-1 justify-start gap-1 overflow-hidden px-1 sm:max-w-[35%] sm:flex-none sm:px-2"
+    <div className="flex min-w-0 items-center gap-1 px-2 py-1 max-[360px]:gap-0.5 max-[360px]:px-1 sm:gap-2 sm:px-3">
+      <Button type="button" variant="ghost" size="sm" className="min-w-0 flex-1 justify-start gap-1 overflow-hidden has-[>svg]:px-1 sm:max-w-[35%] sm:flex-none sm:has-[>svg]:px-2"
         data-account-expander data-testmails-search-text aria-expanded={expanded} onClick={(event) => {
           const selection = window.getSelection();
           if (event.detail && selection && !selection.isCollapsed && event.currentTarget.contains(selection.anchorNode)) return;
           onToggle();
         }}>
-        {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+        {expanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
         <span className="min-w-0 truncate" title={account.displayName}>{account.displayName}</span>
       </Button>
       {!expanded && <div className="hidden min-w-0 flex-1 items-center gap-0.5 sm:flex">
@@ -40,7 +40,7 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
         title={agencies.join(" · ")}>{agencies.map((agency, index) => <span key={agency}>
           {index > 0 && " · "}<span data-testmails-search-text>{agency}</span>
         </span>)}</span>}
-      {showDomain && <Badge variant="outline" className={`domain-badge shrink-0 px-1 text-[10px] sm:px-2 sm:text-xs ${domainClass(account.domain)}`}>
+      {showDomain && <Badge variant="outline" className={`domain-badge shrink-0 px-1 text-[10px] sm:px-2 sm:text-xs ${domainClass(account.domain)}`} title={account.domain}>
         {account.domain}
       </Badge>}
       <AccountQuickCopy account={account} locale={locale} />

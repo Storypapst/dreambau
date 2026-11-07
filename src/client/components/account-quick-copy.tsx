@@ -94,7 +94,7 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
     const working = state?.kind === kind && state.phase === "working";
     const copied = state?.kind === kind && state.phase === "copied";
     return (
-      <Button type="button" variant="ghost" size="icon-sm" className="size-7 sm:size-8" aria-label={label}
+      <Button type="button" variant="ghost" size="icon-sm" className="size-7 max-[360px]:size-6.5 sm:size-8" aria-label={label}
         title={copied ? (de ? "Kopiert" : "Copied") : label}
         aria-busy={working || undefined} data-copied={copied || undefined} disabled={working} onClick={() => void copy(kind)}>
         {working ? <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" /> : copied ? <CheckIcon /> : <Icon />}
@@ -102,11 +102,11 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
     );
   }
 
-  return <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label={de ? "Zugangsdaten kopieren" : "Copy credentials"}>
+  return <div className="flex shrink-0 items-center gap-0.5 max-[360px]:gap-0" role="group" aria-label={de ? "Zugangsdaten kopieren" : "Copy credentials"}>
     {action("username", de ? "Benutzernamen erzeugen und kopieren" : "Generate and copy username", UserRoundIcon)}
     {account.password && action("mail", de ? "Mail-Passwort kopieren" : "Copy mailbox password", MailIcon)}
     {accountId && action("app", de ? "App-Passwort kopieren" : "Copy app password", KeyRoundIcon)}
-    {accountId && (mailOtp ? <Button asChild variant="ghost" size="icon-sm" className="size-7 sm:size-8">
+    {accountId && (mailOtp ? <Button asChild variant="ghost" size="icon-sm" className="size-7 max-[360px]:size-6.5 sm:size-8">
       <a href="https://mail.dreambau.com/" target="_blank" rel="noreferrer"
         aria-label={de ? "Mail-2FA im Webmail öffnen" : "Open Mail 2FA in webmail"}
         title={de ? "Mail-2FA im Webmail öffnen" : "Open Mail 2FA in webmail"}><ShieldIcon /></a>
