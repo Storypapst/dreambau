@@ -465,13 +465,31 @@ Eingabe auffordern. Für `local` und `pre-dev` darf der Broker lokal nicht
 vertrauenswürdige TLS-Zertifikate akzeptieren; `dev` und `production-test`
 bleiben strikt.
 
-Auf macOS versucht der Client zuerst den Login-Keychain. Wenn ein headless
-Prozess dort zunächst Status 36 erhält, öffnet er den Login-Keychain
-nicht-interaktiv und wiederholt den Abruf. Als Reserve kann ausschließlich
-`~/.config/dreambau-test-access/identities/<identity>.token` verwendet werden;
-die Datei muss dem aktuellen Benutzer gehören und darf keine Gruppen- oder
-Weltrechte besitzen. Dieser lokale Wert ist nur das eingeschränkte
-Maschinen-Bootstrap-Credential. Testkonto-Passwörter verbleiben in Infisical.
+Standardmäßig verwendet der Client den macOS-Keychain. Ein fehlender Eintrag
+ermöglicht den vorhandenen Datei-Fallback. Eine verweigerte oder abgelaufene
+Keychain-Abfrage wird als Fehler gemeldet.
+
+Für freigegebene unbeaufsichtigte Agenten wählt
+`TEST_ACCESS_CREDENTIAL_PROVIDER=file` direkt die eigene Maschinen-Token-Datei
+unter `~/.config/dreambau-test-access/identities/<identity>.token`.
+Die Datei muss regulär sein, dem aktuellen Benutzer gehören und ausschließlich
+Benutzerrechte besitzen, üblicherweise `0600`. Die Einrichtung erfolgt durch den
+autorisierten Operator. Testkonto-Passwörter und OTPs werden weiterhin erst vom
+Broker intern für die jeweilige Aktion abgerufen.
+
+Die Einstellung lässt sich auf einen ORISO-Aufruf begrenzen.
+
+```bash
+env TEST_ACCESS_CREDENTIAL_PROVIDER=file test-access --identity "$ORISO_TEST_ACCESS_IDENTITY" list --project oriso --environment dev
+```
+
+`auto` erhält das bisherige Verhalten. Unbekannte Provider werden abgelehnt.
+Auch der CLI-Installer berücksichtigt die Dateivariante. Sein explizites
+`ORISO_KIT_TOKEN` behält Vorrang und prüft daher nicht die lokale Dateibereitschaft.
+Ein mit `DREAMBAU_CLI_PROFILE` angegebenes lokales Wrapper-Profil wird beim
+Installieren übernommen. Derselbe Parameter ist bei späteren Updates nötig.
+Andere lokale
+Identitäten behalten ihren eigenen Credential-Provider.
 
 ### ORISO PreDev self-service provisioning
 

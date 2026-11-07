@@ -20,6 +20,8 @@
 # Environment:
 #   ORISO_KIT_BASE_CLI   default https://dreambau.com/understand/api/v1/cli
 #   ORISO_KIT_TOKEN, ORISO_TEST_ACCESS_IDENTITY   token resolution, see above
+#   TEST_ACCESS_CREDENTIAL_PROVIDER              auto (default) or file
+#   DREAMBAU_CLI_PROFILE                         optional local wrapper profile
 #   XDG_BIN_HOME, XDG_DATA_HOME                    install locations
 #
 # Exit codes: 0 current or installed, 1 could not install, 2 usage.
@@ -44,6 +46,11 @@ command -v node >/dev/null 2>&1 || { echo "[test-access-install] failed — node
 # --- token: same order as install.sh --subscribe -----------------------------
 token="${ORISO_KIT_TOKEN:-}"
 identity="${ORISO_TEST_ACCESS_IDENTITY:-}"
+credential_provider="${TEST_ACCESS_CREDENTIAL_PROVIDER:-${ORISO_TEST_ACCESS_CREDENTIAL_PROVIDER:-auto}}"
+case "$credential_provider" in
+  auto|file) ;;
+  *) echo "[test-access-install] failed — invalid credential provider (use auto or file)"; exit 1 ;;
+esac
 if [ -z "$identity" ]; then
   for f in "$HOME/.config/dreambau-test-access/identities/"*oriso*.token; do
     [ -f "$f" ] || continue
@@ -51,7 +58,7 @@ if [ -z "$identity" ]; then
     identity="$(basename "$f" .token)"
   done
 fi
-if [ -z "$identity" ] && command -v security >/dev/null 2>&1; then
+if [ "$credential_provider" = "auto" ] && [ -z "$identity" ] && command -v security >/dev/null 2>&1; then
   any="$(security find-generic-password -s dreambau-test-access 2>/dev/null | sed -n 's/.*"acct"<blob>="\(.*\)"/\1/p' | head -1)"
   case "$any" in
     *-oriso) identity="$any" ;;
@@ -59,13 +66,34 @@ if [ -z "$identity" ] && command -v security >/dev/null 2>&1; then
         security find-generic-password -s dreambau-test-access -a "$candidate" >/dev/null 2>&1 && identity="$candidate" ;;
   esac
 fi
-if [ -z "$token" ] && [ -n "$identity" ] && command -v security >/dev/null 2>&1; then
+if [ "$credential_provider" = "auto" ] && [ -z "$token" ] && [ -n "$identity" ] && command -v security >/dev/null 2>&1; then
   token="$(security find-generic-password -s dreambau-test-access -a "$identity" -w 2>/dev/null || true)"
 fi
 if [ -z "$token" ] && [ -n "$identity" ] && [ -f "$HOME/.config/dreambau-test-access/identities/$identity.token" ]; then
-  token="$(cat "$HOME/.config/dreambau-test-access/identities/$identity.token" 2>/dev/null || true)"
+  if ! token="$(node - "$HOME" "$identity" <<'NODE_CREDENTIAL'
+const { lstatSync, readFileSync } = require("node:fs");
+const { join } = require("node:path");
+const [home, identity] = process.argv.slice(2);
+try {
+  if (!/^[A-Za-z0-9._-]+$/.test(identity)) throw new Error("invalid machine identity");
+  const file = join(home, ".config", "dreambau-test-access", "identities", identity + ".token");
+  const metadata = lstatSync(file);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("credential must be a regular file");
+  if (typeof process.getuid === "function" && metadata.uid !== process.getuid()) throw new Error("credential must belong to this user");
+  if ((metadata.mode & 0o077) !== 0) throw new Error("credential must have private permissions");
+  const token = readFileSync(file, "utf8").trim();
+  if (!token) throw new Error("credential is empty");
+  if (!/^[\x21-\x7e]+$/.test(token)) throw new Error("credential must be a single header-safe token");
+  process.stdout.write(token);
+} catch (error) {
+  console.error("[test-access-install] failed — " + error.message);
+  process.exitCode = 1;
+}
+NODE_CREDENTIAL
+)"; then
+    exit 1
+  fi
 fi
-token="$(printf '%s' "$token" | tr -d '\r\n')"
 if [ -z "$token" ]; then
   echo "[test-access-install] failed — no Test-Access token found (ORISO_KIT_TOKEN, Keychain 'dreambau-test-access' or ~/.config/dreambau-test-access/identities/<identity>.token)"
   exit 1
@@ -88,7 +116,12 @@ const { writeFileSync } = require("node:fs");
 const path = require("node:path");
 
 const [base, tmp, localVersion, mode] = process.argv.slice(2);
-const headers = { authorization: `Bearer ${process.env.TEST_ACCESS_INSTALL_TOKEN}` };
+const credential = (process.env.TEST_ACCESS_INSTALL_TOKEN ?? "").trim();
+if (!/^[\x21-\x7e]+$/.test(credential)) {
+  console.log("error machine credential must be a single header-safe token");
+  process.exit(0);
+}
+const headers = { authorization: `Bearer ${credential}` };
 const key = (value) => (value || "0").split(".").map((chunk) => parseInt(chunk.replace(/\D/g, ""), 10) || 0).concat([0, 0, 0, 0]).slice(0, 4);
 const newer = (a, b) => { const x = key(a), y = key(b); for (let i = 0; i < 4; i += 1) if (x[i] !== y[i]) return x[i] > y[i]; return false; };
 
@@ -146,6 +179,10 @@ case "$status" in
   current)
     echo "[test-access-install] current (version $local_version)" ;;
   update)
+    if [ -n "${DREAMBAU_CLI_PROFILE:-}" ] && { [ ! -f "$DREAMBAU_CLI_PROFILE" ] || [ ! -r "$DREAMBAU_CLI_PROFILE" ]; }; then
+      echo "[test-access-install] failed — DREAMBAU_CLI_PROFILE must name a readable file"
+      exit 1
+    fi
     install -d -m 0755 "$bin_dir"
     install -d -m 0700 "$data_dir"
     if [ -f "$data_dir/test-access.mjs" ]; then
@@ -162,6 +199,15 @@ case "$status" in
       'export PATH' \
       'exec node "${XDG_DATA_HOME:-$HOME/.local/share}/dreambau-agent-tools/test-access/test-access.mjs" "$@"' \
       > "$wrapper_tmp"
+    if [ -n "${DREAMBAU_CLI_PROFILE:-}" ]; then
+      node - "$wrapper_tmp" "$DREAMBAU_CLI_PROFILE" <<'NODE_PROFILE'
+const { readFileSync, writeFileSync } = require("node:fs");
+const [wrapper, profile] = process.argv.slice(2);
+const quote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
+const script = readFileSync(wrapper, "utf8");
+writeFileSync(wrapper, script.replace("exec node ", `. ${quote(profile)}\nexec node `));
+NODE_PROFILE
+    fi
     chmod 0755 "$wrapper_tmp"
     mv "$wrapper_tmp" "$bin_dir/test-access"
     echo "[test-access-install] installed ${local_version:-none} -> $remote_version ($remote_sha) in $data_dir" ;;
