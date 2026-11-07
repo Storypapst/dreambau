@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Textarea } from "@/components/ui/textarea";
 import type { AccountMetadata, AccountView, FixtureQuality, LifecycleStatus, Taxonomies } from "@/types";
 import { MultiSelect } from "./multi-select";
+import { LinkedRoleTags } from "./linked-role-tags";
 import { accountTestProject, type ProjectConversationTypes } from "./account-test-context";
 import { distinctRoleOptions, labelConversation, labelFixture, labelLifecycle, labelProject, labelRoleWithEnvironment, labelTopic, type Locale } from "@/i18n";
 import type { Project } from "@/types";
@@ -39,7 +40,7 @@ export function MetadataEditor({ account, open, onOpenChange, ...props }: Metada
 
 function MetadataEditorForm({ account, taxonomies, projectConversationTypes, locale, onOpenChange, onSaved }:
   Omit<MetadataEditorProps, "account" | "open"> & { account: AccountView }) {
-  const [initial] = useState(account.metadata);
+  const [initial] = useState(() => ({ ...account.metadata, roles: [...(account.metadata.documentedRoles ?? account.metadata.roles)] }));
   const [value, setValue] = useState(initial);
   const [agencyText, setAgencyText] = useState((initial.agencies ?? []).join("\n"));
   const [busy, setBusy] = useState(false);
@@ -72,7 +73,7 @@ function MetadataEditorForm({ account, taxonomies, projectConversationTypes, loc
     <Field><FieldLabel htmlFor="version">{locale === "de" ? "Verschifft in Version" : "Shipped in version"}</FieldLabel><Input id="version" placeholder="3.1.0" value={value.shippedVersion} onChange={(e) => setValue({ ...value, shippedVersion: e.target.value })} pattern="^$|^\d+(\.\d+){0,2}$" /></Field>
     <Field><FieldLabel>{locale === "de" ? "Projekt" : "Project"}</FieldLabel><Select value={value.project} onValueChange={(project) => setValue({ ...value, project: project as Project })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(["NONE","ORI","ORISO","ORIMO","TRAIL.IST","DREAMBAU","OTHER"] as Project[]).map((item) => <SelectItem key={item} value={item}>{labelProject(locale, item)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
     <Field><FieldLabel>Status</FieldLabel><Select value={value.lifecycleStatus} onValueChange={(v) => setValue({ ...value, lifecycleStatus: v as LifecycleStatus })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(["unused","active","needs_review","delete_candidate","archived"] as LifecycleStatus[]).map((item) => <SelectItem key={item} value={item}>{labelLifecycle(locale, item)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-    <Field><FieldLabel>{locale === "de" ? "Rollen" : "Roles"}</FieldLabel><MultiSelect locale={locale} label={locale === "de" ? "Rollen wählen" : "Choose roles"} options={distinctRoleOptions(taxonomies.roles, value.roles)} value={value.roles} onChange={(roles) => setValue({ ...value, roles })} formatOption={(item) => labelRoleWithEnvironment(locale, item, account.linkedAccess)} /></Field>
+    <Field><FieldLabel>{locale === "de" ? "Rollen (Dokumentation)" : "Roles (documentation)"}</FieldLabel><MultiSelect locale={locale} label={locale === "de" ? "Rollen wählen" : "Choose roles"} options={distinctRoleOptions(taxonomies.roles, value.roles)} value={value.roles} onChange={(roles) => setValue({ ...value, roles })} formatOption={(item) => labelRoleWithEnvironment(locale, item, account.linkedAccess)} /><LinkedRoleTags linkedAccess={account.linkedAccess} locale={locale} /></Field>
     <Field><FieldLabel htmlFor="agencies">{locale === "de" ? "Beratungsstellen (Dokumentation)" : "Counselling agencies (documentation)"}</FieldLabel><Textarea id="agencies" value={agencyText} onChange={(event) => setAgencyText(event.target.value)} aria-describedby="agencies-help" /><p id="agencies-help" className="text-sm text-muted-foreground">{locale === "de" ? "Eine Beratungsstelle pro Zeile. Diese Angaben dokumentieren das Testkonto und ändern keine ORISO-Zuordnung oder Berechtigung. Leer bedeutet: nicht hinterlegt." : "One agency per line. These notes document the test account and do not change ORISO assignments or permissions. Empty means not documented."}</p></Field>
     <Field><FieldLabel>{locale === "de" ? "Themengebiete" : "Topics"}</FieldLabel><MultiSelect locale={locale} label={locale === "de" ? "Themen wählen" : "Choose topics"} options={taxonomies.topics} value={value.topics} onChange={(topics) => setValue({ ...value, topics })} formatOption={(item) => labelTopic(locale, item)} /></Field>
     <Field><FieldLabel>{locale === "de" ? "Konversationstypen" : "Conversation types"}</FieldLabel><MultiSelect locale={locale} label={locale === "de" ? "Typen wählen" : "Choose types"} options={conversationOptions} value={value.conversationTypes} onChange={(conversationTypes) => setValue({ ...value, conversationTypes })} formatOption={(item) => labelConversation(locale, item)} /></Field>

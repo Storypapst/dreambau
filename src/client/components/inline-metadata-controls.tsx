@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import type { AccountMetadata, AccountView, FixtureQuality, LifecycleStatus, Project } from "@/types";
 import { MultiSelect } from "./multi-select";
 import { SelectedTags, type TagTone } from "./selected-tags";
+import { LinkedRoleTags } from "./linked-role-tags";
 
-type MetadataPatch = Partial<Omit<AccountMetadata, "email" | "updatedAt">>;
+type MetadataPatch = Partial<Omit<AccountMetadata, "email" | "updatedAt" | "documentedRoles">>;
 
 export function saveMetadataPatch(email: string, patch: MetadataPatch) {
   return api<AccountMetadata>(`/accounts/${encodeURIComponent(email)}`, { method: "PATCH", body: JSON.stringify(patch) });
@@ -58,14 +59,15 @@ export function InlineFixtureSelect({ account, locale, onSaved }: { account: Acc
 
 export function InlineTaxonomySelect({ account, locale, kind, options, onSaved }: { account: AccountView; locale: Locale; kind: "roles" | "topics" | "conversationTypes"; options: string[]; onSaved: (metadata: AccountMetadata) => void }) {
   const { busy, save } = useInstantSave(account, onSaved, locale);
-  const labels = { roles: t(locale, "page.roles"), topics: t(locale, "page.topics"), conversationTypes: t(locale, "page.conversations") };
+  const labels = { roles: locale === "de" ? "Rollen (Dokumentation)" : "Roles (documentation)", topics: t(locale, "page.topics"), conversationTypes: t(locale, "page.conversations") };
+  const selected = kind === "roles" ? account.metadata.documentedRoles ?? account.metadata.roles : account.metadata[kind];
   const format = kind === "topics"
     ? (value: string) => labelTopic(locale, value)
     : kind === "roles"
       ? (value: string) => labelRoleWithEnvironment(locale, value, account.linkedAccess)
       : (value: string) => labelConversation(locale, value);
   const tone: Record<typeof kind, TagTone> = { roles: "role", topics: "topic", conversationTypes: "conversation" };
-  return <div className="flex min-w-0 flex-col gap-1.5"><MultiSelect compact disabled={busy} label={labels[kind]} options={kind === "roles" ? distinctRoleOptions(options, account.metadata.roles) : options} value={account.metadata[kind]} onChange={(value) => save({ [kind]: value })} formatOption={format} locale={locale} /><SelectedTags values={account.metadata[kind]} formatOption={format} tone={tone[kind]} removeLabel={locale === "de" ? "entfernen" : "remove"} onRemove={(removed) => save({ [kind]: account.metadata[kind].filter((value) => value !== removed) })} /></div>;
+  return <div className="flex min-w-0 flex-col gap-1.5"><MultiSelect compact disabled={busy} label={labels[kind]} options={kind === "roles" ? distinctRoleOptions(options, selected) : options} value={selected} onChange={(value) => save({ [kind]: value })} formatOption={format} locale={locale} /><SelectedTags values={selected} formatOption={format} tone={tone[kind]} removeLabel={locale === "de" ? "entfernen" : "remove"} onRemove={(removed) => save({ [kind]: selected.filter((value) => value !== removed) })} />{kind === "roles" && <LinkedRoleTags linkedAccess={account.linkedAccess} locale={locale} />}</div>;
 }
 
 
