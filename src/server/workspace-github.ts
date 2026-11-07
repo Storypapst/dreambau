@@ -24,7 +24,7 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
   const pending = new Map<string, Promise<StoredGithubSnapshot>>();
   const deniedUntil = new Map<string, number>();
   const knownDenied = new Set<string>();
-  let invalidationVersion = 0;
+  const observers = new Set<{ urls: Set<string>; overflow: boolean }>();
   const referenceDenied = (url: string) => { const value = options.store.get(url); return value?.status === "denied" && value.errorCode === "github_reference_unavailable"; };
   const sanitizeFacts = (facts: StoredGithubSnapshot["facts"]) => filterClosingPullRequests(facts, (name, url) => !knownDenied.has(name.toLowerCase()) && !referenceDenied(url));
   const privateKey = options.clients ? null : readFileSync(options.config.privateKeyFile, "utf8");
@@ -35,6 +35,12 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
   }
   return { async read(references, canReadProject, refresh = false) {
     const refs = references.filter(item => (item.kind === "issue" || item.kind === "pull-request") && item.url);
+    if (observers.size >= 32) return { status: "unavailable", items: [], limitReached: refs.length > 10, retryAfter: new Date(now() + 60_000).toISOString() };
+    // Keep exact denials until this entire read finishes, including later awaits after an item was built.
+    const observer = { urls: new Set<string>(), overflow: false }; observers.add(observer);
+    try {
+    const invalidated = (url: string) => observer.urls.has(url.toLowerCase());
+    const sanitizeForRead = (facts: StoredGithubSnapshot["facts"]) => observer.overflow ? null : filterClosingPullRequests(sanitizeFacts(facts), (_name, url) => !invalidated(url));
     const budget: GithubBudget = { remaining: 20, deadline: now() + 15_000 }; const items: WorkspaceGithubSnapshot[] = []; let retryAfter = 0;
     const allowed = (fullName: string) => { const entry = registry.get(fullName.toLowerCase()); return entry && canReadProject(entry.repo.project) ? entry : null; };
     // Permission knowledge outlives retry cooldown; only a successful core read restores it.
@@ -60,7 +66,11 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
               const probe = await entry.client.request(`/repos/${fullName}`, undefined, requestBudget);
               const value = probe.value as { full_name?: unknown } | null;
               if (!value || typeof value.full_name !== "string" || value.full_name.toLowerCase() !== fullName.toLowerCase()) throw new GithubReadError("github_access_denied");
-              invalidationVersion++; options.store.denyReference(core.url, new Date(now()).toISOString(), now() + 60_000);
+              for (const active of observers) {
+                if (active.urls.size < 256 || active.urls.has(core.url)) active.urls.add(core.url);
+                else active.overflow = true; // Never forget a denial silently when the bounded observer fills.
+              }
+              options.store.denyReference(core.url, new Date(now()).toISOString(), now() + 60_000);
               throw new GithubReadError("github_reference_unavailable");
             } catch (probeError) {
               if (probeError instanceof GithubReadError && ["github_reference_unavailable", "repository_scope_denied"].includes(probeError.code)) throw probeError;
@@ -92,23 +102,19 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
         else {
           const job = (async (): Promise<StoredGithubSnapshot> => {
             const lastAttemptAt = new Date(now()).toISOString();
-            const startedVersion = invalidationVersion;
             try {
               const result = await readWorkspaceGithubFacts(scopedClient(parsed.fullName)!, entry.repo, parsed, budget, scopedClient);
+              if (observer.overflow) throw new GithubReadError("github_busy");
+              if (invalidated(parsed.url)) throw new GithubReadError("github_reference_unavailable");
               if (blocked(parsed.fullName)) throw new GithubReadError("github_access_denied");
-              let sanitized = sanitizeFacts(result.facts)!;
-              if (startedVersion !== invalidationVersion) {
-                // A concurrently invalidated marker may itself be evicted from the bounded cache.
-                const current = new Set(options.store.get(parsed.url)?.facts?.closingPullRequests.map(pr => pr.url.toLowerCase()) ?? []);
-                sanitized = filterClosingPullRequests(sanitized, (_name, url) => current.has(url))!;
-              }
+              const sanitized = sanitizeForRead(result.facts)!;
               const value: StoredGithubSnapshot = { ...result, facts: sanitized, status: sanitized !== result.facts && result.status === "ready" ? "partial" : result.status, observedAt: new Date(now()).toISOString(), lastAttemptAt, retryAt: Math.max(now() + 60_000, result.retryAt) };
               options.store.put(parsed.url, value); return value;
             } catch (error) {
-              const denied = blocked(parsed.fullName) || referenceDenied(parsed.url) || error instanceof GithubReadError && ["github_auth_denied", "github_access_denied", "github_reference_unavailable", "repository_scope_denied"].includes(error.code);
+              const denied = blocked(parsed.fullName) || invalidated(parsed.url) || referenceDenied(parsed.url) || error instanceof GithubReadError && ["github_auth_denied", "github_access_denied", "github_reference_unavailable", "repository_scope_denied"].includes(error.code);
               // Another request may have invalidated nested facts since this job captured `prior`.
               const currentFallback = options.store.get(parsed.url);
-              const value: StoredGithubSnapshot = { facts: denied ? null : sanitizeFacts(currentFallback?.facts ?? null), observedAt: denied ? null : currentFallback?.observedAt ?? null, lastAttemptAt, status: denied ? "denied" : "unavailable", errorCode: error instanceof GithubReadError ? error.code : "github_unavailable", retryAt: Math.max(now() + 60_000, error instanceof GithubReadError ? error.retryAt ?? 0 : 0) };
+              const value: StoredGithubSnapshot = { facts: denied ? null : sanitizeForRead(currentFallback?.facts ?? null), observedAt: denied || observer.overflow ? null : currentFallback?.observedAt ?? null, lastAttemptAt, status: denied ? "denied" : "unavailable", errorCode: observer.overflow ? "github_busy" : error instanceof GithubReadError ? error.code : "github_unavailable", retryAt: Math.max(now() + 60_000, error instanceof GithubReadError ? error.retryAt ?? 0 : 0) };
               options.store.put(parsed.url, value); return value;
             }
           })();
@@ -125,7 +131,7 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
       retryAfter = Math.max(retryAfter, snapshot.retryAt > now() ? snapshot.retryAt : 0);
       let facts = snapshot.facts; let status = snapshot.status;
       if (facts) {
-        const filtered = filterClosingPullRequests(facts, (name, url) => !!allowed(name) && !blocked(name) && !referenceDenied(url));
+        const filtered = filterClosingPullRequests(facts, (name, url) => !!allowed(name) && !blocked(name) && !referenceDenied(url) && !invalidated(url));
         if (filtered !== facts) { facts = filtered; if (status === "ready") status = "partial"; }
       }
       items.push({ referenceId: ref.id, url: parsed.url, status, facts, observedAt: snapshot.observedAt, lastAttemptAt: snapshot.lastAttemptAt, cached,
@@ -136,14 +142,19 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
       const target = parseGithubReference(item.url);
       if (target && !allowed(target.fullName)) { item.status = "denied"; item.facts = null; item.observedAt = null; item.lastAttemptAt = null; item.cached = false; item.stale = false; item.errorCode = "repository_scope_denied"; }
       else if (target && blocked(target.fullName)) { item.status = "denied"; item.facts = null; item.observedAt = null; item.stale = false; item.errorCode = "github_access_denied"; }
-      else if (target && referenceDenied(target.url)) { item.status = "denied"; item.facts = null; item.observedAt = null; item.stale = false; item.errorCode = "github_reference_unavailable"; }
+      else if (target && (referenceDenied(target.url) || invalidated(target.url))) { item.status = "denied"; item.facts = null; item.observedAt = null; item.stale = false; item.errorCode = "github_reference_unavailable"; }
       else if (item.facts) {
-        const filtered = filterClosingPullRequests(item.facts, (name, url) => !!allowed(name) && !blocked(name) && !referenceDenied(url));
+        const filtered = filterClosingPullRequests(item.facts, (name, url) => !!allowed(name) && !blocked(name) && !referenceDenied(url) && !invalidated(url));
         if (filtered !== item.facts) { item.facts = filtered; if (item.status === "ready") item.status = "partial"; }
       }
+    }
+    if (observer.overflow) {
+      for (const item of items) { item.facts = null; item.observedAt = null; item.lastAttemptAt = null; item.status = "unavailable"; item.stale = false; item.cached = false; item.errorCode = "github_busy"; }
+      return { status: "unavailable", items, limitReached: refs.length > 10, retryAfter: new Date(now() + 60_000).toISOString() };
     }
     const statuses = new Set(items.map(item => item.status));
     const status: WorkspaceGithubStatus = statuses.size > 1 ? "partial" : items[0]?.status ?? "ready";
     return { status, items, limitReached: refs.length > 10, retryAfter: retryAfter ? new Date(retryAfter).toISOString() : null };
+    } finally { observers.delete(observer); }
   } };
 }

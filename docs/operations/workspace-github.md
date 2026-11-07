@@ -75,6 +75,8 @@ Human session and existing viewer binding required; cross-origin refresh denied.
 Snapshot TTL 15 minutes; shared minimum refresh retry 60 seconds; rate-limit backoff can extend it.
 At most 10 explicit references, 20 upstream requests and 15 seconds per selected-read budget.
 At most 8 active distinct snapshot refreshes; upstream transport is serialized per installation.
+At most 32 active selected reads; each retains at most 256 exact missing-reference invalidations until completion.
+Read/observer capacity overflow returns unavailable without facts; unrelated healthy PRs remain available.
 Each upstream attempt times out after at most 10 seconds, including token acquisition.
 ETag cache: in memory, at most 100 responses/2 MiB per installation; individual response <=512 KiB.
 Sanitized SQLite snapshot cache: workspace_github_cache, at most 1000 records, <=64 KiB each.
@@ -83,7 +85,13 @@ No raw GitHub bodies, private keys or tokens are persisted in the snapshot table
 
 This is selected-record loading, not a global scheduler. Manual refresh shares work with concurrent readers.
 Failures retain the last successful snapshot and its actual observation time, labeled stale/unavailable.
-Installation authentication denial removes old private facts across that installation. Core Issue/PR access denial removes the repository's facts, including dependent closing-PR facts in cached Issues. A core 404 first probes repository access through the same App and request budget: only a matching repository response permits invalidating just the missing reference and its dependent links. An unconfirmed probe fails closed. Secondary board/release/compare failures produce fresh partial facts without retaining denied auxiliary data or revoking a valid core read. A 403 with rate-limit headers or GitHub's bounded official rate-limit message retains stale facts and honors backoff.
+Installation authentication denial removes old private facts across that installation. Core Issue/PR access
+denial removes the repository's facts, including dependent closing-PR facts in cached Issues. A core 404 first
+probes repository access through the same App and request budget: only a matching repository response permits
+invalidating just the missing reference and its dependent links. An unconfirmed probe fails closed. Secondary
+board/release/compare failures produce fresh partial facts without retaining denied auxiliary data or revoking
+a valid core read. A 403 with rate-limit headers or GitHub's bounded official rate-limit message retains stale
+facts and honors backoff.
 Permission-denial knowledge does not expire with the retry cooldown: a successful live core Issue/PR read
 is required to revalidate access. Concurrent outage fallbacks use the current sanitized SQLite value,
 so an older pending request cannot restore a denied closing PR from its captured snapshot.
