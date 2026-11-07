@@ -14,6 +14,7 @@ import { saveMetadataPatch } from "./inline-metadata-controls";
 import { OtpValidity } from "./otp-validity";
 import { OrisoProvisioningDialog } from "./oriso-provisioning-dialog";
 import { TotpEnrollmentDialog } from "./totp-enrollment-dialog";
+import { TestAccessLinkResetDialog, type OnTestAccessLinkReset } from "./test-access-link-reset-dialog";
 import { requestSafeOtp } from "@/safe-otp";
 
 function isOrisoScoped(account: AccountView) {
@@ -42,7 +43,7 @@ export function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null
   return ORISO_ENVIRONMENT_BY_DOMAIN[account.domain.trim().toLowerCase()] ?? null;
 }
 
-export function OtpAccess({ account, locale, compact = false, favorite = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned, onMetadataSaved }: {
+export function OtpAccess({ account, locale, compact = false, favorite = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned, onMetadataSaved, onLinkReset }: {
   account: AccountView;
   locale: Locale;
   compact?: boolean;
@@ -51,6 +52,7 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
   orisoProvisioningEnvironments?: HumanEntitlements["orisoProvisioning"]["environments"];
   onProvisioned?: (email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) => void;
   onMetadataSaved?: (metadata: AccountMetadata) => void;
+  onLinkReset?: OnTestAccessLinkReset;
 }) {
   const linked = account.linkedAccess?.[0];
   const environment = orisoEnvironment(account);
@@ -64,8 +66,12 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
       && orisoProvisioningEnvironments.includes(record.environment))
       .map((record) => <OrisoAdminDeletionDialog key={record.id} account={account} linked={record} locale={locale} onDeleted={onProvisioned} />)
     : null;
-  const managementActions = (provisioningDialog || deletionDialogs?.length) ? (
-    <div className="inline-flex shrink-0 items-center gap-1">{provisioningDialog}{deletionDialogs}</div>
+  const linkResetDialogs = !favorite && onLinkReset
+    ? account.linkedAccess?.filter((record) => record.project === "oriso" && record.linkRevision && !record.deletionPending)
+      .map((record) => <TestAccessLinkResetDialog key={`${record.id}:${record.linkRevision}`} linked={record} locale={locale} onReset={onLinkReset} />)
+    : null;
+  const managementActions = (provisioningDialog || deletionDialogs?.length || linkResetDialogs?.length) ? (
+    <div className="inline-flex shrink-0 items-center gap-1">{provisioningDialog}{deletionDialogs}{linkResetDialogs}</div>
   ) : null;
   const [result, setResult] = useState<{ email: string; accountId: string; value: OtpResponse; expiresAt: number } | null>(null);
   const [applicationSecret, setApplicationSecret] = useState<{ email: string; accountId: string; value: string } | null>(null);
