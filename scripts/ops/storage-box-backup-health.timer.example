@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly encrypted backup freshness check
+
+[Timer]
+OnBootSec=10m
+OnUnitActiveSec=1h
+Persistent=true
+Unit=storage-box-backup-health.service
+
+[Install]
+WantedBy=timers.target

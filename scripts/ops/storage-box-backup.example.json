@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "hostLabel": "application-host",
+  "stateDirectory": "/var/lib/storage-box-backup",
+  "binaries": {
+    "restic": "/usr/bin/restic",
+    "ssh": "/usr/bin/ssh",
+    "docker": "/usr/bin/docker",
+    "mc": "/usr/local/bin/mc"
+  },
+  "storageBox": {
+    "host": "u000000.your-storagebox.de",
+    "user": "u000000-sub1",
+    "repositoryPath": "restic/application-backups",
+    "identityFile": "/etc/storage-box-backup/private/id_ed25519",
+    "knownHostsFile": "/etc/storage-box-backup/private/known_hosts",
+    "passwordFile": "/etc/storage-box-backup/private/restic-password"
+  },
+  "fileSources": [
+    "/etc/application-config",
+    "/srv/application/compose.yaml"
+  ],
+  "sqlite": [
+    {
+      "name": "application",
+      "path": "/srv/application/data/application.sqlite"
+    }
+  ],
+  "databaseDumps": [],
+  "objectMirrors": [],
+  "excludedPaths": [
+    "/srv/local-backups"
+  ],
+  "liveDatabasePaths": [
+    "/srv/application/data/application.sqlite"
+  ],
+  "maxStagingBytes": 2147483648,
+  "minFreeBytes": 4294967296,
+  "verificationPercent": 100,
+  "coverage": {
+    "included": [
+      "explicit application configuration",
+      "configured online SQLite snapshots"
+    ],
+    "omitted": [
+      "mail",
+      "MongoDB",
+      "Redis",
+      "unconfigured SQL databases",
+      "unconfigured object buckets",
+      "full OS recovery"
+    ]
+  },
+  "coordinationLocks": [
+    "/run/lock/dreambau-evidence-data.lock"
+  ]
+}

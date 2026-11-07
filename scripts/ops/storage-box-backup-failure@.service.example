@@ -1,0 +1,10 @@
+[Unit]
+Description=Record backup or maintenance failure for %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/logger --priority daemon.err --tag dreambau-backup "Unit %i failed; inspect systemctl status and the private backup health receipt."
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
