@@ -201,8 +201,19 @@ export function OrisoProvisioningDialog({
     setApplicationUsername("");
     try {
       setView(await api<OrisoProvisioningView>(`/accounts/${encodeURIComponent(account.email)}/oriso-provisioning`));
-    } catch {
-      setError(locale === "de" ? "Status konnte nicht geladen werden." : "Could not load the provisioning status.");
+    } catch (failure) {
+      const code = failure instanceof Error ? failure.message : "";
+      if (code === "oriso_authentication_failed") {
+        setError(locale === "de"
+          ? "Testmails konnte sich mit seinem technischen Zugang nicht bei ORISO anmelden. Das Passwort dieses Testkontos wurde noch nicht geprüft."
+          : "Testmails could not sign in to ORISO with its service access. This test account's password has not been checked yet.");
+      } else if (code === "admin_record_unavailable") {
+        setError(locale === "de"
+          ? "Der technische ORISO-Zugang von Testmails ist derzeit nicht verfügbar. Das Passwort dieses Testkontos wurde noch nicht geprüft."
+          : "Testmails service access to ORISO is currently unavailable. This test account's password has not been checked yet.");
+      } else {
+        setError(locale === "de" ? "Status konnte nicht geladen werden." : "Could not load the provisioning status.");
+      }
     }
   }
 
