@@ -179,6 +179,10 @@ case "$status" in
   current)
     echo "[test-access-install] current (version $local_version)" ;;
   update)
+    if [ -n "${DREAMBAU_CLI_PROFILE:-}" ] && { [ ! -f "$DREAMBAU_CLI_PROFILE" ] || [ ! -r "$DREAMBAU_CLI_PROFILE" ]; }; then
+      echo "[test-access-install] failed — DREAMBAU_CLI_PROFILE must name a readable file"
+      exit 1
+    fi
     install -d -m 0755 "$bin_dir"
     install -d -m 0700 "$data_dir"
     if [ -f "$data_dir/test-access.mjs" ]; then

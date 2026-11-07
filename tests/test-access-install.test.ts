@@ -87,6 +87,11 @@ describe("portable test-access installer", () => {
         cwd: new URL("..", import.meta.url), env: { ...env, ORISO_KIT_TOKEN: "private-fixture-token\nsecond-line" }
       })).rejects.toMatchObject({ code: 1, stdout: expect.not.stringContaining("private-fixture-token") });
       expect(authorizations).toHaveLength(1);
+      const beforeBundle = readFileSync(path.join(runtime, "test-access.mjs"), "utf8");
+      await expect(promisify(execFile)("bash", ["understand-kit/test-access-install.sh", "--force"], {
+        cwd: new URL("..", import.meta.url), env: { ...env, DREAMBAU_CLI_PROFILE: path.join(root, "missing-profile.sh") }
+      })).rejects.toMatchObject({ code: 1 });
+      expect(readFileSync(path.join(runtime, "test-access.mjs"), "utf8")).toBe(beforeBundle);
       const profile = path.join(root, "agent's profile.sh");
       writeFileSync(profile, "export PROFILE_PROOF=loaded-profile\n", { mode: 0o600 });
       const installed = await promisify(execFile)("bash", ["understand-kit/test-access-install.sh", "--force"], {
