@@ -237,6 +237,9 @@ interface FakeOrisoOptions {
   invites?: unknown[];
   templates?: unknown[];
   createdInvite?: Record<string, unknown>;
+  tenantAdmins?: unknown[];
+  agencyAdmins?: unknown[];
+  rosterTotal?: number;
 }
 
 function fakeOriso(options: FakeOrisoOptions = {}) {
@@ -250,6 +253,10 @@ function fakeOriso(options: FakeOrisoOptions = {}) {
     }
     if (url.includes("/useradmin/account-invites") && (init?.method ?? "GET") === "GET") {
       return json({ content: options.invites ?? [], totalPages: 1 });
+    }
+    if (/\/useradmin\/(tenantadmins|agencyadmins)\/search/.test(url)) {
+      const rows = url.includes("/tenantadmins/") ? options.tenantAdmins ?? [] : options.agencyAdmins ?? [];
+      return json({ _embedded: rows.map((row) => ({ _embedded: row })), total: options.rosterTotal ?? rows.length });
     }
     if (url.includes("/useradmin/invite-email-templates")) {
       return json(options.templates ?? []);
@@ -314,6 +321,79 @@ function invite(patch: Record<string, unknown> = {}) {
 }
 
 describe("ORISO PreDev provisioning service", () => {
+  it.each([
+    { invited: "TENANT_ADMIN", tenantId: "0", actual: "platform-admin" },
+    { invited: "PLATFORM_ADMIN", tenantId: "7", actual: "tenant-admin" }
+  ])("uses the existing admin role instead of stale $invited invitation intent", async ({ invited, tenantId, actual }) => {
+    const oriso = fakeOriso({ invites: [invite({ targetRole: invited, inviteStatus: "ACCEPTED", provisionedUserId: "original-admin" })],
+      tenantAdmins: [{ id: "original-admin", email: "lisa.simpson@oriso.org", username: "existing-username", tenantId }] });
+    const state = await service(oriso.fetch).status("lisa.simpson@oriso.org");
+    expect(state).toMatchObject({ role: actual, targetRole: invited, inviteId: 27 });
+    expect(oriso.calls.filter((call) => !call.url.includes("/token")).every((call) => call.method === "GET")).toBe(true);
+  });
+
+  it.each([
+    [{ id: "original-admin", email: "lisa.simpson@oriso.org", username: "existing", tenantId: null }],
+    [{ id: "different-admin", email: "lisa.simpson@oriso.org", username: "existing", tenantId: "0" }],
+    [{ id: "original-admin", email: "lisa.simpson@oriso.org", username: "existing", tenantId: "0" },
+      { id: "duplicate-admin", email: "lisa.simpson@oriso.org", username: "other", tenantId: "7" }]
+  ])("rejects unknown, changed or ambiguous existing admin identities (%j)", async (...admins) => {
+    const oriso = fakeOriso({ invites: [invite({ inviteStatus: "ACCEPTED", provisionedUserId: "original-admin" })], tenantAdmins: admins });
+    await expect(service(oriso.fetch).status("lisa.simpson@oriso.org")).rejects.toMatchObject({ code: "existing_admin_role_unavailable" });
+  });
+
+  it("does not trust an incomplete existing admin roster", async () => {
+    const oriso = fakeOriso({ invites: [invite()] });
+    const pages: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = new URL(input);
+      if (!url.pathname.endsWith("/tenantadmins/search")) return oriso.fetch(input, init);
+      const page = url.searchParams.get("page")!;
+      pages.push(page);
+      const rows = page === "1" ? [{ _embedded: {
+        id: "original-admin", email: "lisa.simpson@oriso.org", username: "existing", tenantId: "0"
+      } }] : [];
+      return { ok: true, status: 200, async json() { return { total: 2, _embedded: rows }; } };
+    };
+    await expect(service(fetch).status("lisa.simpson@oriso.org")).rejects.toMatchObject({ code: "existing_admin_role_unavailable" });
+    expect(pages).toEqual(["1", "2"]);
+  });
+
+  it("reads the complete roster before accepting the exact-email identity on a later page", async () => {
+    const oriso = fakeOriso({ invites: [invite({ provisionedUserId: "original-admin" })] });
+    const pages: string[] = [];
+    const fetch: ProvisioningFetch = async (input, init) => {
+      const url = new URL(input);
+      if (!url.pathname.endsWith("/tenantadmins/search")) return oriso.fetch(input, init);
+      const page = url.searchParams.get("page")!;
+      pages.push(page);
+      const admin = { id: page === "1" ? "infix-match" : "original-admin", username: "existing", tenantId: "0",
+        email: page === "1" ? "other.lisa.simpson@oriso.org" : "lisa.simpson@oriso.org" };
+      return { ok: true, status: 200, async json() { return { total: 2, _embedded: [{ _embedded: admin }] }; } };
+    };
+    await expect(service(fetch).status("lisa.simpson@oriso.org")).resolves.toMatchObject({ role: "platform-admin" });
+    expect(pages).toEqual(["1", "2"]);
+  });
+
+  it("does not choose one admin role when both admin rosters contain the email", async () => {
+    const admin = { id: "original-admin", username: "existing", email: "lisa.simpson@oriso.org", tenantId: "7" };
+    const oriso = fakeOriso({ invites: [invite()], tenantAdmins: [admin], agencyAdmins: [admin] });
+    await expect(service(oriso.fetch).status("lisa.simpson@oriso.org")).rejects.toMatchObject({ code: "existing_admin_role_unavailable" });
+  });
+
+  it.each([null, "null"])("accepts an existing agency admin with a nullable tenant (%j)", async (tenantId) => {
+    const oriso = fakeOriso({ invites: [invite({ targetRole: "AGENCY_ADMIN", inviteStatus: "ACCEPTED", provisionedUserId: "original-admin" })],
+      agencyAdmins: [{ id: "original-admin", email: "lisa.simpson@oriso.org", username: "existing", tenantId }] });
+    await expect(service(oriso.fetch).status("lisa.simpson@oriso.org")).resolves.toMatchObject({
+      role: "agency-admin", targetRole: "AGENCY_ADMIN"
+    });
+  });
+
+  it("keeps a new invitation's intended role when no admin exists yet", async () => {
+    const oriso = fakeOriso({ invites: [invite()] });
+    await expect(service(oriso.fetch).status("lisa.simpson@oriso.org")).resolves.toMatchObject({ role: "tenant-admin", targetRole: "TENANT_ADMIN" });
+  });
+
   it("creates an invitation as the managed platform admin and strips onboarding credentials", async () => {
     const oriso = fakeOriso({
       templates: [

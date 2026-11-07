@@ -67,6 +67,7 @@ export type OrisoProvisioningErrorCode =
   | "admin_record_unavailable"
   | "oriso_authentication_failed"
   | "invite_lookup_failed"
+  | "existing_admin_role_unavailable"
   | "invite_template_missing"
   | "invite_create_failed"
   | "account_create_failed"
@@ -116,6 +117,15 @@ const invitePageSchema = z.object({
   content: z.array(inviteSchema),
   totalPages: z.number().int().nonnegative().optional()
 }).passthrough();
+
+const existingAdminSchema = z.object({
+  id: z.string().min(1), email: z.string().email(), username: z.string().min(1),
+  tenantId: z.union([z.string(), z.number()]).nullish(), deleteDate: z.string().nullish()
+}).passthrough();
+const adminRosterSchema = z.object({
+  _embedded: z.array(z.object({ _embedded: existingAdminSchema })),
+  total: z.number().int().nonnegative()
+});
 
 const templateSchema = z.object({
   id: z.number(),
@@ -641,6 +651,45 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     return active[0] ?? null;
   }
 
+  async function existingAdminRole(invite: OrisoInvite): Promise<OrisoProvisioningRole | null> {
+    const email = invite.recipientEmail.trim().toLowerCase();
+    const matches: Array<{ admin: z.infer<typeof existingAdminSchema>; role: OrisoProvisioningRole }> = [];
+    try {
+      for (const kind of ["tenantadmins", "agencyadmins"] as const) {
+        const seen = new Set<string>();
+        let expectedTotal: number | undefined;
+        let complete = false;
+        for (let page = 1; page <= 20; page += 1) {
+          const response = await authorizedJson(`/useradmin/${kind}/search?${new URLSearchParams({ query: email, page: String(page), perPage: "100" })}`);
+          if (!response.ok) throw new Error("Admin roster unavailable");
+          const roster = adminRosterSchema.parse(await response.json());
+          if (expectedTotal !== undefined && expectedTotal !== roster.total) throw new Error("Admin roster changed");
+          expectedTotal = roster.total;
+          for (const { _embedded: admin } of roster._embedded) {
+            if (seen.has(admin.id)) throw new Error("Admin roster repeated an identity");
+            seen.add(admin.id);
+            if (admin.email.trim().toLowerCase() !== email) continue;
+            if ((kind === "tenantadmins" && (admin.tenantId == null || !/^(0|[1-9]\d*)$/.test(String(admin.tenantId))))
+              || (admin.deleteDate != null && admin.deleteDate !== "null")) throw new Error("Admin identity is not current");
+            matches.push({ admin, role: kind === "agencyadmins" ? "agency-admin"
+              : String(admin.tenantId) === "0" ? "platform-admin" : "tenant-admin" });
+          }
+          if (seen.size === expectedTotal) { complete = true; break; }
+          if (seen.size > expectedTotal || roster._embedded.length === 0) throw new Error("Admin roster incomplete");
+        }
+        if (!complete) throw new Error("Admin roster exceeds the read limit");
+      }
+      if (matches.length === 0 && invite.inviteStatus !== "ACCEPTED" && !invite.provisionedUserId) return null;
+      if (matches.length !== 1 || (invite.provisionedUserId && matches[0].admin.id !== invite.provisionedUserId)) {
+        throw new Error("Admin identity is ambiguous or changed");
+      }
+      return matches[0].role;
+    } catch (error) {
+      if (error instanceof OrisoProvisioningError) throw error;
+      throw new OrisoProvisioningError("existing_admin_role_unavailable");
+    }
+  }
+
   async function findTemplateId(templateKind: string) {
     const response = await authorizedJson("/useradmin/invite-email-templates");
     if (!response.ok) throw new OrisoProvisioningError("invite_template_missing");
@@ -680,7 +729,14 @@ export function createOrisoProvisioningService(options: ServiceOptions): OrisoPr
     },
     async status(recipientEmail) {
       const invite = await findInvite(recipientEmail);
-      return invite ? publicInviteState(invite) : null;
+      if (!invite) return null;
+      const state = publicInviteState(invite);
+      if (invite.onboardingPurpose === "EXISTING_ACCOUNT_SETUP"
+        || !state.role || !["platform-admin", "tenant-admin", "agency-admin"].includes(state.role)) return state;
+      const actualRole = await existingAdminRole(invite);
+      // The dialog and password-link POST both use this role. targetRole and
+      // the other invitation fields retain their historical onboarding intent.
+      return actualRole ? { ...state, role: actualRole } : state;
     },
     async ensureInvite(input) {
       const existing = await findInvite(input.recipientEmail);

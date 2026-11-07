@@ -70,6 +70,41 @@ describe("MetadataEditor", () => {
     expect(saved).toHaveBeenCalledOnce();
   });
 
+  it.each(["de", "en"] as const)("edits only documented roles and keeps linked roles read-only (%s)", async (locale) => {
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+    try {
+      const current: AccountView = { ...account,
+        metadata: { ...account.metadata, roles: ["tenant-admin", "platform-admin"], documentedRoles: ["tenant-admin"] },
+        linkedAccess: [{ id: "oriso/dev/ned", project: "oriso", environment: "dev", kind: "admin", displayName: "Ned Flanders", email: account.email,
+          username: account.email, roles: ["platform-admin"], loginUrl: "https://example.test", hasTotp: true }]
+      };
+      const onSaved = vi.fn();
+      const saved = { ...current.metadata, roles: ["platform-admin"], documentedRoles: [] };
+      vi.mocked(api).mockResolvedValue(saved);
+      await act(async () => root.render(<MetadataEditor account={current} taxonomies={{ roles: ["tenant-admin", "platform-admin"], topics: [], conversationTypes: [] }} locale={locale} open onOpenChange={() => undefined} onSaved={onSaved} />));
+      const source = document.querySelector('[aria-label="' + (locale === "de" ? "Aus Verknüpfung" : "From linked account") + '"]');
+      expect(source?.textContent).toContain("Platform Admin");
+      expect(source?.querySelector("button")).toBeNull();
+      const choose = [...document.querySelectorAll("button")].find((button) => button.textContent === (locale === "de" ? "Rollen wählen" : "Choose roles"))!;
+      await act(async () => choose.click());
+      const options = [...document.querySelectorAll('[role="option"]')];
+      const tenant = options.find((node) => node.textContent?.includes("Tenant Admin"))!;
+      const platform = options.find((node) => node.textContent?.includes("Platform Admin"))!;
+      expect(tenant.querySelector("svg")?.classList.contains("opacity-100")).toBe(true);
+      expect(platform.querySelector("svg")?.classList.contains("opacity-0")).toBe(true);
+      await act(async () => tenant.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+      await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+      expect(JSON.parse(vi.mocked(api).mock.calls[0][1]!.body as string)).toEqual({ roles: [] });
+      expect(onSaved).toHaveBeenCalledWith(saved);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousScroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", previousScroll);
+      else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+  });
+
   it("persists role keys when the user explicitly changes the selection", async () => {
     vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
     const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");

@@ -168,7 +168,7 @@ export function dashboardRoles(roles: string[]) {
 export function metadataWithLinkedRoles(metadata: AccountMetadata, linked: Pick<TestAccessRecord, "roles">[]) {
   const combined = [...new Set([...metadata.roles, ...dashboardRoles(linked.flatMap((record) => record.roles))])];
   const hasQualifiedAdmin = combined.some((role) => qualifiedAdminRoles.includes(role));
-  return { ...metadata, roles: hasQualifiedAdmin ? combined.filter((role) => role !== "Admin" && role !== "admin") : combined };
+  return { ...metadata, documentedRoles: [...metadata.roles], roles: hasQualifiedAdmin ? combined.filter((role) => role !== "Admin" && role !== "admin") : combined };
 }
 
 export function derivedCatalogPatch(record: TestAccessRecord, input: unknown): {

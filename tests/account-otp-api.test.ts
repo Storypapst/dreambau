@@ -328,6 +328,34 @@ describe("ORISO delete candidate cleanup", () => {
 });
 
 describe("human Springfield OTP access", () => {
+  it("persists cleared documented roles while retaining linked roles in PATCH and GET projections", async () => {
+    const { agent, database, abe, record } = await authenticatedSetup();
+    database.upsertMetadata(abe.email, { roles: ["tenant-admin"] });
+    const before = await agent.get("/testmails/api/accounts").expect(200);
+    expect(before.body[0].metadata).toMatchObject({ documentedRoles: ["tenant-admin"], roles: ["tenant-admin", "platform-admin"] });
+
+    const response = await agent.patch(`/testmails/api/accounts/${encodeURIComponent(abe.email)}`)
+      .send({ roles: [] }).expect(200);
+    expect(response.body).toMatchObject({ documentedRoles: [], roles: ["platform-admin"] });
+    expect(database.getMetadata(abe.email).roles).toEqual([]);
+    expect(database.getMetadata(abe.email)).not.toHaveProperty("documentedRoles");
+    const after = await agent.get("/testmails/api/accounts").expect(200);
+    expect(after.body[0].metadata).toMatchObject({ documentedRoles: [], roles: ["platform-admin"] });
+    expect(after.body[0].linkedAccess[0].roles).toEqual(["platform-admin"]);
+    expect(record.roles).toEqual(["platform-admin"]);
+  });
+
+  it("keeps normal unlinked documented role edits effective", async () => {
+    const { agent, database, abe } = await authenticatedSetup({ records: [] });
+    const response = await agent.patch(`/testmails/api/accounts/${encodeURIComponent(abe.email)}`)
+      .send({ roles: ["tenant-admin"] }).expect(200);
+    expect(response.body).toMatchObject({ documentedRoles: ["tenant-admin"], roles: ["tenant-admin"] });
+    const after = await agent.get("/testmails/api/accounts").expect(200);
+    expect(after.body[0].metadata).toMatchObject({ documentedRoles: ["tenant-admin"], roles: ["tenant-admin"] });
+    expect(after.body[0].linkedAccess).toEqual([]);
+    expect(database.getMetadata(abe.email).roles).toEqual(["tenant-admin"]);
+  });
+
   it("keeps Dev roles out of a PreDev mailbox row with the same email", async () => {
     const email = "abe.simpson@dreambau.de";
     const { preDevConsultant, devAdviceSeeker } = crossEnvironmentRecords(email);

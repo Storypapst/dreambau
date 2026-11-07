@@ -141,6 +141,75 @@ function fakeDevService(overrides: Partial<OrisoProvisioningService> = {}): Oris
   });
 }
 
+async function staleAdminInviteLinkFixture(tenantId: string | null = "0", productRole: "platform-admin" | "agency-admin" = "platform-admin") {
+  const calls: Array<{ method: string; path: string }> = [];
+  const target = fakeDevService().target;
+  const admin = managedRecord({ id: target.adminRecordId, environment: "dev", roles: ["platform-admin"] });
+  const productFetch: ProvisioningFetch = async (input, init) => {
+    const url = new URL(input);
+    calls.push({ method: init?.method ?? "GET", path: url.pathname });
+    const json = (body: unknown) => ({ ok: true, status: 200, async json() { return body; } });
+    if (url.pathname.endsWith("/token")) return json({ access_token: "managed-readonly-token", expires_in: 300 });
+    if (url.pathname.endsWith("/account-invites")) return json({ content: [{ id: 41, targetRole: productRole === "agency-admin" ? "AGENCY_ADMIN" : "TENANT_ADMIN",
+      recipientEmail: "bart.simpson@oriso.org", inviteStatus: "ACCEPTED", accessGateStatus: "BLOCKED_TWO_FACTOR",
+      provisionedUserId: "existing-platform-admin" }], totalPages: 1 });
+    const adminRows = [{ _embedded: {
+      id: "existing-platform-admin", email: "bart.simpson@oriso.org", username: "bart.simpson@oriso.org", tenantId
+    } }];
+    if (url.pathname.endsWith("/tenantadmins/search")) return json({ _embedded: productRole === "platform-admin" ? adminRows : [], total: productRole === "platform-admin" ? 1 : 0 });
+    if (url.pathname.endsWith("/agencyadmins/search")) return json({ _embedded: productRole === "agency-admin" ? adminRows : [], total: productRole === "agency-admin" ? 1 : 0 });
+    throw new Error("Unexpected product request");
+  };
+  const service = createOrisoProvisioningService({ ...target, fetch: productFetch,
+    registryProvider: { list: async () => [admin], get: async (id) => id === admin.id ? admin : null } });
+  return { ...await setup({ services: { dev: service } }), calls };
+}
+
+describe("existing admin role binding", () => {
+  it("uses one authoritative role for the dialog and password-linked record despite stale invite intent", async () => {
+    const h = await staleAdminInviteLinkFixture();
+    const endpoint = `/testmails/api/accounts/${encodeURIComponent(h.bart.email)}/oriso-provisioning`;
+    const status = await h.agent.get(endpoint);
+    expect(status.status).toBe(200);
+    expect(status.body).toMatchObject({ provisioningRole: "platform-admin", state: { role: "platform-admin", targetRole: "TENANT_ADMIN" } });
+    const linked = await h.agent.post(endpoint).send({ environment: "dev", role: "platform-admin", applicationPassword: "existing-private-password" });
+    expect(linked.status).toBe(201);
+    expect(linked.body).toMatchObject({ provisioningRole: "platform-admin", linked: { roles: ["platform-admin"] } });
+    expect(h.createdRecords).toHaveLength(1);
+    expect(h.createdRecords[0].roles).toEqual(["platform-admin"]);
+    expect(h.calls.filter((call) => !call.path.endsWith("/token")).every((call) => call.method === "GET")).toBe(true);
+  });
+
+  it("rejects a requested stale role before creating a record", async () => {
+    const h = await staleAdminInviteLinkFixture();
+    const linked = await h.agent.post(`/testmails/api/accounts/${encodeURIComponent(h.bart.email)}/oriso-provisioning`)
+      .send({ environment: "dev", role: "tenant-admin", applicationPassword: "existing-private-password" });
+    expect(linked.status).toBe(409);
+    expect(linked.body).toEqual({ error: "oriso_onboarding_state_mismatch" });
+    expect(h.createdRecords).toHaveLength(0);
+  });
+
+  it("rejects an unknown existing role before persisting a supplied password", async () => {
+    const h = await staleAdminInviteLinkFixture(null);
+    const linked = await h.agent.post(`/testmails/api/accounts/${encodeURIComponent(h.bart.email)}/oriso-provisioning`)
+      .send({ environment: "dev", role: "tenant-admin", applicationPassword: "existing-private-password" });
+    expect(linked.status).toBe(502);
+    expect(linked.body).toEqual({ error: "existing_admin_role_unavailable" });
+    expect(h.createdRecords).toHaveLength(0);
+    expect(h.writer?.updateApplicationPassword).not.toHaveBeenCalled();
+  });
+
+  it.each([null, "null"])("links a valid existing agency admin whose tenant is nullable (%j)", async (tenantId) => {
+    const h = await staleAdminInviteLinkFixture(tenantId, "agency-admin");
+    const linked = await h.agent.post(`/testmails/api/accounts/${encodeURIComponent(h.bart.email)}/oriso-provisioning`)
+      .send({ environment: "dev", role: "agency-admin", applicationPassword: "existing-private-password" });
+    expect(linked.status).toBe(201);
+    expect(h.createdRecords).toHaveLength(1);
+    expect(h.createdRecords[0].roles).toEqual(["agency-admin"]);
+    expect(h.calls.filter((call) => !call.path.endsWith("/token")).every((call) => call.method === "GET")).toBe(true);
+  });
+});
+
 async function setup(options: {
   service?: OrisoProvisioningService;
   services?: Partial<Record<"pre-dev" | "dev", OrisoProvisioningService>>;
