@@ -27,7 +27,7 @@ const labels = {
   de: {
     kicker: "Dreambau Control Plane",
     title: "Koordinationszentrum",
-    description: "Ein Einstieg für Projektlogik, Entscheidungen, Prompts, Qualität und laufende Systeme.",
+    description: "Oben siehst du die zuletzt geprüften Systeme. In den Projektkarten findest du Abläufe und Links zu den jeweiligen Quellen.",
     back: "Zurück zu Testkonten",
     problem: "Welches Problem löst das?",
     details: "Details öffnen",
@@ -43,7 +43,7 @@ const labels = {
   en: {
     kicker: "Dreambau Control Plane",
     title: "Coordination center",
-    description: "One entry point for project logic, decisions, prompts, quality, and running systems.",
+    description: "The system cards show the latest checks. The project cards explain workflows and link to their sources.",
     back: "Back to test accounts",
     problem: "What problem does this solve?",
     details: "Open details",

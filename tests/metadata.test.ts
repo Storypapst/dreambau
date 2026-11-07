@@ -54,6 +54,23 @@ describe("metadata database", () => {
     expect(() => metadataPatchSchema.parse({ agencies: [""] })).toThrow();
     db.close();
   });
+  it("retains a documented username separately from workspace JSON across unrelated saves", () => {
+    const file = path.join(mkdtempSync(path.join(tmpdir(), "testmails-username-")), "test.sqlite");
+    const email = "fixture@oriso.org";
+    const db = createDatabase(file);
+    db.upsertMetadata(email, { documentedUsername: "fixture_oriso_org-nov06", carrier: "QA" });
+    db.upsertMetadata(email, { notes: "keep" });
+    db.close();
+    const reopened = createDatabase(file);
+    expect(reopened.getMetadata(email)).toMatchObject({ documentedUsername: "fixture_oriso_org-nov06", carrier: "QA", notes: "keep" });
+    expect(reopened.upsertMetadata(email, { documentedUsername: "" }).documentedUsername).toBe("");
+    reopened.close();
+    const previous = new Database(file);
+    const row = previous.prepare("SELECT workspace_metadata AS json FROM account_metadata WHERE email = ?").get(email) as { json: string };
+    expect(JSON.parse(row.json)).toEqual({ carrier: "QA" });
+    previous.close();
+  });
+
   it("records machine identity usage without storing token values", () => {
     const db = database();
     db.recordMachineIdentityUse("codex-m4-oriso", "2026-07-12T06:30:00.000Z");

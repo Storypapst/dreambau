@@ -257,6 +257,8 @@ export function createDatabase(path: string): RegistryDatabase {
   if (!metadataColumns.has("project")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN project TEXT NOT NULL DEFAULT 'NONE'");
   if (!metadataColumns.has("agencies")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN agencies TEXT NOT NULL DEFAULT '[]'");
   if (!metadataColumns.has("workspace_metadata")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN workspace_metadata TEXT NOT NULL DEFAULT '{}'");
+  // Keep optional additions outside the workspace JSON so older builds can read the row.
+  if (!metadataColumns.has("documented_username")) sqlite.exec("ALTER TABLE account_metadata ADD COLUMN documented_username TEXT");
   const seed = sqlite.prepare("INSERT OR IGNORE INTO taxonomy_values(kind,value) VALUES (?,?)");
   const seedTransaction = sqlite.transaction(() => { for (const [kind, values] of Object.entries(seeds)) for (const value of values) seed.run(kind, value); });
   seedTransaction();
@@ -327,7 +329,8 @@ export function createDatabase(path: string): RegistryDatabase {
     email: row.email, shippedVersion: row.shipped_version, lifecycleStatus: row.lifecycle_status, project: row.project,
     roles: JSON.parse(row.roles), agencies: JSON.parse(row.agencies), topics: JSON.parse(row.topics), conversationTypes: JSON.parse(row.conversation_types),
     fixtureQuality: row.fixture_quality, sampleFileCount: row.sample_file_count, notes: row.notes, updatedAt: row.updated_at,
-    ...workspaceMetadataSchema.parse(JSON.parse(row.workspace_metadata))
+    ...workspaceMetadataSchema.parse(JSON.parse(row.workspace_metadata)),
+    ...(row.documented_username === null ? {} : { documentedUsername: row.documented_username })
   });
   if (!(sqlite.pragma("table_info(oriso_admin_deletions)") as Array<{ name: string }>).some((column) => column.name === "state")) {
     sqlite.exec("ALTER TABLE oriso_admin_deletions ADD COLUMN state TEXT NOT NULL DEFAULT 'deleted'");
@@ -352,9 +355,10 @@ export function createDatabase(path: string): RegistryDatabase {
         const aliases = projectTypeAliases(metadataProject(next.project, email));
         if (aliases.size) next.conversationTypes = [...new Set(next.conversationTypes.map((value) => aliases.get(value) ?? value))];
       }
-      sqlite.prepare(`INSERT INTO account_metadata(email,shipped_version,lifecycle_status,project,roles,agencies,topics,conversation_types,fixture_quality,sample_file_count,notes,updated_at,workspace_metadata)
-        VALUES(@email,@shippedVersion,@lifecycleStatus,@project,@roles,@agencies,@topics,@conversationTypes,@fixtureQuality,@sampleFileCount,@notes,@updatedAt,@workspaceMetadata)
-        ON CONFLICT(email) DO UPDATE SET shipped_version=excluded.shipped_version,lifecycle_status=excluded.lifecycle_status,project=excluded.project,roles=excluded.roles,agencies=excluded.agencies,topics=excluded.topics,conversation_types=excluded.conversation_types,fixture_quality=excluded.fixture_quality,sample_file_count=excluded.sample_file_count,notes=excluded.notes,updated_at=excluded.updated_at,workspace_metadata=excluded.workspace_metadata`).run({ ...next,
+      sqlite.prepare(`INSERT INTO account_metadata(email,shipped_version,lifecycle_status,project,roles,agencies,topics,conversation_types,fixture_quality,sample_file_count,notes,updated_at,workspace_metadata,documented_username)
+        VALUES(@email,@shippedVersion,@lifecycleStatus,@project,@roles,@agencies,@topics,@conversationTypes,@fixtureQuality,@sampleFileCount,@notes,@updatedAt,@workspaceMetadata,@documentedUsername)
+        ON CONFLICT(email) DO UPDATE SET shipped_version=excluded.shipped_version,lifecycle_status=excluded.lifecycle_status,project=excluded.project,roles=excluded.roles,agencies=excluded.agencies,topics=excluded.topics,conversation_types=excluded.conversation_types,fixture_quality=excluded.fixture_quality,sample_file_count=excluded.sample_file_count,notes=excluded.notes,updated_at=excluded.updated_at,workspace_metadata=excluded.workspace_metadata,documented_username=excluded.documented_username`).run({ ...next,
+          documentedUsername: next.documentedUsername ?? null,
           workspaceMetadata: JSON.stringify({ carrier: next.carrier, postalCode: next.postalCode, supervisor: next.supervisor, otpDelivery: next.otpDelivery, loginTargetUrl: next.loginTargetUrl }),
           roles: JSON.stringify(next.roles), agencies: JSON.stringify(next.agencies), topics: JSON.stringify(next.topics), conversationTypes: JSON.stringify(next.conversationTypes) });
       return next;

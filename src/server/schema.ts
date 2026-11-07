@@ -5,7 +5,7 @@ export const accountMetadata = sqliteTable("account_metadata", {
   lifecycleStatus: text("lifecycle_status").notNull().default("unused"), project: text("project").notNull().default("NONE"), roles: text("roles").notNull().default("[]"),
   agencies: text("agencies").notNull().default("[]"), topics: text("topics").notNull().default("[]"), conversationTypes: text("conversation_types").notNull().default("[]"),
   fixtureQuality: text("fixture_quality").notNull().default("empty"), sampleFileCount: integer("sample_file_count").notNull().default(0),
-  notes: text("notes").notNull().default(""), workspaceMetadata: text("workspace_metadata").notNull().default("{}"), updatedAt: text("updated_at").notNull()
+  notes: text("notes").notNull().default(""), documentedUsername: text("documented_username"), workspaceMetadata: text("workspace_metadata").notNull().default("{}"), updatedAt: text("updated_at").notNull()
 });
 export const taxonomyValues = sqliteTable("taxonomy_values", {
   id: integer("id").primaryKey({ autoIncrement: true }), kind: text("kind").notNull(), value: text("value").notNull()

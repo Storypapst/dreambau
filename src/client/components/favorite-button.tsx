@@ -7,7 +7,7 @@ export function FavoriteButton({ favorite, onToggle, locale, name, disabled = fa
   const label = locale === "de"
     ? `${favorite ? "Favorit entfernen" : "Als Favorit merken"}: ${name}`
     : `${favorite ? "Remove favorite" : "Mark as favorite"}: ${name}`;
-  return <Button type="button" variant="ghost" size="icon-sm" aria-pressed={favorite} aria-label={label} title={label} onClick={onToggle} disabled={disabled} data-testid="favorite-toggle">
+  return <Button type="button" variant="ghost" size="icon-sm" className="max-[360px]:size-6.5" aria-pressed={favorite} aria-label={label} title={label} onClick={onToggle} disabled={disabled} data-testid="favorite-toggle">
     <StarIcon className={favorite ? "fill-current" : undefined} />
   </Button>;
 }

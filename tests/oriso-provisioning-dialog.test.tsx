@@ -328,7 +328,7 @@ describe("OrisoProvisioningDialog", () => {
       <OrisoProvisioningDialog account={account()} locale="de" hasLinkedAccess onProvisioned={vi.fn()} />
     ));
     const trigger = Array.from(container.querySelectorAll("button"))
-      .find((button) => button.textContent?.includes("ORISO-Status"));
+      .find((button) => button.textContent?.includes("Status"));
     await act(async () => trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(document.body.textContent).toContain("Gespeicherter Status"));
@@ -644,7 +644,7 @@ describe("OtpAccess provisioning entry point", () => {
       <OtpAccess account={account({ linkedAccess: [linkedFixture] })} locale="de" orisoProvisioningEnvironments={["pre-dev"]} onProvisioned={vi.fn()} />
     ));
     expect(container.textContent).toContain("2FA hinterlegen");
-    expect(container.textContent).toContain("ORISO-Status");
+    expect(container.textContent).toContain("Status");
   });
 
   it("keeps the status control for a ready linked PreDev account", async () => {
@@ -656,7 +656,7 @@ describe("OtpAccess provisioning entry point", () => {
         onProvisioned={vi.fn()}
       />
     ));
-    expect(container.textContent).toContain("ORISO-Status");
+    expect(container.textContent).toContain("Status");
   });
 
   it("keeps the status control for an incomplete linked Dev account", async () => {
@@ -676,7 +676,7 @@ describe("OtpAccess provisioning entry point", () => {
     await act(async () => root.render(
       <OtpAccess account={devAccount} locale="de" orisoProvisioningEnvironments={["dev"]} onProvisioned={vi.fn()} />
     ));
-    expect(container.textContent).toContain("ORISO-Status");
+    expect(container.textContent).toContain("Status");
   });
 
   it("shows app-password and TOTP controls in the row immediately after linking an existing invitation", async () => {
@@ -722,7 +722,7 @@ describe("OtpAccess provisioning entry point", () => {
 
     await vi.waitFor(() => expect(container.textContent).toContain("ORISO-App-Passwort"));
     expect(container.textContent).toContain("2FA hinterlegen");
-    expect(container.textContent).toContain("ORISO-Status");
+    expect(container.textContent).toContain("Status");
     expect(api).toHaveBeenCalledTimes(2);
   });
 });

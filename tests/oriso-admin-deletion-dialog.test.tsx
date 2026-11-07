@@ -67,9 +67,9 @@ describe("ORISO admin deletion dialog", () => {
   it("shows both linked environments only for an authorized human admin", async () => {
     const both = { ...account, linkedAccess: [linked, { ...linked, id: "oriso/pre-dev/lisa", environment: "pre-dev" as const }] };
     await act(async () => root.render(<OtpAccess account={both} locale="de" orisoProvisioningEnvironments={["dev", "pre-dev"]} onProvisioned={vi.fn()} />));
-    expect(host.textContent).not.toContain("ORISO-Admin löschen");
+    expect(host.querySelector('[aria-label^="ORISO-Admin löschen"]')).toBeNull();
     await act(async () => root.render(<OtpAccess account={both} locale="de" canDeleteOrisoAdmin orisoProvisioningEnvironments={["dev", "pre-dev"]} onProvisioned={vi.fn()} />));
-    expect(host.textContent).toContain("ORISO-Admin löschen (dev)");
-    expect(host.textContent).toContain("ORISO-Admin löschen (pre-dev)");
+    expect(host.querySelector('[aria-label="ORISO-Admin löschen (dev)"]')?.textContent).toBe("");
+    expect(host.querySelector('[aria-label="ORISO-Admin löschen (pre-dev)"]')?.textContent).toBe("");
   });
 });

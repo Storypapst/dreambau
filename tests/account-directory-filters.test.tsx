@@ -4,11 +4,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountDirectory } from "../src/client/components/account-directory.js";
-import type { AccountView, Taxonomies } from "../src/client/types.js";
+import type { AccountView, Taxonomies, TeamProject } from "../src/client/types.js";
 
 const favoriteState = { favorites: [] as string[] };
 vi.mock("@/favorites", () => ({ useFavorites: () => ({ favorites: favoriteState.favorites, ready: true, error: false, toggle: vi.fn(), move: vi.fn() }), useFavoriteDisplay: () => ({ display: { testContext: true, notes: true }, ready: true, error: null, setDisplay: vi.fn() }) }));
-vi.mock("@/api", () => ({ api: vi.fn(), onUnauthorized: vi.fn(() => () => undefined) }));
+vi.mock("@/api", () => ({ api: vi.fn((path: string) => path.startsWith("/taxonomies/") ? Promise.resolve({ values: [] }) : undefined), onUnauthorized: vi.fn(() => () => undefined) }));
 // The table, cards and dialogs are covered elsewhere; here only the filter row matters.
 vi.mock("../src/client/components/account-table.js", () => ({ AccountTable: ({ accounts }: { accounts: unknown[] }) => <div data-testid="table">rows:{accounts.length}</div> }));
 vi.mock("../src/client/components/favorite-account-view.js", () => ({ FavoriteAccountView: ({ accounts }: { accounts: AccountView[] }) => <div data-testid="favorite-rows">{accounts.map((account) => account.email).join(",")}</div> }));
@@ -31,7 +31,7 @@ function account(email: string, extra: Partial<AccountView["metadata"]> = {}): A
 
 const accounts = [
   account("marge.simpson@oriso.org", { lifecycleStatus: "active", roles: ["consultant"] }),
-  account("homer.simpson@dreambau.com", { lifecycleStatus: "archived" }),
+  account("homer.simpson@dreambau.com", { lifecycleStatus: "archived", project: "ORISO" }),
   account("lisa.simpson@oriso.org", { roles: ["admin"] })
 ];
 const taxonomies: Taxonomies = { roles: ["consultant", "admin"], topics: [], conversationTypes: [] };
@@ -56,12 +56,43 @@ describe("AccountDirectory filter state", () => {
     container.remove();
   });
 
-  function render(initialAccounts = accounts, locale: "de" | "en" = "de") {
-    return act(async () => root.render(<AccountDirectory initialAccounts={initialAccounts} initialTaxonomies={taxonomies} locale={locale} onLocaleChange={() => undefined} onLogout={() => undefined} isAdmin entitlements={entitlements} />));
+  function render(initialAccounts = accounts, locale: "de" | "en" = "de", projects: TeamProject[] = ["oriso"]) {
+    return act(async () => root.render(<AccountDirectory initialAccounts={initialAccounts} initialTaxonomies={taxonomies} locale={locale} onLocaleChange={() => undefined} onLogout={() => undefined} isAdmin canManagePasskeys={false} entitlements={entitlements} projects={projects} />));
   }
-  const rows = () => container.querySelector('[data-testid="table"]')?.textContent;
+  const rows = () => {
+    const count = container.querySelectorAll("[data-account-expander]").length;
+    return count ? `rows:${count}` : undefined;
+  };
   const favoriteRows = () => container.querySelector('[data-testid="favorite-rows"]')?.textContent;
   const reset = () => container.querySelector('[data-testid="reset-filters"]') as HTMLButtonElement | null;
+
+  it("only offers granted projects, including an empty project, and falls back after revocation", async () => {
+    window.history.replaceState(null, "", "/testmails/?project=DREAMBAU");
+    await render(accounts, "en", ["oriso", "orimo"]);
+    expect(rows()).toBe("rows:3");
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-testid="project-switch"]')!.click());
+    const options = [...document.querySelectorAll<HTMLButtonElement>('[data-testid="project-option"]')];
+    expect(options.map((button) => button.textContent)).toEqual(["ORISO", "ORIMO"]);
+    await act(async () => options[1].click());
+    expect(rows()).toBeUndefined();
+    expect(window.location.search).toBe("?project=ORIMO");
+    await render(accounts, "en", ["oriso"]);
+    expect(rows()).toBe("rows:3");
+    expect(container.querySelector('[data-testid="project-switch"]')).toBeNull();
+    await render(accounts, "en", []);
+    expect(rows()).toBeUndefined();
+  });
+
+  it("keeps one account expanded and toggles to another compact row", async () => {
+    await render();
+    const summaries = () => [...container.querySelectorAll<HTMLButtonElement>("[data-account-expander]")];
+    expect(summaries()).toHaveLength(3);
+    expect(summaries().filter((button) => button.getAttribute("aria-expanded") === "true")).toHaveLength(1);
+    const closed = summaries().find((button) => button.getAttribute("aria-expanded") === "false")!;
+    await act(async () => closed.click());
+    expect(closed.getAttribute("aria-expanded")).toBe("true");
+    expect(summaries().filter((button) => button.getAttribute("aria-expanded") === "true")).toEqual([closed]);
+  });
 
   it("finds an account by documented agency without guessing unknown agencies", async () => {
     await render([account("new@oriso.org", { agencies: ["Debt advice Berlin", "Family advice Hamburg"] }), account("old@oriso.org")]);
@@ -73,13 +104,25 @@ describe("AccountDirectory filter state", () => {
     expect(rows()).toBe("rows:1");
   });
 
+  it.each(["de", "en"] as const)("finds translated status and conversation names in %s", async (locale) => {
+    await render([account("test@oriso.org", { lifecycleStatus: "active", conversationTypes: ["Termin"] }), account("old@oriso.org")], locale);
+    const input = container.querySelector<HTMLInputElement>("input[placeholder]")!;
+    for (const phrase of ["Im Einsatz", "In use", "Termin", "Appointment"]) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, phrase);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(rows()).toBe("rows:1");
+    }
+  });
+
   it("searches linked usernames and displayed context fields", async () => {
-    const lisa = account("lisa@oriso.org", { carrier: "Springfield QA", supervisor: "Marge Simpson" });
+    const lisa = account("lisa@oriso.org", { carrier: "Springfield QA", supervisor: "Marge Simpson", documentedUsername: "fixture_lisa_nov06" });
     lisa.linkedAccess = [{ id: "oriso/dev/lisa", username: "test-lisa-02", project: "oriso", environment: "dev", kind: "app-user",
       displayName: "Lisa", email: lisa.email, roles: ["consultant"], loginUrl: "https://dev.oriso.org", hasTotp: true }];
     await render([lisa, account("homer@oriso.org")]);
     const search = container.querySelector<HTMLInputElement>('input[placeholder]')!;
-    for (const term of ["test-lisa-02", "Marge Simpson", "Springfield QA", "Berater"]) {
+    for (const term of ["test-lisa-02", "Marge Simpson", "Springfield QA", "Berater", "fixture_lisa_nov06"]) {
       await act(async () => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, term);
         search.dispatchEvent(new Event("input", { bubbles: true }));
@@ -97,7 +140,7 @@ describe("AccountDirectory filter state", () => {
     expect(container.textContent).toContain("272");
     expect(container.textContent).toContain("1 S/MIME");
     expect(container.textContent).toContain(locale === "de" ? "271 ohne Verschlüsselung" : "271 unencrypted");
-    expect(container.textContent).not.toContain("180");
+    expect(container.textContent).not.toMatch(/180 (von|of) 180/);
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
@@ -143,11 +186,30 @@ describe("AccountDirectory filter state", () => {
     expect(localStorage.getItem("testmails-filters")).toBeNull();
   });
 
+  it.each([
+    ["de", ["Status", "Testdaten"], ["Alle Status", "Alle Testdaten"]],
+    ["en", ["Status", "Test data"], ["All statuses", "All test data"]],
+  ] as const)("labels the structured selectors in %s", async (locale, labels, values) => {
+    await render(accounts, locale);
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="advanced-toggle"]')!;
+    await act(async () => toggle.click());
+
+    const panel = container.querySelector<HTMLDivElement>("#advanced-filters")!;
+    expect(panel.hidden).toBe(false);
+    const selectors = Array.from(panel.querySelectorAll('[role="combobox"]')).slice(0, 3);
+    expect(selectors.map((selector) => document.getElementById(selector.getAttribute("aria-labelledby") ?? "")?.textContent)).toEqual(labels);
+    expect(selectors.map((selector) => selector.textContent)).toEqual(values);
+  });
+
   it("restores filters from the URL on load", async () => {
     window.history.replaceState(null, "", "/testmails/?domain=oriso.org&roles=admin");
     await render();
     expect(rows()).toBe("rows:1");
     expect(reset()?.textContent).toContain("Zurücksetzen (2)");
+    const toggle = container.querySelector<HTMLButtonElement>('[data-testid="advanced-toggle"]')!;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toContain("Filter (2)");
+    expect(container.querySelector<HTMLDivElement>("#advanced-filters")?.hidden).toBe(true);
     expect((container.querySelector('input[placeholder]') as HTMLInputElement).value).toBe("");
   });
 
@@ -230,7 +292,7 @@ describe("AccountDirectory filter state", () => {
     favoriteState.favorites = ["lisa.simpson@oriso.org"];
     await render();
     const chip = container.querySelector('[data-testid="favorites-filter"]') as HTMLButtonElement;
-    expect(chip.textContent).toContain("(1)");
+    expect(chip.textContent).toBe("1");
     await act(async () => chip.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(favoriteRows()).toBe("lisa.simpson@oriso.org");
     expect(rows()).toBeUndefined();

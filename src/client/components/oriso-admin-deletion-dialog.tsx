@@ -70,7 +70,13 @@ export function OrisoAdminDeletionDialog({ account, linked, locale, onDeleted }:
     setOpen(next);
     if (next) void check(); else { generation.current++; setPreview(null); setConfirmation(""); setError(null); }
   }}>
-    <DialogTrigger asChild><Button className="min-h-11" type="button" variant="outline" size="sm"><Trash2Icon data-icon="inline-start" />{locale === "de" ? "ORISO-Admin löschen" : "Delete ORISO admin"} ({linked.environment})</Button></DialogTrigger>
+    <DialogTrigger asChild>
+      <Button type="button" variant="outline" size="icon-sm"
+        aria-label={`${locale === "de" ? "ORISO-Admin löschen" : "Delete ORISO admin"} (${linked.environment})`}
+        title={`${locale === "de" ? "ORISO-Admin löschen" : "Delete ORISO admin"} (${linked.environment})`}>
+        <Trash2Icon />
+      </Button>
+    </DialogTrigger>
     <DialogContent className="[&>button]:min-h-11 [&>button]:min-w-11 [&>button]:flex [&>button]:items-center [&>button]:justify-center">
       <DialogHeader className="pr-12"><DialogTitle>{locale === "de" ? "ORISO-Admin-Konto löschen" : "Delete ORISO admin account"}</DialogTitle>
         <DialogDescription>{locale === "de" ? "Nur das gewählte ORISO-Admin-Konto wird entfernt. Das Mailpostfach und die gespeicherte Verknüpfung bleiben erhalten." : "Only the selected ORISO admin account is removed. The mailbox and stored linked record are retained."}</DialogDescription>

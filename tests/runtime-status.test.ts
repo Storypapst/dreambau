@@ -2,61 +2,42 @@ import { describe, expect, it, vi } from "vitest";
 import { loadRuntimeStatuses, runtimeTargets } from "../src/server/runtime-status.js";
 
 describe("runtime status probes", () => {
-  it("probes only compile-time allowlisted targets in the caller project scope", async () => {
+  it("probes only current ORISO Dev targets and returns the graph publication date", async () => {
+    const publishedAt = "2026-09-21T12:52:42.456966+00:00";
     const fetcher = vi.fn(async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.includes("signoz")) return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
-      return new Response(JSON.stringify({ message: "Ok" }), { status: 200 });
+      if (String(input).includes("signoz")) return Response.json({ status: "ok" });
+      return Response.json({
+        schemaVersion: "oriso.ua.generation/v1",
+        generationId: "test-generation",
+        generatedAt: publishedAt,
+        graphs: [{ kind: "platform", path: "platform.json" }],
+        files: ["private test fixture"]
+      });
     });
 
-    const statuses = await loadRuntimeStatuses(["oriso"], {
-      fetcher,
-      resolver: async () => ["46.224.170.69"],
-      timeoutMs: 50
-    });
+    const statuses = await loadRuntimeStatuses(["oriso"], { fetcher, timeoutMs: 50 });
 
-    expect(statuses.map((status) => status.id)).toEqual(["signoz-predev", "signoz-dev"]);
+    expect(statuses.map((status) => status.id)).toEqual(["signoz-dev", "understand-anything"]);
     expect(statuses.every((status) => status.state === "healthy")).toBe(true);
+    expect(statuses[1]).toMatchObject({ project: "oriso", environment: "dev", url: "https://understand.oriso.org/", publishedAt });
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(fetcher.mock.calls.map(([url]) => String(url)).sort()).toEqual(
-      runtimeTargets.filter((target) => target.project === "oriso" && target.healthUrl).map((target) => target.healthUrl).sort()
+      runtimeTargets.filter((target) => target.project === "oriso").map((target) => target.healthUrl).sort()
     );
+    expect(fetcher.mock.calls.map(([url]) => String(url))).not.toContain("https://signoz.oriso-dev.site/api/v1/health");
+    expect(JSON.stringify(statuses)).not.toContain("private test fixture");
   });
 
-  it("marks Pre-Dev degraded when public DNS points at a retired server", async () => {
-    const fetcher = vi.fn(async () => new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
+  it("requires a published platform graph rather than a generic successful JSON response", async () => {
+    const fetcher = vi.fn(async () => Response.json({ status: "ok" }));
+    const statuses = await loadRuntimeStatuses(["oriso"], { fetcher, timeoutMs: 50 });
 
-    const statuses = await loadRuntimeStatuses(["oriso"], {
-      fetcher,
-      resolver: async (hostname) => hostname === "signoz.oriso-dev.site" ? ["91.99.183.160"] : [],
-      timeoutMs: 50
-    });
-
-    expect(statuses.find((status) => status.id === "signoz-predev")?.state).toBe("degraded");
     expect(statuses.find((status) => status.id === "signoz-dev")?.state).toBe("healthy");
-    expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(statuses)).not.toContain("91.99.183.160");
+    expect(statuses.find((status) => status.id === "understand-anything")).toMatchObject({ state: "degraded" });
+    expect(statuses.find((status) => status.id === "understand-anything")).not.toHaveProperty("publishedAt");
   });
 
-  it("bounds a stalled DNS check with the runtime probe timeout", async () => {
-    vi.useFakeTimers();
-    try {
-      const statusesPromise = loadRuntimeStatuses(["oriso"], {
-        fetcher: vi.fn(async () => new Response(JSON.stringify({ status: "ok" }), { status: 200 })),
-        resolver: async () => new Promise<string[]>(() => undefined),
-        timeoutMs: 50
-      });
-
-      await vi.advanceTimersByTimeAsync(51);
-      const statuses = await statusesPromise;
-
-      expect(statuses.find((status) => status.id === "signoz-predev")?.state).toBe("offline");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("isolates degraded, offline and unavailable dependencies without returning bodies", async () => {
+  it("isolates degraded and offline dependencies without returning bodies", async () => {
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
       if (url.includes("secrets")) return new Response("private upstream detail", { status: 503 });
@@ -67,7 +48,7 @@ describe("runtime status probes", () => {
 
     expect(statuses.find((status) => status.id === "infisical")?.state).toBe("degraded");
     expect(statuses.find((status) => status.id === "kio")?.state).toBe("offline");
-    expect(statuses.find((status) => status.id === "understand-anything")?.state).toBe("unavailable");
+    expect(statuses.some((status) => status.id === "understand-anything")).toBe(false);
     expect(JSON.stringify(statuses)).not.toContain("private upstream detail");
     expect(JSON.stringify(statuses)).not.toContain("ENOTFOUND");
   });

@@ -141,7 +141,7 @@ export function AccountInlineNotes({ account, locale, onSaved }: AccountInlineNo
       <Textarea
         id={id}
         data-testmails-search-input
-        className="min-h-9 max-h-40"
+        className="min-h-8 max-h-56 px-2 py-1"
         rows={1}
         maxLength={4000}
         value={acknowledged ? metadata.notes : draft?.notes ?? metadata.notes}
