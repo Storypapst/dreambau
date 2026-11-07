@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ExternalLinkIcon, PlusIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, PlusIcon } from "lucide-react";
 import { api } from "@/api";
 import type { Locale } from "@/i18n";
 import type { AccountMetadata, AccountView, TeamProject } from "@/types";
@@ -66,8 +66,9 @@ export function AccountLoginTarget({ account, locale, project, options, onSaved,
     <div className="space-y-1">
       <p className="text-xs font-medium text-muted-foreground">{de ? "Login-Ziel" : "Sign-in target"}</p>
       <div className="flex min-w-0 items-center gap-1">
-        <select
-          className="h-8 min-w-0 flex-1 truncate rounded-md border bg-background px-2 text-sm"
+        <div className="relative min-w-0 flex-1">
+          <select
+          className="h-8 w-full appearance-none truncate rounded-md border bg-background pl-2 pr-8 text-sm"
           aria-label={de ? "Login-Ziel auswählen" : "Choose sign-in target"}
           value={current?.url ?? ""}
           onChange={(event) => void selectTarget(event.target.value)}
@@ -75,7 +76,9 @@ export function AccountLoginTarget({ account, locale, project, options, onSaved,
         >
           <option value="">{de ? "Login-Ziel wählen" : "Choose a target"}</option>
           {options.map(({ label, url }) => <option key={url} value={url}>{label}</option>)}
-        </select>
+          </select>
+          <ChevronDownIcon aria-hidden className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2" />
+        </div>
         {onOptionsChanged && (
           <Dialog open={open} onOpenChange={(next) => {
             if (busy) return;

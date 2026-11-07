@@ -200,8 +200,11 @@ export function createApp(options: AppOptions = {}) {
   const publicLinkedAccount = (record: TestAccessRecord) => {
     const projected = projectLinkedAccount(record);
     if (!projected) return null;
-    const linked = !protectedRecordIds.has(record.id) && record.project === "oriso" && (record.environment === "dev" || record.environment === "pre-dev")
-      ? { ...projected, linkRevision: linkRevision(record) } : projected;
+    const protectedServiceAdmin = protectedRecordIds.has(record.id);
+    const linked = protectedServiceAdmin
+      ? { ...projected, protectedServiceAdmin: true as const }
+      : record.project === "oriso" && (record.environment === "dev" || record.environment === "pre-dev")
+        ? { ...projected, linkRevision: linkRevision(record) } : projected;
     if (database.isOrisoAdminDeleted(record.id)) return { ...linked, deleted: true, hasTotp: false };
     if (database.isOrisoAdminDeletionPending(record.id)) return { ...linked, deletionPending: true, hasTotp: false };
     const applicationPasswordSetAt = record.provisioningStatus === "ready"

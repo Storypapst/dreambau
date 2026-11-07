@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Trash2Icon } from "lucide-react";
+import { UserRoundXIcon } from "lucide-react";
 import { api } from "@/api";
 import type { Locale } from "@/i18n";
 import type { AccountView, LinkedTestAccount } from "@/types";
@@ -71,10 +71,10 @@ export function OrisoAdminDeletionDialog({ account, linked, locale, onDeleted }:
     if (next) void check(); else { generation.current++; setPreview(null); setConfirmation(""); setError(null); }
   }}>
     <DialogTrigger asChild>
-      <Button type="button" variant="outline" size="icon-sm"
+      <Button type="button" variant="outline" size="icon-xs"
         aria-label={`${locale === "de" ? "ORISO-Admin löschen" : "Delete ORISO admin"} (${linked.environment})`}
         title={`${locale === "de" ? "ORISO-Admin löschen" : "Delete ORISO admin"} (${linked.environment})`}>
-        <Trash2Icon />
+        <UserRoundXIcon />
       </Button>
     </DialogTrigger>
     <DialogContent className="[&>button]:min-h-11 [&>button]:min-w-11 [&>button]:flex [&>button]:items-center [&>button]:justify-center">

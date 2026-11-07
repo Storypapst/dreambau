@@ -148,3 +148,12 @@ button, input, textarea, select { font: inherit; }
 .teamwork-guide-theme [data-slot="card"] { max-width: 400px; }
 .teamwork-guide-theme [data-slot="card-header"], .teamwork-guide-theme [data-slot="card-content"] { padding-inline: 0; }
 .teamwork-guide-theme label[for="stay-signed-in"] { min-height: 44px; }
+
+@keyframes testmails-note-saved {
+  0%, 91% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .testmails-note-saved { animation: testmails-note-saved 2.2s ease-out both; }
+}

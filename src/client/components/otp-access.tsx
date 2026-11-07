@@ -1,5 +1,5 @@
 import { OrisoAdminDeletionDialog } from "./oriso-admin-deletion-dialog";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CheckIcon, CopyIcon, ExternalLinkIcon, EyeIcon, EyeOffIcon, KeyRoundIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/api";
@@ -8,6 +8,7 @@ import { labelRole, labelLinkedEnvironment, t, type Locale } from "@/i18n";
 import type { AccountMetadata, AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { beginAccountCopy, finishAccountCopy } from "./account-quick-copy";
 import { CopyButton } from "./copy-button";
 import { saveMetadataPatch } from "./inline-metadata-controls";
@@ -43,7 +44,7 @@ export function orisoEnvironment(account: AccountView): "pre-dev" | "dev" | null
   return ORISO_ENVIRONMENT_BY_DOMAIN[account.domain.trim().toLowerCase()] ?? null;
 }
 
-export function OtpAccess({ account, locale, compact = false, favorite = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned, onMetadataSaved, onLinkReset }: {
+export function OtpAccess({ account, locale, compact = false, favorite = false, canDeleteOrisoAdmin = false, orisoProvisioningEnvironments = [], onProvisioned, onMetadataSaved, onLinkReset, renderMailbox, showLinkedTags = true }: {
   account: AccountView;
   locale: Locale;
   compact?: boolean;
@@ -53,15 +54,17 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
   onProvisioned?: (email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) => void;
   onMetadataSaved?: (metadata: AccountMetadata) => void;
   onLinkReset?: OnTestAccessLinkReset;
+  renderMailbox?: (mailOtp: ReactNode, actions?: ReactNode) => ReactNode;
+  showLinkedTags?: boolean;
 }) {
   const linked = account.linkedAccess?.[0];
   const environment = orisoEnvironment(account);
   const provisioningDialog = !favorite && environment && orisoProvisioningEnvironments.includes(environment) && onProvisioned
     && (!linked || (linked.project === "oriso" && linked.environment === environment))
-    ? <OrisoProvisioningDialog account={account} locale={locale} hasLinkedAccess={Boolean(linked)} onProvisioned={onProvisioned} />
+    ? <OrisoProvisioningDialog account={account} locale={locale} hasLinkedAccess={Boolean(linked)} compactTrigger={Boolean(renderMailbox && linked)} onProvisioned={onProvisioned} />
     : null;
   const deletionDialogs = !favorite && canDeleteOrisoAdmin && onProvisioned
-    ? account.linkedAccess?.filter((record) => record.project === "oriso" && record.kind === "admin"
+    ? account.linkedAccess?.filter((record) => record.project === "oriso" && record.kind === "admin" && !record.protectedServiceAdmin
       && (record.environment === "dev" || record.environment === "pre-dev")
       && orisoProvisioningEnvironments.includes(record.environment))
       .map((record) => <OrisoAdminDeletionDialog key={record.id} account={account} linked={record} locale={locale} onDeleted={onProvisioned} />)
@@ -101,9 +104,9 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
     setSecretCopied(false);
     setSecretError(false);
   }, [account.email, linked?.id]);
-  if (linked?.deletionPending) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Löschung prüfen" : "Check ORISO deletion"} ({linked.environment})</Badge>{managementActions}</div>;
-  if (linked?.deleted) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Konto gelöscht" : "ORISO account deleted"} ({linked.environment})</Badge>{managementActions}</div>;
-  if (!linked) return <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div>;
+  if (linked?.deletionPending) return <>{renderMailbox?.(null)}<div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Löschung prüfen" : "Check ORISO deletion"} ({linked.environment})</Badge>{managementActions}</div></>;
+  if (linked?.deleted) return <>{renderMailbox?.(null)}<div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "ORISO-Konto gelöscht" : "ORISO account deleted"} ({linked.environment})</Badge>{managementActions}</div></>;
+  if (!linked) return <>{renderMailbox?.(null)}<div className="col-span-full flex min-w-0 flex-wrap items-center gap-2"><Badge variant="secondary">{locale === "de" ? "Nur Mailkonto" : "Mailbox only"}</Badge><span className="text-xs text-muted-foreground">{locale === "de" ? "Noch kein App-Login verknüpft." : "No application login linked yet."}</span>{provisioningDialog}</div></>;
 
   async function requestApplicationSecret(): Promise<string | null> {
     const requestedEmail = account.email;
@@ -230,13 +233,18 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
     {secretError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "App-Passwort konnte nicht abgerufen werden." : "Could not retrieve app password."}</p>}
   </>;
 
-  const otpAccess = <>
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      {usesMailOtp ? <Button asChild variant={favorite ? "secondary" : "outline"} size="sm" className={favorite ? "w-full justify-start" : undefined}>
-        <a href="https://mail.dreambau.com/" target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />Mail 2FA</a>
+  const otpLabel = busy
+    ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…")
+    : (locale === "de" ? "OTP abrufen" : "Get OTP");
+  const actionLabelClass = renderMailbox ? "lg:max-xl:sr-only" : undefined;
+  const otpActions = (
+    <div className={cn("flex min-w-0 flex-wrap items-center", renderMailbox ? "shrink-0 gap-0.5 rounded-md border bg-muted/30 p-0.5" : "gap-2")}>
+
+      {usesMailOtp ? <Button asChild variant={favorite ? "secondary" : "outline"} size={renderMailbox ? "xs" : "sm"} className={favorite ? "w-full justify-start" : undefined}>
+        <a href="https://mail.dreambau.com/" target="_blank" rel="noreferrer" title="Mail 2FA"><ExternalLinkIcon data-icon="inline-start" /><span className={actionLabelClass}>Mail 2FA</span></a>
       </Button> : hasTotp
-        ? <Button type="button" variant={favorite ? "secondary" : "outline"} size="sm" className={favorite ? "w-full justify-start" : undefined} disabled={busy || otpDeliverySaving} onClick={requestOtp}>
-            <KeyRoundIcon data-icon="inline-start" />{busy ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…") : (locale === "de" ? "OTP abrufen" : "Get OTP")}
+        ? <Button type="button" variant={favorite ? "secondary" : "outline"} size={renderMailbox ? "xs" : "sm"} className={favorite ? "w-full justify-start" : undefined} disabled={busy || otpDeliverySaving} onClick={requestOtp} title={otpLabel}>
+            <KeyRoundIcon data-icon="inline-start" /><span className={actionLabelClass}>{otpLabel}</span>
           </Button>
         : favorite ? <Badge variant="secondary">{locale === "de" ? "App-2FA nicht eingerichtet" : "App 2FA not set up"}</Badge>
         : <TotpEnrollmentDialog
@@ -245,36 +253,43 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
             locale={locale}
             onEnrolled={(accountId) => setEnrolledRecordIds((current) => new Set(current).add(accountId))}
           />}
-      {!favorite && onMetadataSaved && <Button type="button" variant="ghost" size="sm" disabled={busy || otpDeliverySaving}
-        onClick={() => changeOtpDelivery(usesMailOtp ? "app" : "mail")}>
-        {usesMailOtp
-          ? (locale === "de" ? "App-2FA verwenden" : "Use App 2FA")
-          : (locale === "de" ? "Mail-2FA verwenden" : "Use Mail 2FA")}
-      </Button>}
       {managementActions}
-      {!usesMailOtp && displayedResult && <><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code data-testmails-search-private className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></>}
     </div>
-    {!usesMailOtp && <>
+  );
+  const otpFeedback = !usesMailOtp && <>
+      {displayedResult && <div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{displayedResult.source === "totp" ? "TOTP" : "E-Mail"}</Badge><code data-testmails-search-private className="font-semibold tabular-nums">{displayedResult.code}</code><CopyButton value={displayedResult.code} label={locale === "de" ? "OTP kopieren" : "Copy OTP"} compact /></div>}
       {waitingUntil && <OtpValidity expiresAt={waitingUntil} locale={locale} waiting />}
       {displayedResult?.source === "totp" && displayedExpiresAt !== undefined && <OtpValidity expiresAt={displayedExpiresAt} locale={locale} />}
       {error && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "OTP konnte nicht abgerufen werden." : "Could not retrieve OTP."}</p>}
-    </>}
   </>;
 
   if (favorite) return <>
-    <div className="col-span-full flex min-w-0 flex-col gap-1.5">{otpAccess}</div>
+    <div className="col-span-full flex min-w-0 flex-col gap-1.5">{otpActions}{otpFeedback}</div>
     <div className="min-w-0">{applicationAccess}</div>
   </>;
 
+  const mailOtpLabel = locale === "de" ? "E-Mail als zweiten Faktor verwenden" : "Use email as the second factor";
+  const mailOtp = onMetadataSaved && (
+    <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+      title={usesMailOtp
+        ? (locale === "de" ? "Mail-2FA ist ausgewählt. Abwählen für App-2FA." : "Mail 2FA is selected. Uncheck for app 2FA.")
+        : mailOtpLabel}>
+      <Checkbox checked={usesMailOtp} disabled={busy || otpDeliverySaving} aria-label={mailOtpLabel}
+        onCheckedChange={(checked) => void changeOtpDelivery(checked === true ? "mail" : "app")} />
+    </label>
+  );
+
   return <div className="flex min-w-0 flex-col gap-2">
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Badge variant="secondary">{labelLinkedEnvironment(locale, [linked]) ?? linked.environment}</Badge>
-      {displayedRoles.map((role) => <Badge key={role} variant="outline">{labelRole(locale, role)}</Badge>)}
+    {renderMailbox ? renderMailbox(mailOtp, otpActions) : mailOtp}
+    {(showLinkedTags || !compact) && <div className="flex min-w-0 flex-wrap items-center gap-2">
+      {showLinkedTags && <Badge variant="secondary">{labelLinkedEnvironment(locale, [linked]) ?? linked.environment}</Badge>}
+      {showLinkedTags && displayedRoles.map((role) => <Badge key={role} variant="outline">{labelRole(locale, role)}</Badge>)}
       {!compact && <code className="min-w-0 truncate text-xs">{linked.username}</code>}
       {!compact && <Button asChild variant="ghost" size="sm"><a href={linked.loginUrl} target="_blank" rel="noreferrer"><ExternalLinkIcon data-icon="inline-start" />{locale === "de" ? "App öffnen" : "Open app"}</a></Button>}
-    </div>
+    </div>}
+    {!renderMailbox && otpActions}
+    {otpFeedback}
     {applicationAccess}
-    {otpAccess}
     {!compact && account.access?.latest && <p className="text-xs text-muted-foreground">{locale === "de" ? "Zuletzt verwendet" : "Last used"}: {new Date(account.access.latest.createdAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB")} · {account.access.latest.actorId}</p>}
   </div>;
 }

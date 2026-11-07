@@ -159,11 +159,13 @@ export function OrisoProvisioningDialog({
   account,
   locale,
   hasLinkedAccess,
+  compactTrigger = false,
   onProvisioned
 }: {
   account: AccountView;
   locale: Locale;
   hasLinkedAccess: boolean;
+  compactTrigger?: boolean;
   onProvisioned: (email: string, linked: LinkedTestAccount, metadata?: AccountMetadata) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -355,9 +357,9 @@ export function OrisoProvisioningDialog({
 
   return <Dialog open={open} onOpenChange={changeOpen}>
     <DialogTrigger asChild>
-      <Button type="button" variant="outline" size="sm">
+      <Button type="button" variant="outline" size={compactTrigger ? "xs" : "sm"} title={compactTrigger && hasLinkedAccess ? "Status" : undefined}>
         {hasLinkedAccess
-          ? <><RefreshCwIcon data-icon="inline-start" />Status</>
+          ? <><RefreshCwIcon data-icon="inline-start" /><span className={compactTrigger ? "lg:max-xl:sr-only" : undefined}>Status</span></>
           : <><MailPlusIcon data-icon="inline-start" />{locale === "de" ? "ORISO-Konto anlegen" : "Provision ORISO account"}</>}
       </Button>
     </DialogTrigger>

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/api";
-import { distinctRoleOptions, labelConversation, labelFixture, labelLifecycle, labelProject, labelRoleWithEnvironment, labelTopic, t, type Locale } from "@/i18n";
+import { canonicalRole, distinctRoleOptions, labelLinkedEnvironment, labelRole, labelConversation, labelFixture, labelLifecycle, labelProject, labelRoleWithEnvironment, labelTopic, t, type Locale } from "@/i18n";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AccountMetadata, AccountView, FixtureQuality, LifecycleStatus, Project } from "@/types";
 import { MultiSelect } from "./multi-select";
@@ -64,4 +66,84 @@ export function InlineTaxonomySelect({ account, locale, kind, options, onSaved }
       : (value: string) => labelConversation(locale, value);
   const tone: Record<typeof kind, TagTone> = { roles: "role", topics: "topic", conversationTypes: "conversation" };
   return <div className="flex min-w-0 flex-col gap-1.5"><MultiSelect compact disabled={busy} label={labels[kind]} options={kind === "roles" ? distinctRoleOptions(options, account.metadata.roles) : options} value={account.metadata[kind]} onChange={(value) => save({ [kind]: value })} formatOption={format} locale={locale} /><SelectedTags values={account.metadata[kind]} formatOption={format} tone={tone[kind]} removeLabel={locale === "de" ? "entfernen" : "remove"} onRemove={(removed) => save({ [kind]: account.metadata[kind].filter((value) => value !== removed) })} /></div>;
+}
+
+
+type AccountMetadataControlProps = {
+  account: AccountView;
+  locale: Locale;
+  onSaved: (metadata: AccountMetadata) => void;
+};
+
+export function AccountClassificationTags({ account, locale }: Pick<AccountMetadataControlProps, "account" | "locale">) {
+  const links = (account.linkedAccess ?? []).filter((link) => !link.deleted && !link.deletionPending);
+  const environments = [...new Set(links.map((link) => labelLinkedEnvironment(locale, [link])).filter(Boolean))];
+  const roles = distinctRoleOptions([...account.metadata.roles, ...links.flatMap((link) => link.roles)]);
+  const hasScopedAdmin = roles.some((role) => ["platform-admin", "tenant-admin", "agency-admin"].includes(canonicalRole(role)));
+  const displayedRoles = [...new Set(roles.filter((role) => !hasScopedAdmin || canonicalRole(role) !== "Admin")
+    .map((role) => labelRole(locale, role)))];
+  const topics = account.metadata.topics;
+  if (!environments.length && !displayedRoles.length && !topics.length) return null;
+
+  return <div className="mt-2 flex min-w-0 flex-wrap gap-1" aria-label={locale === "de" ? "Umgebungen, Rollen und Themen" : "Environments, roles and topics"}>
+    {environments.map((environment) => <Badge key={environment} variant="secondary" data-testmails-search-text>{environment}</Badge>)}
+    {displayedRoles.map((role) => <span key={role} className="tag-pill tag-role" data-testmails-search-text>{role}</span>)}
+    {topics.map((topic) => <span key={topic} className="tag-pill tag-topic" data-testmails-search-text>{labelTopic(locale, topic)}</span>)}
+  </div>;
+}
+
+export function AccountVersion({ account, locale, onSaved, fallback }: AccountMetadataControlProps & { fallback?: string }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const de = locale === "de";
+  const label = de ? "Versionsnummer bearbeiten" : "Edit version number";
+  const version = account.metadata.shippedVersion;
+
+  function edit() {
+    setError(false);
+    setDraft(version);
+  }
+
+  async function save() {
+    if (draft === null || busy) return;
+    const shippedVersion = draft.trim();
+    if (!/^$|^\d+(\.\d+){0,2}$/.test(shippedVersion)) {
+      setError(true);
+      return;
+    }
+    if (shippedVersion === version) {
+      setDraft(null);
+      return;
+    }
+    setBusy(true);
+    try {
+      onSaved(await saveMetadataPatch(account.email, { shippedVersion }));
+      setDraft(null);
+    } catch {
+      toast.error(t(locale, "page.saveFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (draft !== null) return <span className="inline-flex flex-wrap items-center gap-1" onDoubleClick={(event) => event.stopPropagation()}>
+    <Input autoFocus className="h-6 w-24 px-1.5 text-xs" aria-label={label} aria-invalid={error || undefined}
+      value={draft} placeholder="2.0.15" readOnly={busy}
+      onChange={(event) => { setError(false); setDraft(event.currentTarget.value); }}
+      onBlur={() => void save()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setDraft(null); }
+      }} />
+    {error && <span className="text-xs text-destructive" role="alert">{de ? "Format wie 2.0.15" : "Use a format like 2.0.15"}</span>}
+  </span>;
+
+  return <button type="button" className="rounded px-0.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2"
+    aria-label={label} title={de ? "Doppelklick zum Bearbeiten" : "Double-click to edit"} data-testmails-search-text
+    onClick={(event) => { if (event.detail === 0) edit(); }}
+    onDoubleClick={(event) => { event.stopPropagation(); edit(); }}
+    onPointerUp={(event) => { if (event.pointerType === "touch") edit(); }}>
+    {version ? `v${version}` : fallback ?? (de ? "Version setzen" : "Set version")}
+  </button>;
 }

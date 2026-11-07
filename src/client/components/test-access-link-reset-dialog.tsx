@@ -51,7 +51,7 @@ export function TestAccessLinkResetDialog({ linked, locale, onReset }: {
     setError("");
   }}>
     <AlertDialogTrigger asChild>
-      <Button type="button" variant="ghost" size="icon-sm" title={label} aria-label={label}>
+      <Button type="button" variant="ghost" size="icon-xs" title={label} aria-label={label}>
         <Trash2Icon />
       </Button>
     </AlertDialogTrigger>

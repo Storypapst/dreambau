@@ -16,10 +16,11 @@ type AccountInlineNotesProps = {
 
 type Draft = { notes: string; locale: Locale; viewer: string | null } & (
   | { state: "pending" | "saving" | "error" }
-  | { state: "saved"; updatedAt: string }
+  | { state: "saved"; updatedAt: string; savedAt: number }
 );
 
 const SAVE_DELAY_MS = 600;
+const SAVED_FEEDBACK_MS = 2_200;
 
 function createNotesStore(email: string, onSaved: AccountInlineNotesProps["onSaved"]) {
   const listeners = new Set<() => void>();
@@ -51,7 +52,7 @@ function createNotesStore(email: string, onSaved: AccountInlineNotesProps["onSav
       onSaved(metadata);
       if (draft?.notes === request.notes) {
         clearTimer();
-        update({ ...request, state: "saved", updatedAt: metadata.updatedAt });
+        update({ ...request, state: "saved", updatedAt: metadata.updatedAt, savedAt: Date.now() });
       }
     } catch {
       if (draft === request) {
@@ -123,11 +124,14 @@ export function AccountInlineNotes({ account, locale, onSaved }: AccountInlineNo
   const acknowledged = draft?.state === "saved" && (metadata.notes === draft.notes || metadata.updatedAt > draft.updatedAt);
 
   useEffect(() => {
-    if (acknowledged) store.acknowledge(draft);
+    if (!acknowledged) return;
+    const remaining = Math.max(0, SAVED_FEEDBACK_MS - (Date.now() - draft.savedAt));
+    const timeout = window.setTimeout(() => store.acknowledge(draft), remaining);
+    return () => window.clearTimeout(timeout);
   }, [acknowledged, draft, store]);
 
   const failed = draft?.state === "error";
-  const saving = draft?.state === "pending" || draft?.state === "saving";
+  const saved = draft?.state === "saved" && Date.now() - draft.savedAt < SAVED_FEEDBACK_MS;
   const german = locale === "de";
 
   return (
@@ -135,7 +139,7 @@ export function AccountInlineNotes({ account, locale, onSaved }: AccountInlineNo
       <div className="flex flex-wrap items-center justify-between gap-x-2">
         <FieldLabel htmlFor={id}>{german ? "Notizen" : "Notes"}</FieldLabel>
         <span className="text-xs text-muted-foreground" role="status">
-          {saving ? (german ? "Wird gespeichert …" : "Saving…") : (!failed && (german ? "Speichert automatisch" : "Saves automatically"))}
+          {saved && <span className="testmails-note-saved">{t(locale, "page.saved")}</span>}
         </span>
       </div>
       <Textarea

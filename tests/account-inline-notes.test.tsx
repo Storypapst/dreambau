@@ -95,6 +95,25 @@ describe("inline account notes", () => {
     expect(desktop.value).toBe("First line\nSecond line");
   });
 
+  it("shows a short Saved acknowledgement only after persistence", async () => {
+    fetchMock.mockResolvedValueOnce(saved("New note"));
+    await act(async () => renderNotes());
+    const status = () => container.querySelector('[role="status"]')?.textContent;
+    expect(status()).toBe("");
+    await act(async () => setNotes(input(), "New note"));
+    expect(status()).toBe("");
+    await act(async () => vi.advanceTimersByTimeAsync(600));
+    expect(status()).toBe("Saved");
+    await act(async () => renderNotes({
+      ...account,
+      metadata: { ...account.metadata, ...onSaved.mock.lastCall![0] }
+    }));
+    await act(async () => vi.advanceTimersByTimeAsync(2_199));
+    expect(status()).toBe("Saved");
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(status()).toBe("");
+  });
+
   it("flushes a cleared note when the field loses focus", async () => {
     fetchMock.mockResolvedValueOnce(saved(""));
     await act(async () => renderNotes());
