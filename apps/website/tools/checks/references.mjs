@@ -60,7 +60,7 @@ export async function run({browser,base,artifact,ok,root}) {
  } finally {await context.close();}
  const fast=await browser.newContext({viewport:{width:820,height:1180},reducedMotion:'reduce'}), burst=await fast.newPage();
  try{
-  await burst.goto(base+'/');await burst.locator('#site-menu summary').click();await burst.locator('#site-menu a[href="/referenzen/"]').click();await burst.locator('.nd[data-id="oriso"]').click();
+  await burst.goto(base+'/?lang=de');await burst.locator('#site-menu summary').click();await burst.locator('#site-menu a[href="/referenzen/"]').click();await burst.locator('.nd[data-id="oriso"]').click();
   // Several keyboard close events arrive before asynchronous history traversal completes.
   await burst.evaluate(()=>{for(let n=0;n<8;n++)document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});await burst.waitForTimeout(350);
   ok('A05: rapid keyboard closes traverse history once and keep the references page',new URL(burst.url()).pathname==='/referenzen/'&&new URL(burst.url()).hash==='');
