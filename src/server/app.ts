@@ -194,9 +194,17 @@ export function createApp(options: AppOptions = {}) {
   const accountLoader: () => AccountRecord[] = options.loadAccounts
     ?? (() => accountSource ? accountSource.load() : loadAccountsFile(config.accountsPath));
   const database = options.database ?? createDatabase(options.loadAccounts ? ":memory:" : config.databasePath);
+  const protectedRecordIds = new Set(Object.values(config.orisoProvisioningTargets).map((target) => target?.adminRecordId));
+  const linkRevision = ({ id, email, createdAt, updatedAt }: TestAccessRecord) =>
+    createHash("sha256").update(JSON.stringify([id, email, createdAt, updatedAt])).digest("hex");
   const publicLinkedAccount = (record: TestAccessRecord) => {
-    const linked = projectLinkedAccount(record);
-    if (!linked) return null;
+    const projected = projectLinkedAccount(record);
+    if (!projected) return null;
+    const protectedServiceAdmin = protectedRecordIds.has(record.id);
+    const linked = protectedServiceAdmin
+      ? { ...projected, protectedServiceAdmin: true as const }
+      : record.project === "oriso" && (record.environment === "dev" || record.environment === "pre-dev")
+        ? { ...projected, linkRevision: linkRevision(record) } : projected;
     if (database.isOrisoAdminDeleted(record.id)) return { ...linked, deleted: true, hasTotp: false };
     if (database.isOrisoAdminDeletionPending(record.id)) return { ...linked, deletionPending: true, hasTotp: false };
     const applicationPasswordSetAt = record.provisioningStatus === "ready"
@@ -207,7 +215,10 @@ export function createApp(options: AppOptions = {}) {
   const accountMutations = new Set<string>();
   const guardAccountMutation = (handler: express.RequestHandler): express.RequestHandler => async (req, res, next) => {
     const email = String(req.params.email).trim().toLowerCase();
-    const key = `${environmentForOrisoEmail(email) ?? String(req.body?.environment)}:${email}`;
+    const explicitEnvironment = req.params.environment;
+    const environment = explicitEnvironment === "dev" || explicitEnvironment === "pre-dev"
+      ? explicitEnvironment : environmentForOrisoEmail(email) ?? String(req.body?.environment);
+    const key = `${environment}:${email}`;
     if (accountMutations.has(key)) { res.status(409).json({ error: "oriso_account_mutation_in_progress" }); return; }
     accountMutations.add(key);
     let release: (() => Promise<void>) | null = null;
@@ -1112,7 +1123,6 @@ export function createApp(options: AppOptions = {}) {
   const candidateCleanup = async (user: HumanUser) => {
     const records = await registryProvider.list();
     reconcileRecords(records);
-    const protectedIds = new Set(Object.values(config.orisoProvisioningTargets).map((target) => target?.adminRecordId));
     const candidates = scopedAccountViews(user).filter((account) =>
       viewProject(account) === "oriso" && account.metadata.lifecycleStatus === "delete_candidate"
     );
@@ -1120,7 +1130,7 @@ export function createApp(options: AppOptions = {}) {
       .filter((record) => record.project === "oriso" && (record.environment === "dev" || record.environment === "pre-dev"))
       .sort((left, right) => left.id.localeCompare(right.id));
     const eligible = linked.filter((record) =>
-      !protectedIds.has(record.id) && !database.testRuns.hasAccountLease(record)
+      !protectedRecordIds.has(record.id) && !database.testRuns.hasAccountLease(record)
         && !database.isOrisoAdminDeletionPending(record.id) && !accountMutationInProgress(record)
     );
     const revision = createHash("sha256").update(JSON.stringify(
@@ -1149,7 +1159,7 @@ export function createApp(options: AppOptions = {}) {
       if (input.data.revision !== revision || eligible.some(accountMutationInProgress)) {
         return res.status(409).json({ error: "cleanup_preview_stale" });
       }
-      const count = database.unlinkTestAccessCandidates(eligible, user.id, (options.now?.() ?? new Date()).toISOString());
+      const count = database.unlinkTestAccessRecords(eligible, user.id, (options.now?.() ?? new Date()).toISOString(), "candidate");
       await regenerate().catch(() => console.error("account catalogue export refresh failed after candidate cleanup"));
       res.json({ count });
     } catch (error) {
@@ -1159,6 +1169,45 @@ export function createApp(options: AppOptions = {}) {
       next(error);
     }
   });
+  const individualLinkReset = z.object({
+    accountId: z.string().min(1).max(240),
+    revision: z.string().regex(/^[0-9a-f]{64}$/)
+  }).strict();
+  api.delete("/accounts/:email/test-access-link/:environment", requireActiveHumanSession, (req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    if ((res.locals.session as SessionPrincipal).method !== "passkey") return res.status(403).json({ error: "passkey_required" });
+    if ((res.locals.humanUser as HumanUser).role !== "admin") return res.status(403).json({ error: "admin_required" });
+    const origin = req.get("Origin");
+    if (origin && origin !== (options.expectedOrigin ?? "https://dreambau.com")) return res.status(403).json({ error: "origin_denied" });
+    if (req.params.environment !== "dev" && req.params.environment !== "pre-dev") return res.status(400).json({ error: "validation_failed" });
+    next();
+  }, guardAccountMutation(async (req, res, next) => {
+    const input = individualLinkReset.safeParse(req.body);
+    if (!input.success) return res.status(400).json({ error: "validation_failed" });
+    const email = String(req.params.email).trim().toLowerCase();
+    const user = res.locals.humanUser as HumanUser;
+    const account = scopedAccountViews(user).find((view) => view.email.toLowerCase() === email && viewProject(view) === "oriso");
+    if (!account) return res.status(404).json({ error: "account_not_found" });
+    try {
+      const records = await registryProvider.list();
+      reconcileRecords(records);
+      const selected = linkedForAccountView(account, records, user).find((record) =>
+        record.id === input.data.accountId && record.environment === req.params.environment
+      );
+      if (!selected) return res.status(404).json({ error: "linked_account_not_found" });
+      if (protectedRecordIds.has(selected.id)) return res.status(403).json({ error: "protected_record" });
+      if (linkRevision(selected) !== input.data.revision) return res.status(409).json({ error: "cleanup_preview_stale" });
+      database.unlinkTestAccessRecords([selected], user.id, (options.now?.() ?? new Date()).toISOString(), "individual");
+      const metadata = metadataWithLinkedRoles(database.getMetadata(email), linkedForAccountView(account, records, user));
+      await regenerate().catch(() => console.error("account catalogue export refresh failed after individual link reset"));
+      res.json({ accountId: selected.id, metadata });
+    } catch (error) {
+      if (error instanceof Error && error.message === "cleanup_preview_stale") {
+        return res.status(409).json({ error: "cleanup_preview_stale" });
+      }
+      next(error);
+    }
+  }));
   api.get("/taxonomies", requireActiveHumanSession, (_req, res) => res.json(database.getTaxonomies()));
   const requireTaxonomyProjectSession: express.RequestHandler = (req, res, next) =>
     requireActiveHumanSession(req, res, () => {

@@ -64,6 +64,14 @@ describe("ORISO admin deletion dialog", () => {
     expect(button("Reconcile status").disabled).toBe(true);
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("already absent");
   });
+  it("keeps the protected service administrator out of both delete actions", async () => {
+    const protectedAccount = { ...account, linkedAccess: [{ ...linked, protectedServiceAdmin: true as const }] };
+    await act(async () => root.render(<OtpAccess account={protectedAccount} locale="de" canDeleteOrisoAdmin
+      orisoProvisioningEnvironments={["dev"]} onProvisioned={vi.fn()} onLinkReset={vi.fn()} />));
+    expect(host.querySelector('[aria-label^="ORISO-Admin löschen"]')).toBeNull();
+    expect(host.querySelector('[aria-label^="Testmails-Verknüpfung entfernen"]')).toBeNull();
+  });
+
   it("shows both linked environments only for an authorized human admin", async () => {
     const both = { ...account, linkedAccess: [linked, { ...linked, id: "oriso/pre-dev/lisa", environment: "pre-dev" as const }] };
     await act(async () => root.render(<OtpAccess account={both} locale="de" orisoProvisioningEnvironments={["dev", "pre-dev"]} onProvisioned={vi.fn()} />));

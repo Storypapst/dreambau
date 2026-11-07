@@ -30,7 +30,7 @@ it("generates dated provider and counselling centre drafts without saving or rep
     await act(async () => provider!.click());
     await act(async () => agency!.click());
     await act(async () => agency!.click());
-    expect(dialog.querySelector("input")?.value).toBe("QA Abe Simpson Träger-sep23");
+    expect(provider?.parentElement?.querySelector("input")?.value).toBe("QA Abe Simpson Träger-sep23");
     expect(dialog.querySelector("textarea")?.value).toBe("Existing centre\nQA Abe Simpson Beratung-sep23");
     expect(writeText).toHaveBeenNthCalledWith(1, "QA Abe Simpson Träger-sep23");
     expect(writeText).toHaveBeenNthCalledWith(2, "QA Abe Simpson Beratung-sep23");
@@ -42,9 +42,11 @@ it("generates dated provider and counselling centre drafts without saving or rep
     await act(async () => root.render(<AccountTestContext account={longAccount} locale="en" onSaved={() => undefined} />));
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Edit test context"]')!.click());
     const longDialog = document.querySelector('[role="dialog"]')!;
-    await act(async () => longDialog.querySelector<HTMLButtonElement>('[aria-label="Generate provider name"]')!.click());
-    expect(longDialog.querySelector("input")!.value.length).toBeLessThanOrEqual(255);
-    expect(longDialog.querySelector("input")!.value).toMatch(/Träger-sep23$/);
+    const longProvider = longDialog.querySelector<HTMLButtonElement>('[aria-label="Generate provider name"]')!;
+    await act(async () => longProvider.click());
+    const longProviderName = longProvider.parentElement!.querySelector("input")!.value;
+    expect(longProviderName.length).toBeLessThanOrEqual(255);
+    expect(longProviderName).toMatch(/Träger-sep23$/);
     await act(async () => longDialog.querySelector<HTMLButtonElement>('[aria-label="Generate counselling centre name"]')!.click());
     expect(longDialog.querySelector("textarea")!.value).toBe(longNames.join("\n"));
     expect(longDialog.querySelector('[role="alert"]')?.textContent).toContain("shorten the list");

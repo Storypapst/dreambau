@@ -56,7 +56,7 @@ export interface RegistryDatabase {
   reconcileTestAccessLinks(accounts: string[], records: TestAccessRecord[], seenAt?: string): TestAccessLinkReconciliation;
   getTestAccessLinks(email: string): TestAccessRecordLink[];
   isTestAccessLinkSuppressed(record: Pick<TestAccessRecord, "id" | "createdAt">): boolean;
-  unlinkTestAccessCandidates(records: TestAccessRecord[], actorId: string, now: string): number;
+  unlinkTestAccessRecords(records: TestAccessRecord[], actorId: string, now: string, mode: "candidate" | "individual"): number;
   allowTestAccessRelink(record: TestAccessRecord): void;
   getTaxonomies(): Taxonomies; putTaxonomy(kind: keyof Taxonomies, values: string[]): Taxonomies; close(): void;
   getProjectConversationTypes(project: TaxonomyProject): string[];
@@ -481,7 +481,7 @@ export function createDatabase(path: string): RegistryDatabase {
       const suppressed = suppressedLink.get(record.id);
       return Boolean(suppressed && !supersedesSuppression(record.createdAt, suppressed.record_created_at));
     },
-    unlinkTestAccessCandidates(records, actorId, now) {
+    unlinkTestAccessRecords(records, actorId, now, mode) {
       const unlink = sqlite.prepare(`DELETE FROM test_access_record_links
         WHERE record_id=? AND email=? AND project=? AND environment=? AND kind=?`);
       const remember = sqlite.prepare(`INSERT INTO test_access_unlinked_records (record_id, record_created_at)
@@ -493,7 +493,7 @@ export function createDatabase(path: string): RegistryDatabase {
         for (const record of records) {
           const email = record.email?.trim().toLowerCase();
           if (!email || api.testRuns.hasAccountLease(record) || api.isOrisoAdminDeletionPending(record.id)
-            || api.getMetadata(email).lifecycleStatus !== "delete_candidate") {
+            || (mode === "candidate" && api.getMetadata(email).lifecycleStatus !== "delete_candidate")) {
             throw new Error("cleanup_preview_stale");
           }
           if (unlink.run(record.id, email, record.project, record.environment, record.kind).changes !== 1) {

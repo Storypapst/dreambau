@@ -62,7 +62,7 @@ describe("OtpAccess", () => {
     await act(async () => root.render(<OtpAccess account={account} locale="en" favorite />));
 
     const otp = [...container.querySelectorAll("button")].find((button) => button.textContent === "Get OTP");
-    const password = container.querySelector('button[aria-label="Show ORISO app password"]')!;
+    const password = container.querySelector('button[aria-label="Show app password"]')!;
     expect(otp?.compareDocumentPosition(password)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(api).not.toHaveBeenCalled();
 
@@ -78,7 +78,7 @@ describe("OtpAccess", () => {
     expect(container.textContent).not.toContain("Set up 2FA");
 
     await act(async () => root.render(<OtpAccess account={{ ...account, metadata: { ...account.metadata, otpDelivery: "mail" } }} locale="en" favorite />));
-    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Mail 2FA");
+    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Open mail");
     expect(webmail?.href).toBe("https://mail.dreambau.com/");
     expect(container.textContent).not.toContain("Get OTP");
   });
@@ -89,8 +89,8 @@ describe("OtpAccess", () => {
     vi.mocked(api).mockResolvedValueOnce(mailMetadata);
     await act(async () => root.render(<OtpAccess account={account} locale="en" onMetadataSaved={onMetadataSaved} />));
 
-    const useMail = [...container.querySelectorAll("button")].find((button) => button.textContent === "Use Mail 2FA");
-    expect(useMail).toBeDefined();
+    const useMail = container.querySelector<HTMLButtonElement>('[role="checkbox"][aria-label="Use email as the second factor"]');
+    expect(useMail?.getAttribute("aria-checked")).toBe("false");
     await act(async () => useMail!.click());
     expect(api).toHaveBeenLastCalledWith(`/accounts/${encodeURIComponent(account.email)}`, {
       method: "PATCH",
@@ -99,7 +99,7 @@ describe("OtpAccess", () => {
     expect(onMetadataSaved).toHaveBeenLastCalledWith(mailMetadata);
 
     await act(async () => root.render(<OtpAccess account={{ ...account, metadata: mailMetadata }} locale="en" onMetadataSaved={onMetadataSaved} />));
-    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Mail 2FA");
+    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Open mail");
     expect(webmail?.href).toBe("https://mail.dreambau.com/");
     expect(webmail?.target).toBe("_blank");
     expect(container.textContent).not.toContain("Get OTP");
@@ -107,8 +107,8 @@ describe("OtpAccess", () => {
 
     const appMetadata = { ...account.metadata, otpDelivery: "app" as const };
     vi.mocked(api).mockResolvedValueOnce(appMetadata);
-    const useApp = [...container.querySelectorAll("button")].find((button) => button.textContent === "Use App 2FA");
-    expect(useApp).toBeDefined();
+    const useApp = container.querySelector<HTMLButtonElement>('[role="checkbox"][aria-label="Use email as the second factor"]');
+    expect(useApp?.getAttribute("aria-checked")).toBe("true");
     await act(async () => useApp!.click());
     expect(api).toHaveBeenLastCalledWith(`/accounts/${encodeURIComponent(account.email)}`, {
       method: "PATCH",
@@ -149,18 +149,18 @@ describe("OtpAccess", () => {
   it("presents the fixed application password as a masked credential and reveals it on demand", async () => {
     vi.mocked(api).mockResolvedValue({ accountId: account.linkedAccess![0].id, secret: "application-password" });
     await act(async () => root.render(<OtpAccess account={account} locale="de" compact />));
-    expect(container.textContent).toContain("ORISO-App-Passwort");
-    expect(container.textContent).toContain("Fest zugewiesen");
+    expect(container.textContent).toContain("App-Passwort");
+    expect(container.textContent).not.toContain("Fest zugewiesen");
     expect(container.textContent).toContain("••••••••••••••••");
     expect(container.textContent).not.toContain("application-password");
 
-    const button = container.querySelector<HTMLButtonElement>('button[aria-label="ORISO-App-Passwort anzeigen"]');
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="App-Passwort anzeigen"]');
     await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     await vi.waitFor(() => expect(container.textContent).toContain("application-password"));
     expect(api).toHaveBeenCalledWith(`/accounts/${encodeURIComponent(account.email)}/application-secret?accountId=${encodeURIComponent(account.linkedAccess![0].id)}`);
     expect(container.textContent).not.toContain("mailbox-password");
 
-    const hideButton = container.querySelector<HTMLButtonElement>('button[aria-label="ORISO-App-Passwort maskieren"]');
+    const hideButton = container.querySelector<HTMLButtonElement>('button[aria-label="App-Passwort maskieren"]');
     await act(async () => hideButton?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(container.textContent).not.toContain("application-password");
     expect(api).toHaveBeenCalledTimes(1);
@@ -181,7 +181,7 @@ describe("OtpAccess", () => {
     vi.mocked(api).mockResolvedValue({ accountId: account.linkedAccess![0].id, secret: "application-password" });
     await act(async () => root.render(<OtpAccess account={account} locale="de" compact />));
 
-    const button = container.querySelector<HTMLButtonElement>('button[aria-label="ORISO-App-Passwort kopieren"]');
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="App-Passwort kopieren"]');
     await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     await vi.waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith("application-password"));
@@ -192,7 +192,7 @@ describe("OtpAccess", () => {
     let resolveRequest!: (value: { accountId: string; secret: string }) => void;
     vi.mocked(api).mockReturnValue(new Promise((resolve) => { resolveRequest = resolve; }));
     await act(async () => root.render(<OtpAccess account={account} locale="de" compact />));
-    const button = container.querySelector<HTMLButtonElement>('button[aria-label="ORISO-App-Passwort anzeigen"]');
+    const button = container.querySelector<HTMLButtonElement>('button[aria-label="App-Passwort anzeigen"]');
     await act(async () => button?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     const other = {

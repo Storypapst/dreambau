@@ -56,7 +56,7 @@ type AccountTestContextProps = {
   onSaved: (metadata: AccountMetadata) => void;
 };
 
-export function AccountTestContext({ account, locale, onSaved }: AccountTestContextProps) {
+export function AccountTestContext({ account, locale, onSaved, embedded = false }: AccountTestContextProps & { embedded?: boolean }) {
   const de = locale === "de";
   const metadata = account.metadata;
   const passwordDate = accountPasswordDate(account, locale);
@@ -66,11 +66,11 @@ export function AccountTestContext({ account, locale, onSaved }: AccountTestCont
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const fields = [
+    { key: "documentedUsername", label: de ? "Dokumentierter Benutzername" : "Documented username", value: metadata.documentedUsername, max: 255 },
     { key: "carrier", label: de ? "Träger" : "Provider", value: metadata.carrier, max: contextNameLimit },
     { key: "agencies", label: de ? "Beratungsstellen" : "Counselling centres", value: metadata.agencies?.join(", "), max: agencyDraftLimit },
     { key: "postalCode", label: de ? "Postleitzahl" : "Postcode", value: metadata.postalCode, max: 16 },
-    { key: "supervisor", label: "Supervisor", value: metadata.supervisor, max: 255 },
-    { key: "documentedUsername", label: de ? "Dokumentierter Benutzername" : "Documented username", value: metadata.documentedUsername, max: 255 }
+    { key: "supervisor", label: "Supervisor", value: metadata.supervisor, max: 255 }
   ] as const;
 
   async function generateName(key: "carrier" | "agencies") {
@@ -123,9 +123,9 @@ export function AccountTestContext({ account, locale, onSaved }: AccountTestCont
 
 
   return (
-    <section className="min-w-0 space-y-2 border-t pt-2" aria-label={de ? "Testkontext" : "Test context"}>
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold text-muted-foreground">{de ? "Testkontext" : "Test context"}</h3>
+    <section className={embedded ? "relative min-w-0" : "min-w-0 border-t pt-2"} aria-label={de ? "Testkontext" : "Test context"}>
+      <div className={embedded ? "absolute end-0 top-0" : "mb-2 flex items-center justify-between gap-2"}>
+        {!embedded && <h3 className="text-xs font-semibold text-muted-foreground">{de ? "Testkontext" : "Test context"}</h3>}
         <Dialog open={detailsOpen} onOpenChange={(open) => {
           if (busy) return;
           setDetailsOpen(open);
@@ -171,15 +171,15 @@ export function AccountTestContext({ account, locale, onSaved }: AccountTestCont
         </Dialog>
       </div>
       <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-        <div className="col-span-2 min-w-0">
+        <div className="min-w-0">
           <dt className="text-muted-foreground">{de ? "Verknüpfter Benutzername" : "Linked username"}</dt>
           <dd className="space-y-0.5 break-all font-mono font-medium">
             {usernames.length ? usernames.map((username) => <div key={username} data-testmails-search-text>{username}</div>) : "–"}
           </dd>
         </div>
         {fields.map(({ key, label, value: text }) => (
-          <div key={key} className="min-w-0">
-            <dt className="text-muted-foreground">{label}</dt>
+          <div key={key} className={embedded && key === "documentedUsername" ? "min-w-0 pe-8" : "min-w-0"}>
+            <dt className="text-muted-foreground">{key === "documentedUsername" ? (de ? "Benutzername" : "Username") : label}</dt>
             <dd className="break-words font-medium">
               {key === "agencies" && metadata.agencies?.length
                 ? <ul className="space-y-0.5">{metadata.agencies.map((agency) => <li key={agency} data-testmails-search-text>{agency}</li>)}</ul>
@@ -188,7 +188,7 @@ export function AccountTestContext({ account, locale, onSaved }: AccountTestCont
           </div>
         ))}
       </dl>
-      {passwordDate && <p className="text-xs text-muted-foreground">
+      {passwordDate && <p className="mt-2 text-xs text-muted-foreground">
         {de ? "App-Passwort gesetzt am" : "App password set on"} <span data-testmails-search-text>{passwordDate}</span>
       </p>}
     </section>

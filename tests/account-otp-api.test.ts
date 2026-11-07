@@ -81,6 +81,7 @@ const webauthn: WebAuthnAdapter = {
 
 async function authenticatedSetup(options: {
   records?: TestAccessRecord[];
+  humanRole?: "admin" | "member";
   mailReader?: TestMailReader;
   registryWriter?: RegistryWriter;
   orisoProvisioning?: OrisoProvisioningService;
@@ -98,7 +99,7 @@ async function authenticatedSetup(options: {
   const database = createDatabase(databasePath);
   database.upsertMetadata(abe.email, { project: "ORISO", roles: [], shippedVersion: "2.02", lifecycleStatus: "active" });
   const passkeyStore = createPasskeyStore(path.join(root, "auth.sqlite"));
-  const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso"], role: "admin" });
+  const user = passkeyStore.createUser({ email: "frank@dreambau.com", name: "Frank", projects: ["oriso"], role: options.humanRole ?? "admin" });
   passkeyStore.addCredential({ id: "credential-id", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: ["internal"], deviceType: "multiDevice", backedUp: true });
   const app = createApp({
     passwordHash: "unused",
@@ -120,8 +121,68 @@ async function authenticatedSetup(options: {
   const agent = request.agent(app);
   const authOptions = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
   await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: authOptions.body.flowId, response: { id: "credential-id" } });
-  return { agent, database, databasePath, abe, record };
+  return { app, agent, database, databasePath, abe, record };
 }
+
+describe("Individual ORISO Testmails link reset", () => {
+  const email = "abe.simpson@dreambau.de";
+  const endpoint = `/testmails/api/accounts/${encodeURIComponent(email)}/test-access-link/pre-dev`;
+
+  it("detaches only the confirmed application link, preserving the mailbox and other metadata", async () => {
+    const { preDevConsultant, devAdviceSeeker } = crossEnvironmentRecords(email);
+    const records = [preDevConsultant, devAdviceSeeker];
+    const { agent, database } = await authenticatedSetup({ records });
+    database.upsertMetadata(email, { notes: "keep this note", lifecycleStatus: "active" });
+    const catalogue = await agent.get("/testmails/api/accounts").expect(200);
+    const [{ linkRevision }] = catalogue.body[0].linkedAccess;
+    const input = { accountId: preDevConsultant.id, revision: linkRevision };
+    await agent.delete(endpoint).set("Origin", "https://another.example").send(input).expect(403);
+    await agent.delete(endpoint.replace(/pre-dev$/, "dev")).send({ ...input, accountId: devAdviceSeeker.id }).expect(404);
+    await agent.delete(endpoint).send({ ...input, revision: "0".repeat(64) }).expect(409);
+    expect(database.getTestAccessLinks(email)).toHaveLength(2);
+
+    const reset = await agent.delete(endpoint).send(input).expect(200);
+    expect(reset.body).toMatchObject({ accountId: preDevConsultant.id, metadata: { notes: "keep this note", lifecycleStatus: "active" } });
+    const after = await agent.get("/testmails/api/accounts").expect(200);
+    expect(after.body[0]).toMatchObject({ email, password: "mailbox-password", linkedAccess: [] });
+    await agent.get(`/testmails/api/accounts/${encodeURIComponent(email)}/application-secret`)
+      .query({ accountId: preDevConsultant.id }).expect(404);
+    expect(database.getTestAccessLinks(email).map((link) => link.recordId)).toEqual([devAdviceSeeker.id]);
+    expect(records[0].secret).toBe("application-password");
+    await agent.delete(endpoint).send(input).expect(404);
+  });
+
+  it("rejects anonymous requests and members even when they have ORISO access", async () => {
+    const { app, agent, database, record } = await authenticatedSetup({ humanRole: "member" });
+    const input = { accountId: record.id, revision: "0".repeat(64) };
+    await request(app).delete(endpoint).send(input).expect(401);
+    await agent.delete(endpoint).send(input).expect(403, { error: "admin_required" });
+    expect(database.getTestAccessLinks(email)).toHaveLength(0);
+    await agent.get("/testmails/api/accounts").expect(200);
+    expect(database.getTestAccessLinks(email)).toHaveLength(1);
+  });
+
+  it("keeps a linked account leased to a matching test run", async () => {
+    const { agent, database, record } = await authenticatedSetup();
+    const catalogue = await agent.get("/testmails/api/accounts").expect(200);
+    const [{ linkRevision }] = catalogue.body[0].linkedAccess;
+    database.testRuns.create({
+      project: "oriso", targetEnvironment: "pre-dev", poolEnvironment: "dev", applicationVersion: "1",
+      commitSha: "a".repeat(40), scenario: "smoke", roles: [{ role: "platform-admin", count: 1 }]
+    }, [{ accountId: record.id, email, roles: ["platform-admin"] }],
+    { id: "qa", type: "human" }, new Date().toISOString(), "leased-link");
+    await agent.delete(endpoint).send({ accountId: record.id, revision: linkRevision }).expect(409);
+    expect(database.getTestAccessLinks(email)).toHaveLength(1);
+  });
+
+  it("returns the mailbox to unused after removing its last application link", async () => {
+    const { agent, database, record } = await authenticatedSetup();
+    const catalogue = await agent.get("/testmails/api/accounts").expect(200);
+    const [{ linkRevision }] = catalogue.body[0].linkedAccess;
+    await agent.delete(endpoint).send({ accountId: record.id, revision: linkRevision }).expect(200);
+    expect(database.getMetadata(email).lifecycleStatus).toBe("unused");
+  });
+});
 
 describe("ORISO delete candidate cleanup", () => {
   const endpoint = "/testmails/api/accounts/delete-candidate-cleanup";
@@ -178,7 +239,7 @@ describe("ORISO delete candidate cleanup", () => {
       commitSha: "a".repeat(40), scenario: "smoke", roles: [{ role: "consultant", count: 1 }]
     }, [{ accountId: `mailbox:${email}`, email: ` ${email.toUpperCase()} `, roles: ["consultant"] }],
     { id: "qa", type: "human" }, new Date().toISOString(), "leased-run");
-    expect(() => database.unlinkTestAccessCandidates([devAdviceSeeker, preDevConsultant], "qa", new Date().toISOString()))
+    expect(() => database.unlinkTestAccessRecords([devAdviceSeeker, preDevConsultant], "qa", new Date().toISOString(), "candidate"))
       .toThrow("cleanup_preview_stale");
     expect(database.getTestAccessLinks(email)).toHaveLength(2);
     await agent.post(endpoint).send({ revision: previous.body.revision }).expect(409);
@@ -304,6 +365,7 @@ describe("human Springfield OTP access", () => {
     expect(before.status).toBe(200);
     expect(before.body[0].linkedAccess).toEqual([{
       id: record.id,
+      linkRevision: expect.stringMatching(/^[0-9a-f]{64}$/),
       project: "oriso",
       environment: "pre-dev",
       kind: "admin",

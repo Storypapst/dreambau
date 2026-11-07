@@ -190,6 +190,21 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
     onLoginTargetsChanged: (project: TeamProject, values: LoginTarget[]) =>
       setProjectLoginTargets((current) => ({ ...current, [project]: values }))
   };
+  function detachLinkedAccess(linked: LinkedTestAccount, metadata: AccountMetadata) {
+    const update = (account: AccountView): AccountView => {
+      if (account.email.toLowerCase() !== linked.email.toLowerCase()) return account;
+      const isResetLink = (record: LinkedTestAccount) => record.id === linked.id && record.linkRevision === linked.linkRevision;
+      if (!account.linkedAccess?.some(isResetLink)) return account;
+      return {
+        ...account,
+        linkedAccess: account.linkedAccess.filter((record) => !isResetLink(record)),
+        metadata: account.metadata.updatedAt <= metadata.updatedAt ? metadata : account.metadata
+      };
+    };
+    setAccounts((current) => current.map(update));
+    setSelected((current) => current ? update(current) : current);
+  }
+  const onLinkReset = isAdmin && canManagePasskeys ? detachLinkedAccess : undefined;
   const scopedConversations = [...new Set([
     ...(selectedProject ? projectConversationTypes[selectedProject] ?? [] : []),
     ...accounts.flatMap((account) => account.metadata.conversationTypes)
@@ -348,7 +363,7 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
             ...contextOptions, locale, taxonomies, onSaved: replaceMetadata, onDetail: openDetail,
             canDeleteOrisoAdmin: isAdmin && canManagePasskeys,
             orisoProvisioningEnvironments: entitlements.orisoProvisioning.environments,
-            onProvisioned: attachLinkedAccess
+            onProvisioned: attachLinkedAccess, onLinkReset
           };
           return <li key={account.email}>
             <AccountRowSummary account={account} locale={locale} expanded={expanded} onToggle={() => toggleRow(account.email)}>
@@ -364,7 +379,7 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
       </ul>
     ) : <Card><CardContent><Empty><EmptyHeader><EmptyTitle>{onlyFavorites && activeFilterCount === 1 ? (locale === "de" ? "Noch keine Favoriten" : "No favorites yet") : t(locale, "page.noAccounts")}</EmptyTitle><EmptyDescription>{onlyFavorites && activeFilterCount === 1 ? (locale === "de" ? "Markiere in der Kontoverwaltung die Konten, die du häufig nutzt." : "Star the accounts you use often in Manage accounts.") : t(locale, "page.adjustFilters")}</EmptyDescription></EmptyHeader></Empty></CardContent></Card>}</section>
     <SearchSelection locale={locale} onSearch={(phrase) => { setDetailOpen(false); executeSearch(phrase); }} />
-    <AccountDetailSheet onSaved={replaceMetadata} account={selectedAccount} locale={locale} open={detailOpen && selectedAccount !== null} onOpenChange={setDetailOpen} onEdit={() => selected && edit(selected)} /><MetadataEditor account={selectedAccount} taxonomies={taxonomies} projectConversationTypes={projectConversationTypes} locale={locale} open={editOpen && selectedAccount !== null} onOpenChange={setEditOpen} onSaved={replaceMetadata} />
+    <AccountDetailSheet onSaved={replaceMetadata} onLinkReset={onLinkReset} account={selectedAccount} locale={locale} open={detailOpen && selectedAccount !== null} onOpenChange={setDetailOpen} onEdit={() => selected && edit(selected)} /><MetadataEditor account={selectedAccount} taxonomies={taxonomies} projectConversationTypes={projectConversationTypes} locale={locale} open={editOpen && selectedAccount !== null} onOpenChange={setEditOpen} onSaved={replaceMetadata} />
   </main>;
 }
 
