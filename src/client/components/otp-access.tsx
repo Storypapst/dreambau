@@ -233,15 +233,14 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
   const otpLabel = busy
     ? (locale === "de" ? "OTP wird geladen…" : "Loading OTP…")
     : (locale === "de" ? "OTP abrufen" : "Get OTP");
-  const actionLabelClass = renderMailbox ? "lg:max-xl:sr-only" : undefined;
   const otpActions = (
-    <div className={cn("flex min-w-0 flex-wrap items-center", renderMailbox ? "shrink-0 gap-0.5 rounded-md border bg-muted/30 p-0.5" : "gap-2")}>
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
 
-      {usesMailOtp ? <Button asChild variant={favorite ? "secondary" : "outline"} size={renderMailbox ? "xs" : "sm"} className={favorite ? "w-full justify-start" : undefined}>
-        <a href="https://mail.dreambau.com/" target="_blank" rel="noreferrer" title="Mail 2FA"><ExternalLinkIcon data-icon="inline-start" /><span className={actionLabelClass}>Mail 2FA</span></a>
+      {usesMailOtp ? <Button asChild variant={favorite ? "secondary" : "default"} size="sm" className={favorite ? "w-full justify-start" : undefined}>
+        <a href="https://mail.dreambau.com/" target="_blank" rel="noreferrer" title="Mail 2FA"><ExternalLinkIcon data-icon="inline-start" /><span>{locale === "de" ? "Mail öffnen" : "Open mail"}</span></a>
       </Button> : hasTotp
-        ? <Button type="button" variant={favorite ? "secondary" : "outline"} size={renderMailbox ? "xs" : "sm"} className={favorite ? "w-full justify-start" : undefined} disabled={busy || otpDeliverySaving} onClick={requestOtp} title={otpLabel}>
-            <KeyRoundIcon data-icon="inline-start" /><span className={actionLabelClass}>{otpLabel}</span>
+        ? <Button type="button" variant={favorite ? "secondary" : "default"} size="sm" className={favorite ? "w-full justify-start" : undefined} disabled={busy || otpDeliverySaving} onClick={requestOtp} title={otpLabel}>
+            <KeyRoundIcon data-icon="inline-start" /><span>{otpLabel}</span>
           </Button>
         : favorite ? <Badge variant="secondary">{locale === "de" ? "App-2FA nicht eingerichtet" : "App 2FA not set up"}</Badge>
         : <TotpEnrollmentDialog
@@ -267,7 +266,7 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
 
   const mailOtpLabel = locale === "de" ? "E-Mail als zweiten Faktor verwenden" : "Use email as the second factor";
   const mailOtp = onMetadataSaved && (
-    <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+    <label className="inline-flex min-h-8 shrink-0 cursor-pointer items-center justify-center px-1 text-xs text-muted-foreground"
       title={usesMailOtp
         ? (locale === "de" ? "Mail-2FA ist ausgewählt. Abwählen für App-2FA." : "Mail 2FA is selected. Uncheck for app 2FA.")
         : mailOtpLabel}>

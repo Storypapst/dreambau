@@ -357,9 +357,9 @@ export function OrisoProvisioningDialog({
 
   return <Dialog open={open} onOpenChange={changeOpen}>
     <DialogTrigger asChild>
-      <Button type="button" variant="outline" size={compactTrigger ? "xs" : "sm"} title={compactTrigger && hasLinkedAccess ? "Status" : undefined}>
+      <Button type="button" variant={compactTrigger && hasLinkedAccess ? "ghost" : "outline"} size={compactTrigger ? "xs" : "sm"} title={compactTrigger && hasLinkedAccess ? "Status" : undefined}>
         {hasLinkedAccess
-          ? <><RefreshCwIcon data-icon="inline-start" /><span className={compactTrigger ? "lg:max-xl:sr-only" : undefined}>Status</span></>
+          ? <><RefreshCwIcon data-icon="inline-start" /><span>Status</span></>
           : <><MailPlusIcon data-icon="inline-start" />{locale === "de" ? "ORISO-Konto anlegen" : "Provision ORISO account"}</>}
       </Button>
     </DialogTrigger>

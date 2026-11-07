@@ -29,7 +29,16 @@ export function AccountTable({ accounts, locale, onDetail, onEdit, onSaved, proj
         <section className="mt-3 border-t pt-2" aria-label={t(locale, "page.access")}>
           <OtpAccess canDeleteOrisoAdmin={canDeleteOrisoAdmin} account={account} locale={locale} compact orisoProvisioningEnvironments={orisoProvisioningEnvironments} onProvisioned={onProvisioned} onMetadataSaved={onSaved} onLinkReset={onLinkReset}
             showLinkedTags={false}
-            renderMailbox={(mailOtp, actions) => <div className="flex min-w-0 items-end gap-x-2"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-muted-foreground"><span>{locale === "de" ? "Mail-Passwort" : "Mailbox password"}</span>{mailOtp}</div><div className="flex min-w-0 items-center gap-1"><code data-testmails-search-private className="min-w-0 truncate text-xs text-muted-foreground">{revealed.has(account.email) ? account.password : "••••••••••••••••"}</code><Button variant="ghost" size="icon-sm" onClick={() => toggle(account.email)} aria-label={locale === "de" ? "Mail-Passwort anzeigen oder maskieren" : "Show or hide mailbox password"}>{revealed.has(account.email) ? <EyeOffIcon /> : <EyeIcon />}</Button><CopyButton value={account.password} label={locale === "de" ? "Mail-Passwort kopieren" : "Copy mailbox password"} compact /></div></div>{actions}</div>}
+            renderMailbox={(mailOtp, actions) => <>
+              <div className="flex min-w-0 items-center gap-1 text-muted-foreground">
+                <span className="shrink-0 text-xs font-medium">{locale === "de" ? "Mail-Passwort" : "Mailbox password"}</span>
+                <code data-testmails-search-private className="min-w-0 truncate text-xs">{revealed.has(account.email) ? account.password : "••••••••"}</code>
+                <Button variant="ghost" size="icon-sm" onClick={() => toggle(account.email)} aria-label={locale === "de" ? "Mail-Passwort anzeigen oder maskieren" : "Show or hide mailbox password"}>{revealed.has(account.email) ? <EyeOffIcon /> : <EyeIcon />}</Button>
+                <CopyButton value={account.password} label={locale === "de" ? "Mail-Passwort kopieren" : "Copy mailbox password"} compact />
+                {mailOtp}
+              </div>
+              {actions}
+            </>}
           />
         </section>
       </TableCell>

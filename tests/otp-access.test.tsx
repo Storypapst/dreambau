@@ -78,7 +78,7 @@ describe("OtpAccess", () => {
     expect(container.textContent).not.toContain("Set up 2FA");
 
     await act(async () => root.render(<OtpAccess account={{ ...account, metadata: { ...account.metadata, otpDelivery: "mail" } }} locale="en" favorite />));
-    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Mail 2FA");
+    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Open mail");
     expect(webmail?.href).toBe("https://mail.dreambau.com/");
     expect(container.textContent).not.toContain("Get OTP");
   });
@@ -99,7 +99,7 @@ describe("OtpAccess", () => {
     expect(onMetadataSaved).toHaveBeenLastCalledWith(mailMetadata);
 
     await act(async () => root.render(<OtpAccess account={{ ...account, metadata: mailMetadata }} locale="en" onMetadataSaved={onMetadataSaved} />));
-    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Mail 2FA");
+    const webmail = [...container.querySelectorAll("a")].find((link) => link.textContent === "Open mail");
     expect(webmail?.href).toBe("https://mail.dreambau.com/");
     expect(webmail?.target).toBe("_blank");
     expect(container.textContent).not.toContain("Get OTP");
