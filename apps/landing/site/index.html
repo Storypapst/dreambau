@@ -106,9 +106,9 @@ html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06
 </head>
 <body>
 <div class="home-controls">
-<details class="site-menu" id="site-menu" lang="de" dir="ltr"><summary>Menü</summary>
-<span class="menu-backdrop" aria-hidden="true"></span><nav aria-label="Website"><button type="button" class="menu-grip" aria-label="Menü herunterziehen oder schließen" hidden><span aria-hidden="true"></span></button><h2 class="menu-title">Menü</h2><div class="menu-links"><a href="/">Startseite</a><a href="/referenzen/">Referenzen</a><a href="/teamwork/">Teamwork</a><a href="/glossar/">Glossar</a><a href="/bildungshaus/">Bildungshaus</a><a href="mailto:info@dreambau.com">Kontakt</a>
-<span class="pending">Blog · Themen folgen</span><span class="pending">Impressum · Angaben noch offen</span><span class="pending">Datenschutz · Freigabe noch offen</span>
+<details class="site-menu" id="site-menu" lang="de" dir="ltr"><summary data-menu="menu">Menü</summary>
+<span class="menu-backdrop" aria-hidden="true"></span><nav aria-label="Website"><button type="button" class="menu-grip" aria-label="Menü herunterziehen oder schließen" hidden><span aria-hidden="true"></span></button><h2 class="menu-title" data-menu="menu">Menü</h2><div class="menu-links"><a href="/" data-menu="home">Startseite</a><a href="/referenzen/" data-menu="references">Referenzen</a><a href="/teamwork/">Teamwork</a><a href="/glossar/" data-menu="glossary">Glossar</a><a href="/bildungshaus/">Bildungshaus</a><a href="mailto:info@dreambau.com" data-menu="contact">Kontakt</a>
+<a href="/homepage-assets/datenschutz.html" data-menu="privacy">Datenschutz</a><span class="pending">Blog</span><span class="pending" data-menu="imprint">Impressum</span>
 </div><button type="button" class="site-pill menu-close" hidden>Schließen</button></nav></details>
 <button class="site-pill" id="source-entry" type="button" aria-haspopup="dialog" lang="de" dir="ltr" hidden><span class="gl" aria-hidden="true">&lt;/&gt;</span><span class="source-entry-label">Quelltext</span><b id="source-entry-size"></b></button>
 <button id="snd" type="button" role="switch" aria-checked="true" data-state="wait" aria-label="Ton" data-i18n-attr="aria-label:snd.aria" aria-keyshortcuts="M" title="Ton aus (M)">
@@ -122,11 +122,8 @@ html body, #c { background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, #06
 </button>
 </div>
 <aside class="home-feature" lang="de" dir="ltr" aria-label="Animationen">
-  <a class="site-pill" href="/homepage-assets/jagged-intelligence/">
-    <span lang="en">Jagged Intelligence</span>
-    <span class="home-feature-count">4 Fassungen</span>
-  </a>
-  <p class="home-credit">Rohbau · Traumhaus · Skyline<br>von <strong>Claude Sonnet 5.5 Max</strong></p>
+  <a class="site-pill" href="https://dreambau.com/homepage-assets/jagged-intelligence/" lang="en">Jagged Intelligence</a>
+  <p class="home-credit">Claude Sonnet 5.5 Max</p>
 </aside>
 <canvas id="c" aria-hidden="true"></canvas>
 <div id="dip"></div>

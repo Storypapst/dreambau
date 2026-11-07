@@ -37,11 +37,11 @@ export async function run({browser,base,artifact,ok,root,dist,policy}){
   const fallback=await browser.newContext();
   const fp=await fallback.newPage();
   await fp.addInitScript(()=>{const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl'||type==='webgl2'?null:get.call(this,type,...args);};});
-  await fp.goto(base+'/');
+  await fp.goto(base+'/?lang=en');
   await fp.waitForFunction(()=>document.documentElement.classList.contains('static'));
   ok('WebGL fallback hides unusable source entry',!await fp.locator('#source-entry').isVisible());
   await fp.locator('#site-menu summary').click();
-  ok('WebGL fallback retains website navigation',await fp.locator('#site-menu a[href="/referenzen/"]').isVisible());
+  ok('WebGL fallback retains localized website navigation',await fp.locator('#site-menu a[href="/referenzen/?lang=en"]').isVisible());
   await fallback.close();
 
   const data=JSON.parse(fs.readFileSync(path.join(root,'content.json'),'utf8'));

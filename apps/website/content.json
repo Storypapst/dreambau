@@ -11,12 +11,12 @@
         ],
         "links": [
           {
-            "label": "github.com/OpenResilienceInitiative",
-            "href_candidate": "https://github.com/OpenResilienceInitiative",
-            "reachability_verified": false
+            "label": "ORISO auf Dreambau",
+            "href_candidate": "/oriso/",
+            "reachability_verified": true
           }
         ],
-        "short_text": null
+        "short_text": "Eine Open-Source-Plattform für digitale Beratung mit mehreren Beratungsstellen unter einem Dach."
       },
       {
         "id": "wecareremote",
@@ -24,8 +24,14 @@
         "tags": [
           "plattform"
         ],
-        "links": [],
-        "short_text": null
+        "links": [
+          {
+            "label": "Civic Data Lab",
+            "href_candidate": "https://civic-data.de/machen/begleitete-projekte/ki-beratung-fuer-beratende/",
+            "reachability_verified": true
+          }
+        ],
+        "short_text": "Eine mobile Beratungsplattform von Sunflower Care e.V., die Geflüchtete mit Beratenden verbindet."
       },
       {
         "id": "ori",
@@ -35,12 +41,12 @@
         ],
         "links": [
           {
-            "label": "openresilience.cc",
-            "href_candidate": "https://openresilience.cc",
-            "reachability_verified": false
+            "label": "Open Resilience Initiative auf GitHub",
+            "href_candidate": "https://github.com/OpenResilienceInitiative",
+            "reachability_verified": true
           }
         ],
-        "short_text": null
+        "short_text": "Die Open Resilience Initiative veröffentlicht quelloffene Software für digitale Beratung."
       },
       {
         "id": "bildungshaus",
@@ -50,12 +56,12 @@
         ],
         "links": [
           {
-            "label": "dreambau.com/bildungshaus/",
+            "label": "Bildungshaus weWeit",
             "href_candidate": "/bildungshaus/",
-            "reachability_verified": false
+            "reachability_verified": true
           }
         ],
-        "short_text": null
+        "short_text": "Eine interaktive Präsentation über Betreuung, Beziehung und Mitwirkung im Bildungshaus weWeit."
       },
       {
         "id": "trail-ist",
@@ -64,11 +70,11 @@
         "links": [
           {
             "label": "trail.ist",
-            "href_candidate": "https://trail.ist",
-            "reachability_verified": false
+            "href_candidate": "https://trail.ist/",
+            "reachability_verified": true
           }
         ],
-        "short_text": null
+        "short_text": "Die Projektseite kündigt den Start von trail.ist an."
       }
     ],
     "older_references": [

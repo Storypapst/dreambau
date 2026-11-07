@@ -40,6 +40,70 @@ let loaded=null,failed=false,opening=false;
 if(standalone)return; // Single-file animation export keeps the native links, without network-loaded source tools.
 entry.hidden=false;
 const entryLabels={"ar":"كود المصدر","be":"Зыходны код","bg":"Изходен код","bs":"Izvorni kod","ca":"Codi font","cs":"Zdrojový kód","da":"Kildekode","de":"Quelltext","el":"Πηγαίος κώδικας","en":"Source code","es":"código fuente","et":"Lähtekood","fa":"کد منبع","fi":"Lähdekoodi","fr":"Code source","ga":"Cód foinse","he":"קוד מקור","hi":"सोर्स कोड","hr":"Izvorni kod","hu":"Forráskód","id":"Kode sumber","is":"Upprunakóði","it":"Codice sorgente","ja":"ソースコード","ko":"소스 코드","lb":"Source Code","lt":"Šaltinio kodas","lv":"Avota kods","mk":"Изворниот код","mt":"Kodiċi tas-sors","nb":"Kildekode","nl":"Broncode","pa-Arab":"اصل کوڈ","pl":"Kod źródłowy","pt-BR":"Código fonte","ro":"Cod sursă","ru":"Исходный код","sk":"Zdrojový kód","sl":"Izvorna koda","sq":"Kodi burimor","sr-Latn":"Izvorni kod","sv":"Källkod","tr":"Kaynak kodu","uk":"Вихідний код","ur":"سورس کوڈ","vi":"Mã nguồn","zh-Hans":"源代码"};
+// Menu labels follow the same locale as the animation. Project names stay as names.
+const menuKeys = ['menu', 'home', 'references', 'glossary', 'contact', 'privacy', 'imprint'];
+const menuLabels = {
+ de:'Menü|Startseite|Referenzen|Glossar|Kontakt|Datenschutz|Impressum',
+ en:'Menu|Home|References|Glossary|Contact|Privacy|Legal notice',
+ ar:'القائمة|الرئيسية|المشاريع|المسرد|اتصال|الخصوصية|البيانات القانونية',
+ be:'Меню|Галоўная|Праекты|Гласарый|Кантакт|Прыватнасць|Прававая інфармацыя',
+ bg:'Меню|Начало|Проекти|Речник|Контакт|Поверителност|Правна информация',
+ bs:'Meni|Početna|Reference|Pojmovnik|Kontakt|Privatnost|Pravne informacije',
+ ca:'Menú|Inici|Referències|Glossari|Contacte|Privadesa|Avís legal',
+ cs:'Nabídka|Úvod|Reference|Slovníček|Kontakt|Soukromí|Právní informace',
+ da:'Menu|Forside|Referencer|Ordliste|Kontakt|Privatliv|Juridiske oplysninger',
+ el:'Μενού|Αρχική|Έργα|Γλωσσάρι|Επικοινωνία|Απόρρητο|Νομικές πληροφορίες',
+ es:'Menú|Inicio|Referencias|Glosario|Contacto|Privacidad|Aviso legal',
+ et:'Menüü|Avaleht|Projektid|Sõnastik|Kontakt|Privaatsus|Õigusteave',
+ fa:'منو|خانه|نمونه‌کارها|واژه‌نامه|تماس|حریم خصوصی|اطلاعات حقوقی',
+ fi:'Valikko|Etusivu|Referenssit|Sanasto|Yhteys|Tietosuoja|Julkaisijatiedot',
+ fr:'Menu|Accueil|Références|Glossaire|Contact|Confidentialité|Mentions légales',
+ ga:'Roghchlár|Baile|Tionscadail|Gluais|Teagmháil|Príobháideachas|Fógra dlíthiúil',
+ he:'תפריט|דף הבית|פרויקטים|מילון מונחים|יצירת קשר|פרטיות|מידע משפטי',
+ hi:'मेनू|मुखपृष्ठ|परियोजनाएँ|शब्दावली|संपर्क|गोपनीयता|कानूनी सूचना',
+ hr:'Izbornik|Početna|Reference|Pojmovnik|Kontakt|Privatnost|Pravne informacije',
+ hu:'Menü|Kezdőlap|Referenciák|Szójegyzék|Kapcsolat|Adatvédelem|Impresszum',
+ id:'Menu|Beranda|Referensi|Glosarium|Kontak|Privasi|Informasi hukum',
+ is:'Valmynd|Forsíða|Verkefni|Orðasafn|Hafa samband|Persónuvernd|Lagalegar upplýsingar',
+ it:'Menu|Home|Referenze|Glossario|Contatti|Privacy|Note legali',
+ ja:'メニュー|ホーム|制作実績|用語集|お問い合わせ|プライバシー|法的情報',
+ ko:'메뉴|홈|프로젝트|용어집|문의|개인정보 보호|법적 고지',
+ lb:'Menü|Startsäit|Referenzen|Glossar|Kontakt|Dateschutz|Impressum',
+ lt:'Meniu|Pradžia|Projektai|Žodynas|Kontaktai|Privatumas|Teisinė informacija',
+ lv:'Izvēlne|Sākumlapa|Projekti|Vārdnīca|Kontakti|Privātums|Juridiskā informācija',
+ mk:'Мени|Почетна|Проекти|Поимник|Контакт|Приватност|Правни информации',
+ mt:'Menu|Paġna ewlenija|Proġetti|Glossarju|Kuntatt|Privatezza|Avviż legali',
+ nb:'Meny|Forside|Referanser|Ordliste|Kontakt|Personvern|Juridisk informasjon',
+ nl:'Menu|Startpagina|Referenties|Woordenlijst|Contact|Privacy|Juridische informatie',
+ 'pa-Arab':'مینو|مُکھ صفحہ|منصوبے|لفظاں دی فہرست|رابطہ|رازداری|قانونی معلومات',
+ pl:'Menu|Strona główna|Referencje|Słownik|Kontakt|Prywatność|Informacje prawne',
+ 'pt-BR':'Menu|Início|Referências|Glossário|Contato|Privacidade|Aviso legal',
+ ro:'Meniu|Acasă|Referințe|Glosar|Contact|Confidențialitate|Mențiuni legale',
+ ru:'Меню|Главная|Проекты|Глоссарий|Контакты|Конфиденциальность|Правовая информация',
+ sk:'Ponuka|Úvod|Referencie|Slovník|Kontakt|Súkromie|Právne informácie',
+ sl:'Meni|Domov|Reference|Slovar|Stik|Zasebnost|Pravno obvestilo',
+ sq:'Menyja|Kryefaqja|Projektet|Fjalorthi|Kontakti|Privatësia|Njoftim ligjor',
+ 'sr-Latn':'Meni|Početna|Reference|Pojmovnik|Kontakt|Privatnost|Pravne informacije',
+ sv:'Meny|Startsida|Referenser|Ordlista|Kontakt|Integritet|Juridisk information',
+ tr:'Menü|Ana sayfa|Referanslar|Sözlük|İletişim|Gizlilik|Yasal bilgiler',
+ uk:'Меню|Головна|Проєкти|Глосарій|Контакти|Конфіденційність|Правова інформація',
+ ur:'مینو|سرورق|منصوبے|فرہنگ|رابطہ|رازداری|قانونی معلومات',
+ vi:'Menu|Trang chủ|Dự án|Bảng thuật ngữ|Liên hệ|Quyền riêng tư|Thông tin pháp lý',
+ 'zh-Hans':'菜单|首页|项目案例|术语表|联系|隐私|法律声明',
+};
+function translateMenu({lang,dir}) {
+ const words=(menuLabels[lang]||menuLabels.de).split('|');
+ menu.lang=lang;menu.dir=dir;
+ for(const node of menu.querySelectorAll('[data-menu]'))node.textContent=words[menuKeys.indexOf(node.dataset.menu)];
+ panel.setAttribute('aria-label',words[0]);
+ close.textContent=window.Dream.t('lang.close');
+ grip.setAttribute('aria-label',lang==='de'?'Menü herunterziehen oder schließen':close.textContent);
+ for (const [key, path] of Object.entries({home:'/',references:'/referenzen/',glossary:'/glossar/'})) {
+  const link=menu.querySelector(`a[data-menu="${key}"]`);
+  link.setAttribute('href',path+(lang==='de'?'':'?lang='+encodeURIComponent(lang)));
+ }
+}
+window.Dream.onLang?.(translateMenu);
 const status=document.createElement('span');status.className='blind';status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.lang='de';status.dir='ltr';document.body.append(status);
 window.Dream.onLang?.(({lang,dir})=>{if(!failed){entry.lang=lang;entry.dir=dir;entry.querySelector('.source-entry-label').textContent=entryLabels[lang]||entryLabels.de;}updateSize();});
 function updateSize(){entry.hidden=document.documentElement.classList.contains('static');if(entry.hidden){const view=document.querySelector('.code-view');if(view?.open)view.close();return;}const id=window.Dream?.state?.id;if(!id)return;const timing=performance.getEntriesByName(base+'p/'+id+'.js').find(e=>e.entryType==='resource');if(timing?.decodedBodySize>0)entry.querySelector('#source-entry-size').textContent=new Intl.NumberFormat(window.Dream.state.lang||'de',{maximumFractionDigits:1,numberingSystem:'latn'}).format(timing.decodedBodySize/1000)+' KB';}
