@@ -3,10 +3,12 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setActiveViewer } from "../src/client/api.js";
+import { loadWorkspacePreferences, saveWorkspacePreferences } from "../src/client/workspace-preferences-client.js";
 import { EvidenceWorkspace } from "../src/client/components/evidence-workspace.js";
 import { loadWorkspaceRuns, loadWorkspaceRun, loadWorkspaceDocuments, addWorkspaceReference } from "../src/client/workspace-client.js";
 import type { WorkspaceRunSummary, WorkspaceRunDetail, WorkspacePage, WorkspaceDocument } from "../src/shared/workspace.js";
 vi.mock("../src/client/workspace-client.js", async (original) => ({ ...await original<typeof import("../src/client/workspace-client.js")>(), loadWorkspaceRuns: vi.fn(), loadWorkspaceRun: vi.fn(), loadWorkspaceDocuments: vi.fn(), addWorkspaceReference: vi.fn() }));
+vi.mock("../src/client/workspace-preferences-client.js", async (original) => ({ ...await original<typeof import("../src/client/workspace-preferences-client.js")>(), loadWorkspacePreferences: vi.fn(), saveWorkspacePreferences: vi.fn() }));
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const cohort: WorkspaceRunSummary = { id: "same-id", source: "test-run", title: "Released failing cohort", project: "oriso", environment: "dev", createdAt: "2026-11-07T10:00:00Z", lifecycle: "released", result: "failed", commitSha: "a".repeat(40), applicationVersion: "1.2", repository: "Storypapst/dreambau", pullRequestUrl: null, filesCount: 0, owner: "QA" };
 const evidence: WorkspaceRunSummary = { ...cohort, source: "evidence-run", title: "Actual visual evidence", lifecycle: "published", result: "informational", filesCount: 1 };
@@ -17,6 +19,8 @@ describe("EvidenceWorkspace", () => {
  let root:Root; let container:HTMLDivElement;
  beforeEach(()=>{
   container=document.createElement("div"); document.body.append(container); root=createRoot(container); setActiveViewer("viewer-a");
+  vi.mocked(loadWorkspacePreferences).mockReset().mockResolvedValue({rememberFilters:true,refreshMinutes:15,filtersByProject:{}});
+  vi.mocked(saveWorkspacePreferences).mockReset().mockImplementation(async value=>value);
   vi.mocked(loadWorkspaceRuns).mockReset().mockResolvedValue(page([cohort,evidence]));
   vi.mocked(loadWorkspaceRun).mockReset().mockImplementation(async(source)=>details(source==="test-run"?cohort:evidence));
   vi.mocked(loadWorkspaceDocuments).mockReset().mockResolvedValue({items:[],nextCursor:null,evidenceStatus:"available"});

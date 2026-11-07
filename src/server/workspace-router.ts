@@ -9,6 +9,7 @@ import type { TestRun, TestRunEvent } from "./test-run-store.js";
 import { beforeForSource, decodeWorkspaceCursor, encodeWorkspaceCursor, workspaceQuerySchema, type WorkspaceQuery } from "./workspace-query.js";
 import { WorkspaceEvidenceUnavailable, type EvidenceReadQuery, type WorkspaceEvidenceClient, type WorkspaceGatewayFile, type WorkspaceGatewayRun } from "./workspace-evidence-client.js";
 import { safeWorkspaceUrl as safeHttp } from "./workspace-url.js";
+import { unconfiguredGithub, type WorkspaceGithubClient } from "./workspace-github.js";
 import type { WorkspaceDocument, WorkspaceEvent, WorkspaceFile, WorkspacePage, WorkspaceReference, WorkspaceReferenceInput, WorkspaceResult, WorkspaceRunDetail, WorkspaceRunSummary, WorkspaceSource } from "../shared/workspace.js";
 
 const sourceSchema = z.enum(["test-run", "evidence-run"]);
@@ -51,7 +52,7 @@ function evidenceSummary(run: WorkspaceGatewayRun): WorkspaceRunSummary {
     pullRequestUrl: run.pullRequestNumber ? `https://github.com/${run.repository}/pull/${run.pullRequestNumber}` : null, filesCount: run.filesCount ?? run.files.length, owner: run.source };
 }
 
-export function createWorkspaceRouter(options: { database: RegistryDatabase; grantsFor(user: HumanUser): HumanProjectGrant[]; evidence: WorkspaceEvidenceClient | null; now?: () => Date }) {
+export function createWorkspaceRouter(options: { database: RegistryDatabase; grantsFor(user: HumanUser): HumanProjectGrant[]; evidence: WorkspaceEvidenceClient | null; github?: WorkspaceGithubClient | null; now?: () => Date }) {
   const router = express.Router();
   router.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   const scopesFor = (user: HumanUser) => options.grantsFor(user).filter(grant => user.projects.includes(grant.project));
@@ -194,6 +195,24 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
       return res.json({ items, nextCursor: documents.length > query.limit && last ? encodeWorkspaceCursor({ createdAt: last.createdAt, id: last.id, source: "evidence-run" }, query) : null, evidenceStatus: "available" } satisfies WorkspacePage<WorkspaceDocument>);
     } catch { return res.json({ items: [], nextCursor: null, evidenceStatus: "unavailable" }); }
   });
+  const githubStatus = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.method === "POST" && req.get("Origin") && req.get("Origin") !== `${req.protocol}://${req.get("host")}` && req.get("Origin") !== "https://dreambau.com") return res.status(403).json({ error: "origin_denied" });
+    try {
+      const source = sourceSchema.parse(req.params.source); const id = String(req.params.id); const user = res.locals.humanUser as HumanUser;
+      const references: WorkspaceReference[] = []; let project: string; let environment: string; let pool: string | undefined;
+      if (source === "test-run") { const run = visibleLedger(user, id); project = run.project; environment = run.targetEnvironment; pool = run.poolEnvironment; }
+      else {
+        const run = await visibleEvidence(user, id); project = run.project; environment = run.environment;
+        if (run.pullRequestNumber) references.push({ id: "recorded-pr", kind: "pull-request", label: "", url: `https://github.com/${run.repository}/pull/${run.pullRequestNumber}` });
+      }
+      for (const stored of options.database.workspaceReferences.list(source, id)) if (stored.input.kind === "issue" || stored.input.kind === "pull-request") references.push({ id: stored.id, kind: stored.input.kind, label: "", url: stored.input.url });
+      const response = options.github ? await options.github.read(references, repoProject => scopesFor(user).some(grant => grant.project === repoProject && grant.environments.length > 0), req.method === "POST") : unconfiguredGithub(references);
+      if (!canSee(user, project, environment) || (pool && !canSee(user, project, pool))) throw new NotFound();
+      return res.json(response);
+    } catch (error) { fail(error, res, next); }
+  };
+  router.get("/runs/:source/:id/github", githubStatus);
+  router.post("/runs/:source/:id/github/refresh", githubStatus);
   router.get("/runs/:source/:id", async (req, res, next) => {
     try { return res.json(await detail(sourceSchema.parse(req.params.source), String(req.params.id), res.locals.humanUser)); }
     catch (error) { fail(error, res, next); }
