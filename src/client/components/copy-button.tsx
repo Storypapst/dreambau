@@ -3,11 +3,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { Locale } from "@/i18n";
 import { Button } from "@/components/ui/button";
+import { cancelPendingAccountCopy } from "./account-quick-copy";
 
-export function CopyButton({ value, label = "Kopieren", compact = false, locale, beforeCopy }: { value: string; label?: string; compact?: boolean; locale?: Locale; beforeCopy?: () => void }) {
+export function CopyButton({ value, label = "Kopieren", compact = false, locale }: { value: string; label?: string; compact?: boolean; locale?: Locale }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
-    beforeCopy?.();
+    cancelPendingAccountCopy();
     try { await navigator.clipboard.writeText(value); setCopied(true); toast.success(locale ? (locale === "en" ? "Copied" : "Kopiert") : `${label} kopiert`); window.setTimeout(() => setCopied(false), 1500); }
     catch { toast.error(locale === "en" ? "Copy failed" : "Kopieren fehlgeschlagen"); }
   }

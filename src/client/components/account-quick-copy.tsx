@@ -17,6 +17,16 @@ export function cancelPendingAccountCopy() {
   pendingCopy?.abort();
 }
 
+export function beginAccountCopy() {
+  cancelPendingAccountCopy();
+  pendingCopy = new AbortController();
+  return pendingCopy;
+}
+
+export function finishAccountCopy(controller: AbortController) {
+  if (pendingCopy === controller) pendingCopy = undefined;
+}
+
 async function writeFromClick(load: () => Promise<string>) {
   if (!navigator.clipboard) throw new Error("Clipboard unavailable");
   if (typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
@@ -46,10 +56,8 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
   }, [accountId, mailOtp]);
 
   async function copy(kind: CopyKind) {
-    cancelPendingAccountCopy();
     clearTimeout(reset.current);
-    const controller = new AbortController();
-    pendingCopy = controller;
+    const controller = beginAccountCopy();
     operation.current = controller;
     const { signal } = controller;
     setState({ kind, phase: "working" });
@@ -82,7 +90,7 @@ export function AccountQuickCopy({ account, locale }: { account: AccountView; lo
     } catch {
       if (!signal.aborted) toast.error(de ? "Kopieren fehlgeschlagen. Bitte erneut versuchen." : "Copy failed. Try again.");
     } finally {
-      if (pendingCopy === controller) pendingCopy = undefined;
+      finishAccountCopy(controller);
       if (operation.current === controller) {
         setState((current) => current?.phase === "working" ? undefined : current);
         operation.current = undefined;

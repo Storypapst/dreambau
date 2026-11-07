@@ -8,6 +8,7 @@ import { labelRole, labelLinkedEnvironment, t, type Locale } from "@/i18n";
 import type { AccountMetadata, AccountView, HumanEntitlements, LinkedTestAccount, OtpResponse } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { beginAccountCopy, finishAccountCopy } from "./account-quick-copy";
 import { CopyButton } from "./copy-button";
 import { saveMetadataPatch } from "./inline-metadata-controls";
 import { OtpValidity } from "./otp-validity";
@@ -126,15 +127,19 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
   }
 
   async function copyApplicationSecret() {
-    const secret = displayedApplicationSecret || await requestApplicationSecret();
-    if (!secret) return;
+    const operation = beginAccountCopy();
     try {
+      const secret = displayedApplicationSecret || await requestApplicationSecret();
+      if (!secret || operation.signal.aborted) return;
       await navigator.clipboard.writeText(secret);
+      if (operation.signal.aborted) return;
       setSecretCopied(true);
       toast.success(locale === "de" ? "ORISO-App-Passwort kopiert" : "ORISO app password copied");
       window.setTimeout(() => setSecretCopied(false), 1500);
     } catch {
-      toast.error(locale === "de" ? "Kopieren fehlgeschlagen" : "Copy failed");
+      if (!operation.signal.aborted) toast.error(locale === "de" ? "Kopieren fehlgeschlagen" : "Copy failed");
+    } finally {
+      finishAccountCopy(operation);
     }
   }
 

@@ -5,7 +5,7 @@ import { domainClass } from "@/presentation";
 import { Button } from "@/components/ui/button";
 import type { Locale } from "@/i18n";
 import type { AccountView } from "@/types";
-import { AccountQuickCopy, cancelPendingAccountCopy } from "./account-quick-copy";
+import { AccountQuickCopy } from "./account-quick-copy";
 import { CopyButton } from "./copy-button";
 
 export function AccountRowSummary({ account, locale, expanded, onToggle, children, showAgencies = true, showDomain = true }: {
@@ -33,7 +33,7 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
       {!expanded && <div className="hidden min-w-0 flex-1 items-center gap-0.5 sm:flex">
         <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={account.email}
           data-testmails-search-text>{account.email}</span>
-        <CopyButton value={account.email} label={de ? "E-Mail kopieren" : "Copy email"} locale={locale} beforeCopy={cancelPendingAccountCopy} compact />
+        <CopyButton value={account.email} label={de ? "E-Mail kopieren" : "Copy email"} locale={locale} compact />
       </div>}
       {expanded && <span className="hidden flex-1 sm:block" />}
       {!expanded && agencies.length > 0 && <span className="hidden min-w-0 max-w-[30%] truncate text-xs text-muted-foreground sm:block"
