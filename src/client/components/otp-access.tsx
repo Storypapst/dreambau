@@ -143,7 +143,7 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
       await navigator.clipboard.writeText(secret);
       if (operation.signal.aborted) return;
       setSecretCopied(true);
-      toast.success(locale === "de" ? "ORISO-App-Passwort kopiert" : "ORISO app password copied");
+      toast.success(locale === "de" ? "App-Passwort kopiert" : "App password copied");
       window.setTimeout(() => setSecretCopied(false), 1500);
     } catch {
       if (!operation.signal.aborted) toast.error(locale === "de" ? "Kopieren fehlgeschlagen" : "Copy failed");
@@ -197,38 +197,35 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
   const hasQualifiedAdmin = linked.roles.some((role) => ["platform-admin", "tenant-admin", "agency-admin"].includes(role));
   const displayedRoles = hasQualifiedAdmin ? linked.roles.filter((role) => role !== "admin" && role !== "Admin") : linked.roles;
   const applicationAccess = <>
-    <div className={cn("flex min-w-0 flex-col gap-1", !favorite && "rounded-lg border p-2")}>
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{locale === "de" ? "ORISO-App-Passwort" : "ORISO app password"}</span>
-        {!favorite && <Badge variant="secondary">{locale === "de" ? "Fest zugewiesen" : "Permanently assigned"}</Badge>}
-      </div>
-      <div className="flex min-w-0 items-center gap-1">
-        <code data-testmails-search-private className="min-w-0 flex-1 truncate text-xs">
-          {secretRevealed && displayedApplicationSecret ? displayedApplicationSecret : favorite ? "••••••••" : "••••••••••••••••"}
-        </code>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          disabled={secretBusy}
-          onClick={toggleApplicationSecret}
-          aria-label={secretRevealed
-            ? (locale === "de" ? "ORISO-App-Passwort maskieren" : "Hide ORISO app password")
-            : (locale === "de" ? "ORISO-App-Passwort anzeigen" : "Show ORISO app password")}
-        >
-          {secretRevealed ? <EyeOffIcon /> : <EyeIcon />}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          disabled={secretBusy}
-          onClick={copyApplicationSecret}
-          aria-label={locale === "de" ? "ORISO-App-Passwort kopieren" : "Copy ORISO app password"}
-        >
-          {secretCopied ? <CheckIcon /> : <CopyIcon />}
-        </Button>
-      </div>
+    <div className={cn("flex min-w-0 items-center gap-1", favorite ? "flex-wrap" : "rounded-lg border p-2")}>
+      <span className={cn("shrink-0 whitespace-nowrap text-xs font-medium text-muted-foreground", favorite ? "basis-full" : "me-1")}>
+        {locale === "de" ? "App-Passwort" : "App password"}
+      </span>
+      <code data-testmails-search-private className={cn("min-w-0 truncate text-xs", favorite && "flex-1")}>
+        {secretRevealed && displayedApplicationSecret ? displayedApplicationSecret : favorite ? "••••••••" : "••••••••••••••••"}
+      </code>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        disabled={secretBusy}
+        onClick={toggleApplicationSecret}
+        aria-label={secretRevealed
+          ? (locale === "de" ? "App-Passwort maskieren" : "Hide app password")
+          : (locale === "de" ? "App-Passwort anzeigen" : "Show app password")}
+      >
+        {secretRevealed ? <EyeOffIcon /> : <EyeIcon />}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        disabled={secretBusy}
+        onClick={copyApplicationSecret}
+        aria-label={locale === "de" ? "App-Passwort kopieren" : "Copy app password"}
+      >
+        {secretCopied ? <CheckIcon /> : <CopyIcon />}
+      </Button>
     </div>
     {secretError && <p role="alert" className="text-sm text-destructive">{locale === "de" ? "App-Passwort konnte nicht abgerufen werden." : "Could not retrieve app password."}</p>}
   </>;

@@ -48,7 +48,7 @@ export function AccountTable({ accounts, locale, onDetail, onEdit, onSaved, proj
         </section>
       </TableCell>
       <TableCell className="min-w-0 align-top whitespace-normal">
-        <div className="[&>section]:border-0 [&>section]:pt-0"><AccountTestContext account={account} locale={locale} onSaved={onSaved} /></div>
+        <AccountTestContext account={account} locale={locale} onSaved={onSaved} embedded />
         <div className="mt-3"><AccountInlineNotes account={account} locale={locale} onSaved={onSaved} /></div>
       </TableCell>
       <TableCell className="align-top"><div className="flex flex-wrap justify-end gap-1"><Button asChild variant="ghost" size="icon-sm"><a href={WEBMAIL_URL} target="_blank" rel="noreferrer" aria-label={`${t(locale, "page.openMail")}: ${account.email}`}><ExternalLinkIcon /></a></Button><CopyButton value={[account.displayName, account.email, account.password, account.domain, account.metadata.shippedVersion, account.metadata.lifecycleStatus, account.metadata.project].join("\t")} label={locale === "de" ? "Zeile kopieren" : "Copy row"} compact /><Button variant="ghost" size="icon-sm" onClick={() => onEdit(account)} aria-label={locale === "de" ? "Metadaten bearbeiten" : "Edit metadata"}><MoreHorizontalIcon /></Button></div></TableCell>

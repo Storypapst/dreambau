@@ -720,7 +720,7 @@ describe("OtpAccess provisioning entry point", () => {
     });
     await act(async () => link?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-    await vi.waitFor(() => expect(container.textContent).toContain("ORISO-App-Passwort"));
+    await vi.waitFor(() => expect(container.textContent).toContain("App-Passwort"));
     expect(container.textContent).toContain("2FA hinterlegen");
     expect(container.textContent).toContain("Status");
     expect(api).toHaveBeenCalledTimes(2);
