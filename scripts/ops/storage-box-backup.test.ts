@@ -193,6 +193,44 @@ elif 'cat' in a:sys.stdout.buffer.write(objects[a[-1]])
     expect(manifest.objects.every((x: any) => x.contentType === "text/plain" && /^[0-9a-f]{64}$/.test(x.sha256))).toBe(true);
   });
 
+  it.each(["added", "resized", "replaced", "deleted"])("validates baseline objects when the final inventory has an object %s", (change) => {
+    const f = fixture(); const mc = join(f.root, "mc"); const dir = join(f.root, "private/mc"); mkdirSync(dir, { mode: 0o700 });
+    writeFileSync(join(dir, "config.json"), "{}", { mode: 0o600 });
+    const inventoryCalls = join(f.root, "inventory-calls");
+    writeFileSync(mc, `#!/usr/bin/env python3
+import sys,json,pathlib
+a=sys.argv[1:];counter=pathlib.Path(${JSON.stringify(inventoryCalls)})
+if 'ls' in a:
+ n=int(counter.read_text())+1 if counter.exists() else 1;counter.write_text(str(n))
+ rows=[{'status':'success','type':'file','key':'baseline','size':5,'etag':'stable'}]
+ if n>1:
+  change=${JSON.stringify(change)}
+  if change=='added':rows.append({'status':'success','type':'file','key':'new-upload','size':3,'etag':'new'})
+  elif change=='resized':rows[0]['size']=6
+  elif change=='replaced':rows[0]['etag']='changed'
+  elif change=='deleted':rows=[]
+ for row in rows:print(json.dumps(row))
+elif 'stat' in a:print(json.dumps({'status':'success','size':5,'etag':'stable','metadata':{'Content-Type':'text/plain'}}))
+elif 'cat' in a:sys.stdout.buffer.write(b'first')
+`, { mode: 0o700 });
+    f.config.binaries.mc = mc; f.config.objectMirrors = [{ name: "evidence", alias: "private", bucket: "evidence", mcConfigDirectory: dir }];
+    const r = f.run();
+    expect(readFileSync(inventoryCalls, "utf8")).toBe("2");
+    if (change === "added") {
+      expect(r.status, r.stdout).toBe(0);
+      const snapshots = readdirSync(f.remote).filter(x => x.startsWith("snapshot-"));
+      const manifest = JSON.parse(readFileSync(join(f.remote, snapshots[0], f.state.replace(/^\//, ""), "staging/object-metadata/evidence.json"), "utf8"));
+      expect(manifest.objects.map((x: any) => x.key)).toEqual(["baseline"]);
+      expect(manifest.objects[0]).toMatchObject({ size: 5, etag: "stable", contentType: "text/plain" });
+      expect(manifest.objects[0].sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(JSON.parse(r.stdout)).toMatchObject({ status: "healthy", restoreVerified: true });
+    } else {
+      expect(r.status).toBe(1);
+      expect(JSON.parse(r.stdout)).toMatchObject({ status: "failed", errorCode: "object_inventory_changed" });
+      expect(f.commands().some(c => c.args.includes("storage-box-accepted"))).toBe(false);
+    }
+  });
+
   it.each(["own", "shared"])("does not overlap an active %s lock or overwrite previous health", async (kind) => {
     const f = fixture(); mkdirSync(f.state, { mode: 0o700 });
     const health = '{"status":"healthy","proof":"preserve"}\n'; writeFileSync(join(f.state, "health.json"), health, { mode: 0o600 });

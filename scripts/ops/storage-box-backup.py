@@ -353,7 +353,9 @@ class Backup:
             entries.append({**obj, **info, "replicaPath": str(dest.relative_to(directory)), "sha256": self.digest(dest)})
             if not any(x[0] == item["name"] for x in self.object_samples):
                 self.object_samples.append((item["name"], dest))
-        require(self.object_inventory(item) == before, "object_inventory_changed")
+        # The snapshot predates future uploads; only its baseline objects must stay unchanged.
+        after = {obj["key"]: obj for obj in self.object_inventory(item)}
+        require(all(after.get(obj["key"]) == obj for obj in before), "object_inventory_changed")
         manifest = self.stage / "object-metadata" / (item["name"] + ".json")
         manifest.parent.mkdir(mode=0o700, exist_ok=True)
         atomic_json(manifest, {"objects": entries})
