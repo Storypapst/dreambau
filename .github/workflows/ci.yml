@@ -49,6 +49,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Compile in the shipping context too: host typechecks cannot detect a missing COPY.
+      - name: Build Evidence container
+        run: docker build --file Dockerfile.evidence --tag dreambau-evidence:ci .
+
       # The releasable Test-Access CLI must build from every green commit, so a
       # broken bundle never reaches main unnoticed.
       - name: Build Test-Access CLI bundle
