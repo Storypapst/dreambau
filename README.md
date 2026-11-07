@@ -478,6 +478,13 @@ privaten Sitzungspfad mit `secondFactor: "app-totp"`. Dafür muss der Hub
 den angeforderten TOTP-Quellnachweis unterstützen. Der Modus braucht einen
 privaten Runner ohne Browser- oder Netzwerk-Debugausgaben.
 
+Ein privater Runner kann den kontogebundenen App-TOTP-Code auch direkt
+abrufen. Die CLI prüft Konto, Quelle und Zeitstempel der Antwort.
+
+```bash
+test-access otp <oriso-dev-account-id> --source totp --json
+```
+
 Standardmäßig verwendet der Client den macOS-Keychain. Ein fehlender Eintrag
 ermöglicht den vorhandenen Datei-Fallback. Eine verweigerte oder abgelaufene
 Keychain-Abfrage wird als Fehler gemeldet.
