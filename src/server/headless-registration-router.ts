@@ -53,10 +53,10 @@ export function createHeadlessRegistrationRouter(options: {
     const run = store.ownedRun(String(req.params.runId), actor);
     if (!identity.projects.includes(run.project) || !identity.environments.includes(run.targetEnvironment) ||
       !identity.environments.includes(run.poolEnvironment)) throw new HeadlessRegistrationError("run_not_found", 404);
-    return { runId: run.id, actor };
+    return { runId: run.id, actor, identityExpiresAt: identity.expiresAt };
   }
 
-  async function prepare(runId: string, actor: RunActor) {
+  async function prepare({ runId, actor, identityExpiresAt }: ReturnType<typeof scopedRun>) {
     const file = options.headlessDevApprovalsFile ?? null;
     const started = now();
     readHeadlessApproval(file, runId, actor.id, started);
@@ -84,14 +84,17 @@ export function createHeadlessRegistrationRouter(options: {
     const counsellor = candidates.length === 1 ? candidates[0] : undefined;
     if (!counsellor || counsellor.kind !== "app-user" || counsellor.id !== approval.counsellorAccountId ||
       counsellor.email !== counsellorEmail || provisioningRoleForRecord(counsellor) !== "counsellor" ||
-      counsellor.provisioningStatus !== "ready" || !counsellor.username.trim() || !counsellor.totpSecret?.trim() ||
+      counsellor.provisioningStatus !== "ready" || counsellor.rotationStatus !== "current" ||
+      !counsellor.username.trim() || !counsellor.totpSecret?.trim() ||
       !validRecordTime(counsellor, at.getTime()) || records.filter(record => record.id === counsellor.id).length !== 1 ||
       options.database.isOrisoAdminDeleted(counsellor.id) || options.database.isOrisoAdminDeletionPending(counsellor.id)) {
       throw new HeadlessRegistrationError("counsellor_binding_changed");
     }
-    const expiries = [approval.expiresAt, askerMailbox.expiresAt, counsellorMailbox.expiresAt, counsellor.expiresAt,
+    const expiries = [approval.expiresAt, identityExpiresAt, askerMailbox.expiresAt, counsellorMailbox.expiresAt, counsellor.expiresAt,
       ...authority.leases.map(lease => lease.expires_at)];
-    const expiresAt = new Date(Math.min(...expiries.flatMap(value => value === null ? [] : [Date.parse(value)]))).toISOString();
+    const expiry = Math.min(...expiries.flatMap(value => value === null ? [] : [Date.parse(value)]));
+    if (expiry <= at.getTime()) throw new HeadlessRegistrationError("authorization_expired", 404);
+    const expiresAt = new Date(expiry).toISOString();
     const binding = {
       runId, targetOrigin, commitSha: run.commitSha, expiresAt,
       asker: { accountId: askerAccountId, username: headlessAskerUsername(runId), email: askerEmail },
@@ -107,31 +110,33 @@ export function createHeadlessRegistrationRouter(options: {
 
   router.get("/", async (req, res) => {
     if (Object.keys(req.query).length) return res.status(400).json({ error: "invalid_query" });
-    const { runId, actor } = scopedRun(req, res);
-    const { binding } = await prepare(runId, actor);
+    const { binding } = await prepare(scopedRun(req, res));
     return res.json(binding);
   });
 
   router.post("/", async (req, res) => {
     const parsed = headlessClaimInput.safeParse(req.body);
     if (!parsed.success || Object.keys(req.query).length) return res.status(400).json({ error: "invalid_registration" });
-    const { runId, actor } = scopedRun(req, res);
-    const prepared = await prepare(runId, actor);
+    const scope = scopedRun(req, res);
+    const { runId, actor } = scope;
+    const prepared = await prepare(scope);
     if (prepared.binding.bindingHash !== parsed.data.bindingHash) throw new HeadlessRegistrationError("binding_changed");
     store.assertUnclaimed(runId);
     const { username, email, accountId } = prepared.binding.asker;
     const observer = options.fixtureObserver;
     if (!observer) throw new HeadlessRegistrationError("observation_unavailable", 503);
+    const observationStarted = now().getTime();
     let observation;
     try { observation = await observer.observe({ username, email }); }
     catch { throw new HeadlessRegistrationError("observation_unavailable", 503); }
     if (observation.kind === "unavailable") throw new HeadlessRegistrationError("observation_unavailable", 503);
     if (observation.kind !== "free-candidate") throw new HeadlessRegistrationError("identity_not_free");
-    const refreshed = await prepare(runId, actor);
+    const refreshed = await prepare(scope);
     if (refreshed.binding.bindingHash !== prepared.binding.bindingHash) throw new HeadlessRegistrationError("binding_changed");
     const at = now();
     const observedAt = Date.parse(observation.observation.observedAt);
-    if (!Number.isFinite(observedAt) || observedAt > at.getTime() + clockSkewMs || observedAt + observationTtlMs <= at.getTime()) {
+    if (!Number.isFinite(observedAt) || observedAt > at.getTime() + clockSkewMs ||
+      observedAt + clockSkewMs < observationStarted || observedAt + observationTtlMs <= at.getTime()) {
       throw new HeadlessRegistrationError("observation_stale");
     }
     return res.status(201).json(store.claim({

@@ -53,7 +53,7 @@ relative to `/testmails/api/v1`.
 
 ```text
 GET  /runs/:runId/headless-registration
-     Read the exact binding and its earliest approval, lease or account expiry.
+     Read the exact binding and its earliest grant, approval, lease or account expiry.
 POST /runs/:runId/headless-registration
      Send { "bindingHash": "..." } to claim the registration before dispatch.
      A 201 response returns resourceId, bindingHash and state "creating".

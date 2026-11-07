@@ -9,6 +9,7 @@ import { createDatabase } from "../src/server/db.js";
 import type { TestAccessRecord } from "../src/server/infisical-provider.js";
 import { hashMachineToken, type MachineAction } from "../src/server/machine-access.js";
 import type { OrisoIdentityObservationResult } from "../src/server/oriso-identity-observation.js";
+import { runTestRunCli } from "../src/server/test-run-cli.js";
 
 const runId = "59c238e5-6115-4aef-bfb4-2f19091017cf";
 const at = "2026-11-07T20:00:00.000Z";
@@ -91,6 +92,26 @@ function setup({ start = true, configured = true } = {}) {
     post(endpoint: string, body: object = {}, actor = "owner") {
       return app.post(endpoint).set("Authorization", `Bearer ${actor}-fixture-token`).send(body);
     },
+    async cli(args: string[]) {
+      const lines: string[] = [];
+      const status = await runTestRunCli(args, {
+        baseUrl: "https://dreambau.com/testmails/api/v1", identity: owner.id,
+        readKeychainToken: () => "owner-fixture-token",
+        async fetch(target, init) {
+          const url = new URL(String(target));
+          expect(url.origin).toBe("https://dreambau.com");
+          const method = init?.method === "POST" ? "post" : "get";
+          const call = app[method](url.pathname).set("Authorization", new Headers(init?.headers).get("Authorization") ?? "");
+          if (typeof init?.body === "string") call.send(JSON.parse(init.body));
+          const reply = await call;
+          return Response.json(reply.body, { status: reply.status });
+        },
+        write: value => lines.push(value),
+        writeError: value => lines.push(value)
+      });
+      expect(status).toBe(0);
+      return JSON.parse(lines.join(""));
+    },
     sql() {
       const connection = new Database(sqlitePath);
       cleanups.unshift(() => connection.close());
@@ -115,6 +136,16 @@ describe("approved Dev headless registration journal", () => {
     expect(prepared.text).not.toContain(canary);
     expect(t.observe).not.toHaveBeenCalled();
     expect(t.database.testResources.listByRun(runId)).toEqual([]);
+  });
+
+  it("connects the private run CLI to the binding, claim and durable outcome routes", async () => {
+    const t = setup();
+    const binding = await t.cli(["headless-prepare", runId]);
+    const claim = await t.cli(["headless-claim", runId, "--binding-hash", binding.bindingHash]);
+    expect(claim).toMatchObject({ bindingHash: binding.bindingHash, state: "creating" });
+    const outcome = await t.cli(["headless-report", runId, "--resource-id", claim.resourceId, "--result", "created"]);
+    expect(outcome).toEqual({ resourceId: claim.resourceId, result: "created", state: "create-uncertain" });
+    expect(t.database.testResources.get(claim.resourceId)?.externalId).toBeNull();
   });
 
   it("claims once under concurrency, survives reopen and blocks release after a lost response", async () => {

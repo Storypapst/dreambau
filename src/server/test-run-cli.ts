@@ -131,7 +131,9 @@ export async function runTestRunCli(args: string[], dependencies: TestRunCliDepe
         body: request.body ? JSON.stringify(request.body) : undefined
       }
     );
-    if (!response.ok) throw new Error(`Test Run API failed with HTTP ${response.status}`);
+    if (!response.ok || (args[0] === "headless-claim" && response.status !== 201)) {
+      throw new Error(`Test Run API failed with HTTP ${response.status}`);
+    }
     dependencies.write(`${JSON.stringify(await http.json(response), null, 2)}\n`);
     return 0;
   } catch (error) {
