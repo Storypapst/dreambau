@@ -4,8 +4,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.evidence.json ./
-COPY src/evidence ./src/evidence
-COPY src/server/machine-access.ts src/server/machine-credential.ts ./src/server/
+# Keep the complete source graph available to TypeScript; the include list
+# still limits emitted modules to Evidence and its actual shared dependencies.
+COPY src ./src
 RUN npm run evidence:build && npm prune --omit=dev
 
 FROM node:20-bookworm-slim AS runtime
