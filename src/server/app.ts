@@ -23,6 +23,8 @@ import { createUnderstandKitRouter } from "./understand-kit.js";
 import { createReleaseListRouter } from "./release-list-router.js";
 import { createWorkspaceRouter } from "./workspace-router.js";
 import { createWorkspaceEvidenceClient, type WorkspaceEvidenceClient } from "./workspace-evidence-client.js";
+import { createWorkspaceGithub, type WorkspaceGithubClient } from "./workspace-github.js";
+import { loadWorkspaceGithubConfig } from "./workspace-github-config.js";
 import { createJmapTestMailReader, type TestMailReader } from "./test-mail.js";
 import { createInfisicalRegistryProvider, type RegistryProvider, type TestAccessRecord, type TestEnvironment, type TestProject } from "./infisical-provider.js";
 import { createInfisicalRegistryWriter, type RegistryWriter } from "./infisical-writer.js";
@@ -59,6 +61,7 @@ import {
 } from "./oriso-provisioning.js";
 
 interface AppOptions {
+  workspaceGithub?: WorkspaceGithubClient | null;
   workspaceEvidence?: WorkspaceEvidenceClient | null;
   teamworkGuidesPath?: string | null;
   passwordHash?: string;
@@ -313,8 +316,11 @@ export function createApp(options: AppOptions = {}) {
   const workspaceEvidence = options.workspaceEvidence === undefined
     ? config.evidenceRead ? createWorkspaceEvidenceClient(config.evidenceRead) : null
     : options.workspaceEvidence;
+  const workspaceGithub = options.workspaceGithub === undefined
+    ? config.workspaceGithubConfigFile ? createWorkspaceGithub({ config: loadWorkspaceGithubConfig(config.workspaceGithubConfigFile), store: database.workspaceGithub, now: options.now ? () => options.now!().getTime() : undefined }) : null
+    : options.workspaceGithub;
   api.use("/workspace", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); }, requireActiveHumanSession,
-    createWorkspaceRouter({ database, evidence: workspaceEvidence, grantsFor: user => passkeyStore.grants.effective(user.id), now: options.now }));
+    createWorkspaceRouter({ database, evidence: workspaceEvidence, github: workspaceGithub, grantsFor: user => passkeyStore.grants.effective(user.id), now: options.now }));
   const accountViews = () => accountLoader().map((account) => ({ ...account, metadata: database.getMetadata(account.email) }));
   const viewProject = (view: ReturnType<typeof accountViews>[number]) => accountTaxonomyProject(view.metadata.project, view.domain);
   const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));

@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { RequestHandler, Response, Router } from "express";
 import { ALL_TEST_ENVIRONMENTS } from "./human-grants.js";
+import { clampWorkspacePreferences, workspacePreferencesSchema } from "./workspace-preferences.js";
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -172,7 +173,7 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
   });
 
   // An active employee session may read and write its own preferences.
-  const preferenceKeySchema = z.enum(["filter-presets", "favorite-accounts", "favorite-display"]);
+  const preferenceKeySchema = z.enum(["filter-presets", "favorite-accounts", "favorite-display", "workspace-defaults"]);
   const filterStateSchema = z.object({
     query: z.string().max(200).default(""),
     domain: z.string().max(200).default("all"),
@@ -187,7 +188,8 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
   const preferenceValueSchemas: Record<z.infer<typeof preferenceKeySchema>, z.ZodTypeAny> = {
     "filter-presets": z.array(z.object({ id: z.string().min(1).max(64), name: z.string().trim().min(1).max(60), filters: filterStateSchema })).max(50),
     "favorite-accounts": z.array(z.string().trim().min(3).max(200)).max(300).transform((emails) => [...new Set(emails)]),
-    "favorite-display": z.strictObject({ testContext: z.boolean(), notes: z.boolean() })
+    "favorite-display": z.strictObject({ testContext: z.boolean(), notes: z.boolean() }),
+    "workspace-defaults": workspacePreferencesSchema
   };
   const preferenceOwner = (res: Response): string | null => {
     const { method, userId } = res.locals.session as SessionPrincipal;
@@ -224,13 +226,29 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
     res.json({ deleted: true });
   });
 
+  router.use("/auth/me/preferences/:key", (req, res, next) => {
+    if (req.params.key !== "workspace-defaults") return next();
+    res.set("Cache-Control", "no-store");
+    options.requireSession(req, res, () => {
+      void (async () => {
+        const userId = preferenceOwner(res);
+        if (!userId) return res.status(403).json({ error: "user_session_required" });
+        let user = options.store.getUser(userId)!;
+        try { if (options.syncHumanUser) user = await options.serializeHumanAccess(deadline => options.syncHumanUser!(user, deadline)); }
+        catch { return res.status(503).json({ error: "human_access_unavailable" }); }
+        res.locals.workspacePreferenceUser = user; next();
+      })().catch(next);
+    });
+  });
+  const projectedPreference = (res: Response, key: string, value: unknown) => key === "workspace-defaults"
+    ? clampWorkspacePreferences(value, res.locals.workspacePreferenceUser, options.store.grants.effective(res.locals.workspacePreferenceUser.id)) : value;
   router.get("/auth/me/preferences/:key", options.requireSession, (req, res) => {
     const key = preferenceKeySchema.safeParse(req.params.key);
     const userId = preferenceOwner(res);
     if (!key.success) return res.status(404).json({ error: "preference_not_found" });
     if (!userId) return res.status(403).json({ error: "user_session_required" });
     res.set("Cache-Control", "no-store");
-    res.json({ key: key.data, value: options.store.getPreference(userId, key.data) });
+    res.json({ key: key.data, value: projectedPreference(res, key.data, options.store.getPreference(userId, key.data)) });
   });
 
   router.put("/auth/me/preferences/:key", options.requireSession, (req, res) => {
@@ -240,8 +258,9 @@ const mayEnrol = (principal: SessionPrincipal) => ENROLMENT_METHODS.includes(pri
     if (!userId) return res.status(403).json({ error: "user_session_required" });
     const value = preferenceValueSchemas[key.data].safeParse(req.body?.value);
     if (!value.success || JSON.stringify(value.data).length > 16 * 1024) return res.status(400).json({ error: "invalid_request" });
-    options.store.setPreference(userId, key.data, value.data);
-    res.json({ key: key.data, value: value.data });
+    const projected = projectedPreference(res, key.data, value.data);
+    options.store.setPreference(userId, key.data, projected);
+    res.json({ key: key.data, value: projected });
   });
 
   router.delete("/auth/me/preferences/:key", options.requireSession, (req, res) => {

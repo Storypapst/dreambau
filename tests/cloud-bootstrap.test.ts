@@ -65,7 +65,7 @@ describe("cloud bootstrap executable contract", () => {
     const modes = spawnSync("sh", ["-c", '. "$1"; printf "%s\\n%s" "$TEST_ACCESS_AUTH_MODE" "$TEST_ACCESS_URL"', "fixture", join(f.home, "data/dreambau-cloud/profile.sh")], { env: { ...f.env, TEST_ACCESS_AUTH_MODE: undefined, TEST_ACCESS_URL: undefined }, encoding: "utf8" });
     expect(modes.stdout).toBe("network-proxy\nhttps://dreambau.com/testmails/api/v1");
     expect(existsSync(join(f.home, ".config/dreambau-test-access/identities"))).toBe(false);
-  });
+  }, 30_000); // Two real npm/install passes plus CLI probes need headroom under parallel suite load.
 
   it("rejects mutable revisions, unknown modes and mismatched committed sources", () => {
     const f = fixture();

@@ -30,7 +30,21 @@ Archived, quarantined and rejected files do not gain an ordinary preview. A miss
 
 In a selected entry, choose **Add link**, select Issue or Pull request, paste the canonical GitHub URL and save. Only the real server response updates the displayed links. Searching the associated number can find the entry afterward.
 
-Links are explicit associations. The interface does not infer that two runs belong together because their dates or commits look alike. A recorded GitHub link does not claim that GitHub title, existence or review status was checked remotely.
+Links are explicit associations. The interface does not infer that two runs belong together because their dates or commits look alike. A recorded GitHub link alone does not claim that GitHub title, existence or review status was checked remotely. The separate **GitHub status** section shows fetched facts only when the approved integration can read the linked repository.
+
+## Read GitHub delivery facts
+
+For the selected entry, **GitHub status** can show the Issue or PR title, its exact state, configured board status and release assignments. Issues can be closed without all related work being merged. A merged PR is not a deployment claim. Assigned versions are labelled separately from published releases whose tags are verified to include the PR's merge commit.
+
+Use **Refresh** to check again. The section shows when a successful check happened and labels cached or stale facts. Missing associations or partial release checks stay marked incomplete. Access denial removes private cached facts. Ordinary links and run details still work when integration is unconfigured or unavailable.
+
+The application uses a dedicated, approved read-only GitHub App. The installation setup is a separate operator step; this guide and local screenshots do not establish that live repository access is enabled.
+
+## Set personal workspace defaults
+
+Open **Workspace settings** beside the project selector. Choose whether to remember source and environment filters separately for each project, and set display refresh to manual, every 15 minutes or every hour. Save, then reload to verify your choice. These settings belong to your signed-in account.
+
+Your current project and explicit URL filters take priority. Search terms, result filters and the selected record are not saved as defaults. Periodic GitHub checks apply only to the selected record while the page is visible.
 
 ## Storage and backups
 

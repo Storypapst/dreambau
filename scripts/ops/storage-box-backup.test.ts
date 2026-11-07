@@ -97,7 +97,7 @@ describe("Storage Box encrypted offhost backup operator", () => {
     expect(calls.some(c => c.args.includes("dump"))).toBe(true);
     expect(calls.some(c => c.args.includes("storage-box-accepted"))).toBe(true);
     expect(r.stdout + r.stderr).not.toContain("synthetic-repository-password");
-  });
+  }, 15_000); // Python and sequential backup/readback subprocesses share the loaded test host.
   it("includes committed WAL-only writes in the online SQLite backup and restored database", async () => {
     const f = fixture(); const db = join(f.source, "state.sqlite");
     const live = spawn("python3", ["-u", "-c", "import sqlite3,sys,time;c=sqlite3.connect(sys.argv[1]);c.execute('pragma journal_mode=WAL');c.execute('pragma wal_autocheckpoint=0');c.execute('create table proof(value text)');c.commit();c.execute('pragma wal_checkpoint(TRUNCATE)');c.execute(\"insert into proof values ('committed-wal-only')\");c.commit();print('ready',flush=True);time.sleep(60)", db]);
