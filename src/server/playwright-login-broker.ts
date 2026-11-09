@@ -92,6 +92,7 @@ export interface BrokerDependencies extends MachineAuthOptions {
   readKeychainToken: (identity: string) => string;
   fetch: typeof fetch;
   requireAppTotp?: boolean | "pre-dev";
+  preDevAppOnly?: boolean;
   preDevMatrixDevice?: string;
   preDevMatrixStateRoot?: string;
   login?: (request: BrowserLoginRequest) => Promise<void | typeof APP_TOTP>;
@@ -568,14 +569,18 @@ function isOrisoAppPage(url: URL, origin: string, preDevRole?: PreDevRole) {
 async function saveVerifiedAppState(page: Page, request: BrowserLoginRequest, origin: string, token: string) {
   const state = await page.context().storageState({ indexedDB: Boolean(request.awaitChatUnlock) });
   const hostname = new URL(origin).hostname;
+  const app = state.origins.find((item) => item.origin === origin);
   const cookie = state.cookies.some((item) =>
     item.name === "keycloak" && item.domain === hostname && item.path === "/" && item.value === token);
-  const fallback = state.origins.find((item) => item.origin === origin)?.localStorage
-    .some((item) => item.name === "auth.keycloak" && item.value === token);
+  const fallback = app?.localStorage.some((item) => item.name === "auth.keycloak" && item.value === token);
   if ((!cookie && !fallback) || !isOrisoAppPage(new URL(page.url()), origin, request.preDevRole)) {
     throw new AppTotpVerificationError("The verified ORISO App-TOTP session could not be restored");
   }
-  await writeFile(request.statePath, JSON.stringify(state), { mode: 0o600, flag: "wx" });
+  const saved = request.isolatePreDevMatrix ? {
+    cookies: state.cookies.filter(item => item.domain === hostname),
+    origins: [{ origin, localStorage: (app?.localStorage ?? []).filter(item => !/^matrix[_-]/.test(item.name)) }]
+  } : state;
+  await writeFile(request.statePath, JSON.stringify(saved), { mode: 0o600, flag: "wx" });
 }
 
 const preDevLoginReads = new Set([
@@ -622,7 +627,7 @@ async function keepMatrixOfflineDuringLogin(page: Page, origin: string, role: Pr
 
 export async function playwrightLogin(request: BrowserLoginRequest) {
   if (request.isolatePreDevMatrix && (!request.requireAppTotp || !request.preDevRole)) {
-    throw new PreDevMatrixDeviceError("Matrix device handoff requires the Pre-Dev App-TOTP login");
+    throw new PreDevMatrixDeviceError("Matrix isolation requires the Pre-Dev App-TOTP login");
   }
   const { chromium } = await import("@playwright/test");
   const browser = await chromium.launch({ headless: true, proxy: request.proxy });
@@ -788,12 +793,17 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
   const secrets: string[] = [];
   const preDevAppTotp = dependencies.requireAppTotp === "pre-dev";
   const requireAppTotp = preDevAppTotp || dependencies.requireAppTotp === true;
+  const appOnly = dependencies.preDevAppOnly === true;
   const selectedDevice = dependencies.preDevMatrixDevice;
+  const isolateMatrix = appOnly || selectedDevice !== undefined;
   const totpEnvironment = preDevAppTotp ? "pre-dev" : "dev";
   let stateDirectory: string | undefined;
   try {
     if (!dependencies.identity) throw new Error("TEST_ACCESS_IDENTITY or --identity is required");
     if (!accountId) throw new Error("playwright-login requires an account id");
+    if (appOnly && (!preDevAppTotp || selectedDevice !== undefined || process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0")) {
+      throw new AppTotpVerificationError("App-only sessions require strict Pre-Dev App-TOTP and no device handoff");
+    }
     if (selectedDevice !== undefined && (!preDevAppTotp || process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0")) {
       throw new PreDevMatrixDeviceError("Matrix device handoff requires the strict Pre-Dev App-TOTP login and TLS");
     }
@@ -878,8 +888,8 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       ...(preDevRole ? { preDevRole } : {}),
       getOtp,
       requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined,
-      awaitChatUnlock: account.project === "oriso" && !handoff ? ORISO_CHAT_UNLOCK_WAIT : undefined,
-      ...(handoff ? { isolatePreDevMatrix: true } : {})
+      awaitChatUnlock: account.project === "oriso" && !isolateMatrix ? ORISO_CHAT_UNLOCK_WAIT : undefined,
+      ...(isolateMatrix ? { isolatePreDevMatrix: true } : {})
     });
     if (requireAppTotp && factor !== APP_TOTP) {
       throw new AppTotpVerificationError("The browser did not verify App-TOTP");
@@ -893,7 +903,8 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       accountId,
       storageState: statePath,
       expiresAt: new Date(now.getTime() + STATE_TTL_MS).toISOString(),
-      ...(requireAppTotp ? { secondFactor: factor } : {})
+      ...(requireAppTotp ? { secondFactor: factor } : {}),
+      ...(appOnly ? { sessionKind: "app-only" } : {})
     })}\n`);
     return 0;
   } catch (error) {

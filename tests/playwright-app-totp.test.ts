@@ -47,6 +47,7 @@ type PreDevFixture = {
   role: "asker" | "user" | "consultant";
   mismatch?: "subject" | "username" | "role" | "authority" | "redirect";
   device?: "approved" | "wrong-subject" | "expired" | "link" | "wrong-device" | "whoami-redirect" | "whoami-mismatch";
+  appOnly?: boolean;
 };
 
 type Scenario = "cookie" | "legacy-storage" | "password-only" | "email" | "rejected" | "wrong-code"
@@ -69,7 +70,7 @@ async function serve(listener: RequestListener) {
   };
 }
 
-function fixtureLogin(scenario: Scenario, foreignUrl: string, appPath: string, device: boolean) {
+function fixtureLogin(scenario: Scenario, foreignUrl: string, appPath: string, isolationCanary: boolean) {
   return `<!doctype html>
     <div role="alert">${DOM_CANARY}</div>
     <form>
@@ -106,7 +107,7 @@ function fixtureLogin(scenario: Scenario, foreignUrl: string, appPath: string, d
           const token = ${scenario === "unbound-state"} ? 'other-token' : appToken;
           if (${scenario === "legacy-storage"}) localStorage.setItem('auth.keycloak', token);
           else document.cookie = 'keycloak=' + token + '; Path=/; SameSite=Strict';
-          if (${device}) {
+          if (${isolationCanary}) {
             localStorage.setItem('matrix_device_id', 'unapproved-bootstrap-device');
             await Promise.all([
               fetch('/service/matrix/me/token?deviceId=unapproved-bootstrap-device'),
@@ -189,6 +190,7 @@ async function exercise(scenario: Scenario, assert: (result: {
   const token = preDev ? PREDEV_TOKEN : TOKEN;
   const role = preDev?.role === "consultant" ? "consultant" : "user";
   const appPath = preDev ? PREDEV_APP_PATH[role] : APP_PATH;
+  const isolationCanary = Boolean(preDev?.device || preDev?.appOnly);
   const root = await mkdtemp(join(tmpdir(), "app-totp-contract-"));
   let foreignSubmissions = 0;
   let foreignReads = 0;
@@ -211,7 +213,7 @@ async function exercise(scenario: Scenario, assert: (result: {
       res.writeHead(200, { "content-type": "application/json" }).end("{}");
       return;
     }
-    if (req.url === "/service/settings" && preDev?.device) {
+    if (req.url === "/service/settings" && isolationCanary) {
       startupReads++;
       res.writeHead(307, { Location: "/service/matrix/me/token?redirect=canary" }).end();
       return;
@@ -270,7 +272,7 @@ async function exercise(scenario: Scenario, assert: (result: {
       </script>`);
       return;
     }
-    res.end(fixtureLogin(scenario, foreignLogin, preDev ? "/app" : appPath, Boolean(preDev?.device)));
+    res.end(fixtureLogin(scenario, foreignLogin, preDev ? "/app" : appPath, isolationCanary));
   });
   try {
     const write = vi.fn<(value: string) => void>();
@@ -307,6 +309,7 @@ async function exercise(scenario: Scenario, assert: (result: {
     });
     const dependencies: BrokerDependencies = {
       requireAppTotp: preDev ? "pre-dev" : true,
+      ...(preDev?.appOnly ? { preDevAppOnly: true } : {}),
       ...(matrixRoot ? { preDevMatrixDevice: MATRIX_DEVICE, preDevMatrixStateRoot: matrixRoot } : {}),
       baseUrl: HUB,
       identity: "synthetic-broker",
@@ -418,6 +421,25 @@ describe("verified ORISO Dev App-TOTP session", () => {
 });
 
 describe("verified ORISO Pre-Dev App-TOTP session", () => {
+  it("returns a verified app-only session with Matrix startup and redirects blocked", async () => {
+    await exercise("cookie", async ({ status, output, error, appOrigin, matrixReads, startupReads,
+      foreignReads, whoamiReads, otpFetches, userDataReads, claims }) => {
+      expect(status, error).toBe(0);
+      expect({ matrixReads, startupReads, foreignReads, whoamiReads, otpFetches, userDataReads, claims }).toEqual({
+        matrixReads: 0, startupReads: 1, foreignReads: 0, whoamiReads: 0, otpFetches: 1, userDataReads: 2, claims: 0
+      });
+      const receipt = JSON.parse(output);
+      expect(receipt).toMatchObject({ accountId: PREDEV_ACCOUNT_ID, secondFactor: "app-totp", sessionKind: "app-only" });
+      const state = JSON.parse(await readFile(receipt.storageState, "utf8"));
+      expect(state.origins.map((item: { origin: string }) => item.origin)).toEqual([appOrigin]);
+      expect(state.origins[0].indexedDB).toBeUndefined();
+      expect(JSON.stringify(state)).not.toContain("matrix_");
+      expect(state.cookies).toEqual(expect.arrayContaining([expect.objectContaining({
+        name: "keycloak", value: PREDEV_TOKEN
+      })]));
+    }, { role: "consultant", appOnly: true });
+  }, 30_000);
+
   it.each(["asker", "user", "consultant"] as const)("confirms the catalogued %s in the counselling app", async (role) => {
     await exercise("cookie", async ({ status, output, error, userDataReads, otpFetches }) => {
       expect(status, error).toBe(0);

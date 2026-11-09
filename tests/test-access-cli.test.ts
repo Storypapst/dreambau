@@ -201,6 +201,27 @@ describe("test-access CLI", () => {
     expect(broker).toHaveBeenCalledTimes(1);
   });
 
+  it.each([["session", "open"], ["playwright-login"]])("allows app-only sessions only with Pre-Dev App-TOTP through %j", async (...command) => {
+    const broker = vi.fn(async () => 0);
+    const dependencies = {
+      baseUrl: "https://dreambau.com/testmails/api/v1", identity: "agent-fixture",
+      readKeychainToken: () => "synthetic-token", fetch: vi.fn<typeof globalThis.fetch>(),
+      write: vi.fn(), writeError: vi.fn(), playwrightLoginBroker: broker
+    };
+    const prefix = [...command, "oriso/pre-dev/fixture"];
+    const factor = "--require-predev-app-totp";
+    const appOnly = "--predev-app-only";
+    expect(await runTestAccessCommand([...prefix, factor, appOnly], dependencies)).toBe(0);
+    expect(broker).toHaveBeenCalledExactlyOnceWith("oriso/pre-dev/fixture", expect.objectContaining({
+      requireAppTotp: "pre-dev", preDevAppOnly: true
+    }));
+    for (const options of [[appOnly], ["--require-app-totp", appOnly], [factor, appOnly, appOnly],
+      [factor, appOnly, "--require-predev-matrix-device=ORISO_WEB_FIXTURE"]]) {
+      expect(await runTestAccessCommand([...prefix, ...options], dependencies)).toBe(1);
+    }
+    expect(broker).toHaveBeenCalledTimes(1);
+  });
+
   it("builds list, get, OTP, mail and env URLs without embedding a token", () => {
     const baseUrl = "https://dreambau.com/testmails/api/v1";
     expect(buildApiRequest(["list", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({

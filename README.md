@@ -489,6 +489,20 @@ Katalogeintrag für Ratsuchende oder Beratende. Nach der Anmeldung gleicht der
 Broker die Identität und Rolle mit dem UserService ab und wartet auf den
 passenden App-Bereich, bevor er den Sitzungspfad ausgibt.
 
+Für einen Vorabcheck mit lesenden UserService-Aufrufen gibt es einen eigenen
+Modus.
+
+```bash
+test-access session open <oriso-pre-dev-account-id> --require-predev-app-totp --predev-app-only
+```
+
+Dieser Modus sperrt Matrix und WebSockets bereits im Login-Browser. Die
+Quittung enthält zusätzlich `sessionKind: "app-only"`. Der private Zustand
+enthält den bestätigten App-Grant und lässt Matrix-Schlüssel und IndexedDB
+weg. Für die weitere Nutzung bleiben lesende UserService-Aufrufe oder ein
+entsprechend isolierter Browser erforderlich. Die Freigabe für ein
+Matrix-Gerät bleibt für den eigentlichen Medien- oder Nachrichtenlauf verfügbar.
+
 Der private J08-Lauf kann zusätzlich ein bereits freigegebenes Matrix-Gerät
 für genau diesen Pre-Dev-Katalogeintrag übernehmen.
 

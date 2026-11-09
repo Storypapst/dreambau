@@ -126,8 +126,10 @@ interface CliDependencies extends MachineAuthOptions {
 
 const DEV_FACTOR_SWITCH = "--require-app-totp";
 const PREDEV_FACTOR_SWITCH = "--require-predev-app-totp";
+const PREDEV_APP_ONLY_SWITCH = "--predev-app-only";
 const MATRIX_DEVICE_SWITCH = "--require-predev-matrix-device=";
-const BROWSER_SESSION_OPTIONS = "[" + DEV_FACTOR_SWITCH + " | " + PREDEV_FACTOR_SWITCH + " [" + MATRIX_DEVICE_SWITCH + "<id>]]";
+const BROWSER_SESSION_OPTIONS = "[" + DEV_FACTOR_SWITCH + " | " + PREDEV_FACTOR_SWITCH
+  + " [" + PREDEV_APP_ONLY_SWITCH + " | " + MATRIX_DEVICE_SWITCH + "<id>]]";
 
 export async function runTestAccessCommand(args: string[], dependencies: CliDependencies) {
   if (["help", "--help", "-h"].includes(args[0])) {
@@ -136,6 +138,7 @@ export async function runTestAccessCommand(args: string[], dependencies: CliDepe
 Browser session: session open <account-id> ${BROWSER_SESSION_OPTIONS}
 Alias: playwright-login <account-id> ${BROWSER_SESSION_OPTIONS}
 Use --require-app-totp for ORISO Dev and --require-predev-app-totp for ORISO Pre-Dev.
+Use --predev-app-only for verified Pre-Dev application reads with Matrix isolated.
 The Pre-Dev Matrix device switch needs TEST_ACCESS_PREDEV_MATRIX_STATE_ROOT and one approved private snapshot.
 Private OTP lookup: otp <account-id> --source totp [--json]
 
@@ -160,9 +163,12 @@ network-proxy permits only https://dreambau.com/testmails/api/v1.
   if (args[0] === "playwright-login" || isSessionOpen) {
     const [accountId = "", ...options] = args.slice(isSessionOpen ? 2 : 1);
     const factor = options.find(option => option === DEV_FACTOR_SWITCH || option === PREDEV_FACTOR_SWITCH);
+    const appOnly = options.includes(PREDEV_APP_ONLY_SWITCH);
     const matrix = options.find(option => option.startsWith(MATRIX_DEVICE_SWITCH));
     const device = matrix?.slice(MATRIX_DEVICE_SWITCH.length);
-    if (accountId.startsWith("--") || options.length !== Number(Boolean(factor)) + Number(Boolean(matrix))
+    if (accountId.startsWith("--")
+      || options.length !== Number(Boolean(factor)) + Number(appOnly) + Number(Boolean(matrix))
+      || (appOnly && (factor !== PREDEV_FACTOR_SWITCH || matrix))
       || (matrix && (factor !== PREDEV_FACTOR_SWITCH || !isPreDevMatrixDeviceId(device)))) {
       const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
       writeError(`usage: test-access session open <account-id> ${BROWSER_SESSION_OPTIONS}\n`);
@@ -170,6 +176,7 @@ network-proxy permits only https://dreambau.com/testmails/api/v1.
     }
     const brokerDependencies: BrokerDependencies = factor
       ? { ...dependencies, requireAppTotp: factor === PREDEV_FACTOR_SWITCH ? "pre-dev" : true,
+        ...(appOnly ? { preDevAppOnly: true } : {}),
         ...(device ? { preDevMatrixDevice: device } : {}) }
       : dependencies;
     return (dependencies.playwrightLoginBroker ?? runPlaywrightLoginBroker)(accountId, brokerDependencies);
