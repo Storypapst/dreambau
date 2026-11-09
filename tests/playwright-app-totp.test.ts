@@ -12,6 +12,7 @@ const LEGACY_USERNAME = "enc.ORSXG5BOOVZWK4SAMRZGKYLNMJQXKLTDN5WQ....";
 const PASSWORD = "synthetic-password&%+";
 const CODE = "651294";
 const TOKEN = "synthetic-access-token";
+const OTHER_SESSION_TOKEN = "synthetic-other-session-token";
 const MACHINE_TOKEN = "synthetic-machine-token";
 const DOM_CANARY = "synthetic-visible-diagnostic";
 const TOKEN_PATH = "/auth/realms/online-beratung/protocol/openid-connect/token";
@@ -21,7 +22,7 @@ const HUB = "https://dreambau.com/testmails/api/v1";
 const CATALOG = { id: ACCOUNT_ID, username: USERNAME, project: "oriso", environment: "dev", loginUrl: "https://dev.oriso.org" };
 
 type Scenario = "cookie" | "legacy-storage" | "password-only" | "email" | "rejected" | "wrong-code"
-  | "unbound-state" | "legacy-hub" | "foreign-login" | "foreign-challenge";
+  | "unbound-state" | "different-session-token" | "legacy-hub" | "foreign-login" | "foreign-challenge";
 
 async function serve(listener: RequestListener) {
   const server = createServer(listener);
@@ -69,10 +70,12 @@ function fixtureLogin(scenario: Scenario, foreignUrl: string) {
           if (${scenario === "foreign-challenge"}) setTimeout(() => { location.href = ${JSON.stringify(foreignUrl)}; }, 70);
         } else if (response.ok) {
           const { access_token } = await response.json();
-          const token = ${scenario === "unbound-state"} ? 'other-token' : access_token;
+          const appToken = ${scenario === "different-session-token"}
+            ? ${JSON.stringify(OTHER_SESSION_TOKEN)} : access_token;
+          const token = ${scenario === "unbound-state"} ? 'other-token' : appToken;
           if (${scenario === "legacy-storage"}) localStorage.setItem('auth.keycloak', token);
           else document.cookie = 'keycloak=' + token + '; Path=/; SameSite=Strict';
-          await fetch(${JSON.stringify(USER_DATA_PATH)}, { headers: { authorization: 'Bearer ' + access_token } });
+          await fetch(${JSON.stringify(USER_DATA_PATH)}, { headers: { authorization: 'Bearer ' + appToken } });
           location.href = ${JSON.stringify(APP_PATH)};
         }
       });
@@ -87,10 +90,12 @@ async function exercise(scenario: Scenario, assert: (result: {
   grants: Array<{ username: string | null; otp: string | null }>;
   otpFetches: number;
   foreignSubmissions: number;
+  userDataReads: number;
   appOrigin: string;
 }) => Promise<void> | void) {
   const root = await mkdtemp(join(tmpdir(), "app-totp-contract-"));
   let foreignSubmissions = 0;
+  let userDataReads = 0;
   const foreign = await serve((req, res) => {
     if (req.method === "POST") foreignSubmissions++;
     res.setHeader("content-type", "text/html");
@@ -127,7 +132,9 @@ async function exercise(scenario: Scenario, assert: (result: {
       return;
     }
     if (req.url === USER_DATA_PATH && req.method === "GET") {
-      res.writeHead(req.headers.authorization === `Bearer ${TOKEN}` ? 200 : 401,
+      userDataReads++;
+      const authenticatedToken = scenario === "different-session-token" ? OTHER_SESSION_TOKEN : TOKEN;
+      res.writeHead(req.headers.authorization === `Bearer ${authenticatedToken}` ? 200 : 401,
         { "content-type": "application/json" }).end("{}");
       return;
     }
@@ -176,11 +183,11 @@ async function exercise(scenario: Scenario, assert: (result: {
     });
     const output = write.mock.lastCall?.[0] ?? "";
     const error = writeError.mock.lastCall?.[0] ?? "";
-    for (const secret of [CODE, TOKEN, MACHINE_TOKEN, PASSWORD, USERNAME, DOM_CANARY]) {
+    for (const secret of [CODE, TOKEN, OTHER_SESSION_TOKEN, MACHINE_TOKEN, PASSWORD, USERNAME, DOM_CANARY]) {
       expect(output + error).not.toContain(secret);
     }
     expect(scheduleCleanup).toHaveBeenCalledTimes(status === 0 ? 1 : 0);
-    await assert({ status, output, error, remaining: await readdir(root), grants, otpFetches, foreignSubmissions, appOrigin: app.origin });
+    await assert({ status, output, error, remaining: await readdir(root), grants, otpFetches, foreignSubmissions, userDataReads, appOrigin: app.origin });
   } finally {
     await Promise.all([app.close(), foreign.close(), rm(root, { recursive: true, force: true })]);
   }
@@ -188,13 +195,14 @@ async function exercise(scenario: Scenario, assert: (result: {
 
 describe("verified ORISO Dev App-TOTP session", () => {
   it.each(["cookie", "legacy-storage"] as const)("restores the session issued for the accepted code (%s)", async (scenario) => {
-    await exercise(scenario, async ({ status, output, error, grants, otpFetches, appOrigin }) => {
+    await exercise(scenario, async ({ status, output, error, grants, otpFetches, userDataReads, appOrigin }) => {
       expect(status, error).toBe(0);
       const session = JSON.parse(output);
       expect(session).toEqual({ accountId: ACCOUNT_ID, secondFactor: "app-totp",
         storageState: expect.any(String), expiresAt: "2026-11-07T19:15:00.000Z" });
       expect((await stat(session.storageState)).mode & 0o777).toBe(0o600);
       expect(otpFetches).toBe(1);
+      expect(userDataReads).toBe(1);
       expect(grants).toEqual(scenario === "legacy-storage" ? [
         { username: USERNAME, otp: null },
         { username: LEGACY_USERNAME, otp: null },
@@ -220,10 +228,11 @@ describe("verified ORISO Dev App-TOTP session", () => {
     ["rejected", 2, 1],
     ["wrong-code", 2, 1],
     ["unbound-state", 2, 1],
+    ["different-session-token", 2, 1],
     ["foreign-login", 0, 0],
     ["foreign-challenge", 1, 1]
   ] as const)("keeps proof and state private when %s", async (scenario, grantCount, expectedOtpFetches) => {
-    await exercise(scenario, ({ status, output, error, remaining, grants, otpFetches, foreignSubmissions }) => {
+    await exercise(scenario, ({ status, output, error, remaining, grants, otpFetches, foreignSubmissions, userDataReads }) => {
       expect(status).toBe(1);
       expect(output).toBe("");
       expect(error).toMatch(/^The |^Test Access /);
@@ -231,6 +240,7 @@ describe("verified ORISO Dev App-TOTP session", () => {
       expect(grants).toHaveLength(grantCount);
       expect(otpFetches).toBe(expectedOtpFetches);
       expect(foreignSubmissions).toBe(0);
+      if (scenario === "different-session-token") expect(userDataReads).toBe(0);
     });
   }, 30_000);
 

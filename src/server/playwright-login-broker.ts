@@ -7,7 +7,7 @@ import { resolveBrowserProxy, type BrowserProxy } from "./browser-proxy.js";
 import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
 import { encodeOrisoUsername } from "./oriso-identity-observation.js";
 
-import type { BrowserContext, Locator, Page, Response as BrowserResponse } from "@playwright/test";
+import type { BrowserContext, Locator, Page, Request as BrowserRequest, Response as BrowserResponse, Route } from "@playwright/test";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
 const FIELD_TIMEOUT_MS = 20_000;
@@ -411,14 +411,13 @@ async function verifyAppTotp(
   const tokenUrl = new URL(ORISO_TOKEN_PATH, origin).href;
   const userDataUrl = new URL("/service/users/data", origin).href;
   const usernames = [request.username, encodeOrisoUsername(request.username)];
-  const isMainFrameRequest = (response: BrowserResponse, url: string, method: string) => {
-    const request = response.request();
+  const isMainFrameRequest = (request: BrowserRequest, url: string, method: string) => {
     return request.url() === url && request.method() === method && !request.redirectedFrom()
       && !request.serviceWorker() && request.frame() === page.mainFrame();
   };
   const passwordGrant = (response: BrowserResponse, expectedUsernames: string[]) => {
     const grant = response.request();
-    if (!isMainFrameRequest(response, tokenUrl, "POST")
+    if (!isMainFrameRequest(grant, tokenUrl, "POST")
       || grant.headers()["content-type"]?.split(";")[0].trim() !== "application/x-www-form-urlencoded") return null;
     const form = new URLSearchParams(grant.postData() ?? "");
     const fieldMatches = (name: string, expected: string) => form.getAll(name).length === 1 && form.get(name) === expected;
@@ -452,32 +451,60 @@ async function verifyAppTotp(
   const verifyAcceptance = page.waitForResponse((response) => {
     const grant = passwordGrant(response, [challengedUsername]);
     return response.status() !== 401 && grant !== null && grant.has("otp");
-  }, { timeout: FIELD_TIMEOUT_MS }).then((accepted) => {
+  }, { timeout: FIELD_TIMEOUT_MS }).then(async (accepted) => {
     const sent = passwordGrant(accepted, [challengedUsername])?.getAll("otp");
     if (accepted.status() !== 200 || sent?.length !== 1 || sent[0] !== code) {
       throw new AppTotpVerificationError("The ORISO Dev password grant did not accept the verified App-TOTP code");
     }
     acceptedOtp = true;
+    // Read the body before navigation can discard it. Keep the readback listener active.
+    const grantBody = await accepted.json().catch(() => null);
+    return grantBody?.access_token;
   });
   // Observe the app's protected user-data call after the successful grant.
-  // Its request headers survive the app navigation and bind the saved state
-  // to the token that actually opened this signed-in session.
+  // Its bearer must be the access token issued for this exact App-TOTP code.
   const readAuthenticatedToken = page.waitForResponse(
-    (response) => acceptedOtp && isMainFrameRequest(response, userDataUrl, "GET"),
+    (response) => acceptedOtp && isMainFrameRequest(response.request(), userDataUrl, "GET"),
     { timeout: FIELD_TIMEOUT_MS }
   ).then(async (response) => {
-    const authorization = (await response.request().allHeaders()).authorization;
-    if (response.status() !== 200 || !authorization?.startsWith("Bearer ") || authorization.length <= 7) {
-      throw new AppTotpVerificationError("ORISO Dev did not confirm the authenticated app session");
+    const authorization = response.status() === 200
+      ? (await response.request().allHeaders()).authorization
+      : undefined;
+    if (!authorization?.startsWith("Bearer ") || authorization.length <= 7) {
+      throw new AppTotpVerificationError("The ORISO Dev user-data read did not confirm the authenticated app session");
     }
     return authorization.slice(7);
   });
-  const [, token] = await Promise.all([
-    verifyAcceptance,
-    readAuthenticatedToken,
-    submit.click({ timeout: FIELD_TIMEOUT_MS })
-  ]);
-  return token;
+  // The app awaits this read before navigating. Hold it until the grant body
+  // is available, then release only the original request with the issued token.
+  const bindReadback = async (route: Route) => {
+    const readback = route.request();
+    if (!isMainFrameRequest(readback, userDataUrl, "GET")) {
+      await route.fallback();
+      return;
+    }
+    const issuedToken: unknown = await verifyAcceptance.catch(() => undefined);
+    const authorization = (await readback.allHeaders()).authorization;
+    if (typeof issuedToken !== "string" || !issuedToken || authorization !== `Bearer ${issuedToken}`) {
+      await route.fulfill({ status: 403, json: {} });
+      return;
+    }
+    await route.continue();
+  };
+  await page.route(userDataUrl, bindReadback);
+  try {
+    const [issuedToken, token] = await Promise.all([
+      verifyAcceptance,
+      readAuthenticatedToken,
+      submit.click({ timeout: FIELD_TIMEOUT_MS })
+    ]);
+    if (issuedToken !== token) {
+      throw new AppTotpVerificationError("The ORISO Dev authenticated readback did not use the accepted App-TOTP grant");
+    }
+    return token;
+  } finally {
+    await page.unroute(userDataUrl, bindReadback);
+  }
 }
 
 function isOrisoAppPage(url: URL, origin: string) {
