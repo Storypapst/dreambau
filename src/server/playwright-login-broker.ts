@@ -491,20 +491,18 @@ async function verifyAppTotp(
     }
     await route.continue();
   };
+  // The private context closes on every exit. Unrouting here could resume a
+  // paused request before its bearer has been checked.
   await page.route(userDataUrl, bindReadback);
-  try {
-    const [issuedToken, token] = await Promise.all([
-      verifyAcceptance,
-      readAuthenticatedToken,
-      submit.click({ timeout: FIELD_TIMEOUT_MS })
-    ]);
-    if (issuedToken !== token) {
-      throw new AppTotpVerificationError("The ORISO Dev authenticated readback did not use the accepted App-TOTP grant");
-    }
-    return token;
-  } finally {
-    await page.unroute(userDataUrl, bindReadback);
+  const [issuedToken, token] = await Promise.all([
+    verifyAcceptance,
+    readAuthenticatedToken,
+    submit.click({ timeout: FIELD_TIMEOUT_MS })
+  ]);
+  if (issuedToken !== token) {
+    throw new AppTotpVerificationError("The ORISO Dev authenticated readback did not use the accepted App-TOTP grant");
   }
+  return token;
 }
 
 function isOrisoAppPage(url: URL, origin: string) {
