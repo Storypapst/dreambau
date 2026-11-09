@@ -180,6 +180,27 @@ describe("test-access CLI", () => {
     expect(writeError).toHaveBeenCalledWith(expect.stringContaining("--require-app-totp"));
   });
 
+  it.each([["session", "open"], ["playwright-login"]])("requires Pre-Dev App-TOTP to select one Matrix device through %j", async (...command) => {
+    const broker = vi.fn(async () => 0);
+    const dependencies = {
+      baseUrl: "https://dreambau.com/testmails/api/v1", identity: "agent-fixture",
+      readKeychainToken: () => "synthetic-token", fetch: vi.fn<typeof globalThis.fetch>(),
+      write: vi.fn(), writeError: vi.fn(), playwrightLoginBroker: broker
+    };
+    const prefix = [...command, "oriso/pre-dev/fixture"];
+    const factor = "--require-predev-app-totp";
+    const device = "--require-predev-matrix-device=ORISO_WEB_FIXTURE";
+    expect(await runTestAccessCommand([...prefix, factor, device], dependencies)).toBe(0);
+    expect(broker).toHaveBeenCalledExactlyOnceWith("oriso/pre-dev/fixture", expect.objectContaining({
+      requireAppTotp: "pre-dev", preDevMatrixDevice: "ORISO_WEB_FIXTURE"
+    }));
+    for (const options of [[device], ["--require-app-totp", device], [factor, device, device],
+      [factor, "--require-predev-matrix-device=../bad"], [factor, "--require-predev-matrix-device="]]) {
+      expect(await runTestAccessCommand([...prefix, ...options], dependencies)).toBe(1);
+    }
+    expect(broker).toHaveBeenCalledTimes(1);
+  });
+
   it("builds list, get, OTP, mail and env URLs without embedding a token", () => {
     const baseUrl = "https://dreambau.com/testmails/api/v1";
     expect(buildApiRequest(["list", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({

@@ -11,6 +11,7 @@ import {
 import { runTestRunCli } from "./test-run-cli.js";
 import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
 import { runTestAccessRenew, type RenewalOperatorRequest } from "./test-access-renew.js";
+import { isPreDevMatrixDeviceId } from "./predev-matrix-device.js";
 
 type OutputMode = "json" | "secret" | "otp" | "env";
 
@@ -119,10 +120,14 @@ interface CliDependencies extends MachineAuthOptions {
   writeError?: (value: string) => void;
   readTotpSecret?: () => Promise<string>;
   playwrightLoginBroker?: typeof runPlaywrightLoginBroker;
+  preDevMatrixStateRoot?: string;
   renewOperatorRequest?: RenewalOperatorRequest;
 }
 
-const BROWSER_SESSION_OPTIONS = "[--require-app-totp | --require-predev-app-totp]";
+const DEV_FACTOR_SWITCH = "--require-app-totp";
+const PREDEV_FACTOR_SWITCH = "--require-predev-app-totp";
+const MATRIX_DEVICE_SWITCH = "--require-predev-matrix-device=";
+const BROWSER_SESSION_OPTIONS = "[" + DEV_FACTOR_SWITCH + " | " + PREDEV_FACTOR_SWITCH + " [" + MATRIX_DEVICE_SWITCH + "<id>]]";
 
 export async function runTestAccessCommand(args: string[], dependencies: CliDependencies) {
   if (["help", "--help", "-h"].includes(args[0])) {
@@ -131,6 +136,7 @@ export async function runTestAccessCommand(args: string[], dependencies: CliDepe
 Browser session: session open <account-id> ${BROWSER_SESSION_OPTIONS}
 Alias: playwright-login <account-id> ${BROWSER_SESSION_OPTIONS}
 Use --require-app-totp for ORISO Dev and --require-predev-app-totp for ORISO Pre-Dev.
+The Pre-Dev Matrix device switch needs TEST_ACCESS_PREDEV_MATRIX_STATE_ROOT and one approved private snapshot.
 Private OTP lookup: otp <account-id> --source totp [--json]
 
 Operator renewal: renew --operator-host <SSH host> [--days 1..90] [--dry-run]
@@ -153,15 +159,18 @@ network-proxy permits only https://dreambau.com/testmails/api/v1.
   const isSessionOpen = args[0] === "session" && args[1] === "open";
   if (args[0] === "playwright-login" || isSessionOpen) {
     const [accountId = "", ...options] = args.slice(isSessionOpen ? 2 : 1);
-    const [option] = options;
-    if (accountId.startsWith("--") || options.length > 1
-      || (options.length === 1 && option !== "--require-app-totp" && option !== "--require-predev-app-totp")) {
+    const factor = options.find(option => option === DEV_FACTOR_SWITCH || option === PREDEV_FACTOR_SWITCH);
+    const matrix = options.find(option => option.startsWith(MATRIX_DEVICE_SWITCH));
+    const device = matrix?.slice(MATRIX_DEVICE_SWITCH.length);
+    if (accountId.startsWith("--") || options.length !== Number(Boolean(factor)) + Number(Boolean(matrix))
+      || (matrix && (factor !== PREDEV_FACTOR_SWITCH || !isPreDevMatrixDeviceId(device)))) {
       const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
       writeError(`usage: test-access session open <account-id> ${BROWSER_SESSION_OPTIONS}\n`);
       return 1;
     }
-    const brokerDependencies: BrokerDependencies = options.length
-      ? { ...dependencies, requireAppTotp: option === "--require-predev-app-totp" ? "pre-dev" : true }
+    const brokerDependencies: BrokerDependencies = factor
+      ? { ...dependencies, requireAppTotp: factor === PREDEV_FACTOR_SWITCH ? "pre-dev" : true,
+        ...(device ? { preDevMatrixDevice: device } : {}) }
       : dependencies;
     return (dependencies.playwrightLoginBroker ?? runPlaywrightLoginBroker)(accountId, brokerDependencies);
   }
@@ -296,6 +305,7 @@ async function main() {
     identity,
     authMode: process.env.TEST_ACCESS_AUTH_MODE,
     browserProxyMode: process.env.DREAMBAU_BROWSER_PROXY,
+    preDevMatrixStateRoot: process.env.TEST_ACCESS_PREDEV_MATRIX_STATE_ROOT,
     proxyUrl: process.env.HTTPS_PROXY,
     readKeychainToken: readTestAccessCredential,
     fetch,
