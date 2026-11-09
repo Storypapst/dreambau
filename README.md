@@ -489,6 +489,48 @@ Katalogeintrag für Ratsuchende oder Beratende. Nach der Anmeldung gleicht der
 Broker die Identität und Rolle mit dem UserService ab und wartet auf den
 passenden App-Bereich, bevor er den Sitzungspfad ausgibt.
 
+Für einen Vorabcheck mit lesenden UserService-Aufrufen gibt es einen eigenen
+Modus.
+
+```bash
+test-access session open <oriso-pre-dev-account-id> --require-predev-app-totp --predev-app-only
+```
+
+Dieser Modus sperrt Matrix und WebSockets bereits im Login-Browser. Die
+Quittung enthält zusätzlich `sessionKind: "app-only"`. Der private Zustand
+enthält den bestätigten App-Grant und lässt Matrix-Schlüssel und IndexedDB
+weg. Für die weitere Nutzung bleiben lesende UserService-Aufrufe oder ein
+entsprechend isolierter Browser erforderlich. Die Freigabe für ein
+Matrix-Gerät bleibt für den eigentlichen Medien- oder Nachrichtenlauf verfügbar.
+
+Der private J08-Lauf kann zusätzlich ein bereits freigegebenes Matrix-Gerät
+für genau diesen Pre-Dev-Katalogeintrag übernehmen.
+
+```bash
+test-access session open <oriso-pre-dev-account-id> --require-predev-app-totp --require-predev-matrix-device=<id>
+```
+
+Der Runner setzt `TEST_ACCESS_PREDEV_MATRIX_STATE_ROOT` auf das kanonische
+absolute Verzeichnis des privaten Device-Providers. Der Runner besitzt das
+Verzeichnis mit Modus `0700`. Der Provider stellt den freigegebenen Zustand
+unter `<sha256(accountId + "\n" + deviceId)>.json` als reguläre, einfach
+verlinkte Datei mit Modus `0600` bereit. Das JSON enthält `version: 1`,
+`accountId` und `storageState`. Der Storage-State enthält leere `cookies`,
+genau den Ursprung `https://predev.oriso.org` und die Felder
+`matrix_access_token`, `matrix_user_id`, `matrix_device_id`,
+`matrix_session_subject` und `matrix_token_expires_at`. Optional ist die exakte
+`matrix_device_id:<Matrix-Benutzer>`. Der IndexedDB-Kryptospeicher gehört
+zum freigegebenen Gerät. Zustand und Token bleiben im privaten
+Laufzeit-Provider. Der Broker behält den ursprünglichen Matrix-Tokenablauf bei.
+
+Während der frischen App-TOTP-Anmeldung bleiben Matrix-Endpunkte gesperrt.
+Der Broker prüft den Matrix-Benutzer und das Gerät über `whoami` und verknüpft
+den Zustand mit dem bestätigten Produkt-Subjekt. Vor der Ausgabe der
+privaten Sitzung reserviert er das Gerät atomar. Das gleiche dauerhafte
+Verzeichnis muss für alle Worker verfügbar sein. Ab der Reservierung gilt
+der Gerätezustand auch bei einem Abbruch als verbraucht. Wiederholte Läufe
+mit demselben Gerät brauchen ein exklusives, fortgeschriebenes Profil.
+
 Ein privater Runner kann den kontogebundenen App-TOTP-Code auch direkt
 abrufen. Die CLI prüft Konto, Quelle und Zeitstempel der Antwort.
 
