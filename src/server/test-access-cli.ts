@@ -122,13 +122,15 @@ interface CliDependencies extends MachineAuthOptions {
   renewOperatorRequest?: RenewalOperatorRequest;
 }
 
+const BROWSER_SESSION_OPTIONS = "[--require-app-totp | --require-predev-app-totp]";
+
 export async function runTestAccessCommand(args: string[], dependencies: CliDependencies) {
   if (["help", "--help", "-h"].includes(args[0])) {
     dependencies.write(`usage: test-access <list|lookup|get|enroll-totp|otp|mail|env|doctor|sync|session open|run|renew> ...
 
-Browser session: session open <account-id> [--require-app-totp]
-Alias: playwright-login <account-id> [--require-app-totp]
-App-TOTP verification is available for the canonical ORISO Dev counselling app.
+Browser session: session open <account-id> ${BROWSER_SESSION_OPTIONS}
+Alias: playwright-login <account-id> ${BROWSER_SESSION_OPTIONS}
+Use --require-app-totp for ORISO Dev and --require-predev-app-totp for ORISO Pre-Dev.
 Private OTP lookup: otp <account-id> --source totp [--json]
 
 Operator renewal: renew --operator-host <SSH host> [--days 1..90] [--dry-run]
@@ -151,13 +153,16 @@ network-proxy permits only https://dreambau.com/testmails/api/v1.
   const isSessionOpen = args[0] === "session" && args[1] === "open";
   if (args[0] === "playwright-login" || isSessionOpen) {
     const [accountId = "", ...options] = args.slice(isSessionOpen ? 2 : 1);
-    if (accountId.startsWith("--") || (options.length > 0
-      && (options.length !== 1 || options[0] !== "--require-app-totp"))) {
+    const [option] = options;
+    if (accountId.startsWith("--") || options.length > 1
+      || (options.length === 1 && option !== "--require-app-totp" && option !== "--require-predev-app-totp")) {
       const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
-      writeError("usage: test-access session open <account-id> [--require-app-totp]\n");
+      writeError(`usage: test-access session open <account-id> ${BROWSER_SESSION_OPTIONS}\n`);
       return 1;
     }
-    const brokerDependencies: BrokerDependencies = options.length ? { ...dependencies, requireAppTotp: true } : dependencies;
+    const brokerDependencies: BrokerDependencies = options.length
+      ? { ...dependencies, requireAppTotp: option === "--require-predev-app-totp" ? "pre-dev" : true }
+      : dependencies;
     return (dependencies.playwrightLoginBroker ?? runPlaywrightLoginBroker)(accountId, brokerDependencies);
   }
   return runTestAccessCli(args, dependencies);

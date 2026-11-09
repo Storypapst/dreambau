@@ -20,12 +20,14 @@ const OTP_CHALLENGE_GRACE_MS = 6_000;
 const AUTH_STATE_TIMEOUT_MS = 10_000;
 const TOTP_SAFETY_MARGIN_MS = 8_000;
 const TEST_ACCESS_GATEWAY = "https://dreambau.com/testmails/api/v1";
-const ORISO_DEV_ORIGIN = "https://dev.oriso.org";
+const ORISO_APP_ORIGINS = { dev: "https://dev.oriso.org", "pre-dev": "https://predev.oriso.org" };
 const ORISO_LOGIN_PATHS = ["/", "/login", "/login/"];
 const ORISO_TOKEN_PATH = "/auth/realms/online-beratung/protocol/openid-connect/token";
 const APP_TOTP = "app-totp";
 
 class AppTotpVerificationError extends Error {}
+
+type PreDevRole = "user" | "consultant";
 
 interface AccountMetadata {
   id: string;
@@ -33,6 +35,9 @@ interface AccountMetadata {
   environment: string;
   username: string;
   loginUrl: string;
+  kind?: string;
+  provisioningStatus?: string;
+  roles?: string[];
 }
 
 export interface BrowserLoginRequest {
@@ -43,6 +48,7 @@ export interface BrowserLoginRequest {
   statePath: string;
   ignoreHTTPSErrors: boolean;
   requireAppTotp?: boolean;
+  preDevRole?: PreDevRole;
   getOtp: () => Promise<string>;
   requiredAuthState?: {
     cookieNames: string[];
@@ -81,7 +87,7 @@ export interface BrokerDependencies extends MachineAuthOptions {
   identity: string;
   readKeychainToken: (identity: string) => string;
   fetch: typeof fetch;
-  requireAppTotp?: boolean;
+  requireAppTotp?: boolean | "pre-dev";
   login?: (request: BrowserLoginRequest) => Promise<void | typeof APP_TOTP>;
   stateRoot?: string;
   write: (value: string) => void;
@@ -379,6 +385,17 @@ async function waitForChatUnlock(
   }
 }
 
+function readyPreDevRole(account: AccountMetadata): PreDevRole {
+  if (account.kind === "app-user" && account.provisioningStatus === "ready"
+    && typeof account.username === "string" && account.username.trim()
+    && Array.isArray(account.roles) && account.roles.length === 1) {
+    const [role] = account.roles;
+    if (role === "consultant") return role;
+    if (role === "asker" || role === "user") return "user";
+  }
+  throw new AppTotpVerificationError("The catalog account must be a ready Pre-Dev asker or consultant");
+}
+
 function isOrisoLoginPage(url: URL, origin: string) {
   return url.origin === origin && ORISO_LOGIN_PATHS.includes(url.pathname)
     && !url.username && !url.password && !url.search && !url.hash;
@@ -389,13 +406,13 @@ async function fillLoginField(field: Locator, value: string, privateOrigin?: str
   // A locator can resolve again after a redirect. Bind the write to the
   // checked document so navigation cannot move a credential into another page.
   const element = await field.elementHandle({ timeout: timeout ?? FIELD_TIMEOUT_MS });
-  if (!element) throw new AppTotpVerificationError("The ORISO Dev login field is missing");
+  if (!element) throw new AppTotpVerificationError("The ORISO counselling app login field is missing");
   try {
     const approved = await element.evaluate((input, { origin, paths }) => {
       const url = new URL(input.ownerDocument.URL);
       return url.origin === origin && paths.includes(url.pathname) && !url.search && !url.hash;
     }, { origin: privateOrigin, paths: ORISO_LOGIN_PATHS });
-    if (!approved) throw new AppTotpVerificationError("The ORISO Dev login page changed before entering a credential");
+    if (!approved) throw new AppTotpVerificationError("The ORISO counselling app login page changed before entering a credential");
     await element.fill(value, { timeout: timeout ?? FIELD_TIMEOUT_MS });
   } finally {
     await element.dispose();
@@ -437,11 +454,11 @@ async function verifyAppTotp(
   const challengeBody = challenge.status() === 400 ? await challenge.json().catch(() => null) : null;
   const challengedUsername = passwordGrant(challenge, usernames)?.get("username");
   if (challengeBody?.error !== "invalid_grant" || challengeBody.otpType !== "APP" || !challengedUsername) {
-    throw new AppTotpVerificationError("The ORISO Dev password grant did not require App-TOTP");
+    throw new AppTotpVerificationError("The ORISO counselling app password grant did not require App-TOTP");
   }
 
   if (!isOrisoLoginPage(new URL(page.url()), origin)) {
-    throw new AppTotpVerificationError("The ORISO Dev login page changed before the App-TOTP challenge");
+    throw new AppTotpVerificationError("The ORISO counselling app login page changed before the App-TOTP challenge");
   }
   const otp = await resolveVisible(otpCandidates(page), "otp");
   const code = await request.getOtp();
@@ -454,7 +471,7 @@ async function verifyAppTotp(
   }, { timeout: FIELD_TIMEOUT_MS }).then(async (accepted) => {
     const sent = passwordGrant(accepted, [challengedUsername])?.getAll("otp");
     if (accepted.status() !== 200 || sent?.length !== 1 || sent[0] !== code) {
-      throw new AppTotpVerificationError("The ORISO Dev password grant did not accept the verified App-TOTP code");
+      throw new AppTotpVerificationError("The ORISO counselling app password grant did not accept the verified App-TOTP code");
     }
     acceptedOtp = true;
     // Read the body before navigation can discard it. Keep the readback listener active.
@@ -471,7 +488,7 @@ async function verifyAppTotp(
       ? (await response.request().allHeaders()).authorization
       : undefined;
     if (!authorization?.startsWith("Bearer ") || authorization.length <= 7) {
-      throw new AppTotpVerificationError("The ORISO Dev user-data read did not confirm the authenticated app session");
+      throw new AppTotpVerificationError("The ORISO counselling app user-data read did not confirm the authenticated app session");
     }
     return authorization.slice(7);
   });
@@ -500,13 +517,45 @@ async function verifyAppTotp(
     submit.click({ timeout: FIELD_TIMEOUT_MS })
   ]);
   if (issuedToken !== token) {
-    throw new AppTotpVerificationError("The ORISO Dev authenticated readback did not use the accepted App-TOTP grant");
+    throw new AppTotpVerificationError("The ORISO counselling app authenticated readback did not use the accepted App-TOTP grant");
   }
+  if (request.preDevRole) await verifyPreDevActor(page, userDataUrl, token, request.username, request.preDevRole);
   return token;
 }
 
-function isOrisoAppPage(url: URL, origin: string) {
-  return url.origin === origin && ORISO_CHAT_UNLOCK_WAIT.appPath.test(url.pathname);
+async function verifyPreDevActor(page: Page, userDataUrl: string, token: string, username: string, role: PreDevRole) {
+  // The native user-data read already established that UserService accepts this bearer.
+  // The independent role read reuses that same accepted grant.
+  const response = await page.request.get(userDataUrl, {
+    headers: { authorization: `Bearer ${token}` },
+    maxRedirects: 0,
+    maxRetries: 0,
+    timeout: FIELD_TIMEOUT_MS
+  }).catch(() => undefined);
+  try {
+    const data = response?.status() === 200 ? await response.json() : null;
+    const parts = token.split(".");
+    const subject = parts.length === 3
+      ? JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"))?.sub : undefined;
+    const authority = role === "consultant" ? "AUTHORIZATION_CONSULTANT_DEFAULT" : "AUTHORIZATION_USER_DEFAULT";
+    if (typeof subject === "string" && subject && data?.userId === subject && typeof data.userName === "string"
+      && (data.userName === username || data.userName === encodeOrisoUsername(username)
+        || encodeOrisoUsername(data.userName) === username)
+      && Array.isArray(data.userRoles) && data.userRoles.includes(role)
+      && Array.isArray(data.grantedAuthorities) && data.grantedAuthorities.includes(authority)) return;
+  } catch {
+    // Only the verification outcome leaves the private broker.
+  } finally {
+    await response?.dispose();
+  }
+  throw new AppTotpVerificationError("The ORISO Pre-Dev user-data read did not confirm the catalogued account and role");
+}
+
+function isOrisoAppPage(url: URL, origin: string, preDevRole?: PreDevRole) {
+  if (url.origin !== origin) return false;
+  if (!preDevRole) return ORISO_CHAT_UNLOCK_WAIT.appPath.test(url.pathname);
+  const rolePath = `/sessions/${preDevRole}`;
+  return url.pathname === rolePath || url.pathname.startsWith(rolePath + "/");
 }
 
 async function saveVerifiedAppState(page: Page, request: BrowserLoginRequest, origin: string, token: string) {
@@ -516,8 +565,8 @@ async function saveVerifiedAppState(page: Page, request: BrowserLoginRequest, or
     item.name === "keycloak" && item.domain === hostname && item.path === "/" && item.value === token);
   const fallback = state.origins.find((item) => item.origin === origin)?.localStorage
     .some((item) => item.name === "auth.keycloak" && item.value === token);
-  if ((!cookie && !fallback) || !isOrisoAppPage(new URL(page.url()), origin)) {
-    throw new AppTotpVerificationError("The verified ORISO Dev App-TOTP session could not be restored");
+  if ((!cookie && !fallback) || !isOrisoAppPage(new URL(page.url()), origin, request.preDevRole)) {
+    throw new AppTotpVerificationError("The verified ORISO App-TOTP session could not be restored");
   }
   await writeFile(request.statePath, JSON.stringify(state), { mode: 0o600, flag: "wx" });
 }
@@ -553,7 +602,7 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     const privateOrigin = request.requireAppTotp ? applicationOrigin : undefined;
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
     if (privateOrigin && !isOrisoLoginPage(new URL(page.url()), privateOrigin)) {
-      throw new AppTotpVerificationError("The ORISO Dev catalog login did not open the approved app page");
+      throw new AppTotpVerificationError("The ORISO catalog login did not open the approved counselling app page");
     }
     const usernameField = await resolveVisible(usernameCandidates(page), "username");
     await fillLoginField(usernameField, request.username, privateOrigin);
@@ -595,7 +644,7 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     );
     if (privateOrigin) {
       const token = await verifyAppTotp(page, request, privateOrigin, submitPassword);
-      await page.waitForURL((url) => isOrisoAppPage(url, privateOrigin),
+      await page.waitForURL((url) => isOrisoAppPage(url, privateOrigin, request.preDevRole),
         { waitUntil: "domcontentloaded", timeout: FIELD_TIMEOUT_MS });
       if (request.awaitChatUnlock && matrix) await waitForChatUnlock(page, request.awaitChatUnlock, matrix);
       await saveVerifiedAppState(page, request, privateOrigin, token);
@@ -682,7 +731,9 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
 export async function runPlaywrightLoginBroker(accountId: string, dependencies: BrokerDependencies) {
   const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
   const secrets: string[] = [];
-  const requireAppTotp = dependencies.requireAppTotp === true;
+  const preDevAppTotp = dependencies.requireAppTotp === "pre-dev";
+  const requireAppTotp = preDevAppTotp || dependencies.requireAppTotp === true;
+  const totpEnvironment = preDevAppTotp ? "pre-dev" : "dev";
   let stateDirectory: string | undefined;
   try {
     if (!dependencies.identity) throw new Error("TEST_ACCESS_IDENTITY or --identity is required");
@@ -690,8 +741,9 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const baseUrl = dependencies.baseUrl.replace(/\/$/, "");
     const scope = accountScope(accountId);
     if (requireAppTotp) {
-      if (!/^oriso\/dev\/[^/]+$/.test(accountId) || baseUrl !== TEST_ACCESS_GATEWAY) {
-        throw new AppTotpVerificationError("App-TOTP verification requires a scoped ORISO Dev account and the Test Access gateway");
+      if (scope.project !== "oriso" || scope.environment !== totpEnvironment
+        || !/^oriso\/[^/]+\/[^/]+$/.test(accountId) || baseUrl !== TEST_ACCESS_GATEWAY) {
+        throw new AppTotpVerificationError(`App-TOTP verification requires a scoped ORISO ${totpEnvironment} account and the Test Access gateway`);
       }
       if (process.env.DEBUG || process.env.PWDEBUG || process.env.NODE_DEBUG) {
         throw new AppTotpVerificationError("Disable browser and network debugging for App-TOTP verification");
@@ -706,9 +758,13 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
     if (requireAppTotp && (account.project !== scope.project || account.environment !== scope.environment
-      || !isOrisoLoginPage(new URL(account.loginUrl), ORISO_DEV_ORIGIN))) {
-      throw new AppTotpVerificationError("The catalog account does not use the canonical ORISO Dev counselling app");
+      || !isOrisoLoginPage(new URL(account.loginUrl), ORISO_APP_ORIGINS[totpEnvironment]))) {
+      throw new AppTotpVerificationError("The catalog account does not use the canonical ORISO counselling app for this environment");
     }
+    if (preDevAppTotp && records.filter((candidate) => candidate.id === accountId).length !== 1) {
+      throw new AppTotpVerificationError("The Test Access catalog did not identify a unique Pre-Dev account");
+    }
+    const preDevRole = preDevAppTotp ? readyPreDevRole(account) : undefined;
     secrets.push(account.username);
 
     const encoded = encodeURIComponent(accountId);
@@ -754,8 +810,9 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       password,
       loginUrl: account.loginUrl,
       statePath,
-      ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
+      ignoreHTTPSErrors: !requireAppTotp && (account.environment === "local" || account.environment === "pre-dev"),
       ...(requireAppTotp ? { requireAppTotp } : {}),
+      ...(preDevRole ? { preDevRole } : {}),
       getOtp,
       requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined,
       awaitChatUnlock: account.project === "oriso" ? ORISO_CHAT_UNLOCK_WAIT : undefined
@@ -777,7 +834,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
   } catch (error) {
     if (requireAppTotp) {
       if (stateDirectory) await rm(stateDirectory, { recursive: true, force: true }).catch(() => {});
-      const message = error instanceof AppTotpVerificationError ? error.message : "The ORISO Dev App-TOTP login could not be verified";
+      const message = error instanceof AppTotpVerificationError ? error.message : "The ORISO App-TOTP login could not be verified";
       writeError(`${message}\n`);
     } else {
       writeError(`${redact(error, secrets)}\n`);

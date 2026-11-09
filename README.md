@@ -478,6 +478,17 @@ privaten Sitzungspfad mit `secondFactor: "app-totp"`. Dafür muss der Hub
 den angeforderten TOTP-Quellnachweis unterstützen. Der Modus braucht einen
 privaten Runner ohne Browser- oder Netzwerk-Debugausgaben.
 
+Für die Beratungs-App auf `https://predev.oriso.org` gilt ein eigener Schalter.
+
+```bash
+test-access session open <oriso-pre-dev-account-id> --require-predev-app-totp
+```
+
+Der Pre-Dev-Modus verlangt gültiges TLS und einen eindeutigen, bereiten
+Katalogeintrag für Ratsuchende oder Beratende. Nach der Anmeldung gleicht der
+Broker die Identität und Rolle mit dem UserService ab und wartet auf den
+passenden App-Bereich, bevor er den Sitzungspfad ausgibt.
+
 Ein privater Runner kann den kontogebundenen App-TOTP-Code auch direkt
 abrufen. Die CLI prüft Konto, Quelle und Zeitstempel der Antwort.
 

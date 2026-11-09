@@ -167,10 +167,16 @@ describe("test-access CLI", () => {
       playwrightLoginBroker: broker
     };
     const account = "oriso/dev/fixture";
+    const preDevAccount = "oriso/pre-dev/fixture";
     expect(await runTestAccessCommand([...command, account, "--require-app-totp"], dependencies)).toBe(0);
     expect(broker).toHaveBeenCalledWith(account, expect.objectContaining({ requireAppTotp: true }));
+    expect(await runTestAccessCommand([...command, preDevAccount, "--require-predev-app-totp"], dependencies)).toBe(0);
+    expect(broker).toHaveBeenCalledWith(preDevAccount, expect.objectContaining({ requireAppTotp: "pre-dev" }));
+    expect(await runTestAccessCommand(
+      [...command, preDevAccount, "--require-app-totp", "--require-predev-app-totp"], dependencies
+    )).toBe(1);
     expect(await runTestAccessCommand([...command, account, "--require-app-top"], dependencies)).toBe(1);
-    expect(broker).toHaveBeenCalledTimes(1);
+    expect(broker).toHaveBeenCalledTimes(2);
     expect(writeError).toHaveBeenCalledWith(expect.stringContaining("--require-app-totp"));
   });
 
