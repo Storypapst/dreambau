@@ -48,7 +48,8 @@ describe("selected-reference GitHub reader", () => {
     expect(result.status).toBe("partial"); expect(result.facts.boards).toEqual([]);
   });
   it("proves a published release contains the merge commit, not merely that a later release exists", async () => {
-    const f = setup({ "/repos/Storypapst/dreambau/pulls/12": pull,
+    const f = setup({ "/repos/Storypapst/dreambau/pulls/12": { ...pull, merge_commit_sha: undefined },
+      graphql: { data: { repository: { pullRequest: { mergeCommit: { oid: "a".repeat(40) } } } } },
       "/repos/Storypapst/dreambau/releases": [
         { tag_name: "v2", name: "Actual release", html_url: "https://github.com/Storypapst/dreambau/releases/tag/v2", published_at: "2026-11-07T11:00:00Z", draft: false },
         { tag_name: "unrelated", html_url: "https://github.com/Storypapst/dreambau/releases/tag/unrelated", published_at: "2026-11-07T12:00:00Z", draft: false }],

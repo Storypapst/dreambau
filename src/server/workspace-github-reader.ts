@@ -10,6 +10,8 @@ export function parseGithubReference(value: string): { fullName: string; kind: "
 }
 const githubUrl = z.string().url().refine(value => { const url = new URL(value); return url.protocol === "https:" && url.hostname === "github.com" && !url.username && !url.password && !url.search && !url.hash; });
 const coreSchema = z.object({ title: z.string().max(4096), state: z.enum(["open", "closed"]), draft: z.boolean().optional(), state_reason: z.string().max(100).nullable().optional(), merged_at: z.string().nullable().optional(), merge_commit_sha: z.string().nullable().optional(), pull_request: z.unknown().optional(), milestone: z.object({ title: z.string().max(200), html_url: githubUrl }).nullable().optional() });
+const commitOid = z.string().regex(/^[a-f\d]{40}$/i);
+const mergeCommitSchema = z.object({ data: z.object({ repository: z.object({ pullRequest: z.object({ mergeCommit: z.object({ oid: commitOid }).nullable() }) }) }) });
 const linkSchema = z.object({ url: githubUrl, repository: z.object({ nameWithOwner: z.string() }) });
 const linkedSchema = z.object({ nodes: z.array(linkSchema).max(20), pageInfo: z.object({ hasNextPage: z.boolean() }) });
 const namedOptions = z.array(z.object({ name: z.string().max(200) })).max(50);
@@ -65,17 +67,30 @@ export async function readWorkspaceGithubFacts(client: GithubTransport, repo: Wo
       if (items.pageInfo.hasNextPage || !item || !fieldValues(item.status).length || (board.releaseField && !item.release)) incomplete();
     } catch (error) { incomplete(error); }
   }
-  if (merged && /^[a-f\d]{40}$/i.test(core.merge_commit_sha ?? "")) {
+  if (merged) {
     try {
+      // The 2026-03-10 REST version no longer includes merge_commit_sha.
+      const legacyOid = commitOid.safeParse(core.merge_commit_sha);
+      let mergeOid = legacyOid.success ? legacyOid.data : undefined;
+      if (!mergeOid) {
+        const [owner, name] = repo.fullName.split("/");
+        const response = await client.request("/graphql", {
+          query: "query WorkspaceMergeCommit($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){mergeCommit{oid}}}}",
+          variables: { owner, name, number: reference.number },
+        }, budget);
+        mergeOid = mergeCommitSchema.parse(response.value).data.repository.pullRequest.mergeCommit?.oid;
+      }
+      if (!mergeOid) throw new GithubReadError("github_partial");
       const response = await client.request(`${root}/releases?per_page=5`, undefined, budget);
       const releases = z.array(z.object({ tag_name: z.string().min(1).max(200), name: z.string().nullable().optional(), html_url: githubUrl, published_at: z.string().nullable(), draft: z.boolean() })).max(5).parse(response.value);
       facts.releaseCoverage = response.next ? "partial" : "complete";
       for (const release of releases.filter(item => !item.draft && item.published_at)) {
-        const result = z.object({ status: z.string(), merge_base_commit: z.object({ sha: z.string() }) }).parse((await client.request(`${root}/compare/${core.merge_commit_sha}...${encodeURIComponent(release.tag_name)}`, undefined, budget)).value);
-        if ((result.status === "ahead" || result.status === "identical") && result.merge_base_commit.sha === core.merge_commit_sha) facts.publishedReleases.push({ tag: release.tag_name, title: release.name ?? release.tag_name, url: release.html_url, publishedAt: release.published_at! });
+        // Only page one includes the changed files; the ancestry fields are also on page two.
+        const result = z.object({ status: z.string(), merge_base_commit: z.object({ sha: z.string() }) }).parse((await client.request(`${root}/compare/${mergeOid}...${encodeURIComponent(release.tag_name)}?per_page=1&page=2`, undefined, budget)).value);
+        if ((result.status === "ahead" || result.status === "identical") && result.merge_base_commit.sha === mergeOid) facts.publishedReleases.push({ tag: release.tag_name, title: release.name ?? release.tag_name, url: release.html_url, publishedAt: release.published_at! });
       }
       if (response.next) incomplete();
     } catch (error) { facts.releaseCoverage = "partial"; incomplete(error); }
-  } else if (merged) incomplete();
+  }
   return { facts, status: partial ? "partial" : "ready", errorCode, retryAt };
 }
