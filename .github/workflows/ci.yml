@@ -34,11 +34,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The broker launches Chromium headlessly. Reuse system libraries from
-      # the hosted image when they work; install extras only if launch fails.
+      # The cloud doctor also checks for full Chromium. Reuse the hosted
+      # image libraries when they work; install extras only if launch fails.
       - name: Install Playwright Chromium
         run: |
-          npx playwright install --only-shell chromium
+          npx playwright install chromium
           check_chromium() {
             node --input-type=module -e 'import { chromium } from "playwright"; const browser = await chromium.launch({ headless: true }); await browser.close();'
           }
