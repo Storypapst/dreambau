@@ -22,15 +22,17 @@ describe("selected-reference GitHub reader", () => {
   it("reads actual GitHub checkmarks without projecting the issue body, code block, or secret text", async () => {
     const f = setup({ "/repos/Storypapst/dreambau/pulls/12": {
       title: "Fix", state: "open",
-      body: ["Internal description", "- [x] Open [the login page](https://example.test/login)", "  * [ ] Verify keyboard focus", "```md", "- [x] fake", "```", "<!--", "- [x] fake comment", "-->", "- [ ] password=super-secret-value"].join("\n")
+      body: ["Internal description", "- [x] Open [the login page](https://example.test/login)", "  * [ ] Verify keyboard focus", "```md", "- [x] fake", "```", "<!--", "- [x] fake comment", "-->", "- [ ] password=super-secret-value", "- [x] **password**: formatted-secret-value", "- [ ] `token`: formatted-token-value"].join("\n")
     } });
     const result = await readWorkspaceGithubFacts(f.client, repo, { kind: "pull-request", number: 12 });
-    expect(result.facts.taskList).toEqual({ total: 3, checked: 1, items: [
+    expect(result.facts.taskList).toEqual({ total: 5, checked: 2, items: [
       { label: "Open the login page", checked: true },
       { label: "Verify keyboard focus", checked: false },
+      { label: null, checked: false },
+      { label: null, checked: true },
       { label: null, checked: false }
     ] });
-    expect(JSON.stringify(result)).not.toMatch(/Internal description|super-secret-value|https:\/\/example.test|fake/);
+    expect(JSON.stringify(result)).not.toMatch(/Internal description|super-secret-value|formatted-secret-value|formatted-token-value|https:\/\/example.test|fake/);
   });
 
   it("parks all references on the installation when token minting is rate limited", async () => {

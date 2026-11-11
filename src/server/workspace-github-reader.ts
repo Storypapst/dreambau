@@ -42,9 +42,13 @@ function taskList(body: string | null | undefined): WorkspaceGithubFacts["taskLi
       if (done) checked++;
       if (items.length >= 12) return;
       const raw = item.text.split("\n", 1)[0];
-      const label = sensitiveTask.test(raw) ? null : raw
-        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/<[^>]*>/g, "")
-        .replace(/https?:\/\/\S+/gi, "").replace(/[\x00-\x1f\x7f]/g, " ").trim().slice(0, 180);
+      const plain = raw.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/<[^>]*>/g, "")
+        .replace(/[\x00-\x1f\x7f]/g, " ");
+      // Check both the original (for token prefixes/URLs) and visible Markdown
+      // text, so e.g. bold or inline-code credential keys cannot hide an assignment.
+      const normalized = plain.replace(/[`*_~\\]/g, "").replace(/&(?:colon|#0*58|#x0*3a);/gi, ":");
+      const label = sensitiveTask.test(raw) || sensitiveTask.test(normalized) ? null
+        : plain.replace(/https?:\/\/\S+/gi, "").trim().slice(0, 180);
       items.push({ checked: done, label: label || null });
     });
   } catch { return undefined; }
