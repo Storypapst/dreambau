@@ -165,6 +165,7 @@ const tagsHTML = e => (e.tags.length ? `<ul class="tags" aria-label="Tags">${e.t
 const linksHTML = e => `<div class="lks">${e.links.length ? e.links.map(l => l.href ? `<a class="lk" href="${esc(l.href)}">${esc(l.u)}</a>` : `<span class="lk none" dir="ltr">${esc(l.u)} · nicht geprüft</span>`).join('') : `<span class="lk none">${esc(L('linkPending'))}</span>`}</div>`;
 const sameHTML = e => (e.same ? `<a class="same" href="#${e.same}">${esc(L('same'))}</a>` : '');
 function viewHTML(e, o = {}) {
+  if(e.story) return e.story;
   const cur = e.sec === 'cur', rgb = cur ? COL.cur : COL.old, H = o.h || 2;
   const links = linksHTML(e);
   if (e.view) {
@@ -335,8 +336,30 @@ function tick(ts) {
 function loop() { if (!raf && !RM() && nowT() < RM_T) raf = requestAnimationFrame(tick); }
 
 function wire() {
+  let imageOpener;
+  const imageDialog=D.createElement('dialog');
+  imageDialog.id='reference-image';imageDialog.className='image-viewer';
+  imageDialog.setAttribute('aria-labelledby','reference-image-caption');
+  imageDialog.innerHTML='<header class="image-viewer-head"><p>Projektansicht</p><button type="button" class="pill" data-image-zoom aria-pressed="false">Originalgröße</button><button type="button" class="pill" data-image-close>Schließen</button></header><div class="image-viewer-scroll"><img alt=""></div><p id="reference-image-caption"></p>';
+  D.body.appendChild(imageDialog);
+  imageDialog.addEventListener('close',()=>{imageDialog.querySelector('img').removeAttribute('src');if(imageOpener?.isConnected)imageOpener.focus({preventScroll:true});});
+  imageDialog.addEventListener('click',e=>{
+    if(e.target.closest('[data-image-close]'))imageDialog.close();
+    const zoom=e.target.closest('[data-image-zoom]');
+    if(zoom){const active=imageDialog.classList.toggle('zoomed');zoom.setAttribute('aria-pressed',String(active));zoom.textContent=active?'Einpassen':'Originalgröße';}
+    if(e.target===imageDialog){const b=imageDialog.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)imageDialog.close();}
+  });
   D.addEventListener('click', e => {
     const t = e.target; let b;
+    if((b=t.closest('a[data-reference-image]'))&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&e.button===0){
+      if(typeof imageDialog.showModal!=='function')return;
+      e.preventDefault();imageOpener=b;
+      imageDialog.classList.remove('zoomed');
+      const zoom=imageDialog.querySelector('[data-image-zoom]');zoom.setAttribute('aria-pressed','false');zoom.textContent='Originalgröße';
+      const image=imageDialog.querySelector('img');image.src=b.href;image.alt=b.querySelector('img').alt;
+      imageDialog.querySelector('#reference-image-caption').textContent=image.alt;
+      imageDialog.showModal();imageDialog.querySelector('[data-image-close]').focus();return;
+    }
     if ((b = t.closest('[data-act="reset"]'))) { resetFilter(); const q = $('#q'); if (q && !isPhone()) q.focus(); return; }
     if ((b = t.closest('[data-sec]'))) { S.sec = b.dataset.sec; refresh(); return; }
     if ((b = t.closest('[data-tag]'))) { const k = b.dataset.tag; if (S.tags.has(k)) S.tags.delete(k); else S.tags.add(k); refresh(); return; }
@@ -348,6 +371,7 @@ function wire() {
   });
   D.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; refresh(); } });
   D.addEventListener('keydown', e => {
+    if(imageDialog.open)return; // Native dialog owns Tab and Escape above a project sheet.
     if(e.key==='Tab' && Mo.cur){const f=[...Mo.cur.querySelectorAll('a[href],button,input,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length);if(f.length){if(e.shiftKey&&D.activeElement===f[0]){f.at(-1).focus();e.preventDefault();}else if(!e.shiftKey&&D.activeElement===f.at(-1)){f[0].focus();e.preventDefault();}}}
     if (e.key !== 'Escape'  || e.metaKey || e.ctrlKey || e.altKey) return;
     const fs = $('#fsheet');
@@ -435,7 +459,7 @@ function nodeHTML(e) {
   const ds = cur
     ? (e.sent ? `<span lang="de" dir="ltr">${hl(e.sent, q)}</span><span class="draft">${esc(L('draft'))}</span>` : `<span class="pending">${hl(L('pending'), q)}</span>`) + tags
     : `<span><span class="y">${hl(e.year, q)}</span> · ${eh(e.scope.trim(), q)}</span>${tags}`;
-  const inner = `<span class="orb"><canvas class="oc" aria-hidden="true"></canvas>${e.openable ? '' : '<i class="ex" aria-hidden="true">↗</i>'}${cur ? '' : `<abbr class="en enb" title="${esc(L('enTitle'))}">EN</abbr>`}</span><span class="lb"><span class="nm">${name}</span><span class="mk">${cur ? stChip(e) : enChip(e)}</span><span class="ds">${ds}</span>${e.openable ? '' : `<span class="sr">${esc(L('noView'))}</span>`}</span>`;
+  const inner = `<span class="orb"><canvas class="oc" aria-hidden="true"></canvas>${e.openable ? '' : '<i class="ex" aria-hidden="true">↗</i>'}${e.lang !== 'en' ? '' : `<abbr class="en enb" title="${esc(L('enTitle'))}">EN</abbr>`}</span><span class="lb"><span class="nm">${name}</span><span class="mk">${cur ? stChip(e) : enChip(e)}</span><span class="ds">${ds}</span>${e.openable ? '' : `<span class="sr">${esc(L('noView'))}</span>`}</span>`;
   const main = e.openable
     ? `<a class="nd" href="#${e.id}" data-id="${e.id}">${inner}</a>`
     : `<div class="nd" role="group" aria-label="${esc(e.client)} · ${esc(L('noView'))}">${inner}</div>`;
