@@ -33,6 +33,17 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
       privateKey: privateKey!, repositories: installation.repositories.filter(repo => !repo.publicOnly).map(repo => repo.fullName.split("/")[1]), boards: installation.repositories.some(repo => repo.boards.length > 0), now }), now });
     for (const repo of installation.repositories) registry.set(repo.fullName.toLowerCase(), { repo, client, installationId: installation.installationId });
   }
+  const denyAccess = (repoName: string, installationId: string, error: GithubReadError) => {
+    const attempt = now();
+    const retryAt = Math.max(attempt + 60_000, error.retryAt ?? 0);
+    for (const [name, target] of registry) {
+      if (error.code === "github_auth_denied" ? target.installationId === installationId : name === repoName.toLowerCase()) {
+        knownDenied.add(name);
+        deniedUntil.set(name, retryAt);
+        options.store.denyRepository(name, new Date(attempt).toISOString(), retryAt);
+      }
+    }
+  };
   return { async read(references, canReadProject, refresh = false) {
     const refs = references.filter(item => (item.kind === "issue" || item.kind === "pull-request") && item.url);
     if (observers.size >= 32) return { status: "unavailable", items: [], limitReached: refs.length > 10, retryAfter: new Date(now() + 60_000).toISOString() };
@@ -59,7 +70,12 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
             && repo.private === false && repo.visibility === "public";
           if (visible) publicConfirmed.add(key);
           return visible;
-        }, () => false);
+        }, error => {
+          if (error instanceof GithubReadError && error.code === "github_auth_denied") {
+            denyAccess(key, entry.installationId, error);
+          }
+          return false;
+        });
       publicChecks.set(key, check);
       return check;
     };
@@ -99,10 +115,7 @@ export function createWorkspaceGithub(options: { config: WorkspaceGithubConfig; 
             }
           }
           if (error instanceof GithubReadError && (error.code === "github_auth_denied" || error.code === "github_access_denied" && core)) {
-            for (const [name, target] of registry) if (error.code === "github_auth_denied" ? target.installationId === entry.installationId : name === fullName.toLowerCase()) {
-              const retryAt = Math.max(now() + 60_000, error.retryAt ?? 0);
-              knownDenied.add(name); deniedUntil.set(name, retryAt); options.store.denyRepository(name, new Date(now()).toISOString(), retryAt);
-            }
+            denyAccess(fullName, entry.installationId, error);
           }
           throw error;
         }

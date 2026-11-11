@@ -34,6 +34,25 @@ async function fixture(configured = true, publicOnly = false) {
 }
 const endpoint = "/testmails/api/workspace/runs/test-run/run/github";
 describe("selected-run GitHub HTTP boundary", () => {
+  it("removes a previously cached private fact when the same installation's public probe loses authentication", async () => {
+    const f = await fixture(true, true);
+    const privateRef = { id: "private", kind: "pull-request" as const, label: "", url: "https://github.com/OpenResilienceInitiative/ORISO-Frontend/pull/7" };
+    const publicRef = { id: "public", kind: "pull-request" as const, label: "", url: "https://github.com/OpenResilienceInitiative/ORISO-ElementCall/pull/141" };
+    f.transport.mockImplementation(async url => {
+      const pathname = new URL(url).pathname.toLowerCase();
+      if (pathname.endsWith("/pulls/7")) return Response.json({ title: "Scoped private PR", state: "open" });
+      if (pathname === "/repos/openresilienceinitiative/oriso-elementcall") return new Response(null, { status: 401 });
+      throw new Error("unexpected request");
+    });
+    const initial = await f.github!.read([privateRef], () => true);
+    expect(initial.items[0]).toMatchObject({ status: "ready", facts: { title: "Scoped private PR" } });
+    const denied = await f.github!.read([privateRef, publicRef], () => true);
+    expect(denied.items.map(({ status, facts }) => ({ status, facts }))).toEqual([
+      { status: "denied", facts: null }, { status: "denied", facts: null }
+    ]);
+    expect(JSON.stringify(denied)).not.toContain("Scoped private PR");
+  });
+
   it("reads a mapped public repo only while its exact GitHub metadata confirms public visibility", async () => {
     const f = await fixture(true, true);
     const repo = "OpenResilienceInitiative/ORISO-ElementCall";
