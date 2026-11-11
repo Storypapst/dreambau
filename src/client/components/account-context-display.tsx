@@ -12,16 +12,22 @@ export function accountTopicLabels(account: AccountView, locale: Locale) {
   return [...new Set((account.metadata.topics ?? []).map((topic) => labelTopic(locale, topic)))];
 }
 
-const accessActions = new Set(["secret_requested", "otp_requested", "environment_requested", "browser_session_opened"]);
+const accessDateFormats = {
+  de: new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short" }),
+  en: new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" })
+};
+
+export function accountAccessDate(account: AccountView, locale: Locale) {
+  const timestamp = account.access?.latestUseAt;
+  if (!timestamp || !Number.isFinite(Date.parse(timestamp))) return undefined;
+  return { timestamp, value: accessDateFormats[locale].format(new Date(timestamp)) };
+}
 
 export function AccountAccessDate({ account, locale }: { account: AccountView; locale: Locale }) {
-  const event = account.access?.events?.find(({ action }) => accessActions.has(action));
-  if (!event || !Number.isFinite(Date.parse(event.createdAt))) return null;
-  const de = locale === "de";
+  const date = accountAccessDate(account, locale);
+  if (!date) return null;
   return <p className="mt-1 text-xs text-muted-foreground">
-    {de ? "Letzter Testmails-Zugriff" : "Last Testmails access"}:{" "}
-    <time dateTime={event.createdAt} data-testmails-search-text>
-      {new Intl.DateTimeFormat(de ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.createdAt))}
-    </time>
+    {locale === "de" ? "Letzter Testmails-Zugriff" : "Last Testmails access"}:{" "}
+    <time dateTime={date.timestamp} data-testmails-search-text>{date.value}</time>
   </p>;
 }

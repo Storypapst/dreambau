@@ -27,7 +27,7 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
   return (
     <div className="flex min-w-0 items-center gap-1 px-2 py-1 max-[360px]:gap-0.5 max-[360px]:px-1 sm:gap-2 sm:px-3">
       <Button type="button" variant="ghost" size="sm" className="min-w-0 flex-1 justify-start gap-1 overflow-hidden has-[>svg]:px-1 sm:max-w-[35%] sm:flex-none sm:has-[>svg]:px-2"
-        data-account-expander data-testmails-search-text aria-expanded={expanded}
+        data-account-expander aria-expanded={expanded}
         aria-label={account.displayName} aria-description={expanded ? undefined : contextLabels || undefined} onClick={(event) => {
           const selection = window.getSelection();
           if (event.detail && selection && !selection.isCollapsed && event.currentTarget.contains(selection.anchorNode)) return;
@@ -35,9 +35,9 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
         }}>
         {expanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
         <span className="flex min-w-0 flex-col items-start sm:flex-row sm:items-center sm:gap-2">
-          <span className="max-w-full truncate" title={account.displayName}>{account.displayName}</span>
+          <span className="max-w-full truncate" title={account.displayName} data-testmails-search-text>{account.displayName}</span>
           {!expanded && contextLabels && <span className="max-w-full truncate text-[10px] text-muted-foreground sm:text-xs" title={contextLabels}>
-            {roles.length > 0 && <span data-testmails-search-text>{roles[0]}{roles.length > 1 && ` +${roles.length - 1}`}</span>}
+            {roles.length > 0 && <><span data-testmails-search-text>{roles[0]}</span>{roles.length > 1 && ` +${roles.length - 1}`}</>}
             {roles.length > 0 && postcode && " · "}
             {postcode && <span>{de ? "PLZ" : "ZIP"} <span data-testmails-search-text>{postcode}</span></span>}
           </span>}

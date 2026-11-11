@@ -410,9 +410,10 @@ export function createDatabase(path: string): RegistryDatabase {
     },
     getAccountAccess(email, limit = 10) {
       const boundedLimit = Math.max(1, Math.min(50, Math.trunc(limit)));
+      const key = email.trim().toLowerCase();
       const rows = sqlite.prepare(`SELECT id,account_id,email,actor_id,action,created_at,context
         FROM account_access_events WHERE email=? ORDER BY created_at DESC,id DESC LIMIT ?`)
-        .all(email.trim().toLowerCase(), boundedLimit) as Array<{
+        .all(key, boundedLimit) as Array<{
           id: number; account_id: string; email: string; actor_id: string;
           action: AccountAccessEvent["action"]; created_at: string; context: string;
         }>;
@@ -427,7 +428,10 @@ export function createDatabase(path: string): RegistryDatabase {
         });
         return { id: row.id, ...parsed };
       });
-      return { latest: events[0] ?? null, events };
+      const lastUse = sqlite.prepare(`SELECT created_at FROM account_access_events
+        WHERE email=? AND action IN ('secret_requested','mail_requested','otp_requested','environment_requested','browser_session_opened')
+        ORDER BY created_at DESC,id DESC LIMIT 1`).get(key) as { created_at: string } | undefined;
+      return { latest: events[0] ?? null, events, latestUseAt: lastUse?.created_at ?? null };
     },
     reconcileTestAccessLinks(accounts, records, seenAt = new Date().toISOString()) {
       const knownAccounts = new Map(accounts.map((email) => [email.trim().toLowerCase(), email.trim().toLowerCase()]));

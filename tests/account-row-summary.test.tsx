@@ -81,6 +81,7 @@ it("copies an underscore-separated username with today's Berlin date from the co
 });
 
 it("summarizes the role, postcode and multiple documented topics without losing their labels", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const container = document.body.appendChild(document.createElement("div"));
   const root = createRoot(container);
   const row = {
@@ -95,6 +96,8 @@ it("summarizes the role, postcode and multiple documented topics without losing 
     const summary = container.querySelector("[data-account-context-preview]");
     expect(container.textContent).toContain("10965");
     expect(container.textContent).toContain("Counselor");
+    const terms = [...container.querySelectorAll("[data-account-expander] [data-testmails-search-text]")].map((node) => node.textContent);
+    expect(terms).toEqual(["Abe", "Counselor", "10965"]);
     expect(summary?.textContent).toContain("Schulden");
     expect(summary?.textContent).toContain("+2");
     expect(summary?.querySelector('[title*="Schulden"]')?.getAttribute("title")).toContain("HIV & Aids");
@@ -102,5 +105,6 @@ it("summarizes the role, postcode and multiple documented topics without losing 
   } finally {
     await act(async () => root.unmount());
     container.remove();
+    vi.unstubAllGlobals();
   }
 });
