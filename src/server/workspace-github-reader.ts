@@ -86,7 +86,7 @@ export async function readWorkspaceGithubFacts(client: GithubTransport, repo: Wo
       facts.releaseCoverage = response.next ? "partial" : "complete";
       for (const release of releases.filter(item => !item.draft && item.published_at)) {
         // Only page one includes the changed files; the ancestry fields are also on page two.
-        const result = z.object({ status: z.string(), merge_base_commit: z.object({ sha: z.string() }) }).parse((await client.request(`${root}/compare/${mergeOid}...${encodeURIComponent(release.tag_name)}?per_page=1&page=2`, undefined, budget)).value);
+        const result = z.object({ status: z.string(), merge_base_commit: z.object({ sha: z.string() }) }).parse((await client.request(`${root}/compare/${mergeOid}...${encodeURIComponent(`refs/tags/${release.tag_name}`)}?per_page=1&page=2`, undefined, budget)).value);
         if ((result.status === "ahead" || result.status === "identical") && result.merge_base_commit.sha === mergeOid) facts.publishedReleases.push({ tag: release.tag_name, title: release.name ?? release.tag_name, url: release.html_url, publishedAt: release.published_at! });
       }
       if (response.next) incomplete();
