@@ -40,7 +40,8 @@ import { CoordinationDashboard } from "./coordination-dashboard";
 import { ReleaseListPage } from "./release-list";
 import { EvidenceWorkspace } from "./evidence-workspace";
 import { AccountRunLinks } from "./account-run-links";
-import { directoryRoute, workspaceProject } from "@/directory-route";
+import { accountDeepLink } from "@/workspace-client";
+import { accountFromHash, directoryRoute, workspaceProject } from "@/directory-route";
 
 const searchLanguages: Locale[] = ["de", "en"];
 const projectNames = { oriso: "ORISO", orimo: "ORIMO", dreambau: "Dreambau" } as const;
@@ -52,7 +53,11 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   // /testmails/releases is a shareable deep link; the server already answers it with the SPA shell.
   const [route, setRoute] = useState(() => directoryRoute(window.location.pathname));
   const [runProject, setRunProject] = useState(() => workspaceProject(window.location.search, projects));
-  const accountsUrl = useRef("/testmails/");
+  const accountsUrl = useRef((() => {
+    const from = new URLSearchParams(window.location.search).get("from");
+    const target = workspaceProject(window.location.search, projects);
+    return from && /^[^\s/]+@[^\s/]+$/.test(from) && target ? accountDeepLink(from, target) : "/testmails/";
+  })());
   function setShowReleases(show: boolean) {
     // Coming back restores the account view with its filter query string.
     if (show) accountsUrl.current = window.location.pathname + window.location.search;
@@ -171,14 +176,20 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   }), [favorites, visibleByEmail]);
   const visibleFavorites = useMemo(() => new Set(favoriteAccounts.map((account) => account.email)), [favoriteAccounts]);
   const visibleAccounts = onlyFavorites ? favoriteAccounts : managedAccounts;
-  const [selectedRow, setSelectedRow] = useState<string | null | undefined>(() => {
-    const match = /^#account=(.+)$/.exec(window.location.hash);
-    try { return match ? decodeURIComponent(match[1]) : undefined; } catch { return undefined; }
-  });
+  const [selectedRow, setSelectedRow] = useState<string | null | undefined>(() => accountFromHash(window.location.hash));
+  useEffect(() => {
+    const sync = () => setSelectedRow(accountFromHash(window.location.hash));
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
   const expandedEmail = selectedRow === null || visibleAccounts.some((account) => account.email === selectedRow)
     ? selectedRow ?? null
     : visibleAccounts[0]?.email ?? null;
-  const toggleRow = (email: string) => setSelectedRow(expandedEmail === email ? null : email);
+  const toggleRow = (email: string) => {
+    const next = expandedEmail === email ? null : email;
+    setSelectedRow(next);
+    window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + (next ? "#account=" + encodeURIComponent(next) : ""));
+  };
   const replaceMetadata = useCallback((metadata: AccountMetadata) => {
     const update = (account: AccountView) => account.email === metadata.email
       && (account.metadata.updatedAt ?? "") <= metadata.updatedAt ? { ...account, metadata } : account;
@@ -225,7 +236,7 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   async function logout() { clearTimeout(searchTimer.current); await api("/auth/logout", { method: "POST" }); onLogout(); }
   function openRuns(nextProject = selectedProject) {
     if (!nextProject || !allowedProjects.includes(nextProject)) return;
-    if (route === "accounts") accountsUrl.current = window.location.pathname + window.location.search;
+    if (route === "accounts") accountsUrl.current = window.location.pathname + window.location.search + window.location.hash;
     window.history.pushState(null, "", `/testmails/runs?project=${projectFilters[nextProject]}`);
     setRunProject(nextProject);
     setRoute("runs");
@@ -233,7 +244,7 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   const permittedRunProject = workspaceProject(`?project=${runProject ?? ""}`, allowedProjects);
   if (route === "runs" && permittedRunProject) return <EvidenceWorkspace locale={locale} project={permittedRunProject}
     projects={allowedProjects} onProjectChange={openRuns} onLocaleChange={onLocaleChange}
-    onBack={() => { window.history.pushState(null, "", accountsUrl.current); setRoute("accounts"); }} />;
+    onBack={() => { window.history.pushState(null, "", accountsUrl.current); setSelectedRow(accountFromHash(window.location.hash)); setRoute("accounts"); }} />;
   if (route === "releases") return <ReleaseListPage locale={locale} onLocaleChange={onLocaleChange} onBack={() => setShowReleases(false)} />;
   if (showCoordination) return <CoordinationDashboard locale={locale} onBack={() => setShowCoordination(false)} />;
   const de = locale === "de";

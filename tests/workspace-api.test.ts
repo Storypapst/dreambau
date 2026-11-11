@@ -56,6 +56,19 @@ describe("human workspace", () => {
     await f.agent.post("/testmails/api/workspace/runs/evidence-run/proof/accounts").send({ email: "simone@oriso.org" }).expect(404);
     expect(f.database.workspaceAccountLinks.forRun("proof")).toEqual([]);
   });
+  it("does not resolve a reserved product identity from email alone and retains the run outcome", async () => {
+    const f = await fixture();
+    const input = { project: "oriso" as const, targetEnvironment: "dev" as const, poolEnvironment: "dev" as const,
+      applicationVersion: "2.1", commitSha: "abcdef1", scenario: "identity-check", roles: [{ role: "user", count: 1 }] };
+    f.database.testRuns.create(input, [{ accountId: "old-product-record", email: "simone@oriso.org", roles: ["user"] }],
+      { type: "machine", id: "runner" }, "2026-11-07T11:00:00.000Z", "identity-run");
+    const detail = await f.agent.get("/testmails/api/workspace/runs/test-run/identity-run").expect(200);
+    expect(detail.body.accounts).toContainEqual(expect.objectContaining({ accountId: "old-product-record", resolved: false }));
+    f.database.testRuns.transition("identity-run", "reserved", "running", { type: "machine", id: "runner" }, "2026-11-07T11:01:00.000Z");
+    f.database.testRuns.transition("identity-run", "running", "passed", { type: "machine", id: "runner" }, "2026-11-07T11:02:00.000Z");
+    const history = await f.agent.get("/testmails/api/workspace/accounts/simone%40oriso.org/runs").expect(200);
+    expect(history.body.runs).toContainEqual(expect.objectContaining({ id: "identity-run", result: "passed" }));
+  });
   it("keeps released failed outcomes and explicit legacy report links separate from evidence records", async () => {
     const f = await fixture(); createRun(f.database, "run");
     f.database.testRuns.transition("run", "reserved", "running", { type: "machine", id: "real-runner" }, "2026-11-07T11:01:00.000Z");

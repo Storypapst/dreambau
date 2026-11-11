@@ -3,6 +3,7 @@ import { loadAccountRuns, runDeepLink } from "@/workspace-client";
 import type { WorkspaceRunSummary } from "../../shared/workspace.js";
 import type { Locale, } from "@/i18n";
 import type { TeamProject } from "@/types";
+import { workspaceResultLabel } from "./evidence-workspace-labels";
 
 export function AccountRunLinks({ email, project, locale }: { email: string; project: TeamProject; locale: Locale }) {
   const [state, setState] = useState<{ status: "loading" | "ready" | "error"; runs: WorkspaceRunSummary[] }>({ status: "loading", runs: [] });
@@ -20,8 +21,8 @@ export function AccountRunLinks({ email, project, locale }: { email: string; pro
       : state.status === "error" ? <p role="alert" className="text-xs text-destructive">{de ? "Testläufe konnten nicht geladen werden." : "Runs could not be loaded."}</p>
       : state.runs.length === 0 ? <p className="text-xs text-muted-foreground">{de ? "Noch kein Testlauf ausdrücklich zugeordnet." : "No run explicitly associated yet."}</p>
       : <ul className="mt-1 space-y-1">{state.runs.map(run => <li key={run.source+":"+run.id}>
-        <a className="text-sm underline underline-offset-4" href={runDeepLink(run.source, run.id, project)}>
-          {run.title} · {run.environment} · {new Date(run.createdAt).toLocaleDateString(de ? "de-DE" : "en-GB")}
+        <a className="text-sm underline underline-offset-4" href={runDeepLink(run.source, run.id, project, email)}>
+          {run.title} · {run.environment} · {workspaceResultLabel(run.result, locale)} · {new Date(run.createdAt).toLocaleDateString(de ? "de-DE" : "en-GB")}
         </a>
       </li>)}</ul>}
   </section>;

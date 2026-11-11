@@ -159,7 +159,10 @@ export function EvidenceWorkspace({locale,project,onBack,onLocaleChange,projects
   return()=>{active=false;controller.abort();};
  },[detailKey,tab]);
  const detail=detailState.key===detailKey&&detailState.state==="ready"?detailState.value:null;
- function choose(target:Target){setViewer(null);setAdding(null);window.history.pushState(null,"",`/testmails/runs/${target.source}/${encodeURIComponent(target.id)}?project=${project.toUpperCase()}`);setSelection({scope:runsScope,target});}
+ function choose(target:Target){setViewer(null);setAdding(null);
+  const from=new URLSearchParams(window.location.search).get("from");
+  window.history.pushState(null,"",`/testmails/runs/${target.source}/${encodeURIComponent(target.id)}?project=${project.toUpperCase()}${from?"&from="+encodeURIComponent(from):""}`);
+  setSelection({scope:runsScope,target});}
  function openFile(file:WorkspaceFile){setViewer({scope:viewScope,file});}
  function resetFilters(){setSearch("");setQuery("");defaults.setFilters({source:"all",environment:"all"});setResult("all");}
  function listKey(event:KeyboardEvent<HTMLButtonElement>,index:number){

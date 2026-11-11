@@ -125,6 +125,17 @@ describe("AccountDirectory filter state", () => {
     expect(expanded).toHaveLength(1);
     expect(expanded[0].getAttribute("aria-label")).toBe("lisa.simpson");
   });
+  it("returns from a run to the exact account that opened it", async () => {
+    window.history.replaceState(null, "", "/testmails/runs/evidence-run/proof?project=ORISO&from=lisa.simpson%40oriso.org");
+    await render();
+    await act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")]
+      .find(button => button.textContent === "Return to accounts")!.click());
+    expect(window.location.hash).toBe("#account=lisa.simpson%40oriso.org");
+    const expanded = [...container.querySelectorAll<HTMLButtonElement>("[data-account-expander]")]
+      .filter(button => button.getAttribute("aria-expanded") === "true");
+    expect(expanded).toHaveLength(1);
+    expect(expanded[0].getAttribute("aria-label")).toBe("lisa.simpson");
+  });
 
   it("finds an account by documented agency without guessing unknown agencies", async () => {
     await render([account("new@oriso.org", { agencies: ["Debt advice Berlin", "Family advice Hamburg"] }), account("old@oriso.org")]);

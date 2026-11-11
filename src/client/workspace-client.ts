@@ -27,8 +27,9 @@ export function detachRunAccount(runId: string, email: string) {
 export function accountDeepLink(email: string, project: WorkspaceProject) {
   return "/testmails/?project="+encodeURIComponent(project.toUpperCase())+"#account="+encodeURIComponent(email);
 }
-export function runDeepLink(source: WorkspaceSource, id: string, project: WorkspaceProject) {
-  return "/testmails/runs/"+encodeURIComponent(source)+"/"+encodeURIComponent(id)+"?project="+encodeURIComponent(project.toUpperCase());
+export function runDeepLink(source: WorkspaceSource, id: string, project: WorkspaceProject, fromEmail?: string) {
+  return "/testmails/runs/"+encodeURIComponent(source)+"/"+encodeURIComponent(id)+"?project="+encodeURIComponent(project.toUpperCase())
+    +(fromEmail ? "&from="+encodeURIComponent(fromEmail) : "");
 }
 export function loadWorkspaceDocuments(query: WorkspaceQuery, signal?: AbortSignal) {
   return api<WorkspacePage<WorkspaceDocument>>("/workspace/documents?"+queryString(query),{signal});

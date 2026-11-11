@@ -121,8 +121,15 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
     let accounts: WorkspaceAccountSummary[] = []; const references: WorkspaceReference[] = [];
     if (source === "test-run") {
       const run = visibleLedger(user, id); const raw = options.database.testRuns.events(id);
-      accounts = run.accounts.map(item => accountSummary(item.email ? catalogAccount(user, item.email, run.project) : undefined,
-        item.email ?? "", item.accountId, item.roles.length ? item.roles : [item.requestedRole], "reserved"));
+      accounts = run.accounts.map(item => {
+        const candidate = item.email ? catalogAccount(user, item.email, run.project) : undefined;
+        const exact = candidate && (item.accountId.startsWith("mailbox:")
+          ? item.accountId.slice("mailbox:".length).toLowerCase() === candidate.email.toLowerCase()
+          : options.database.getTestAccessLinks(candidate.email).some(link => link.recordId === item.accountId
+            && link.project === run.project && link.environment === run.poolEnvironment));
+        return accountSummary(exact ? candidate : undefined, item.email ?? "", item.accountId,
+          item.roles.length ? item.roles : [item.requestedRole], "reserved");
+      });
       const outcome = raw.find(event => event.type === "run_passed" || event.type === "run_failed");
       summary = ledgerSummary(run, outcome);
       events = raw.filter(event => ["run_reserved", "run_running", "run_passed", "run_failed", "run_released"].includes(event.type)).map(event => ({ type: event.type, actor: event.actor.id, createdAt: event.createdAt, payload: measuredPayload(event.payload) }));
@@ -243,7 +250,11 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
       const account = options.accountsFor(user).find(item => item.email.toLowerCase() === email);
       if (!account) throw new NotFound();
       const reserved = options.database.testRuns.runsForEmail(email).flatMap(run => {
-        try { visibleLedger(user, run.id); return [ledgerSummary(run)]; } catch { return []; }
+        try {
+          visibleLedger(user, run.id);
+          const outcome = options.database.testRuns.events(run.id).find(event => event.type === "run_passed" || event.type === "run_failed");
+          return [ledgerSummary(run, outcome)];
+        } catch { return []; }
       });
       const explicit: WorkspaceRunSummary[] = [];
       for (const link of options.database.workspaceAccountLinks.forEmail(email)) {
