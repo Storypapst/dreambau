@@ -34,11 +34,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # tests/playwright-login-broker.test.ts launches a real browser, so the
-      # unit suite needs the Chromium download even though the Playwright E2E
-      # project is excluded from `npm test`.
+      # The cloud doctor also checks for full Chromium. Reuse the hosted
+      # image libraries when they work; install extras only if launch fails.
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          npx playwright install chromium
+          check_chromium() {
+            node --input-type=module -e 'import { chromium } from "playwright"; const browser = await chromium.launch({ headless: true }); await browser.close();'
+          }
+          if ! check_chromium; then
+            npx playwright install-deps chromium
+            check_chromium
+          fi
 
       - name: Lint
         run: npm run lint

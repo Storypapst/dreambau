@@ -10,6 +10,7 @@ const repo = { fullName: "Storypapst/dreambau", project: "dreambau" as const, bo
 function setup(responses: Record<string, unknown>) {
   const transport = vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input); const key = url.endsWith("/graphql") ? "graphql" : new URL(url).pathname;
+    if (key.includes("/compare/")) expect(new URL(url).searchParams.toString()).toBe("per_page=1&page=2");
     if (!(key in responses)) throw new Error(`unexpected request ${key}`);
     return Response.json(responses[key], { headers: { etag: "fixture-etag" } });
   });
@@ -48,12 +49,13 @@ describe("selected-reference GitHub reader", () => {
     expect(result.status).toBe("partial"); expect(result.facts.boards).toEqual([]);
   });
   it("proves a published release contains the merge commit, not merely that a later release exists", async () => {
-    const f = setup({ "/repos/Storypapst/dreambau/pulls/12": pull,
+    const f = setup({ "/repos/Storypapst/dreambau/pulls/12": { ...pull, merge_commit_sha: undefined },
+      graphql: { data: { repository: { pullRequest: { mergeCommit: { oid: "a".repeat(40) } } } } },
       "/repos/Storypapst/dreambau/releases": [
         { tag_name: "v2", name: "Actual release", html_url: "https://github.com/Storypapst/dreambau/releases/tag/v2", published_at: "2026-11-07T11:00:00Z", draft: false },
         { tag_name: "unrelated", html_url: "https://github.com/Storypapst/dreambau/releases/tag/unrelated", published_at: "2026-11-07T12:00:00Z", draft: false }],
-      [`/repos/Storypapst/dreambau/compare/${"a".repeat(40)}...v2`]: { status: "ahead", merge_base_commit: { sha: "a".repeat(40) } },
-      [`/repos/Storypapst/dreambau/compare/${"a".repeat(40)}...unrelated`]: { status: "diverged", merge_base_commit: { sha: "b".repeat(40) } }
+      [`/repos/Storypapst/dreambau/compare/${"a".repeat(40)}...refs%2Ftags%2Fv2`]: { status: "ahead", merge_base_commit: { sha: "a".repeat(40) } },
+      [`/repos/Storypapst/dreambau/compare/${"a".repeat(40)}...refs%2Ftags%2Funrelated`]: { status: "diverged", merge_base_commit: { sha: "b".repeat(40) } }
     });
     const result = await readWorkspaceGithubFacts(f.client, repo, { kind: "pull-request", number: 12 });
     expect(result.facts).toMatchObject({ state: "merged", releaseAssignments: [{ title: "2.0 planned", source: "milestone" }], publishedReleases: [{ tag: "v2" }], releaseCoverage: "complete" });
