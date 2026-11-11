@@ -47,6 +47,18 @@ describe("human workspace", () => {
     const after = await f.agent.get("/testmails/api/workspace/runs/evidence-run/proof").expect(200);
     expect(after.body.accounts).toEqual([]);
   });
+  it("stops remote account-run lookups after an Evidence outage and keeps local runs", async () => {
+    const f = await fixture();
+    f.database.testRuns.create({ project: "oriso", targetEnvironment: "dev", poolEnvironment: "dev",
+      applicationVersion: "2.1", commitSha: "abcdef1", scenario: "local-check", roles: [{ role: "user", count: 1 }] },
+      [{ accountId: "mailbox:simone@oriso.org", email: "simone@oriso.org", roles: ["user"] }],
+      { type: "machine", id: "runner" }, "2026-11-07T11:00:00.000Z", "local-run");
+    for (const id of ["proof-a", "proof-b"]) f.database.workspaceAccountLinks.attach(id, "oriso", "dev", "simone@oriso.org", f.user.id, "2026-11-07T12:00:00.000Z");
+    f.bridge.get.mockRejectedValue(new WorkspaceEvidenceUnavailable());
+    const response = await f.agent.get("/testmails/api/workspace/accounts/simone%40oriso.org/runs").expect(200);
+    expect(response.body.runs).toContainEqual(expect.objectContaining({ id: "local-run", source: "test-run" }));
+    expect(f.bridge.get).toHaveBeenCalledTimes(1);
+  });
   it("keeps reserved run identities exact and rejects evidence associations outside viewer scope", async () => {
     const f = await fixture();
     createRun(f.database, "run", "production-test");

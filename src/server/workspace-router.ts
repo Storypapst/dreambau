@@ -262,7 +262,10 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
         try {
           const run = await visibleEvidence(user, link.runId);
           if (run.project === link.project && run.environment === link.environment) explicit.push(evidenceSummary(run));
-        } catch (error) { if (!(error instanceof NotFound) && !(error instanceof WorkspaceEvidenceUnavailable)) throw error; }
+        } catch (error) {
+          if (error instanceof WorkspaceEvidenceUnavailable) break;
+          if (!(error instanceof NotFound)) throw error;
+        }
       }
       return res.json({ runs: [...reserved, ...explicit].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) });
     } catch (error) { fail(error, res, next); }
