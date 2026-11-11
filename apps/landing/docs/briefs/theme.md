@@ -40,6 +40,12 @@ Die Seite stellt das alles schon. Ein Nachbau macht sie kaputt, auch wenn er gut
 4. `site/p/<id>.js`: entsteht mit `npm run build`
 5. `docs/PRODUCTIONS.md`: eine Zeile mit Name, id, Größe und zwei Sätzen zu Bild und Musik
 6. `verification/<id>/`: entsteht mit `npm run verify -- <id>`
+7. `site/i18n/de.js`: `blind.<id>`, die Beschreibung für blinde Menschen, also was man sieht und hört, nach dem Muster
+   von `blind.4k` mit den Platzhaltern `{tag1}`, `{tag2}` und `{brand}`. Dazu dieselbe Beschreibung als Entwurf in jeder
+   anderen angebotenen Sprachdatei unter `site/i18n/` und danach `npm run sync:languages -- --pin` (aktualisiert
+   `src/i18n/languages.json` und `site/i18n/index.js`). Ohne diesen Eintrag bricht `npm run build:apex` mit „animation
+   lacks a complete description“ ab. Das ist kein sichtbarer Text, sondern nur für Screenreader; Ablauf in
+   `docs/LANGUAGES.md`.
 
 Die Quelltextansicht der Seite zeigt deine Fassung automatisch, denn `npm run build:apex` packt das ausgelieferte
 `p/<id>.js` als `p/<id>.src.js` dazu.
@@ -50,11 +56,12 @@ Die Quelltextansicht der Seite zeigt deine Fassung automatisch, denn `npm run bu
 cd apps/landing
 npm ci
 npm run build                 # Größenbudget eingehalten
+npm run check:languages -- --complete --release
 npm run verify -- <id>        # Dauer, Phasen, Blitzsicherheit, Schriftzug, ruhiges unteres Band, Musik
 npm run build:apex && npm run check:apex
 node tools/e2e.mjs <id>       # Ton, Esc, reduzierte Bewegung, kein WebGL, keine Netzanfragen
 ```
 
 Sieh dir außerdem den Kontaktbogen (`verification/<id>/frames/sheet.png`) mit eigenen Augen an und hör die Musik an.
-Liefere einen Pull Request, der **nur** die sechs Punkte oben ändert, und nenne darin das Modell, das tatsächlich
+Liefere einen Pull Request, der **nur** die sieben Punkte oben ändert, und nenne darin das Modell, das tatsächlich
 gearbeitet hat.
