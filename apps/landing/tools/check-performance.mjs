@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {ROOT,launch} from './lib.mjs';
+import {IDS} from './budget.mjs';
 import {serveNginx} from './lib-nginx.mjs';
 const server=await serveNginx(ROOT+'/dist/apex'),browser=await launch({autoplay:false}),results=[];
 let failed=0;
@@ -46,14 +47,14 @@ try {
  // Source view dependencies cross the browser HTTP boundary and are independent of each other.
  const context=await browser.newContext({viewport:{width:1440,height:900}});
  try{
-  const page=await context.newPage(),requests=[];const dependency=/\/(?:p\/(?:4k|16k|64k)\.src\.js|source-facts\.js|comparisons\.js|source-locales\.js|source-view\.css)$/;
+  const page=await context.newPage(),requests=[];const dependency=/\/(?:p\/[a-z0-9]+\.src\.js|source-facts\.js|comparisons\.js|source-locales\.js|source-view\.css)$/;
   await page.addInitScript(()=>{window.previewCopies=0;const original=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(...args){if(this.canvas.id==='cv-preview')window.previewCopies++;return original.apply(this,args);};});
   page.on('request',r=>{if(dependency.test(new URL(r.url()).pathname))requests.push({file:new URL(r.url()).pathname,start:Date.now()});});
   await page.route('**/homepage-assets/**',async route=>{if(dependency.test(new URL(route.request().url()).pathname))await new Promise(r=>setTimeout(r,100));await route.continue();});
   await page.goto(server.base+'/?anim=4k&ctx=1&px=1000&lang=de');await page.waitForFunction(()=>window.Dream?.state.mode==='play');
   await page.locator('#source-entry').click();await page.locator('.code-view[open]').waitFor();
   const spread=Math.max(...requests.map(r=>r.start))-Math.min(...requests.map(r=>r.start));
-  check('Source opens with all seven independent dependencies concurrently',()=>assert.ok(requests.length===7&&spread<100,'requests='+requests.length+',spread='+spread+'ms'));
+  check('Source opens with all independent dependencies concurrently',()=>assert.ok(requests.length===IDS.length+4&&spread<100,'requests='+requests.length+',spread='+spread+'ms'));
   await page.locator('#cv-scale-tab').click();await page.waitForTimeout(100);const hiddenCopies=await page.evaluate(()=>window.previewCopies),progress=await page.locator('.cv-progress').evaluate(el=>el.value);await page.waitForTimeout(300);const afterScale=await page.evaluate(()=>window.previewCopies);
   check('Scale view does not copy the hidden picture',()=>assert.equal(afterScale,hiddenCopies));
   const afterProgress=await page.locator('.cv-progress').evaluate(el=>el.value);check('Scale view keeps source progress live',()=>assert.ok(afterProgress>progress));

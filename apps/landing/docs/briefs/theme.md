@@ -55,8 +55,8 @@ Die Seite stellt das alles schon. Ein Nachbau macht sie kaputt, auch wenn er gut
    lacks a complete description“ ab. Das ist kein sichtbarer Text, sondern nur für Screenreader; Ablauf in
    `docs/LANGUAGES.md`.
 
-Die Quelltextansicht der Seite zeigt deine Fassung automatisch, denn `npm run build:apex` packt das ausgelieferte
-`p/<id>.js` als `p/<id>.src.js` dazu.
+Die Quelltextansicht der Seite zeigt deine Fassung automatisch: Sie liest die Fassungen aus `D.ids`, und
+`npm run build:apex` packt das ausgelieferte `p/<id>.js` als `p/<id>.src.js` dazu. In der Ansicht steht deine id als Name.
 
 ## Abnahme
 
