@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { ChevronDownIcon, ChevronUpIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 import type { FavoriteDisplay } from "@/favorites";
-import { canonicalRole, labelRole, t, type Locale } from "@/i18n";
+import { t, type Locale } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { AccountMetadata, AccountView } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AccountRowSummary } from "./account-row-summary";
+import { AccountAccessDate, accountRoleLabels, accountTopicLabels } from "./account-context-display";
 import { AccountInlineNotes } from "./account-inline-notes";
 import { accountPasswordDate } from "./account-test-context";
 import { CopyButton } from "./copy-button";
@@ -87,9 +88,7 @@ function FavoriteIdentity({ account, locale }: { account: AccountView; locale: L
   const de = locale === "de";
   const linked = (account.linkedAccess ?? []).filter((access) => !access.deleted && !access.deletionPending);
   const usernames = [...new Set(linked.map((access) => access.username).filter(Boolean))];
-  const roles = [...new Set([...linked.flatMap((access) => access.roles), ...account.metadata.roles].map(canonicalRole))];
-  const qualifiedAdmin = roles.some((role) => ["platform-admin", "tenant-admin", "agency-admin"].includes(role));
-  const visibleRoles = qualifiedAdmin ? roles.filter((role) => role !== "Admin") : roles;
+  const visibleRoles = accountRoleLabels(account, locale);
 
   return (
     <div className="min-w-0 sm:col-span-2 lg:col-span-1">
@@ -98,7 +97,7 @@ function FavoriteIdentity({ account, locale }: { account: AccountView; locale: L
         <CopyButton value={account.email} label={de ? "E-Mail kopieren" : "Copy email"} compact />
       </div>
       {visibleRoles.length > 0 && <div className="mb-1.5 flex flex-wrap gap-1">
-        {visibleRoles.map((role) => <Badge key={role} variant="secondary" className="max-w-full whitespace-normal [overflow-wrap:anywhere]" data-testmails-search-text>{labelRole(locale, role)}</Badge>)}
+        {visibleRoles.map((role) => <Badge key={role} variant="secondary" className="max-w-full whitespace-normal [overflow-wrap:anywhere]" data-testmails-search-text>{role}</Badge>)}
       </div>}
       {account.metadata.documentedUsername && <dl>
         <dt className={groupLabel}>{de ? "Dokumentierter Benutzername" : "Documented username"}</dt>
@@ -136,6 +135,7 @@ function FavoriteTestContext({ account, locale }: { account: AccountView; locale
   const de = locale === "de";
   const { agencies, carrier, postalCode, supervisor, shippedVersion } = account.metadata;
   const agencyNames = [...new Set(agencies ?? [])];
+  const topics = accountTopicLabels(account, locale);
   const passwordDate = accountPasswordDate(account, locale);
 
   return (
@@ -148,6 +148,13 @@ function FavoriteTestContext({ account, locale }: { account: AccountView; locale
           </li>)}
         </ul>
       ) : <p className="text-xs text-muted-foreground">{de ? "Nicht hinterlegt" : "Not documented"}</p>}
+      {topics.length > 0 && <>
+        <h3 className={groupLabel}>{de ? "Themen in Testmails" : "Topics in Testmails"}</h3>
+        <ul className="flex flex-wrap gap-1" role="list">
+          {topics.map((topic) => <li key={topic} className="tag-pill tag-topic whitespace-normal" data-testmails-search-text>{topic}</li>)}
+        </ul>
+      </>}
+      <AccountAccessDate account={account} locale={locale} />
       {carrier && <p><span className={groupLabel}>{de ? "Träger" : "Provider"}</span>{" "}
         <span data-testmails-search-text>{carrier}</span></p>}
       {postalCode && <p><span className={groupLabel}>{de ? "Postleitzahl" : "Postal code"}</span>{" "}
