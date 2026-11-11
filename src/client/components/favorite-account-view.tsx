@@ -149,7 +149,7 @@ function FavoriteTestContext({ account, locale }: { account: AccountView; locale
         </ul>
       ) : <p className="text-xs text-muted-foreground">{de ? "Nicht hinterlegt" : "Not documented"}</p>}
       {topics.length > 0 && <>
-        <h3 className={groupLabel}>{de ? "Themen in Testmails" : "Topics in Testmails"}</h3>
+        <h3 className={groupLabel}>{de ? "Themen in ORISO" : "Topics in ORISO"}</h3>
         <ul className="flex flex-wrap gap-1" role="list">
           {topics.map((topic) => <li key={topic} className="tag-pill tag-topic whitespace-normal" data-testmails-search-text>{topic}</li>)}
         </ul>

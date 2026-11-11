@@ -149,7 +149,7 @@ export function AccountInlineNotes({ account, locale, onSaved }: AccountInlineNo
         rows={2}
         maxLength={4000}
         value={acknowledged ? metadata.notes : draft?.notes ?? metadata.notes}
-        placeholder={german ? "Notiz hinzufügen" : "Add a note"}
+        placeholder={german ? "Bestätigte Sitzung: Client-ID … · Counselor-ID … · Testlauf …" : "Confirmed session: client ID … · counsellor ID … · test run …"}
         aria-invalid={failed || undefined}
         aria-describedby={failed ? `${id}-error` : undefined}
         onChange={(event) => store.change(event.currentTarget.value, locale)}

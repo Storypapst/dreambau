@@ -93,15 +93,41 @@ it("summarizes the role, postcode and multiple documented topics without losing 
   };
   try {
     await act(async () => root.render(<AccountRowSummary account={row} locale="de" expanded={false} onToggle={() => undefined} />));
-    const summary = container.querySelector("[data-account-context-preview]");
     expect(container.textContent).toContain("10965");
     expect(container.textContent).toContain("Counselor");
     const terms = [...container.querySelectorAll("[data-account-expander] [data-testmails-search-text]")].map((node) => node.textContent);
-    expect(terms).toEqual(["Abe", "Counselor", "10965"]);
-    expect(summary?.textContent).toContain("Schulden");
-    expect(summary?.textContent).toContain("+2");
-    expect(summary?.querySelector('[title*="Schulden"]')?.getAttribute("title")).toContain("HIV & Aids");
-    expect(summary?.querySelector('[title*="Springfield"]')?.getAttribute("title")).toContain("Zweite Beratungsstelle");
+    expect(terms).toEqual(["Abe", "Counselor", "Springfield QA Dev Beratungsstelle +1", "· PLZ 10965", "· ORISO-Thema Schulden +2"]);
+    expect(container.querySelector("[data-account-expander]")?.getAttribute("aria-description")).toContain("Zweite Beratungsstelle");
+    expect(container.querySelector("[data-account-expander]")?.getAttribute("aria-description")).toContain("HIV & Aids");
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+it("puts verified role and counselling context before domain in the collapsed row", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const container = document.body.appendChild(document.createElement("div"));
+  const root = createRoot(container);
+  const row = {
+    ...account,
+    domain: "oriso.org",
+    linkedAccess: [{ ...account.linkedAccess![0], roles: ["counsellor"] }],
+    metadata: { ...account.metadata, roles: ["tenant-admin"], agencies: ["Kinder- und Jugendberatung"],
+      carrier: "Springfield QA Dev", postalCode: "10551", topics: ["debt"] }
+  };
+  try {
+    await act(async () => root.render(<AccountRowSummary account={row} locale="de" expanded={false} onToggle={() => undefined} />));
+    const summary = container.querySelector("[data-account-expander]")!;
+    expect(summary.textContent).toContain("Counselor");
+    expect(summary.textContent).not.toContain("Träger Admin");
+    const text = container.textContent!;
+    for (const value of ["Counselor", "Kinder- und Jugendberatung", "Springfield QA Dev", "10551", "Schulden", "oriso.org"])
+      expect(text).toContain(value);
+    expect(text.indexOf("Counselor")).toBeLessThan(text.indexOf("oriso.org"));
+    expect(text.indexOf("Kinder- und Jugendberatung")).toBeLessThan(text.indexOf("oriso.org"));
+    expect(text.indexOf("Springfield QA Dev")).toBeLessThan(text.indexOf("oriso.org"));
   } finally {
     await act(async () => root.unmount());
     container.remove();
