@@ -19,6 +19,22 @@ function setup(responses: Record<string, unknown>) {
 }
 const pull = { title: "Actual fix", state: "closed", draft: false, merged_at: "2026-11-07T10:00:00Z", merge_commit_sha: "a".repeat(40), milestone: { title: "2.0 planned", html_url: "https://github.com/Storypapst/dreambau/milestone/1" } };
 describe("selected-reference GitHub reader", () => {
+  it("reads actual GitHub checkmarks without projecting the issue body, code block, or secret text", async () => {
+    const f = setup({ "/repos/Storypapst/dreambau/pulls/12": {
+      title: "Fix", state: "open",
+      body: ["Internal description", "- [x] Open [the login page](https://example.test/login)", "  * [ ] Verify keyboard focus", "```md", "- [x] fake", "```", "<!--", "- [x] fake comment", "-->", "- [ ] password=super-secret-value", "- [x] **password**: formatted-secret-value", "- [ ] `token`: formatted-token-value"].join("\n")
+    } });
+    const result = await readWorkspaceGithubFacts(f.client, repo, { kind: "pull-request", number: 12 });
+    expect(result.facts.taskList).toEqual({ total: 5, checked: 2, items: [
+      { label: "Open the login page", checked: true },
+      { label: "Verify keyboard focus", checked: false },
+      { label: null, checked: false },
+      { label: null, checked: true },
+      { label: null, checked: false }
+    ] });
+    expect(JSON.stringify(result)).not.toMatch(/Internal description|super-secret-value|formatted-secret-value|formatted-token-value|https:\/\/example.test|fake/);
+  });
+
   it("parks all references on the installation when token minting is rate limited", async () => {
     let now = 1000; let limited = true;
     const token = vi.fn(async () => { if (limited) throw new GithubReadError("rate_limited", 181000); return "restored-token"; });
