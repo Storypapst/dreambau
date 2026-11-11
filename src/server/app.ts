@@ -325,7 +325,8 @@ export function createApp(options: AppOptions = {}) {
   api.use("/workspace", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); }, requireActiveHumanSession,
     createWorkspaceRouter({ database, evidence: workspaceEvidence, github: workspaceGithub, grantsFor: user => passkeyStore.grants.effective(user.id),
       accountsFor: user => scopedAccountViews(user).map(account => ({ email: account.email, displayName: account.displayName, project: viewProject(account),
-        roles: account.metadata.roles, agencies: account.metadata.agencies, carrier: account.metadata.carrier, postalCode: account.metadata.postalCode })),
+        roles: account.metadata.roles, agencies: account.metadata.agencies, carrier: account.metadata.carrier, postalCode: account.metadata.postalCode,
+        linkedEnvironments: database.getTestAccessLinks(account.email).filter(link => link.project === viewProject(account)).map(link => link.environment) })),
       now: options.now }));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
   let pendingExport = Promise.resolve();

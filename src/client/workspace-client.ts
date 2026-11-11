@@ -13,6 +13,23 @@ export function loadWorkspaceRuns(query: WorkspaceQuery, signal?: AbortSignal) {
 export function loadWorkspaceRun(source: WorkspaceSource, id: string, signal?: AbortSignal) {
   return api<WorkspaceRunDetail>("/workspace/runs/"+source+"/"+encodeURIComponent(id),{signal});
 }
+export function loadAccountRuns(email: string, signal?: AbortSignal) {
+  return api<{ runs: WorkspaceRunSummary[] }>("/workspace/accounts/"+encodeURIComponent(email)+"/runs",{signal});
+}
+export function attachRunAccount(runId: string, email: string) {
+  return api<WorkspaceRunDetail>("/workspace/runs/evidence-run/"+encodeURIComponent(runId)+"/accounts",
+    {method:"POST",body:JSON.stringify({email})});
+}
+export function detachRunAccount(runId: string, email: string) {
+  return api<WorkspaceRunDetail>("/workspace/runs/evidence-run/"+encodeURIComponent(runId)+"/accounts/"+encodeURIComponent(email),
+    {method:"DELETE"});
+}
+export function accountDeepLink(email: string, project: WorkspaceProject) {
+  return "/testmails/?project="+encodeURIComponent(project.toUpperCase())+"#account="+encodeURIComponent(email);
+}
+export function runDeepLink(source: WorkspaceSource, id: string, project: WorkspaceProject) {
+  return "/testmails/runs/"+encodeURIComponent(source)+"/"+encodeURIComponent(id)+"?project="+encodeURIComponent(project.toUpperCase());
+}
 export function loadWorkspaceDocuments(query: WorkspaceQuery, signal?: AbortSignal) {
   return api<WorkspacePage<WorkspaceDocument>>("/workspace/documents?"+queryString(query),{signal});
 }

@@ -53,7 +53,8 @@ function evidenceSummary(run: WorkspaceGatewayRun): WorkspaceRunSummary {
 }
 
 interface CatalogAccount { email: string; displayName: string; project: "oriso" | "orimo" | "dreambau";
-  roles: string[]; agencies: string[]; carrier?: string; postalCode?: string }
+  roles: string[]; agencies: string[]; carrier?: string; postalCode?: string;
+  linkedEnvironments: Array<"local" | "pre-dev" | "dev" | "production-test"> }
 export function createWorkspaceRouter(options: { database: RegistryDatabase; grantsFor(user: HumanUser): HumanProjectGrant[];
   accountsFor(user: HumanUser): CatalogAccount[]; evidence: WorkspaceEvidenceClient | null; github?: WorkspaceGithubClient | null; now?: () => Date }) {
   const router = express.Router();
@@ -261,7 +262,8 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
       const user = res.locals.humanUser as HumanUser;
       const run = await visibleEvidence(user, String(req.params.id));
       const email = z.object({ email: z.string().email() }).strict().parse(req.body).email.trim().toLowerCase();
-      if (!catalogAccount(user, email, run.project)) throw new NotFound();
+      const account = catalogAccount(user, email, run.project);
+      if (!account || (account.linkedEnvironments.length > 0 && !account.linkedEnvironments.includes(run.environment))) throw new NotFound();
       options.database.workspaceAccountLinks.attach(run.id, run.project, run.environment, email, user.id, (options.now?.() ?? new Date()).toISOString());
       return res.status(201).json(await detail("evidence-run", run.id, user));
     } catch (error) { fail(error, res, next); }

@@ -28,7 +28,7 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
   const contextLabels = [roles.join(" · "), agencies.join(" · "), carrier, postcode && `${de ? "PLZ" : "Postcode"} ${postcode}`, topics.join(" · ")].filter(Boolean).join(" · ");
   return (
     <div className="flex min-w-0 items-center gap-1 px-2 py-1 max-[360px]:gap-0.5 max-[360px]:px-1 sm:gap-2 sm:px-3">
-      <Button type="button" variant="ghost" size="sm" className="min-w-0 flex-1 justify-start gap-1 overflow-hidden has-[>svg]:px-1 sm:has-[>svg]:px-2"
+      <Button type="button" variant="ghost" size="sm" className="h-auto min-h-8 min-w-0 flex-1 justify-start gap-1 overflow-hidden py-1.5 has-[>svg]:px-1 sm:has-[>svg]:px-2"
         data-account-expander aria-expanded={expanded}
         aria-label={account.displayName} aria-description={expanded ? undefined : contextLabels || undefined} onClick={(event) => {
           const selection = window.getSelection();

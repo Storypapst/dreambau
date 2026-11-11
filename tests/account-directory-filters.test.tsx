@@ -8,7 +8,7 @@ import type { AccountView, Taxonomies, TeamProject } from "../src/client/types.j
 
 const favoriteState = { favorites: [] as string[] };
 vi.mock("@/favorites", () => ({ useFavorites: () => ({ favorites: favoriteState.favorites, ready: true, error: false, toggle: vi.fn(), move: vi.fn() }), useFavoriteDisplay: () => ({ display: { testContext: true, notes: true }, ready: true, error: null, setDisplay: vi.fn() }) }));
-vi.mock("@/api", () => ({ api: vi.fn((path: string) => path.startsWith("/taxonomies/") ? Promise.resolve({ values: [] }) : undefined), onUnauthorized: vi.fn(() => () => undefined) }));
+vi.mock("@/api", () => ({ api: vi.fn((path: string) => path.startsWith("/taxonomies/") ? Promise.resolve({ values: [] }) : path.includes("/workspace/accounts/") ? Promise.resolve({ runs: [] }) : undefined), onUnauthorized: vi.fn(() => () => undefined) }));
 // The table, cards and dialogs are covered elsewhere; here only the filter row matters.
 vi.mock("../src/client/components/account-table.js", () => ({ AccountTable: ({ accounts }: { accounts: unknown[] }) => <div data-testid="table">rows:{accounts.length}</div> }));
 vi.mock("../src/client/components/favorite-account-view.js", () => ({ FavoriteAccountView: ({ accounts }: { accounts: AccountView[] }) => <div data-testid="favorite-rows">{accounts.map((account) => account.email).join(",")}</div> }));
@@ -115,6 +115,15 @@ describe("AccountDirectory filter state", () => {
     await act(async () => closed.click());
     expect(closed.getAttribute("aria-expanded")).toBe("true");
     expect(summaries().filter((button) => button.getAttribute("aria-expanded") === "true")).toEqual([closed]);
+  });
+  it("opens the exact account from a deep link regardless of saved filters", async () => {
+    localStorage.setItem("testmails-filters", JSON.stringify({ status: "active", domain: "dreambau.com" }));
+    window.history.replaceState(null, "", "/testmails/?project=ORISO#account=lisa.simpson%40oriso.org");
+    await render();
+    const expanded = [...container.querySelectorAll<HTMLButtonElement>("[data-account-expander]")]
+      .filter(button => button.getAttribute("aria-expanded") === "true");
+    expect(expanded).toHaveLength(1);
+    expect(expanded[0].getAttribute("aria-label")).toBe("lisa.simpson");
   });
 
   it("finds an account by documented agency without guessing unknown agencies", async () => {

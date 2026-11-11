@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { AccountRowSummary } from "./account-row-summary";
 import { AccountAccessDate, accountRoleLabels, accountTopicLabels } from "./account-context-display";
 import { AccountInlineNotes } from "./account-inline-notes";
+import { AccountRunLinks } from "./account-run-links";
+import { accountTestProject } from "./account-test-context";
 import { accountPasswordDate } from "./account-test-context";
 import { CopyButton } from "./copy-button";
 import { FavoriteButton } from "./favorite-button";
@@ -64,6 +66,7 @@ export function FavoriteAccountView({ accounts, locale, display, expandedEmail, 
                   <AccountInlineNotes account={account} locale={locale} onSaved={onSaved} />
                 </div>
               )}
+              <div className="sm:col-span-2 lg:col-span-full"><AccountRunLinks email={account.email} project={accountTestProject(account)} locale={locale} /></div>
               <div className="absolute right-3.5 top-3.5 flex gap-1 lg:static lg:flex-col">
                 <Button type="button" variant="outline" size="icon-sm"
                   aria-label={de ? `${account.displayName} nach oben verschieben` : `Move ${account.displayName} up`}

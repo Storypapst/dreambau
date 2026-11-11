@@ -39,6 +39,7 @@ import { FilterPresets } from "./filter-presets";
 import { CoordinationDashboard } from "./coordination-dashboard";
 import { ReleaseListPage } from "./release-list";
 import { EvidenceWorkspace } from "./evidence-workspace";
+import { AccountRunLinks } from "./account-run-links";
 import { directoryRoute, workspaceProject } from "@/directory-route";
 
 const searchLanguages: Locale[] = ["de", "en"];
@@ -170,7 +171,10 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
   }), [favorites, visibleByEmail]);
   const visibleFavorites = useMemo(() => new Set(favoriteAccounts.map((account) => account.email)), [favoriteAccounts]);
   const visibleAccounts = onlyFavorites ? favoriteAccounts : managedAccounts;
-  const [selectedRow, setSelectedRow] = useState<string | null>();
+  const [selectedRow, setSelectedRow] = useState<string | null | undefined>(() => {
+    const match = /^#account=(.+)$/.exec(window.location.hash);
+    try { return match ? decodeURIComponent(match[1]) : undefined; } catch { return undefined; }
+  });
   const expandedEmail = selectedRow === null || visibleAccounts.some((account) => account.email === selectedRow)
     ? selectedRow ?? null
     : visibleAccounts[0]?.email ?? null;
@@ -394,6 +398,7 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
             {expanded && <div className="px-2 pb-2 sm:px-3">
               <AccountTable {...detailProps} accounts={[account]} onEdit={edit} />
               <AccountCard {...detailProps} account={account} onEdit={() => edit(account)} />
+              {selectedProject && <AccountRunLinks email={account.email} project={selectedProject} locale={locale} />}
             </div>}
           </li>;
         })}
