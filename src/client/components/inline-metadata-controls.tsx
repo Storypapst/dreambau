@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AccountMetadata, AccountView, FixtureQuality, LifecycleStatus, Project } from "@/types";
+import { accountRoleLabels, accountTopicLabels } from "./account-context-display";
 import { MultiSelect } from "./multi-select";
 import { SelectedTags, type TagTone } from "./selected-tags";
 import { LinkedRoleTags } from "./linked-role-tags";
@@ -80,17 +81,19 @@ type AccountMetadataControlProps = {
 export function AccountClassificationTags({ account, locale }: Pick<AccountMetadataControlProps, "account" | "locale">) {
   const links = (account.linkedAccess ?? []).filter((link) => !link.deleted && !link.deletionPending);
   const environments = [...new Set(links.map((link) => labelLinkedEnvironment(locale, [link])).filter(Boolean))];
-  const roles = distinctRoleOptions([...account.metadata.roles, ...links.flatMap((link) => link.roles)]);
-  const hasScopedAdmin = roles.some((role) => ["platform-admin", "tenant-admin", "agency-admin"].includes(canonicalRole(role)));
-  const displayedRoles = [...new Set(roles.filter((role) => !hasScopedAdmin || canonicalRole(role) !== "Admin")
-    .map((role) => labelRole(locale, role)))];
-  const topics = account.metadata.topics;
+  const displayedRoles = accountRoleLabels(account, locale);
+  const topics = accountTopicLabels(account, locale);
   if (!environments.length && !displayedRoles.length && !topics.length) return null;
 
   return <div className="mt-2 flex min-w-0 flex-wrap gap-1" aria-label={locale === "de" ? "Umgebungen, Rollen und Themen" : "Environments, roles and topics"}>
     {environments.map((environment) => <Badge key={environment} variant="secondary" data-testmails-search-text>{environment}</Badge>)}
     {displayedRoles.map((role) => <span key={role} className="tag-pill tag-role" data-testmails-search-text>{role}</span>)}
-    {topics.map((topic) => <span key={topic} className="tag-pill tag-topic" data-testmails-search-text>{labelTopic(locale, topic)}</span>)}
+    {topics.length > 0 && <span className="flex flex-wrap items-center gap-1">
+      <span className="text-xs text-muted-foreground" title={locale === "de" ? "Testmails-Dokumentation, keine ORISO-Zuweisung" : "Testmails documentation, not an ORISO assignment"}>
+        {locale === "de" ? "Themen in Testmails:" : "Topics in Testmails:"}
+      </span>
+      {topics.map((topic) => <span key={topic} className="tag-pill tag-topic" data-testmails-search-text>{topic}</span>)}
+    </span>}
   </div>;
 }
 

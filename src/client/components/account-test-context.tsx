@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { AccountAccessDate } from "./account-context-display";
 import { cancelPendingAccountCopy } from "./account-quick-copy";
 import { AccountLoginTarget, type LoginTarget, type ProjectLoginTargets } from "./account-login-target";
 import { MultiSelect } from "./multi-select";
@@ -188,6 +189,7 @@ export function AccountTestContext({ account, locale, onSaved, embedded = false 
           </div>
         ))}
       </dl>
+      <AccountAccessDate account={account} locale={locale} />
       {passwordDate && <p className="mt-2 text-xs text-muted-foreground">
         {de ? "App-Passwort gesetzt am" : "App password set on"} <span data-testmails-search-text>{passwordDate}</span>
       </p>}
@@ -241,7 +243,7 @@ export function AccountTestSettings({ account, locale, projectConversationTypes,
     <div className="min-w-0 space-y-2 border-t pt-2">
       <AccountLoginTarget account={account} locale={locale} project={project} options={projectLoginTargets?.[project] ?? []} onSaved={onSaved} onOptionsChanged={onLoginTargetsChanged} />
       <div className="space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">{de ? "Areas in Use · Gesprächstypen" : "Areas in use · conversation types"}</p>
+        <p className="text-xs font-medium text-muted-foreground">{de ? "Testabdeckung · Gesprächstypen" : "Test coverage · conversation types"}</p>
         <div className="flex min-w-0 gap-1">
           <MultiSelect locale={locale} compact label={de ? "Gesprächstypen wählen" : "Select conversation types"} options={[...new Set([...options, ...selected])]} value={selected} onChange={(next) => void selectTypes(next)} disabled={busy} formatOption={(option) => labelConversation(locale, option)} />
           {onTypesChanged && <Dialog open={typesOpen} onOpenChange={(open) => {

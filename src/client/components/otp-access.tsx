@@ -286,6 +286,5 @@ export function OtpAccess({ account, locale, compact = false, favorite = false, 
     {!renderMailbox && otpActions}
     {otpFeedback}
     {applicationAccess}
-    {!compact && account.access?.latest && <p className="text-xs text-muted-foreground">{locale === "de" ? "Zuletzt verwendet" : "Last used"}: {new Date(account.access.latest.createdAt).toLocaleString(locale === "de" ? "de-DE" : "en-GB")} · {account.access.latest.actorId}</p>}
   </div>;
 }

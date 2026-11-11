@@ -5,6 +5,7 @@ import { api } from "@/api";
 import { distinctRoleOptions, labelConversation, labelFixture, labelLifecycle, canonicalRole, labelLinkedEnvironment, labelProject, labelRole, labelTopic, roleSearchTerms, t, type Locale } from "@/i18n";
 import { domainClass, sortAccountsForWork } from "@/presentation";
 import { loginTargetsEndpoint, type LoginTarget, type ProjectLoginTargets } from "./account-login-target";
+import { accountAccessDate } from "./account-context-display";
 import { accountPasswordDate, accountTestProject, conversationTypesEndpoint, type ProjectConversationTypes } from "./account-test-context";
 import { SearchHistory, rememberSearchPhrase } from "./search-history";
 import { SearchSelection } from "./search-selection";
@@ -147,7 +148,7 @@ export function AccountDirectory({ initialAccounts, initialTaxonomies, locale, o
       ...metadata.topics, ...metadata.conversationTypes,
       ...metadata.roles.flatMap(roleSearchTerms),
       ...searchLanguages.flatMap((language) => [
-        accountPasswordDate(account, language), labelLifecycle(language, metadata.lifecycleStatus),
+        accountPasswordDate(account, language), accountAccessDate(account, language)?.value, labelLifecycle(language, metadata.lifecycleStatus),
         labelProject(language, metadata.project), labelFixture(language, metadata.fixtureQuality),
         ...metadata.topics.map((topic) => labelTopic(language, topic)),
         ...metadata.conversationTypes.map((type) => labelConversation(language, type))
