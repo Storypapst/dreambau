@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { Locale } from "@/i18n";
+import { labelRole, type Locale } from "@/i18n";
 import type { WorkspaceRunDetail } from "../../shared/workspace.js";
 import { accountDeepLink, attachRunAccount, detachRunAccount } from "@/workspace-client";
 import { Button } from "./ui/button";
@@ -33,7 +33,7 @@ export function RunAccountLinks({ detail, locale, onUpdated }: { detail: Workspa
           {detail.source === "evidence-run" && <Button type="button" variant="ghost" size="sm" disabled={busy}
             onClick={() => void detach(account.email)}>{de ? "Zuordnung entfernen" : "Remove link"}</Button>}
         </div>
-        <p className="text-xs text-muted-foreground">{account.roles.join(" · ") || "—"}{account.agencies.length ? " · "+account.agencies.join(" · ") : ""}{account.carrier ? " · "+account.carrier : ""}{account.postalCode ? " · PLZ "+account.postalCode : ""}</p>
+        <p className="text-xs text-muted-foreground">{account.roles.map(role => labelRole(locale, role)).join(" · ") || "—"}{account.agencies.length ? " · "+account.agencies.join(" · ") : ""}{account.carrier ? " · "+account.carrier : ""}{account.postalCode ? " · PLZ "+account.postalCode : ""}</p>
       </li>)}
     </ul>}
     {detail.source === "evidence-run" && <form className="mt-2 flex flex-wrap gap-2" onSubmit={event => void attach(event)}>

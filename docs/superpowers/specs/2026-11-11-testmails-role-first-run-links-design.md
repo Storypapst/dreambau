@@ -1,6 +1,6 @@
 # Testmails: role-first account summary and E2E account links
 
-Date: 2026-11-11. Status: proposed; awaiting Frank's approval.
+Date: 2026-11-11. Status: approved by Frank in this chat; implemented locally.
 
 ## Intent
 
@@ -52,4 +52,4 @@ Frank chooses synthetic ORISO users by their application role and test context. 
 
 ## Open decision
 
-Frank has been asked whether free browser E2E runs should be linkable. This draft recommends yes because the 2026-11-11 run otherwise cannot appear in Testmails. This choice is still awaiting his answer. No product code is changed before approval.
+Frank approved implementation in this chat. Free browser E2E runs are linkable when first captured as a private Evidence draft. The 2026-11-11 report was uploaded as draft `2dc3209c-8bdc-4bd4-b335-3a1641c97e4b`; its account links require deployment of this feature.

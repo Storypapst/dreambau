@@ -21,17 +21,27 @@ export class WorkspaceAccountLinks {
       run_id TEXT NOT NULL, project TEXT NOT NULL, environment TEXT NOT NULL,
       email TEXT NOT NULL, actor_id TEXT NOT NULL, created_at TEXT NOT NULL,
       PRIMARY KEY(run_id,email)
-    ); CREATE INDEX IF NOT EXISTS workspace_account_links_email ON workspace_account_links(email);`);
+    ); CREATE INDEX IF NOT EXISTS workspace_account_links_email ON workspace_account_links(email);
+    CREATE TABLE IF NOT EXISTS workspace_account_link_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL, email TEXT NOT NULL,
+      action TEXT NOT NULL, actor_id TEXT NOT NULL, created_at TEXT NOT NULL
+    );`);
   }
   attach(runId: string, project: WorkspaceAccountLink["project"], environment: WorkspaceAccountLink["environment"],
     email: string, actorId: string, createdAt: string): WorkspaceAccountLink {
     const normalized = normalize(email);
-    this.sqlite.prepare(`INSERT INTO workspace_account_links(run_id,project,environment,email,actor_id,created_at)
-      VALUES(?,?,?,?,?,?) ON CONFLICT(run_id,email) DO NOTHING`).run(runId, project, environment, normalized, actorId, createdAt);
+    const changed = this.sqlite.prepare(`INSERT INTO workspace_account_links(run_id,project,environment,email,actor_id,created_at)
+      VALUES(?,?,?,?,?,?) ON CONFLICT(run_id,email) DO NOTHING`).run(runId, project, environment, normalized, actorId, createdAt).changes;
+    if (changed) this.sqlite.prepare("INSERT INTO workspace_account_link_events(run_id,email,action,actor_id,created_at) VALUES(?,?,?,?,?)")
+      .run(runId, normalized, "attached", actorId, createdAt);
     return this.forRun(runId).find((item) => item.email === normalized)!;
   }
-  detach(runId: string, email: string): boolean {
-    return this.sqlite.prepare("DELETE FROM workspace_account_links WHERE run_id=? AND email=?").run(runId, normalize(email)).changes > 0;
+  detach(runId: string, email: string, actorId = "system", createdAt = new Date().toISOString()): boolean {
+    const normalized = normalize(email);
+    const changed = this.sqlite.prepare("DELETE FROM workspace_account_links WHERE run_id=? AND email=?").run(runId, normalized).changes;
+    if (changed) this.sqlite.prepare("INSERT INTO workspace_account_link_events(run_id,email,action,actor_id,created_at) VALUES(?,?,?,?,?)")
+      .run(runId, normalized, "detached", actorId, createdAt);
+    return changed > 0;
   }
   forRun(runId: string): WorkspaceAccountLink[] {
     return (this.sqlite.prepare("SELECT * FROM workspace_account_links WHERE run_id=? ORDER BY email").all(runId) as LinkRow[]).map(view);

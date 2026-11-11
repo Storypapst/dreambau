@@ -108,7 +108,9 @@ function RunDetail({detail,locale,onFile,onTarget,onAdd,onUpdated,refreshMinutes
   <div className="workspace-detail-meta"><Badge variant="secondary">{detail.environment=== "dev"?"Dev":detail.environment==="pre-dev"?"PreDev":detail.environment}</Badge><span>{detail.source==="test-run"?text.testRun:text.evidenceRun}</span><time dateTime={detail.createdAt}>{workspaceDate(detail.createdAt,locale)}</time>{detail.files.length>0&&<a className="underline underline-offset-2" href="#workspace-run-files">Dreambau Evidence · {detail.files.length} {locale==="de"?"Dateien":"files"}</a>}</div>
   <div className="workspace-detail-title"><h2>{detail.title}</h2><WorkspaceResultBadge result={detail.result} locale={locale}/></div>
   <p className="workspace-lifecycle">{workspaceLifecycle(detail,locale)}</p>
-  {detail.source==="evidence-run"&&<p className="workspace-source-explanation">{text.evidenceOnly}</p>}
+  {detail.source==="evidence-run"&&<p className="workspace-source-explanation">{(detail.accounts?.length ?? 0)>0
+    ? (locale==="de"?"Die Konten wurden diesem Evidence-Eintrag ausdrücklich zugeordnet. Ein reservierter Testlauf ist damit nicht belegt.":"The accounts were explicitly linked to this evidence entry. This does not establish a reserved test-account run.")
+    : text.evidenceOnly}</p>}
   <dl className="workspace-metadata"><div><dt>{text.repository}</dt><dd>{detail.repository||"—"}</dd></div><div><dt>{text.commit}</dt><dd><code title={detail.commitSha}>{detail.commitSha.slice(0,12)||"—"}</code></dd></div><div><dt>{text.version}</dt><dd>{detail.applicationVersion||"—"}</dd></div><div><dt>{text.owner}</dt><dd>{detail.owner||"—"}</dd></div></dl>
   <EvidenceWorkspaceSteps detail={detail} locale={locale}/>
   <RunAccountLinks detail={detail} locale={locale} onUpdated={onUpdated}/>

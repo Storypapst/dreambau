@@ -27,7 +27,7 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
   const carrier = showAgencies ? account.metadata.carrier : undefined;
   const contextLabels = [roles.join(" · "), agencies.join(" · "), carrier, postcode && `${de ? "PLZ" : "Postcode"} ${postcode}`, topics.join(" · ")].filter(Boolean).join(" · ");
   return (
-    <div className="flex min-w-0 items-center gap-1 px-2 py-1 max-[360px]:gap-0.5 max-[360px]:px-1 sm:gap-2 sm:px-3">
+    <div className="flex min-w-0 items-start gap-1 px-2 py-1 max-[360px]:gap-0.5 max-[360px]:px-1 sm:items-center sm:gap-2 sm:px-3">
       <Button type="button" variant="ghost" size="sm" className="h-auto min-h-8 min-w-0 flex-1 justify-start gap-1 overflow-hidden py-1.5 has-[>svg]:px-1 sm:has-[>svg]:px-2"
         data-account-expander aria-expanded={expanded}
         aria-label={account.displayName} aria-description={expanded ? undefined : contextLabels || undefined} onClick={(event) => {
@@ -41,11 +41,11 @@ export function AccountRowSummary({ account, locale, expanded, onToggle, childre
             <span className="max-w-full truncate font-semibold" title={account.displayName} data-testmails-search-text>{account.displayName}</span>
             {!expanded && roles.length > 0 && <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary" title={role.source === "linked" ? (de ? "Verifizierte App-Rolle" : "Verified app role") : (de ? "Dokumentierte Rolle" : "Documented role")} data-testmails-search-text>{roles[0]}{roles.length > 1 && ` +${roles.length - 1}`}</span>}
           </span>
-          {!expanded && contextLabels && <span className="flex max-w-full min-w-0 items-center gap-1 overflow-hidden text-[10px] text-muted-foreground sm:text-xs" title={contextLabels}>
-            {agencies.length > 0 && <span className="max-w-44 truncate font-medium sm:max-w-64" data-testmails-search-text>{agencies[0]}{agencies.length > 1 && ` +${agencies.length - 1}`}</span>}
-            {carrier && <span className="max-w-32 truncate sm:max-w-48" data-testmails-search-text>· {de ? "Träger" : "Provider"} {carrier}</span>}
-            {postcode && <span className="shrink-0" data-testmails-search-text>· {de ? "PLZ" : "ZIP"} {postcode}</span>}
-            {topics.length > 0 && <span className="hidden max-w-40 truncate sm:inline" data-testmails-search-text>· {de ? "ORISO-Thema" : "App topic"} {topics[0]}{topics.length > 1 && ` +${topics.length - 1}`}</span>}
+          {!expanded && contextLabels && <span className="flex max-w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden text-[10px] text-muted-foreground sm:flex-row sm:items-center sm:gap-1 sm:text-xs" title={contextLabels}>
+            {agencies.length > 0 && <span className="max-w-full whitespace-normal break-words text-left font-medium leading-tight sm:max-w-64 sm:truncate sm:whitespace-nowrap" data-testmails-search-text>{agencies[0]}{agencies.length > 1 && ` +${agencies.length - 1}`}</span>}
+            {carrier && <span className="max-w-full truncate sm:max-w-48" data-testmails-search-text><span className="hidden sm:inline">· </span>{de ? "Träger" : "Provider"} {carrier}</span>}
+            {postcode && <span className="shrink-0" data-testmails-search-text><span className="hidden sm:inline">· </span>{de ? "PLZ" : "ZIP"} {postcode}</span>}
+            {topics.length > 0 && <span className="max-w-full whitespace-normal text-left leading-tight sm:max-w-40 sm:truncate sm:whitespace-nowrap" data-testmails-search-text><span className="hidden sm:inline">· </span>{de ? "ORISO-Thema" : "App topic"} {topics[0]}{topics.length > 1 && ` +${topics.length - 1}`}</span>}
           </span>}
         </span>
       </Button>

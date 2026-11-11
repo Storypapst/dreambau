@@ -276,7 +276,7 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
       const email = z.string().email().parse(String(req.params.email)).trim().toLowerCase();
       const link = options.database.workspaceAccountLinks.forRun(run.id).find(item => item.email === email);
       if (!link || link.project !== run.project || link.environment !== run.environment) throw new NotFound();
-      options.database.workspaceAccountLinks.detach(run.id, email);
+      options.database.workspaceAccountLinks.detach(run.id, email, user.id, (options.now?.() ?? new Date()).toISOString());
       return res.json(await detail("evidence-run", run.id, user));
     } catch (error) { fail(error, res, next); }
   });
