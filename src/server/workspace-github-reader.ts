@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { marked, type Tokens } from "marked";
 import type { WorkspaceGithubFacts } from "../shared/workspace-github.js";
 import type { WorkspaceGithubRepository } from "./workspace-github-config.js";
 import { GithubReadError, type GithubBudget, type GithubTransport } from "./github-app-reader.js";
@@ -9,7 +10,7 @@ export function parseGithubReference(value: string): { fullName: string; kind: "
   return { fullName: match[1], kind: match[2] === "issues" ? "issue" : "pull-request", number: Number(match[3]), url: value.replace(/\/$/, "").toLowerCase() };
 }
 const githubUrl = z.string().url().refine(value => { const url = new URL(value); return url.protocol === "https:" && url.hostname === "github.com" && !url.username && !url.password && !url.search && !url.hash; });
-const coreSchema = z.object({ title: z.string().max(4096), state: z.enum(["open", "closed"]), draft: z.boolean().optional(), state_reason: z.string().max(100).nullable().optional(), merged_at: z.string().nullable().optional(), merge_commit_sha: z.string().nullable().optional(), pull_request: z.unknown().optional(), milestone: z.object({ title: z.string().max(200), html_url: githubUrl }).nullable().optional() });
+const coreSchema = z.object({ title: z.string().max(4096), state: z.enum(["open", "closed"]), draft: z.boolean().optional(), state_reason: z.string().max(100).nullable().optional(), body: z.string().nullable().optional(), merged_at: z.string().nullable().optional(), merge_commit_sha: z.string().nullable().optional(), pull_request: z.unknown().optional(), milestone: z.object({ title: z.string().max(200), html_url: githubUrl }).nullable().optional() });
 const commitOid = z.string().regex(/^[a-f\d]{40}$/i);
 const mergeCommitSchema = z.object({ data: z.object({ repository: z.object({ pullRequest: z.object({ mergeCommit: z.object({ oid: commitOid }).nullable() }) }) }) });
 const linkSchema = z.object({ url: githubUrl, repository: z.object({ nameWithOwner: z.string() }) });
@@ -23,6 +24,33 @@ function fieldValues(field: z.infer<typeof fieldSchema> | undefined): string[] {
 }
 const boardItemsSchema = z.object({ nodes: z.array(z.object({ project: z.object({ id: z.string() }), status: fieldSchema, release: fieldSchema.optional() })).max(20), pageInfo: z.object({ hasNextPage: z.boolean() }) });
 
+// Do not surface credentials that were accidentally pasted into a GitHub task.
+const sensitiveTask = /(?:-----BEGIN |\b(?:gh[pousr]_|github_pat_|xox[abprs]-|AKIA)[A-Za-z0-9_-]{12,}|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.|\b(?:password|passphrase|secret|token|api[-_ ]?key|otp|recovery[-_ ]?code)\b["'\s]*[:=]|https?:\/\/[^\s/]+:[^\s/]+@)/i;
+
+function taskList(body: string | null | undefined): WorkspaceGithubFacts["taskList"] {
+  if (!body || body.length > 65_536) return undefined;
+  const items: NonNullable<WorkspaceGithubFacts["taskList"]>["items"] = [];
+  let total = 0;
+  let checked = 0;
+  try {
+    marked.walkTokens(marked.lexer(body, { gfm: true }), token => {
+      if (token.type !== "list_item") return;
+      const item = token as Tokens.ListItem;
+      if (!item.task) return;
+      const done = item.checked === true;
+      total++;
+      if (done) checked++;
+      if (items.length >= 12) return;
+      const raw = item.text.split("\n", 1)[0];
+      const label = sensitiveTask.test(raw) ? null : raw
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/<[^>]*>/g, "")
+        .replace(/https?:\/\/\S+/gi, "").replace(/[\x00-\x1f\x7f]/g, " ").trim().slice(0, 180);
+      items.push({ checked: done, label: label || null });
+    });
+  } catch { return undefined; }
+  return total ? { total, checked, items } : undefined;
+}
+
 /** Every caller supplies an already-authorized repository. Relations receive their own authorization. */
 export async function readWorkspaceGithubFacts(client: GithubTransport, repo: WorkspaceGithubRepository, reference: { kind: "issue" | "pull-request"; number: number }, budget?: GithubBudget,
   relatedClient?: (fullName: string) => GithubTransport | null): Promise<{ facts: WorkspaceGithubFacts; status: "ready" | "partial"; errorCode: string | null; retryAt: number }> {
@@ -34,6 +62,8 @@ export async function readWorkspaceGithubFacts(client: GithubTransport, repo: Wo
     draft: reference.kind === "pull-request" && core.draft === true, mergedAt: merged ? core.merged_at! : null,
     releaseAssignments: core.milestone ? [{ title: core.milestone.title, url: core.milestone.html_url, source: "milestone" }] : [],
     boards: [], closingPullRequests: [], closingPullRequestsComplete: reference.kind !== "issue", publishedReleases: [], releaseCoverage: "unknown" };
+  const checklist = taskList(core.body);
+  if (checklist) facts.taskList = checklist;
   let partial = false; let errorCode: string | null = null; let retryAt = 0;
   const incomplete = (error?: unknown) => { partial = true; errorCode ??= error instanceof GithubReadError ? error.code : "github_partial"; if (error instanceof GithubReadError) retryAt = Math.max(retryAt, error.retryAt ?? 0); };
   if (reference.kind === "issue") {

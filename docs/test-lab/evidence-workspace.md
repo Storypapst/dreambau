@@ -40,6 +40,24 @@ Use **Refresh** to check again. The section shows when a successful check happen
 
 The application uses a dedicated, approved read-only GitHub App. The installation setup is a separate operator step; this guide and local screenshots do not establish that live repository access is enabled.
 
+## See what the runner did
+
+The GitHub checklist shows boxes in the linked issue or PR description. Its checkmarks are GitHub author annotations; they do not report what a test executed.
+
+Record a short, ordered list of the actual actions and results during a run. Upload it alongside screenshots through the same authenticated Evidence upload, with the filename `test-steps.json`. A test-account run can use an explicitly linked Evidence run. Testmails shows the one ready report under **Test steps**. It does not infer actions from screenshot captions or a historical run title.
+
+```json
+{
+  "schemaVersion": 1,
+  "steps": [
+    { "label": "Opened the admin login page", "result": "passed" },
+    { "label": "Clicked the language selector and saw the English heading", "result": "passed" }
+  ]
+}
+```
+
+Use up to 20 short steps and the results `passed`, `failed` or `skipped`. Keep input values and credentials out of labels. Each runner uses its own Evidence identity and must choose the environment it actually tested. A draft can be opened by authorized Testmails viewers; publishing to GitHub still requires the normal matching PR workflow.
+
 ## Set personal workspace defaults
 
 Open **Workspace settings** beside the project selector. Choose whether to remember source and environment filters separately for each project, and set display refresh to manual, every 15 minutes or every hour. Save, then reload to verify your choice. These settings belong to your signed-in account.

@@ -6,6 +6,8 @@ export interface WorkspaceGithubPullRequest {
 export interface WorkspaceGithubFacts {
   kind: "issue" | "pull-request"; title: string; state: "open" | "closed" | "merged";
   stateReason: string | null; draft: boolean; mergedAt: string | null;
+  /** GitHub author checkmarks, never test execution results. Labels can be suppressed. */
+  taskList?: { total: number; checked: number; items: Array<{ label: string | null; checked: boolean }> };
   releaseAssignments: Array<{ title: string; url: string; source: "project-field" | "milestone" }>;
   boards: Array<{ title: string; status: string | null; url: string }>;
   closingPullRequests: WorkspaceGithubPullRequest[];

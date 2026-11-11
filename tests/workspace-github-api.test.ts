@@ -11,7 +11,7 @@ import { createGithubTransport, GithubReadError } from "../src/server/github-app
 
 const cleanup: Array<() => void> = [];
 afterEach(() => cleanup.splice(0).forEach(close => close()));
-async function fixture(configured = true) {
+async function fixture(configured = true, publicOnly = false) {
   const dir = mkdtempSync(path.join(tmpdir(), "workspace-github-")); const database = createDatabase(":memory:"); const store = createPasskeyStore(path.join(dir, "auth.sqlite"));
   cleanup.push(() => { database.close(); store.close(); rmSync(dir, { recursive: true, force: true }); });
   const user = store.createUser({ email: "viewer@example.test", name: "Viewer", projects: ["oriso", "dreambau"], role: "admin" });
@@ -24,7 +24,7 @@ async function fixture(configured = true) {
     return Response.json({ title: "ORISO issue title", state: "open", milestone: null });
   });
   const client = createGithubTransport({ token: async () => "private-token", transport, now: () => now.getTime() });
-  const github = configured ? createWorkspaceGithub({ store: database.workspaceGithub, now: () => now.getTime(), config: { appId: "1", privateKeyFile: "/unused-test-key", installations: [{ installationId: "2", repositories: [{ fullName: "OpenResilienceInitiative/ORISO-Frontend", project: "oriso", boards: [] }] }, { installationId: "3", repositories: [{ fullName: "Storypapst/dreambau", project: "dreambau", boards: [] }] }] }, clients: new Map([["2", client], ["3", createGithubTransport({ token: async () => "private-token", transport, now: () => now.getTime() })]]) }) : null;
+  const github = configured ? createWorkspaceGithub({ store: database.workspaceGithub, now: () => now.getTime(), config: { appId: "1", privateKeyFile: "/unused-test-key", installations: [{ installationId: "2", repositories: [{ fullName: "OpenResilienceInitiative/ORISO-Frontend", project: "oriso", boards: [] }, ...(publicOnly ? [{ fullName: "OpenResilienceInitiative/ORISO-ElementCall", project: "oriso" as const, publicOnly: true as const, boards: [] as [] }] : [])] }, { installationId: "3", repositories: [{ fullName: "Storypapst/dreambau", project: "dreambau", boards: [] }] }] }, clients: new Map([["2", client], ["3", createGithubTransport({ token: async () => "private-token", transport, now: () => now.getTime() })]]) }) : null;
   database.testRuns.create({ project: "oriso", targetEnvironment: "dev", poolEnvironment: "dev", scenario: "actual-run", applicationVersion: "1.0", commitSha: "abcdef1", roles: [{ role: "user", count: 1 }] }, [{ accountId: "one", email: "one@example.test", roles: ["user"] }], { type: "machine", id: "runner" }, now.toISOString(), "run");
   const app = createApp({ database, passkeyStore: store, now: () => now, workspaceGithub: github, workspaceEvidence: null, loadAccounts: () => [], registryProvider: { list: async () => [], get: async () => null }, passwordHash: "unused", secureCookies: false, webauthn: { generateRegistrationOptions: async () => ({}), verifyRegistrationResponse: async () => ({ verified: false }), generateAuthenticationOptions: async () => ({ challenge: "test" }), verifyAuthenticationResponse: async () => ({ verified: true, authenticationInfo: { newCounter: 1 } }) } });
   const agent = request.agent(app); const auth = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
@@ -34,6 +34,43 @@ async function fixture(configured = true) {
 }
 const endpoint = "/testmails/api/workspace/runs/test-run/run/github";
 describe("selected-run GitHub HTTP boundary", () => {
+  it("reads a mapped public repo only while its exact GitHub metadata confirms public visibility", async () => {
+    const f = await fixture(true, true);
+    const repo = "OpenResilienceInitiative/ORISO-ElementCall";
+    let visible = true;
+    let coreReads = 0;
+    f.transport.mockImplementation(async url => {
+      const pathname = new URL(url).pathname.toLowerCase();
+      if (pathname === `/repos/${repo.toLowerCase()}`) return Response.json({ full_name: repo, visibility: visible ? "public" : "private", private: !visible });
+      if (pathname.endsWith("/issues/1")) return Response.json({ title: "Issue in a second repo", state: "open" });
+      if (pathname === "/graphql") return Response.json({ data: { repository: { issue: { closedByPullRequestsReferences: {
+        nodes: [{ url: `https://github.com/${repo}/pull/141`, repository: { nameWithOwner: repo } }],
+        pageInfo: { hasNextPage: false }
+      } } } } });
+      if (pathname.endsWith("/pulls/141")) {
+        coreReads++;
+        return Response.json({ title: "ElementCall public change", state: "open" });
+      }
+      throw new Error("unexpected request");
+    });
+    const refs = [{ id: "public", kind: "pull-request" as const, label: "", url: `https://github.com/${repo}/pull/141` }];
+    const first = await f.github!.read(refs, project => project === "oriso");
+    expect(first.items[0]).toMatchObject({ status: "ready", facts: { title: "ElementCall public change" } });
+    expect(coreReads).toBe(1);
+    const forbidden = await f.github!.read(refs, () => false);
+    expect(forbidden.items[0]).toMatchObject({ status: "denied", facts: null });
+    const issue = [{ id: "issue", kind: "issue" as const, label: "", url: "https://github.com/OpenResilienceInitiative/ORISO-Frontend/issues/1" }];
+    const related = await f.github!.read(issue, () => true);
+    expect(related.items[0].facts?.closingPullRequests).toHaveLength(1);
+    expect(coreReads).toBe(2);
+    visible = false;
+    const later = await f.github!.read(refs, () => true);
+    expect(later.items[0]).toMatchObject({ status: "denied", facts: null });
+    const cachedIssue = await f.github!.read(issue, () => true);
+    expect(cachedIssue.items[0]).toMatchObject({ cached: true, facts: { closingPullRequests: [], closingPullRequestsComplete: false } });
+    expect(coreReads).toBe(2);
+  });
+
   it("preserves a newly verified valid closing PR on an uncached Issue when its sibling is missing", async () => {
     const f = await fixture();
     f.transport.mockImplementation(async url => {

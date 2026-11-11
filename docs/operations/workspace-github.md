@@ -117,3 +117,6 @@ Search phrases, selected record IDs and an overriding default project are not st
 Before claiming live acceptance, verify actual Issue, PR, configured board and release reads using this App's
 own service identity. A successful developer-Mac `gh` read or synthetic test does not establish App access.
 Record installation/repository coverage and key-rotation ownership without copying secrets into evidence.
+
+
+An explicitly mapped repository can use `"publicOnly": true` when the same owner's installation can read its public API data. This mapping is omitted from the installation-token repository request and cannot configure project boards. A selected read verifies the exact repository's public visibility before returning any fresh or cached facts, including related pull requests. It is not an installation grant or an automatic fallback for unknown repositories. The workspace projects bounded checklist labels and checkbox states only, never the full GitHub description.
