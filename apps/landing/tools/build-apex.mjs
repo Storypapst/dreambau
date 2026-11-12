@@ -94,7 +94,8 @@ for (const f of ['navigation.css','navigation.js','source-view.js','source-view.
 for (const f of langFiles) files.set('i18n/' + f, read('i18n/' + f));
 // The legal pages (Impressum, Datenschutz) and their stylesheet: static, no script, no inline style; served flat under the prefix
 // (/homepage-assets/impressum.html, /homepage-assets/datenschutz.html), the paths the footer and the menu of index.html link to.
-const LEGAL = ['impressum.html', 'datenschutz.html', 'legal.css'];
+// kontakt.html is a design preview of the contact form: shipped but linked from nowhere, its fieldset disabled, until a backend exists.
+const LEGAL = ['impressum.html', 'datenschutz.html', 'kontakt.html', 'legal.css'];
 for (const f of LEGAL) {
   const text = read('legal/' + f);
   if (f.endsWith('.html')) for (const [re, what] of [[/<style[\s>]/i, 'an inline <style>'], [/\sstyle\s*=/i, 'a style attribute'], [/\son[a-z]+\s*=/i, 'an event handler attribute'], [/<script\b/i, 'a <script>']]) {
@@ -105,6 +106,8 @@ for (const f of LEGAL) {
 for (const m of html.matchAll(/href="([^"]*)"/g)) {
   if (m[1].startsWith(prefix) && /\.html$/.test(m[1]) && !files.has(m[1].slice(prefix.length))) fail(`index.html links ${m[1]}, but the build has no such file`);
 }
+if (/kontakt\.html/.test(html)) fail('index.html links the contact form preview; it stays unlinked until its backend is live');
+if (!/<fieldset disabled>/.test(read('legal/kontakt.html'))) fail('legal/kontakt.html: the form must stay disabled until its backend is live');
 const legalOpen = LEGAL.filter(f => f.endsWith('.html')).flatMap(f => [...read('legal/' + f).matchAll(/data-open="([^"]+)"/g)].map(m => `${f}#${m[1]}`));
 for (const id of productions) {
   const f = path.join(SITE, 'p', id + '.js');

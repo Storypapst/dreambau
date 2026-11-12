@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#06080d">
+<meta name="robots" content="noindex">
+<title>Kontakt · dreambau.com</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="legal.css">
+</head>
+<body>
+<!-- Design preview of the contact form (dreambau-docs specs/contact-form.md). NOT WIRED: no backend receives posts yet,
+     the fieldset is disabled and no page links here. Frank picks the backend first; then the form moves to /kontakt/. -->
+<main>
+<a class="back" href="/">‹ Startseite</a>
+<h1>Kontakt</h1>
+<p class="open" data-open="contact-form-backend" role="status">Dieses Formular ist noch nicht in Betrieb. Bitte schreiben Sie bis dahin an <a href="mailto:info@dreambau.com">info@dreambau.com</a>.</p>
+<p>Schreiben Sie uns. Wir antworten per E-Mail, <span class="open" data-open="contact-form-promise">in der Regel am nächsten Werktag</span>.</p>
+<form class="contact" method="post" action="/kontakt/" accept-charset="utf-8">
+<fieldset disabled>
+<legend class="sr-only">Nachricht an dreambau.com</legend>
+<label for="f-name">Name <span class="hint">(freiwillig)</span></label>
+<input id="f-name" name="name" type="text" maxlength="80" autocomplete="name" dir="auto">
+<label for="f-email">E-Mail-Adresse</label>
+<input id="f-email" name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" dir="ltr">
+<label for="f-message">Nachricht</label>
+<textarea id="f-message" name="message" required maxlength="4000" rows="6" dir="auto"></textarea>
+<div class="hp" aria-hidden="true" inert><label for="f-web">Website</label><input id="f-web" name="website" type="text" tabindex="-1" autocomplete="off" value=""></div>
+<input type="hidden" name="t" value="">
+<p class="note">Was mit Ihren Angaben geschieht, steht im Abschnitt „Kontaktformular“ der <a href="datenschutz.html">Datenschutzhinweise</a>.</p>
+<button type="submit">Nachricht senden</button>
+</fieldset>
+</form>
+</main>
+<footer class="foot" aria-label="Rechtliches"><a href="impressum.html">Impressum</a><i aria-hidden="true">·</i><a href="datenschutz.html">Datenschutz</a></footer>
+</body>
+</html>
