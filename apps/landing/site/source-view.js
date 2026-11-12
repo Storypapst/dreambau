@@ -5,6 +5,7 @@ const D=window.Dream,doc=document,entry=doc.getElementById('source-entry');
 let statusTimer,viewCssReady,view,comparison,data,stopDraw,source='',shown=0,rows=[],following=true,lastScroll=0,lastFrame=0,previousPick='',classes,tab='picture',picture=false,comparisonOpener;
 const bytes=s=>new TextEncoder().encode(s).length,fmt=(n,d=1)=>D.i18n?.format?D.i18n.format(n,{maximumFractionDigits:d}):new Intl.NumberFormat('de',{maximumFractionDigits:d}).format(n),node=(tag,text,cls)=>{const n=doc.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
 const de={title:'Wie klein ist das?',close:'Schließen',copy:'Kopieren',copied:'Quelltext kopiert.',copyError:'Kopieren nicht verfügbar. Quelltext markieren und kopieren.',follow:'Mitlesen',compare:'Vergleich',picture:'Bild',text:'Text',pictureTab:'Bild dazu',scale:'Maßstab',animation:'Die Animation',page:'Startseite + Animation',runtime:'Laufzeit',load:'Ladezeit',exact:'Byte · so ausgeliefert',uncompressed:'unkomprimiert',unavailable:'nicht verfügbar',caption:'Das Bild, das dieser Code gerade zeichnet.',description:'Was zu sehen und zu hören ist',all:'Alle drei Animationen',area:'Fläche = Größe. KB = 1.000 Byte, MB = 1.000.000 Byte.',comparisonTitle:'Größenvergleich',sources:'Quellen',measured:'gemessen',documented:'dokumentiert',estimate:'Schätzung',calculation:'Rechnung',about:'etwa',rounding:'Die Faktoren sind gerundet. Bei Schätzungen ist auch der Vergleichswert geschätzt.',origin:'Quellenangaben im deutschen Original',smaller:'Die Animation ist {factor}× kleiner.',larger:'Die Animation ist {factor}× größer.',same:'Die Größen sind gleich.',ownSize:'Animation: {size} KB',legend:'Animation · Vergleich. Jede Zeichnung hat ihren eigenen Maßstab.',source:'Quelltext',actions:'Aktionen',view:'Ansicht',calm:'Bewegung reduziert: Hier steht die fertige Animation.',dot:'Die kleinere Fläche ist als Punkt vergrößert, damit sie sichtbar bleibt.',external:'Fremdangabe'};
+const names={'4k':'Rohbau','16k':'Traumhaus','64k':'Skyline'},label=id=>names[id]||id,pool=()=>D.ids||Object.keys(names);
 const tr=(key,vars={})=>{let s=D.sourceLocales?.[D.state.lang||'de']?.[key]||de[key]||key;for(const [k,v]of Object.entries(vars))s=s.replaceAll('{'+k+'}',String(v));return s;};
 function loadScript(url){return new Promise((resolve,reject)=>{const s=doc.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>{s.remove();reject(new Error('Source view asset could not be loaded.'));};doc.head.append(s);});}
 const icon=path=>'<svg class="cv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>';
@@ -33,7 +34,7 @@ function localise(){
  const lang=D.state.lang||'de';view.lang=lang;view.dir=doc.documentElement.dir||'ltr';
  for(const el of view.querySelectorAll('[data-cv]'))el.textContent=tr(el.dataset.cv);
  view.querySelector('#cv-close-bottom').textContent=lang==='de'?de.close:tr('close');view.querySelector('#cv-close').ariaLabel=tr('close');view.querySelector('.cv-source').ariaLabel=tr('source');view.querySelector('.cv-code').ariaLabel=tr('source');view.querySelector('.cv-tabs').ariaLabel=tr('view');view.querySelector('.cv-actions').ariaLabel=tr('actions');
- view.querySelector('#cv-identity').textContent=({ '4k':'Rohbau','16k':'Traumhaus','64k':'Skyline'}[D.state.id])+' · '+D.state.id;
+ view.querySelector('#cv-identity').textContent=(names[D.state.id]?names[D.state.id]+' · ':'')+D.state.id;
  view.querySelector('#cv-anim-size').textContent=fmt(bytes(source)/1000);view.querySelector('#cv-exact').textContent='= '+fmt(bytes(source),0)+' '+tr('exact');
  view.querySelector('.cv-description').textContent=D.t?.('blind.'+D.state.id)||doc.getElementById('blind')?.textContent||tr('unavailable');
  view.querySelector('#cv-picture span').textContent=tr(picture?'text':'picture');
@@ -68,9 +69,9 @@ function draw(t){
  const canvas=view.querySelector('#cv-preview');if(tab==='picture'&&(!view.classList.contains('cv-stack')||picture))canvas.getContext('2d').drawImage(doc.getElementById('c'),0,0,canvas.width,canvas.height);
 }
 function buildScale(){
- if(!D.sourceTexts)return;const all=view.querySelector('#cv-all').checked,ids=all?['4k','16k','64k']:[D.state.id],values=ids.map(id=>({id,n:bytes(D.sourceTexts[id]),label:({'4k':'Rohbau','16k':'Traumhaus','64k':'Skyline'}[id])})),maximum=Math.max(...values.map(v=>v.n));
+ if(!D.sourceTexts)return;const all=view.querySelector('#cv-all').checked,ids=(all?pool():[D.state.id]).filter(id=>D.sourceTexts[id]!=null),values=ids.map(id=>({id,n:bytes(D.sourceTexts[id]),label:label(id)})),step=Math.min(55,220/Math.max(1,values.length-1)),maximum=Math.max(...values.map(v=>v.n));
  const fig=view.querySelector('#cv-scale-figure');fig.replaceChildren();const svg=doc.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 530 280');svg.setAttribute('role','img');svg.setAttribute('aria-label',values.map(v=>v.label+' '+fmt(v.n,0)+' Byte').join(', '));
- values.slice().reverse().forEach((v,i)=>{const edge=250*Math.sqrt(v.n/maximum),rect=doc.createElementNS(svg.namespaceURI,'rect');for(const[k,n]of Object.entries({x:8,y:270-edge,width:edge,height:edge,fill:'none',stroke:v.id===D.state.id?'#ffbe64':'#e9edf5','stroke-width':2}))rect.setAttribute(k,String(n));svg.append(rect);const label=doc.createElementNS(svg.namespaceURI,'text');label.setAttribute('x','280');label.setAttribute('y',String(50+i*55));label.setAttribute('fill',v.id===D.state.id?'#ffbe64':'#e9edf5');label.textContent=v.label+' · '+fmt(v.n/1000)+' KB';svg.append(label);});fig.append(svg);
+ values.slice().reverse().forEach((v,i)=>{const edge=250*Math.sqrt(v.n/maximum),rect=doc.createElementNS(svg.namespaceURI,'rect');for(const[k,n]of Object.entries({x:8,y:270-edge,width:edge,height:edge,fill:'none',stroke:v.id===D.state.id?'#ffbe64':'#e9edf5','stroke-width':2}))rect.setAttribute(k,String(n));svg.append(rect);const label=doc.createElementNS(svg.namespaceURI,'text');label.setAttribute('x','280');label.setAttribute('y',String(50+i*step));label.setAttribute('fill',v.id===D.state.id?'#ffbe64':'#e9edf5');label.textContent=v.label+' · '+fmt(v.n/1000)+' KB';svg.append(label);});fig.append(svg);
  const list=view.querySelector('#cv-animations');list.replaceChildren();for(const v of values){const item=node('section',null,'cv-animation');item.append(node('h4',v.label+' · '+fmt(v.n,0)+' Byte'),node('p',D.t?.('blind.'+v.id)||tr('unavailable')));list.append(item);}
 }
 let picks=[];
@@ -94,7 +95,7 @@ function renderComparison(){
 D.openSourceView=async base=>{
  const visitResources=performance.getEntriesByType('resource').map(e=>e.name),id=D.state.id;if(!id||!D.prods[id])throw new Error('Animation is still loading.');
  const loads=[];
- for(const animation of ['4k','16k','64k'])if(!D.sourceTexts?.[animation])loads.push(loadScript(base+'p/'+animation+'.src.js'));
+ for(const animation of pool())if(!D.sourceTexts?.[animation])loads.push(loadScript(base+'p/'+animation+'.src.js'));
  if(!D.sourceFacts)loads.push(loadScript(base+'source-facts.js'));
  if(!D.codeComparisons)loads.push(loadScript(base+'comparisons.js'));
  if(!D.sourceLocales)loads.push(loadScript(base+'source-locales.js'));
