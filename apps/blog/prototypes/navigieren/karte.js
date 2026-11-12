@@ -6,6 +6,7 @@
   const D = document, root = D.documentElement;
   const $ = (id) => D.getElementById(id);
   const stage = $('stage'), cv = $('map'), list = $('posts'), tip = $('tip'), panel = $('panel'), veil = $('veil');
+  const grove = $('grove'), canopy = $('canopy'), zoomEl = $('zoom'), wood = $('wood'), leafbox = $('leafbox'), cloud = $('cloud');
   const x = cv && cv.getContext && cv.getContext('2d');
   if (!x || !list) return;
 
@@ -24,11 +25,19 @@
   for (const a of D.querySelectorAll('.langs a')) if (a.dataset.lang === LANG) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
 
   /* ---- the posts, read from the list (newest first) ---- */
+  /* a text that the HTML holds in German and English: the one of the page's language */
+  const txt = (el) => { const own = el && el.querySelector(LANG === 'en' ? '.en-only' : '.de'); return own ? own.textContent : el ? el.textContent : ''; };
   const posts = [...list.querySelectorAll('li.row')].map((row, rank) => ({
     row, rank, no: row.dataset.no, date: row.dataset.date, newest: row.hasAttribute('data-newest'),
-    link: row.querySelector('.tt a'), video: Boolean(row.querySelector('.mk.src')), title: row.querySelector('.tt a').textContent, short: row.querySelector('.ex').textContent,
+    link: row.querySelector('.tt a'), topic: txt(row.querySelector('.mk.tp')), video: Boolean(row.querySelector('.mk.src')), title: row.querySelector('.tt a').textContent, short: row.querySelector('.ex').textContent,
   }));
   if (posts.length === 0) { root.classList.remove('js'); return; }
+  /* the trees: a topic with many aspects; on the map a tree stands on its own island */
+  const trees = [...D.querySelectorAll('#trees article.tree')].map((row) => ({
+    tree: true, row, no: row.dataset.id, date: '', newest: false, video: false, link: row.querySelector('.tt a'), topic: txt(row.querySelector('.mk.tp')),
+    title: txt(row.querySelector('.tt a')), short: row.querySelector('.mks .mk:last-child').textContent,
+  }));
+  const places = [...posts, ...trees];
 
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   const COARSE = matchMedia('(hover: none)').matches;
@@ -55,12 +64,16 @@
   const mod = (n, m) => ((n % m) + m) % m;
 
   /* The posts lie on a tile of PA x PB mesas that repeats like a texture; the shapes of the mesas never repeat. */
-  const SLOTS = Math.max(30, posts.length * 3), PA = Math.ceil(Math.sqrt(SLOTS * 1.2)), PB = Math.ceil(SLOTS / PA);
+  const SLOTS = Math.max(30, places.length * 3), PA = Math.ceil(Math.sqrt(SLOTS * 1.2)), PB = Math.ceil(SLOTS / PA);
   const order = [];
   for (let b = 0; b < PB; b += 1) for (let a = 0; a < PA; a += 1) order.push({ a, b, key: hash(a, b, 99) });
   order.sort((p, q) => p.key - q.key);
-  const slotPost = new Map(order.slice(0, posts.length).map((slot, index) => [`${slot.a},${slot.b}`, posts[index]]));
+  /* the newest post is the start; the trees stand on the islands next to it, the other posts further out */
   const HOME = order[0];
+  const wrap = (d, m) => Math.min(mod(d, m), mod(-d, m));
+  const rest = order.slice(1).sort((p, q) => (wrap(p.a - HOME.a, PA) + wrap(p.b - HOME.b, PB)) - (wrap(q.a - HOME.a, PA) + wrap(q.b - HOME.b, PB)) || p.key - q.key);
+  const farther = rest.slice(trees.length).sort((p, q) => p.key - q.key);
+  const slotPost = new Map([[HOME, posts[0]], ...trees.map((tree, index) => [rest[index], tree]), ...posts.slice(1).map((post, index) => [farther[index], post])].map(([slot, place]) => [`${slot.a},${slot.b}`, place]));
 
   const mesas = new Map();
   function mesa(a, b) {
@@ -176,7 +189,7 @@
         let rgb = FG, alpha = Math.min(0.9, 0.34 + h * 0.055), lit = false;
         if (h >= 2) {
           const m = slotOf(i, j);
-          if (m.post && h === m.h && inside(m, i, j)) { lit = hover === m.post || opened === m.post; rgb = m.post.newest ? CUR : OLD; alpha = lit ? 0.98 : 0.7; }
+          if (m.post && h === m.h && inside(m, i, j)) { lit = hover === m.post || opened === m.post; rgb = m.post.tree ? CREAM : m.post.newest ? CUR : OLD; alpha = lit ? 0.98 : 0.7; }
         }
         /* the column hides what lies behind it; the top face is a little lighter than the ground */
         x.beginPath();
@@ -250,22 +263,35 @@
   }
 
   function drawMarks() {
-    x.font = `700 12px ${MONO}`;
     for (const mark of marks) {
-      const post = mark.m.post, rgb = post.newest ? CUR : OLD, lit = hover === post || opened === post;
+      const post = mark.m.post, rgb = post.tree ? CREAM : post.newest ? CUR : OLD, lit = hover === post || opened === post;
+      x.font = `700 12px ${MONO}`;
       x.strokeStyle = ink(rgb, 0.9);
       x.lineWidth = 1;
-      x.beginPath(); x.moveTo(mark.cx, mark.cy - 6); x.lineTo(mark.cx, mark.y + 10); x.stroke();
-      x.fillStyle = lit ? `rgb(${rgb})` : BG;
-      x.fillRect(mark.x - 15, mark.y - 10, 30, 20);
-      x.strokeRect(mark.x - 14.5, mark.y - 9.5, 29, 19);
-      x.fillStyle = lit ? BG : `rgb(${rgb})`;
-      x.fillText(post.no, mark.x, mark.y + 1);
-      if (post.video) {   /* a round sign with a play triangle: this post leads to a video */
-        x.beginPath(); x.arc(mark.x + 29, mark.y, 10, 0, Math.PI * 2);
-        x.fillStyle = BG; x.fill(); x.stroke();
-        x.beginPath(); x.moveTo(mark.x + 26, mark.y - 5); x.lineTo(mark.x + 34, mark.y); x.lineTo(mark.x + 26, mark.y + 5); x.closePath();
-        x.fillStyle = `rgb(${rgb})`; x.fill();
+      if (post.tree) {   /* a tree of characters instead of a number */
+        x.fillStyle = BG;
+        x.fillRect(mark.x - 21, mark.y - 21, 42, 38);
+        x.fillStyle = lit ? `rgb(${CUR})` : `rgb(${CREAM})`;
+        x.fillText('&%&', mark.x, mark.y - 14); x.fillText('%&#&%', mark.x, mark.y - 3); x.fillText('|', mark.x, mark.y + 8);
+      } else {
+        x.beginPath(); x.moveTo(mark.cx, mark.cy - 6); x.lineTo(mark.cx, mark.y + 10); x.stroke();
+        x.fillStyle = lit ? `rgb(${rgb})` : BG;
+        x.fillRect(mark.x - 15, mark.y - 10, 30, 20);
+        x.strokeRect(mark.x - 14.5, mark.y - 9.5, 29, 19);
+        x.fillStyle = lit ? BG : `rgb(${rgb})`;
+        x.fillText(post.no, mark.x, mark.y + 1);
+        if (post.video) {   /* a round sign with a play triangle: this post leads to a video */
+          x.beginPath(); x.arc(mark.x + 29, mark.y, 10, 0, Math.PI * 2);
+          x.fillStyle = BG; x.fill(); x.stroke();
+          x.beginPath(); x.moveTo(mark.x + 26, mark.y - 5); x.lineTo(mark.x + 34, mark.y); x.lineTo(mark.x + 26, mark.y + 5); x.closePath();
+          x.fillStyle = `rgb(${rgb})`; x.fill();
+        }
+      }
+      if (post.topic) {   /* the topic of the island, as a word above it */
+        x.font = `600 11px ${MONO}`;
+        const ty = mark.y - (post.tree ? 31 : 21), tw = x.measureText(post.topic).width + 10;
+        x.fillStyle = BG; x.fillRect(mark.x - tw / 2, ty - 7, tw, 14);
+        x.fillStyle = ink(FG, 0.85); x.fillText(post.topic, mark.x, ty);
       }
     }
   }
@@ -471,7 +497,7 @@
       post.row.classList.add('on');
       tip.textContent = '';
       const head = D.createElement('p'); head.className = 'th'; head.dir = 'ltr';
-      head.textContent = `${post.no} · ${post.date}${post.newest ? ` · ${L.newest}` : ''}`;
+      head.textContent = post.tree ? `${post.topic} · ${L.tree}` : `${post.topic ? `${post.topic} · ` : ''}${post.no} · ${post.date}${post.newest ? ` · ${L.newest}` : ''}`;
       const name = D.createElement('p'); name.className = 'tn'; name.textContent = post.title; name.lang = post.link.lang; name.dir = 'ltr';
       const text = D.createElement('p'); text.className = 'tx'; text.textContent = post.short; text.lang = post.link.lang; text.dir = 'ltr';
       tip.append(head, name, text);
@@ -539,7 +565,7 @@
   if (matchMedia('(hover: none)').matches) $('hint').textContent = L.hintTouch;
 
   /* ---- the list drives the map: a row walks the figure to its post and opens it ---- */
-  for (const post of posts) {
+  for (const post of places) {
     post.link.addEventListener('click', (event) => {
       event.preventDefault();
       stage.scrollIntoView({ block: 'nearest', behavior: RM() ? 'auto' : 'smooth' });
@@ -553,9 +579,10 @@
 
   /* ---- the sheet ---- */
   let back = null;
-  const focusable = () => [...panel.querySelectorAll('a[href], button')];
+  const focusable = () => [...(opened && opened.tree ? grove : panel).querySelectorAll('a[href], button:not([disabled])')];
   function openPost(post) {
     if (opened === post) return;
+    if (post.tree) { openTree(post); return; }
     opened = post;
     tip.hidden = true;
     const meta = $('panel-meta'), title = $('panel-title'), body = $('panel-body');
@@ -578,7 +605,7 @@
   function closePost() {
     if (!opened) return;
     opened = null;
-    veil.hidden = true; panel.hidden = true;
+    veil.hidden = true; panel.hidden = true; grove.hidden = true;
     setHover(nearPost);
     const target = back; back = null;
     if (target && target.focus) target.focus({ preventScroll: true });
@@ -586,6 +613,104 @@
     if (RM()) draw();
   }
   $('close').addEventListener('click', closePost);
+  $('grove-close').addEventListener('click', closePost);
+
+  /* ---- the tree, zoomed in: aspects from "untrue / hype" on the left to "great" on the right; the more an aspect was
+     watered, the bigger it is. The cloud above changes the topic. ---- */
+  const view = { s: 1, x: 0, y: 0 };
+  const applyZoom = () => { zoomEl.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.s})`; };
+  function setZoom(scale, cx, cy) {
+    const box = canopy.getBoundingClientRect(), n = Math.max(1, Math.min(3, scale));
+    const px = cx === undefined ? box.width / 2 : cx, py = cy === undefined ? box.height / 2 : cy;
+    view.x = px - ((px - view.x) * n) / view.s; view.y = py - ((py - view.y) * n) / view.s; view.s = n;
+    view.x = Math.min(0, Math.max(box.width * (1 - n), view.x)); view.y = Math.min(0, Math.max(box.height * (1 - n), view.y));
+    applyZoom();
+  }
+  const sizeOf = (water) => (water <= 1 ? 'w1' : water <= 3 ? 'w2' : water <= 6 ? 'w3' : 'w4');
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  function showLeaf(li, button) {
+    for (const other of zoomEl.querySelectorAll('.leaf')) other.setAttribute('aria-pressed', String(other === button));
+    leafbox.textContent = '';
+    for (const child of li.children) leafbox.append(child.cloneNode(true));
+    const water = D.createElement('button'); water.type = 'button'; water.className = 'pill pri'; water.textContent = L.water; water.disabled = li.dataset.done === '1';
+    const note = D.createElement('p'); note.className = 'sn'; note.textContent = L.waterNote;
+    water.addEventListener('click', () => {   /* once per aspect; the real count needs the service on the server */
+      li.dataset.done = '1'; li.dataset.water = String(Number(li.dataset.water) + 1);
+      li.querySelector('.wn').textContent = li.dataset.water;
+      button.querySelector('.wn').textContent = li.dataset.water;
+      button.className = `leaf pill ${sizeOf(Number(li.dataset.water))}`;
+      showLeaf(li, button);
+    });
+    const row = D.createElement('p'); row.className = 'wrow'; row.append(water, note);
+    leafbox.append(row);
+  }
+  function layoutTree(place) {
+    for (const old of zoomEl.querySelectorAll('.leaf')) old.remove();
+    leafbox.textContent = L.treeHint;
+    const items = [...place.row.querySelectorAll('.asp li')], n = items.length;
+    const box = canopy.getBoundingClientRect(), Wc = box.width, Hc = box.height, g = wood.getContext('2d');
+    wood.width = Math.round(Wc * 2); wood.height = Math.round(Hc * 2);
+    g.setTransform(2, 0, 0, 2, 0, 0); g.clearRect(0, 0, Wc, Hc);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `500 12px ${MONO}`;
+    const cx = Wc / 2, top = 40, bottom = Hc - 50, reach = Wc / 2 - Math.min(96, Wc * 0.21), step = (bottom - top - 24) / n;
+    for (let y = bottom, k = 0; y >= top + step * 0.5; y -= 11, k += 1) {
+      for (const dx of [-1, 0, 1]) { g.fillStyle = ink(FG, dx ? 0.22 : 0.5); g.fillText(STRATA[(k + dx + 8) % STRATA.length], cx + dx * 8, y); }
+    }
+    const k = [3, 5, 7, 2, 1].find((c) => gcd(c, n) === 1);
+    items.forEach((li, index) => {
+      const stance = Number(li.dataset.stance), row = (index * k + 1) % n, lx = cx + stance * reach, ly = top + (row + 0.5) * step;
+      for (let q = 1; q <= 16; q += 1) {   /* the branch: a curve of signs from the trunk to the aspect */
+        const t = q / 17, bx = (1 - t) * (1 - t) * cx + 2 * (1 - t) * t * (cx + (lx - cx) * 0.55) + t * t * lx, by = (1 - t) * (1 - t) * (ly + 30) + 2 * (1 - t) * t * (ly + 30) + t * t * ly;
+        g.fillStyle = ink(FG, 0.2 + (1 - t) * 0.3); g.fillText(q % 3 ? '·' : '+', bx, by);
+      }
+      const button = D.createElement('button');
+      button.type = 'button'; button.className = `leaf pill ${sizeOf(Number(li.dataset.water))}`; button.setAttribute('aria-pressed', 'false');
+      const name = D.createElement('span'); name.textContent = txt(li.querySelector('.lab'));
+      const count = D.createElement('span'); count.className = 'wn'; count.textContent = li.dataset.water;
+      button.append(name, count);
+      button.style.left = `${(lx / Wc) * 100}%`; button.style.top = `${(ly / Hc) * 100}%`;
+      button.addEventListener('click', () => showLeaf(li, button));
+      zoomEl.append(button);
+    });
+  }
+  function openTree(place) {
+    opened = place;
+    tip.hidden = true;
+    $('grove-title').textContent = place.title;
+    cloud.textContent = '';
+    for (const other of trees) {
+      const pill = D.createElement('button'); pill.type = 'button'; pill.className = 'pill'; pill.textContent = other.topic;
+      if (other === place) pill.setAttribute('aria-current', 'true');
+      pill.addEventListener('click', () => { if (other !== opened) openTree(other); });
+      cloud.append(pill);
+    }
+    if (!back) back = D.activeElement === D.body ? stage : D.activeElement;
+    veil.hidden = false; panel.hidden = true; grove.hidden = false;
+    view.s = 1; view.x = 0; view.y = 0; applyZoom();
+    layoutTree(place);
+    if (!RM()) { zoomEl.classList.add('enter'); requestAnimationFrame(() => requestAnimationFrame(() => zoomEl.classList.remove('enter'))); }
+    $('grove-close').focus();
+    dirty = true;
+    if (RM()) draw();
+  }
+  $('zin').addEventListener('click', () => setZoom(view.s * 1.5));
+  $('zout').addEventListener('click', () => setZoom(view.s / 1.5));
+  canopy.addEventListener('wheel', (event) => { event.preventDefault(); const box = canopy.getBoundingClientRect(); setZoom(view.s * (event.deltaY < 0 ? 1.15 : 1 / 1.15), event.clientX - box.left, event.clientY - box.top); }, { passive: false });
+  const fingers = new Map();
+  let pinch = 0;
+  canopy.addEventListener('pointerdown', (event) => { if (!event.target.closest('button')) fingers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
+  canopy.addEventListener('pointermove', (event) => {
+    const was = fingers.get(event.pointerId);
+    if (!was) return;
+    if (fingers.size === 1 && view.s > 1) { view.x += event.clientX - was.x; view.y += event.clientY - was.y; setZoom(view.s); }
+    fingers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (fingers.size === 2) {
+      const [p, q] = [...fingers.values()], d = Math.hypot(p.x - q.x, p.y - q.y), box = canopy.getBoundingClientRect();
+      if (pinch > 0) setZoom((view.s * d) / pinch, (p.x + q.x) / 2 - box.left, (p.y + q.y) / 2 - box.top);
+      pinch = d;
+    }
+  });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) canopy.addEventListener(type, (event) => { fingers.delete(event.pointerId); pinch = 0; });
   veil.addEventListener('click', closePost);
   D.addEventListener('keydown', (event) => {
     root.classList.add('kb');
@@ -603,5 +728,5 @@
   updateNear();
   requestAnimationFrame(frame);
   /* for the browser check: where things are and what is open (read-only) */
-  window.karte = { state: () => ({ lang: LANG, posts: posts.length, figure: { i: fig.i, j: fig.j, z: fig.z }, camera: { x: cam.x, y: cam.y }, opened: opened ? opened.no : null, near: nearPost ? nearPost.no : null, jumping: jump > 0, walking: path.length > 0, score, hover: hover ? hover.no : null, marks: marks.map((mark) => ({ no: mark.m.post.no, x: mark.x, y: mark.y })), free: tops.filter((top) => !top.m.post).map((top) => ({ x: top.x, y: top.y })), tile: [PA, PB] }) };
+  window.karte = { state: () => ({ lang: LANG, posts: posts.length, figure: { i: fig.i, j: fig.j, z: fig.z }, camera: { x: cam.x, y: cam.y }, opened: opened ? opened.no : null, trees: trees.length, leaves: zoomEl.querySelectorAll('.leaf').length, zoom: view.s, near: nearPost ? nearPost.no : null, jumping: jump > 0, walking: path.length > 0, score, hover: hover ? hover.no : null, marks: marks.map((mark) => ({ kind: mark.m.post.tree ? 'tree' : 'post', no: mark.m.post.no, x: mark.x, y: mark.y })), free: tops.filter((top) => !top.m.post).map((top) => ({ x: top.x, y: top.y })), tile: [PA, PB] }) };
 })();

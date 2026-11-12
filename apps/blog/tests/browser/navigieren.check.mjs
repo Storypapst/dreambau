@@ -36,7 +36,7 @@ async function open(browser, dir, { query = '', ...options } = {}) {
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   return { context, page, requests, problems, state, overflow };
 }
-const visibleMark = (state, box) => state.marks.find((mark) => mark.x > 60 && mark.x < box.width - 60 && mark.y > 60 && mark.y < box.height - 80);
+const visibleMark = (state, box) => state.marks.find((mark) => mark.kind === 'post' && mark.x > 60 && mark.x < box.width - 60 && mark.y > 60 && mark.y < box.height - 80);
 
 await run(async () => {
   await withScratch('navigieren', async (dir) => {
@@ -47,6 +47,7 @@ await run(async () => {
         const { context, page, overflow } = await open(browser, dir, { javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
         same('KARTE-1 without JavaScript the seven posts stand in the list, newest first', await page.locator('#posts li.row').evaluateAll((rows) => rows.map((row) => row.dataset.no)), NUMBERS);
         same('KARTE-1 without JavaScript every post shows its full text', await page.locator('#posts .voll').evaluateAll((nodes) => nodes.filter((node) => node.getBoundingClientRect().height > 20).length), DEMO.length);
+        same('KARTE-11 without JavaScript the two trees show their ten aspects with statement and clip', await page.locator('#trees .asp li').evaluateAll((items) => [items.length, items.filter((li) => li.querySelector('.say').getBoundingClientRect().height > 10 && /\d:\d\d–\d+:\d\d/.test(li.querySelector('.clip').textContent)).length]), [10, 10]);
         check('KARTE-1 without JavaScript there is no empty stage and no sheet', await page.locator('#stage').isHidden() && await page.locator('#panel').isHidden());
         same('KARTE-9 without JavaScript the phone page does not scroll sideways', await overflow(), 0);
         await context.close();
@@ -117,6 +118,25 @@ await run(async () => {
         same('KARTE-6 at a post the sign says so and the read button shows', [(await state()).near, await page.locator('#read').isVisible()], [NUMBERS[2], true]);
         await page.keyboard.press('Space');
         same('KARTE-6 the space bar opens the post the figure stands at', (await state()).opened, NUMBERS[2]);
+        await page.keyboard.press('Escape');
+        // ---- KARTE-11: a tree island, zoomed in ----
+        await page.locator('#t-ki-programmieren .tt a').click();
+        await page.locator('#grove').waitFor({ state: 'visible' });
+        same('KARTE-11 a tree opens zoomed in with one leaf per aspect', [(await state()).opened, (await state()).leaves], ['ki-programmieren', 6]);
+        const xs = await page.locator('#zoom .leaf').evaluateAll((leaves) => leaves.map((leaf) => Math.round(leaf.getBoundingClientRect().x + leaf.getBoundingClientRect().width / 2)));
+        same('KARTE-11 the aspects stand from left (untrue, hype) to right (great)', xs, [...xs].sort((a, b) => a - b));
+        await page.locator('#zoom .leaf').nth(4).click();
+        check('KARTE-11 an aspect shows its statement and the cut of the video', /Beispiel-Aussage/.test(await page.locator('#leafbox').innerText()) && /5:00–6:00/.test(await page.locator('#leafbox').innerText()), await page.locator('#leafbox').innerText());
+        same('KARTE-11 the link starts the video at the cut', await page.locator('#leafbox a.sk').getAttribute('href'), 'https://videos.example.test/watch?v=beispiel-4&t=300s');
+        await page.locator('#leafbox button').click();
+        same('KARTE-11 watering counts once: 8 becomes 9 and the button is spent', [await page.locator('#zoom .leaf').nth(4).locator('.wn').innerText(), await page.locator('#leafbox button').isDisabled()], ['9', true]);
+        await page.locator('#zin').click();
+        same('KARTE-11 the tree can be zoomed', (await state()).zoom, 1.5);
+        await page.locator('#cloud button').nth(1).click();
+        same('KARTE-11 the cloud changes the topic: another tree', [(await state()).opened, (await state()).leaves], ['politik-regeln', 4]);
+        await page.keyboard.press('Escape');
+        check('KARTE-11 Esc closes the tree', await page.locator('#grove').isHidden());
+        await page.locator('#posts li.row').nth(2).locator('.tt a').click();
         await page.keyboard.press('Escape');
         const from = (await state()).figure;
         await page.locator('#stage').focus();

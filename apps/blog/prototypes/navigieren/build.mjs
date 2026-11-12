@@ -35,13 +35,37 @@ function readPosts(postsDir) {
 }
 
 // One post as a row of the log. The short text is what the map shows on hover, .voll is what the sheet shows.
-function row(L, M, post, newest) {
+// A text in both languages: the German one shows unless the page is switched to English (karte.css).
+const two = (text, tag = 'span') => `<${tag} class="de" lang="de" dir="ltr">${esc(text.de)}</${tag}><${tag} class="en-only" lang="en" dir="ltr">${esc(text.en)}</${tag}>`;
+const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+const STANCE = ['s0', 's1', 's2', 's3', 's4'];
+const stanceOf = (value) => STANCE[value < -0.6 ? 0 : value < -0.2 ? 1 : value <= 0.2 ? 2 : value <= 0.6 ? 3 : 4];
+
+// A tree: one topic, its aspects from "untrue / hype" on the left to "great" on the right. Every aspect is a short written
+// statement and a cut of a video (start and end). `water` is the base watering that the author sets.
+function tree(M, T, item) {
+  const aspects = [...item.aspects].sort((a, b) => a.stance - b.stance);
+  return `<article class="tree" id="t-${esc(item.id)}" data-id="${esc(item.id)}" data-topic="${esc(item.topic)}">
+<p class="mks"><span class="mk tp">${two(T.topics[item.topic])}</span><span class="mk"><span>${aspects.length}</span> <span data-l="aspects">${esc(M.aspects)}</span></span></p>
+<h3 class="tt"><a href="#t-${esc(item.id)}">${two(item.title)}</a></h3>
+<ol class="asp">
+${aspects.map((a) => `<li data-id="${esc(a.id)}" data-stance="${a.stance}" data-water="${a.water}">
+<p class="lab">${two(a.label, 'strong')} <span class="mk st" data-l="${stanceOf(a.stance)}">${esc(M[stanceOf(a.stance)])}</span> <span class="mk wt"><span class="wn">${a.water}</span>× <span data-l="watered">${esc(M.watered)}</span></span></p>
+<p class="say">${two(a.say)}</p>
+<p class="srcbox"><a class="sk" href="${esc(httpsLink(`${a.video.link}&t=${a.video.start}s`, 'video'))}" rel="noopener noreferrer">${esc(a.video.title)}</a><span class="sn"><span data-l="clip">${esc(M.clip)}</span> <span class="clip" dir="ltr">${clock(a.video.start)}–${clock(a.video.end)}</span></span></p>
+</li>`).join('\n')}
+</ol>
+</article>`;
+}
+
+function row(L, M, post, newest, T) {
   const no = formatNumber(post.number);
   const lang = ` lang="${esc(post.lang)}" dir="ltr"`;
-  const marks = `${newest ? `<span class="mk now">${esc(M.newest)}</span>` : ''}${post.sourceLink === undefined ? '' : `<span class="mk src">${esc(L['blog.source'])}</span>`}${post.lang === 'en' ? '<span class="en">EN</span>' : ''}`;
+  const topic = T.posts[formatNumber(post.number)];
+  const marks = `${topic ? `<span class="mk tp">${two(T.topics[topic])}</span>` : ''}${newest ? `<span class="mk now">${esc(M.newest)}</span>` : ''}${post.sourceLink === undefined ? '' : `<span class="mk src">${esc(L['blog.source'])}</span>`}${post.lang === 'en' ? '<span class="en">EN</span>' : ''}`;
   const quote = post.quote === undefined ? '' : `<blockquote class="qt"><p>${esc(post.quote)}</p><footer>${esc(post.quoteSource)}</footer></blockquote>\n`;
   const source = post.sourceLink === undefined ? '' : `<p class="srcbox"><a class="sk" href="${esc(httpsLink(post.sourceLink, 'sourceLink'))}" rel="noopener noreferrer">${esc(post.sourceTitle || displayHost(post.sourceLink))}</a><span class="sn" lang="de">${esc(fill(L['blog.source.leads'], { site: displayHost(post.sourceLink) }))}</span></p>\n`;
-  return `<li class="row" id="b-${no}" data-no="${no}" data-date="${esc(post.date)}"${newest ? ' data-newest' : ''}>
+  return `<li class="row" id="b-${no}" data-no="${no}" data-topic="${esc(topic || '')}" data-date="${esc(post.date)}"${newest ? ' data-newest' : ''}>
 <span class="no" aria-hidden="true">${no}</span>
 <time class="dt" datetime="${esc(post.date)}">${esc(post.date)}</time>
 <h2 class="tt"><a href="#b-${no}"${lang}>${esc(post.title)}</a></h2>
@@ -52,7 +76,7 @@ ${quote}${source}</div>
 </li>`;
 }
 
-function page(L, M, posts) {
+function page(L, M, posts, T) {
   const invented = posts.some((post) => post.example);
   return `<!doctype html>
 <html lang="de" dir="ltr">
@@ -87,10 +111,23 @@ function page(L, M, posts) {
 <div class="logp">
 <p class="logtop" aria-hidden="true">~/blog/navigieren/</p>
 <ol class="log" id="posts" reversed role="list" aria-label="${esc(L['blog.list.label'])}">
-${newestFirst(posts).map((post, index) => row(L, M, post, index === 0)).join('\n')}
+${newestFirst(posts).map((post, index) => row(L, M, post, index === 0, T)).join('\n')}
 </ol>
 </div>
+<section class="trees" id="trees" aria-labelledby="trees-h">
+<h2 class="shd" id="trees-h" data-l="trees">${esc(M.trees)}</h2>
+<p class="axis"><span data-l="axisL">${esc(M.axisL)}</span><span aria-hidden="true">←→</span><span data-l="axisR">${esc(M.axisR)}</span></p>
+${T.trees.map((item) => tree(M, T, item)).join('\n')}
+</section>
 <div class="veil" id="veil" hidden></div>
+<section class="grove" id="grove" role="dialog" aria-modal="true" aria-labelledby="grove-title" hidden>
+<div class="phead"><nav class="cloud" id="cloud" aria-label="${esc(M.cloud)}" data-l-aria="cloud"></nav><button class="pill" id="grove-close" type="button"><span data-l="close">${esc(M.close)}</span><kbd class="esc" aria-hidden="true">Esc</kbd></button></div>
+<h2 class="ptitle" id="grove-title" tabindex="-1"></h2>
+<div class="canopy" id="canopy"><div class="zoom" id="zoom"><canvas id="wood" aria-hidden="true"></canvas></div>
+<div class="zb"><button class="pill" id="zin" type="button" aria-label="${esc(M.zoomIn)}" data-l-aria="zoomIn">+</button><button class="pill" id="zout" type="button" aria-label="${esc(M.zoomOut)}" data-l-aria="zoomOut">−</button></div>
+<p class="axis ax"><span data-l="axisL">${esc(M.axisL)}</span><span data-l="axisR">${esc(M.axisR)}</span></p></div>
+<div class="leafbox" id="leafbox" aria-live="polite"></div>
+</section>
 <section class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title" hidden>
 <div class="phead"><p class="pmeta" id="panel-meta"></p><button class="pill" id="close" type="button"><span data-l="close">${esc(M.close)}</span><kbd class="esc" aria-hidden="true">Esc</kbd></button></div>
 <h2 class="ptitle" id="panel-title" tabindex="-1"></h2>
@@ -113,7 +150,8 @@ export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDi
   const css = `${read(path.join(APP, 'src', 'tokens.css')).replace(/\n$/, '')}\n${read(path.join(APP, 'src', 'blog.css'))}${read(path.join(HERE, 'karte.css'))}`;
   const js = `const KARTE_LABELS = ${JSON.stringify(all)};\n${read(path.join(HERE, 'karte.js'))}`;
   fs.mkdirSync(outDir, { recursive: true });
-  fs.writeFileSync(path.join(outDir, 'index.html'), page(L, all.de, posts));
+  const T = JSON.parse(read(path.join(HERE, 'themen.json')));
+  fs.writeFileSync(path.join(outDir, 'index.html'), page(L, all.de, posts, T));
   fs.writeFileSync(path.join(outDir, 'karte.css'), css);
   fs.writeFileSync(path.join(outDir, 'karte.js'), js);
   return { outDir, posts: posts.length };

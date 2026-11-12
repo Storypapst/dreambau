@@ -55,3 +55,5 @@ npm run check -- browser/navigieren         # Chromium, mit der Richtlinie der L
 ```
 
 `?lang=fi` und `?lang=ar` schalten die Beschriftung um (Arabisch von rechts nach links); die Übersetzungen in `labels.json` sind Entwürfe und nicht gegengelesen.
+
+Themen und Bäume des Prototyps stehen in `prototypes/navigieren/themen.json` (alles erfunden, `"example": true`): das Thema je Beitrag, und je Baum die Aspekte mit Einordnung (`stance` von −1 „unwahr / Hype“ bis 1 „super gut“), Grundwasser (`water`), einer kurzen Aussage in Deutsch und Englisch und einem Video-Ausschnitt (`start` und `end` in Sekunden). Wässern zählt im Prototyp nur bis zum Neuladen; dauerhaft zählen kann erst der Dienst auf dem Server.
