@@ -1,14 +1,18 @@
 // site/i18n/de.js (spec 7.2 the format, 7.3 the 16 keys of the start page): the German source file.
 // The keys, their order, the verbatim German of the first nine and the size of 1,552 bytes are those that 7.3 gives.
+// Productions added to the pool later each append one blind.<id> key after these 16 (docs/briefs/theme.md); the size
+// check measures the 7.3 part only.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { SITE } from '../lib.mjs';
 import { parseLangFile } from '../lib-languages.mjs';
+import { IDS } from '../budget.mjs';
 
-const KEYS = ['tag.1', 'tag.2', 'cta.words', 'snd.aria', 'snd.on_label', 'snd.hint_off', 'snd.hint_on', 'skip.label', 'play.label',
+const SPEC = ['tag.1', 'tag.2', 'cta.words', 'snd.aria', 'snd.on_label', 'snd.hint_off', 'snd.hint_on', 'skip.label', 'play.label',
   'lang.aria', 'lang.title', 'lang.close', 'lang.error', 'blind.4k', 'blind.16k', 'blind.64k'];
+const KEYS = SPEC.concat(IDS.filter(id => !SPEC.includes('blind.' + id)).map(id => 'blind.' + id));
 const LIVE = { 'tag.1': 'Jeht nich…', 'tag.2': 'jibs nich…', 'cta.words': '(nich warten, quatschen)', 'snd.aria': 'Ton', 'snd.on_label': 'Ton an',
   'snd.hint_off': 'Ton aus (M)', 'snd.hint_on': 'Ton an (M)', 'skip.label': 'überspringen', 'play.label': 'Animation abspielen' };   // as the live page has them
 
@@ -31,7 +35,7 @@ test('parseLangFile reads the file and refuses what is not exactly one statement
   assert.deepEqual(parseLangFile('Dream.lang("xx", {\n  "a": "b"\n});\n'), { code: 'xx', texts: { a: 'b' } });
 });
 
-test('the 16 keys of 7.3, in that order, one per line with two spaces of indent', () => {
+test('the 16 keys of 7.3, in that order, then one blind.<id> per added production, one per line with two spaces of indent', () => {
   assert.deepEqual(Object.keys(obj), KEYS);
   const body = text.split('\n').slice(1, -2);
   assert.equal(body.length, KEYS.length);
@@ -39,7 +43,9 @@ test('the 16 keys of 7.3, in that order, one per line with two spaces of indent'
 });
 
 test('the size is the 1,552 bytes that 7.3 measured for these 16 keys', () => {
-  assert.equal(raw.length, 1552);
+  const lines = text.split('\n'), spec = lines.slice(0, SPEC.length + 1).concat(lines.slice(-2));
+  spec[SPEC.length] = spec[SPEC.length].replace(/,$/, '');
+  assert.equal(Buffer.byteLength(spec.join('\n')), 1552);
 });
 
 test('the first nine texts are those of the live page, verbatim', () => {

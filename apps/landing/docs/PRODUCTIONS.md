@@ -1,6 +1,6 @@
-# The three productions: what happens when
+# The productions: what happens when
 
-All three share the structure from `SPEC.md`: Emergence (about 0 to 13 s), Transformation (about 13 to 40 s),
+The three original productions share the structure from `SPEC.md`: Emergence (about 0 to 13 s), Transformation (about 13 to 40 s),
 Resolution (about 40 to 60 s). The three lines of the tagline arrive on musical events, `fin` = 53 s is the time from which the
 final composition is complete, `cta` = 54.5 s is when the small closing line fades in, `dur` = 60 s is when the music has faded out.
 Times below are seconds from the start of the production; one bar is four beats.
@@ -65,3 +65,19 @@ mostly where the crane is drawn). Their exact source was not pinned down, and wh
 changes of the shader code. Unchecked, the bloom smears such a pixel into a grey box, as happened once at 57.5 s. The scene pass
 therefore replaces any non-finite pixel by black before the bloom, and `pow` is only called with non-negative bases (undefined
 in GLSL otherwise). All checks ran in software GL; a run on real GPUs is still outstanding.
+
+## Jagged Intelligence: four productions on one theme
+
+Theme: capability has jagged edges, the bridge is built from context, tests and judgement. Four cuts with one clock
+(**100 BPM**, beat = 0.6 s): a jagged signal or terrain until the build starts at 16.8 s, the bridge is assembled until the
+crossing at 33.6 s, the tagline lines arrive at 45.6, 48 and 50.4 s, each on a note or chord. A shared wandering light,
+coloured by the act and breathing with the bass, keeps the drawing moving and leaves before the first line. Full screen,
+no text besides the tagline. Sizes are the built `site/p/<id>.js`.
+
+| name | id | size | picture and music |
+|---|---|---:|---|
+| Kante | `kante4k` | 3,496 B of 4,096 | A jagged blue trace on grid paper becomes the section for a golden truss bridge, and a light crosses it. Deep pulses and a dry triangle line, brighter once the build starts. |
+| Tragwerk | `tragwerk16k` | 4,549 B of 16,384 | Nine steel bays float in over a survey table and lock into one deck, one per beat. Plucked bells alternate left and right over a calm pulse. |
+| Schlucht | `schlucht64k` | 5,503 B of 65,536 | Two towers rise in a gorge in the blue hour, cables tighten and a suspension bridge closes over glittering water. Single chords grow into a wide, reverberant space. |
+| Signal | `signal60k` | 5,106 B of 60,000 | Trembling blue signal traces are bundled by three checkpoints into one clear turquoise line, an orange arc routes the uncertain cases. Short electronic tones find a shared pulse. |
+

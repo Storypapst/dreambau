@@ -232,7 +232,7 @@ else if (mode === 'all' || mode === 'clock') {
 if (mode === 'all' || mode === 'random') {
   console.log('\n== random choice ==');
   const browser = await launch({ autoplay: true });
-  const count = {}, N = 60;
+  const count = {}, N = 20 * IDS.length;                // about 20 loads per production keeps a fair picker inside the bounds
   for (let i = 0; i < N; i++) {
     const ctx = await browser.newContext({ viewport: { width: 320, height: 180 } });
     const page = await ctx.newPage();
