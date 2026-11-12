@@ -42,3 +42,16 @@ node tools/check-output.mjs dist-demo/public           # nur die Dateiformen aus
 ```
 
 Der Feed-Prüfer ist der Fallback aus der Spezifikation (Anhang D): ein eigener strenger XML-Leser (`src/lib/xml.mjs`) plus die Regeln FD-1 bis FD-5, weil ein fertiger Feed-Prüfer ohne Netz und ohne Abhängigkeit (BD-1) nicht zu haben ist. Im Browser liest `tests/browser/feed.check.mjs` den Feed zusätzlich mit dem XML-Parser von Chromium.
+
+## Prototyp: Karte „Navigieren“ (`prototypes/navigieren/`)
+
+Ein Prototyp zum Ansehen und Entscheiden, kein Teil der Spezifikation und nicht in der Ausgabe von `npm run build`. Er zeigt die Beiträge als nummerierte Orte auf Felsplateaus in einem Canyon aus Zeichen, verbunden durch Hängebrücken; eine Figur läuft dorthin. Zeigen auf einen Ort nennt den Kurztext, ein Klick (oder Hinlaufen mit den Pfeiltasten) öffnet den vollen Text. Die Liste darunter ist derselbe Inhalt und bleibt ohne JavaScript lesbar. Die Beiträge sind die sieben erfundenen Beispiele aus `tests/fixtures/`; die Seite sagt das mit einem gelben Schild.
+
+Für Entwickler — bauen und prüfen:
+
+```sh
+node prototypes/navigieren/build.mjs        # schreibt dist-proto/navigieren/ (nicht im Git)
+npm run check -- browser/navigieren         # Chromium, mit der Richtlinie der Live-Seite; braucht kein Docker
+```
+
+`?lang=fi` und `?lang=ar` schalten die Beschriftung um (Arabisch von rechts nach links); die Übersetzungen in `labels.json` sind Entwürfe und nicht gegengelesen.
