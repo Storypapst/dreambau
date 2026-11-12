@@ -21,7 +21,7 @@ Stil und die Definition of Done.
 
 **Was diese Vorlage an `common.md` ändert, und nur das:** `common.md` erlaubt nur `src/p/<id>.js` und `verification/<id>/`,
 weil die drei ersten Fassungen schon eingebunden waren. Eine neue Fassung muss sich selbst in den Pool eintragen. Deshalb
-darfst du zusätzlich genau die Stellen 2, 3, 5 und 7 aus „Was du einträgst“ ändern und `site/p/<id>.js` mit dem Build
+darfst du zusätzlich genau die Stellen 2, 3, 5, 7, 8 und 9 aus „Was du einträgst“ ändern und `site/p/<id>.js` mit dem Build
 erzeugen. Die Regel „`node tools/build.mjs` nie ohne id“ bleibt bestehen: Baue mit `npm run build -- <id>`.
 
 ## Was du nicht baust
@@ -54,9 +54,16 @@ Die Seite stellt das alles schon. Ein Nachbau macht sie kaputt, auch wenn er gut
    `src/i18n/languages.json` und `site/i18n/index.js`). Ohne diesen Eintrag bricht `npm run build:apex` mit „animation
    lacks a complete description“ ab. Das ist kein sichtbarer Text, sondern nur für Screenreader; Ablauf in
    `docs/LANGUAGES.md`.
+8. `site/credits.js`: ein Eintrag für deine id mit `name` (der Name der Fassung), `model` (das Modell, das tatsächlich
+   gearbeitet hat, mit Version und Stufe, z. B. „Claude Opus 5.5“), `built` (Datum der bestandenen Abnahme, `JJJJ-MM-TT`),
+   `brief` (Thema und Bildidee in ein bis zwei deutschen Sätzen) und `prompt` (Link auf deine Datei aus Punkt 9 unter
+   `https://github.com/Storypapst/dreambau/blob/main/apps/landing/docs/briefs/<id>.md`). Die Quelltextansicht zeigt das
+   unter „Wie es entstand“. Das ist die einzige Stelle, an der ein Modell genannt wird.
+9. `docs/briefs/<id>.md`: der Auftrag, wie du ihn bekommen hast, wörtlich: die drei Felder und jede Bild- oder Stilidee,
+   die dir dazu gegeben wurde. Nichts weglassen und nichts dazuerfinden.
 
 Die Quelltextansicht der Seite zeigt deine Fassung automatisch: Sie liest die Fassungen aus `D.ids`, und
-`npm run build:apex` packt das ausgelieferte `p/<id>.js` als `p/<id>.src.js` dazu. In der Ansicht steht deine id als Name.
+`npm run build:apex` packt das ausgelieferte `p/<id>.js` als `p/<id>.src.js` dazu. Der Name aus Punkt 8 steht in der Ansicht.
 
 ## Abnahme
 
@@ -71,5 +78,5 @@ node tools/e2e.mjs <id>       # Ton, Esc, reduzierte Bewegung, kein WebGL, keine
 ```
 
 Sieh dir außerdem den Kontaktbogen (`verification/<id>/frames/sheet.png`) mit eigenen Augen an und hör die Musik an.
-Liefere einen Pull Request, der **nur** die sieben Punkte oben ändert, und nenne darin das Modell, das tatsächlich
+Liefere einen Pull Request, der **nur** die neun Punkte oben ändert, und nenne darin das Modell, das tatsächlich
 gearbeitet hat.
