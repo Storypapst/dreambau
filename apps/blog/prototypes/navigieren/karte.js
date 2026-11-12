@@ -451,6 +451,7 @@
   const topAt = (px, py) => tops.find((top) => Math.abs(px - top.x) <= TW * 2 && Math.abs(py - top.y) <= TH * 2.2) || null;
 
   function placeTip() {
+    if (!tip.firstChild) { tip.hidden = true; return; }
     const mark = marks.find((item) => item.m.post === hover && item.x > 0 && item.x < W && item.y > 0 && item.y < Hh) || marks.find((item) => item.m.post === hover);
     if (!mark) { tip.hidden = true; return; }
     tip.hidden = false;
@@ -476,7 +477,7 @@
       tip.append(head, name, text);
       if (post === nearPost) { const how = D.createElement('p'); how.className = 'tk'; how.textContent = L.near; tip.append(how); }
       placeTip();
-    } else tip.hidden = true;
+    } else { tip.textContent = ''; tip.hidden = true; }
     dirty = true;
     if (RM()) draw();
   }

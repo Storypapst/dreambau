@@ -142,6 +142,7 @@ await run(async () => {
       {
         const { context, page, problems, state, overflow } = await open(browser, dir, { viewport: { width: 390, height: 844 }, hasTouch: true, reducedMotion: 'reduce' });
         same('KARTE-9 the phone page does not scroll sideways', await overflow(), 0);
+        same('KARTE-9 on the phone: jump and read buttons, no box over the map', [await page.locator('#jump').isVisible(), await page.locator('#read').isVisible(), await page.locator('#tip').isVisible()], [true, true, false]);
         const box = await page.locator('#map').boundingBox();
         const mark = visibleMark(await state(), box);
         check('KARTE-9 a post is in view on the phone', Boolean(mark));
