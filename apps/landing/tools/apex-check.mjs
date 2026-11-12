@@ -55,10 +55,6 @@ try {
     const r = await fetch(base + href); const t = await r.text();
     check(`${href} answers 200 with HTML, no script, no inline style`, r.status === 200 && /text\/html/.test(r.headers.get('content-type') || '') && !/<script\b|<style[\s>]|\sstyle\s*=/i.test(t), `status ${r.status}`);
   }
-  {
-    const r = await fetch(base + prefix + 'kontakt.html'); const t = await r.text();
-    check('kontakt.html (form preview) is served, disabled, noindex, and not linked from the start page', r.status === 200 && /<fieldset disabled>/.test(t) && /name="robots" content="noindex"/.test(t) && !/kontakt\.html/.test(rootHtml), `status ${r.status}`);
-  }
   console.log('\n== productions ==');
   mkdir(path.join(ROOT, 'dist/apex-check'));
   const browser = await launch();

@@ -16,16 +16,3 @@ a:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
 .foot a[aria-current="page"] { text-decoration: none; color: rgb(255, 238, 210); }
 .foot i { font-style: normal; margin: 0 8px; opacity: .6; }
 
-/* Contact form (design preview; see kontakt.html). Inputs follow the start page's pills and focus ring. */
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.contact fieldset { margin: 24px 0 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; }
-.contact label { margin-top: 12px; font-weight: 600; color: rgb(255, 238, 210); }
-.contact .hint { font-weight: 400; color: rgba(var(--fg), .7); }
-.contact input, .contact textarea { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid rgba(var(--fg), .34); border-radius: 12px; background: #0c1119; color: rgb(var(--fg)); font: inherit; }
-.contact textarea { min-height: 160px; resize: vertical; }
-.contact input:focus-visible, .contact textarea:focus-visible, .contact button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
-.contact .note { font-size: 14px; color: rgba(var(--fg), .8); }
-.contact button { align-self: flex-start; min-height: 44px; padding: 0 20px; border: 1px solid rgba(var(--fg), .34); border-radius: 24px; background: rgba(var(--fg), .06); color: rgb(var(--fg)); font: inherit; cursor: pointer; }
-.contact fieldset:disabled { opacity: .6; }
-.contact fieldset:disabled button { cursor: not-allowed; }
-.contact .hp { position: absolute; inset-inline-start: -10000px; width: 1px; height: 1px; overflow: hidden; }
