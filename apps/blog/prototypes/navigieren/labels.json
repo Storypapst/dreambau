@@ -6,10 +6,34 @@
     "proto": "Prototyp · Beispielposts erfunden",
     "stage": "Karte der Beiträge. Die Pfeiltasten bewegen die Figur, die Eingabetaste öffnet den Beitrag, bei dem sie steht.",
     "center": "Zur Figur",
-    "hint": "Ziehen verschiebt die Karte. Ein Klick auf einen Beitrag oder die Pfeiltasten bewegen die Figur.",
+    "hint": "Pfeiltasten: laufen. Leertaste: springen, am Beitrag: lesen. Maus: zeigen, klicken, ziehen.",
     "blind": "Die Karte zeigt die Beiträge als nummerierte Orte auf Felsplateaus in einem Canyon. Hängebrücken verbinden die Plateaus, eine kleine Figur läuft darüber. Alle Beiträge stehen auch in der Liste darunter.",
     "close": "Schließen",
-    "newest": "neu"
+    "newest": "neu",
+    "keys": "← ↑ ↓ → laufen · Leertaste springen",
+    "near": "Leertaste oder „Lesen“ öffnet den Beitrag",
+    "read": "Lesen",
+    "jump": "Springen",
+    "score": "Tiere übersprungen",
+    "hintTouch": "Finger halten: die Figur läuft dorthin. Tippen auf einen Beitrag: sie geht hin und öffnet ihn."
+  },
+  "en": {
+    "home": "Home",
+    "title": "Navigate",
+    "sub": "Guides on working well with AI.",
+    "proto": "Prototype · example posts are invented",
+    "stage": "Map of the posts. The arrow keys move the figure, the space bar jumps or opens the post the figure stands at.",
+    "center": "To the figure",
+    "blind": "The map shows the posts as numbered places on rock plateaus in a canyon. Hanging bridges join the plateaus and a small figure walks across them. All posts are also in the list below.",
+    "close": "Close",
+    "newest": "new",
+    "keys": "← ↑ ↓ → run · space jumps",
+    "near": "Space or “Read” opens the post",
+    "read": "Read",
+    "jump": "Jump",
+    "score": "Animals jumped",
+    "hintTouch": "Hold a finger down: the figure runs there. Tap a post: it walks there and opens it.",
+    "hint": "Arrow keys: run. Space: jump, at a post: read. Mouse: point, click, drag."
   },
   "fi": {
     "home": "Etusivu",
@@ -18,10 +42,16 @@
     "proto": "Prototyyppi · esimerkkitekstit keksittyjä",
     "stage": "Kirjoitusten kartta. Nuolinäppäimet liikuttavat hahmoa, Enter avaa kirjoituksen, jonka luona hahmo seisoo.",
     "center": "Hahmon luo",
-    "hint": "Vetämällä kartta liikkuu. Hahmo liikkuu, kun napsautat kirjoitusta tai käytät nuolinäppäimiä.",
+    "hint": "Nuolinäppäimet: juokse. Välilyönti: hyppää, kirjoituksen luona: lue. Hiiri: osoita, napsauta, vedä.",
     "blind": "Kartta näyttää kirjoitukset numeroituina paikkoina kanjonin kalliotasanteilla. Riippusillat yhdistävät tasanteet, ja pieni hahmo kulkee niitä pitkin. Kaikki kirjoitukset ovat myös alla olevassa luettelossa.",
     "close": "Sulje",
-    "newest": "uusi"
+    "newest": "uusi",
+    "keys": "← ↑ ↓ → juokse · välilyönti hyppää",
+    "near": "Välilyönti tai ”Lue” avaa kirjoituksen",
+    "read": "Lue",
+    "jump": "Hyppää",
+    "score": "Ylitettyjä eläimiä",
+    "hintTouch": "Pidä sormea alhaalla: hahmo juoksee sinne. Napauta kirjoitusta: hahmo kävelee sinne ja avaa sen."
   },
   "ar": {
     "home": "الصفحة الرئيسية",
@@ -30,9 +60,15 @@
     "proto": "نموذج أوّلي · نصوص الأمثلة مختلَقة",
     "stage": "خريطة المقالات. مفاتيح الأسهم تحرّك الشخصية، ومفتاح الإدخال يفتح المقال الذي تقف عنده.",
     "center": "إلى الشخصية",
-    "hint": "اسحب لتحريك الخريطة. انقر على مقال أو استخدم مفاتيح الأسهم لتحريك الشخصية.",
+    "hint": "مفاتيح الأسهم: للجري. مفتاح المسافة: للقفز، وعند المقال: للقراءة. الفأرة: أشِر، انقر، اسحب.",
     "blind": "تعرض الخريطة المقالات كأماكن مرقّمة فوق هضاب صخرية في وادٍ عميق. تربط الجسور المعلّقة بين الهضاب، وتسير عليها شخصية صغيرة. جميع المقالات موجودة أيضًا في القائمة أدناه.",
     "close": "إغلاق",
-    "newest": "جديد"
+    "newest": "جديد",
+    "keys": "← ↑ ↓ → للجري · مفتاح المسافة للقفز",
+    "near": "مفتاح المسافة أو «اقرأ» يفتح المقال",
+    "read": "اقرأ",
+    "jump": "اقفز",
+    "score": "حيوانات تم القفز فوقها",
+    "hintTouch": "أبقِ إصبعك على الشاشة: تجري الشخصية نحوه. انقر على مقال: تذهب إليه وتفتحه."
   }
 }

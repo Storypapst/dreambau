@@ -71,13 +71,16 @@ function page(L, M, posts) {
 <header class="top">
 <a class="pill home" href="/">${CHEVRON}<span data-l="home">${esc(L['blog.home'])}</span></a>
 <h1 class="ttl"><span data-l="title">${esc(M.title)}</span><span class="caret" aria-hidden="true"></span></h1>
+<nav class="langs" aria-label="Sprache · Language"><a class="pill" href="?lang=de" data-lang="de" lang="de" aria-current="true">DE</a><a class="pill" href="?lang=en" data-lang="en" lang="en">EN</a></nav>
 <p class="kicker"><span data-l="sub">${esc(M.sub)}</span>${invented ? ` <span class="draft" data-l="proto">${esc(M.proto)}</span>` : ''}</p>
 </header>
 <main id="main">
 <div class="stage" id="stage" tabindex="0" role="group" aria-label="${esc(M.stage)}" data-l-aria="stage">
 <canvas id="map" aria-hidden="true"></canvas>
 <button class="pill center" id="center" type="button" data-l="center">${esc(M.center)}</button>
-<p class="hint" data-l="hint">${esc(M.hint)}</p>
+<div class="hud" aria-hidden="true"><p class="keys" data-l="keys">${esc(M.keys)}</p><p class="score" id="score" hidden></p></div>
+<div class="acts"><button class="pill pri" id="read" type="button" data-l="read" hidden>${esc(M.read)}</button><button class="pill jump" id="jump" type="button" data-l="jump">${esc(M.jump)}</button></div>
+<p class="hint" id="hint" data-l="hint">${esc(M.hint)}</p>
 <div class="tip" id="tip" hidden></div>
 </div>
 <p class="sr" data-l="blind">${esc(M.blind)}</p>

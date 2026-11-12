@@ -76,6 +76,15 @@ await run(async () => {
         await page.keyboard.press('Escape');
         check('KARTE-4 Esc closes the sheet', await page.locator('#panel').isHidden() && (await state()).opened === null);
 
+        await page.locator('#stage').focus();
+        const free = (await state()).free.find((top) => top.x > 80 && top.x < box.width - 80 && top.y > 80 && top.y < box.height - 120);
+        await page.mouse.click(box.x + free.x, box.y + free.y);
+        await page.waitForFunction(() => window.karte.state().near === null && !window.karte.state().walking, null, { timeout: 30000 });
+        same('KARTE-6 walking to a place without a post opens nothing', (await state()).opened, null);
+        await page.locator('#stage').focus();
+        await page.keyboard.press('Space');
+        check('KARTE-6 away from a post the space bar makes the figure jump', (await state()).jumping);
+        check('KARTE-6 the keys are written in the corner of the map', (await page.locator('.hud .keys').innerText()).includes('Leertaste'));
         const before = await state();
         for (let n = 0; n < 6; n += 1) {
           await page.mouse.move(box.x + 900, box.y + 400);
@@ -104,6 +113,11 @@ await run(async () => {
         same('KARTE-5 a row of the list brings the figure to its post and opens it', (await state()).opened, NUMBERS[2]);
         await page.keyboard.press('Escape');
         same('KARTE-5 after closing the focus is back on the row', await page.evaluate(() => document.activeElement.getAttribute('href')), `#b-${NUMBERS[2]}`);
+        await page.locator('#stage').focus();
+        same('KARTE-6 at a post the sign says so and the read button shows', [(await state()).near, await page.locator('#read').isVisible()], [NUMBERS[2], true]);
+        await page.keyboard.press('Space');
+        same('KARTE-6 the space bar opens the post the figure stands at', (await state()).opened, NUMBERS[2]);
+        await page.keyboard.press('Escape');
         const from = (await state()).figure;
         await page.locator('#stage').focus();
         await page.keyboard.press('ArrowRight');
@@ -115,7 +129,7 @@ await run(async () => {
       }
 
       // ---- KARTE-8: languages ----
-      for (const [lang, dir_, title] of [['fi', 'ltr', 'Navigointi'], ['ar', 'rtl', 'التنقّل']]) {
+      for (const [lang, dir_, title] of [['en', 'ltr', 'Navigate'], ['fi', 'ltr', 'Navigointi'], ['ar', 'rtl', 'التنقّل']]) {
         const { context, page, problems, overflow } = await open(browser, dir, { query: `?lang=${lang}` });
         same(`KARTE-8 ${lang}: language and direction of the page`, await page.evaluate(() => [document.documentElement.lang, document.documentElement.dir]), [lang, dir_]);
         same(`KARTE-8 ${lang}: the title is translated`, await page.locator('h1 [data-l="title"]').innerText(), title);

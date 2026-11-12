@@ -21,15 +21,17 @@
     D.title = `${L.title} · dreambau.com`;
   }
   root.classList.add('js');
+  for (const a of D.querySelectorAll('.langs a')) if (a.dataset.lang === LANG) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
 
   /* ---- the posts, read from the list (newest first) ---- */
   const posts = [...list.querySelectorAll('li.row')].map((row, rank) => ({
     row, rank, no: row.dataset.no, date: row.dataset.date, newest: row.hasAttribute('data-newest'),
-    link: row.querySelector('.tt a'), title: row.querySelector('.tt a').textContent, short: row.querySelector('.ex').textContent,
+    link: row.querySelector('.tt a'), video: Boolean(row.querySelector('.mk.src')), title: row.querySelector('.tt a').textContent, short: row.querySelector('.ex').textContent,
   }));
   if (posts.length === 0) { root.classList.remove('js'); return; }
 
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const COARSE = matchMedia('(hover: none)').matches;
   const RM = () => motion.matches;
   const css = getComputedStyle(root);
   const token = (name) => css.getPropertyValue(name).trim();
@@ -43,7 +45,7 @@
   };
 
   /* ---- the world: an endless grid of cells; every SLOT cells a mesa, bridges between neighbours ---- */
-  const SLOT = 17, TW = 26, TH = 13, HZ = 12, MAXH = 7;
+  const SLOT = 17, TW = 26, TH = 13, HZ = 12, MAXH = 10;
   const GLYPHS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&*+<>=', STRATA = '|=|:#|-|', FLOOR = '.·:.';
   const hash = (a, b, c) => {
     let h = (Math.imul(a, 374761393) + Math.imul(b, 668265263) + Math.imul(c, 1442695041)) | 0;
@@ -66,9 +68,11 @@
     let m = mesas.get(k);
     if (m) return m;
     const post = slotPost.get(`${mod(a, PA)},${mod(b, PB)}`) || null;
+    /* heights from 2 to MAXH, more low than high; a high mesa is narrower, so the land looks spiky */
+    const h = 2 + Math.floor(Math.pow(hash(a, b, 3), 1.3) * (MAXH - 1)), narrow = post ? Math.max(0.92, 1.12 - h * 0.035) : 1.12 - h * 0.035;
     const rad = [];
-    for (let q = 0; q < 8; q += 1) rad.push((post ? 3.9 : 3.1) + hash(a, b, 20 + q) * 1.5);
-    m = { a, b, k, post, rad, cx: a * SLOT + Math.round((hash(a, b, 1) - 0.5) * 4), cy: b * SLOT + Math.round((hash(a, b, 2) - 0.5) * 4), h: 4 + Math.floor(hash(a, b, 3) * (MAXH - 3)) };
+    for (let q = 0; q < 8; q += 1) rad.push(((post ? 3.9 : 3.1) + hash(a, b, 20 + q) * 1.5) * narrow);
+    m = { a, b, k, post, rad, cx: a * SLOT + Math.round((hash(a, b, 1) - 0.5) * 4), cy: b * SLOT + Math.round((hash(a, b, 2) - 0.5) * 4), h };
     mesas.set(k, m);
     return m;
   }
@@ -85,7 +89,7 @@
     const sector = Math.floor((((Math.atan2(dj, di) / (2 * Math.PI)) + 1) % 1) * 8);
     if (d <= r + 1.7 && hash(m.a * 8 + sector, m.b, 50) > 0.55) return Math.ceil(m.h / 2);   // a terrace on part of the rim
     if (d <= r + 2.8 && hash(i, j, 6) > 0.9) return 1;                                      // rubble at the foot
-    return hash(i, j, 8) < 0.005 ? 1 : 0;
+    return hash(i, j, 8) < 0.006 ? 2 + Math.floor(hash(i, j, 12) * (MAXH - 2)) : 0;   // a lone spire
   }
   const chunks = new Map();
   function H(i, j) {
@@ -146,7 +150,10 @@
   const fig = { i: home.cx + 1.4, j: home.cy + 0.6, z: home.h, walking: false };
   const worldX = (i, j) => ((i - j) * TW) / 2, worldY = (i, j, z) => ((i + j) * TH) / 2 - z * HZ;
   const cam = { x: worldX(home.cx, home.cy), y: worldY(home.cx, home.cy, home.h) - 10 };
-  let W = 0, Hh = 0, dpr = 1, follow = false, path = [], goal = null, near = home.k, hover = null, opened = null, clock = 0, dirty = true;
+  let W = 0, Hh = 0, dpr = 1, follow = false, path = [], goal = null, nearPost = null, hover = null, opened = null, clock = 0, dirty = true;
+  let jump = 0, stun = 0, score = 0, steer = null, critters = [];
+  const JUMP = 0.55, cleared = new Map();
+  const jumpHeight = () => (jump > 0 ? Math.sin((Math.PI * (JUMP - jump)) / JUMP) : 0);
   let marks = [], tops = [];
   const keys = new Set();
 
@@ -166,8 +173,8 @@
           continue;
         }
         const top = base - h * HZ, dropL = Math.max(0, h - H(i, j + 1)), dropR = Math.max(0, h - H(i + 1, j)), drop = Math.max(dropL, dropR) * HZ;
-        let rgb = FG, alpha = 0.34 + h * 0.06, lit = false;
-        if (h >= 4) {
+        let rgb = FG, alpha = Math.min(0.9, 0.34 + h * 0.055), lit = false;
+        if (h >= 2) {
           const m = slotOf(i, j);
           if (m.post && h === m.h && inside(m, i, j)) { lit = hover === m.post || opened === m.post; rgb = m.post.newest ? CUR : OLD; alpha = lit ? 0.98 : 0.7; }
         }
@@ -230,6 +237,16 @@
     rope.forEach(([sx, sy], n) => (n === 0 ? x.moveTo(sx, sy - 9) : x.lineTo(sx, sy - 9)));
     for (let n = 0; n <= steps; n += 2) { x.moveTo(rope[n][0], rope[n][1] - 9); x.lineTo(rope[n][0], rope[n][1] - 4); }
     x.stroke();
+    /* a small animal runs to and fro on some bridges; the figure has to jump over it */
+    if (hash(br.A.a, br.A.b, 60 + (br.B.a === br.A.a ? 1 : 0)) < 0.55) {
+      const span = (br.t1 - br.t0) * br.len - 1.6, phase = (RM() ? 0 : clock * 1.3) / span + hash(br.A.a, br.A.b, 61) * 2, wave = Math.abs((phase % 2) - 1);
+      const t = br.t0 + (0.8 + wave * span) / br.len, ci = br.A.cx + br.vx * t, cj = br.A.cy + br.vy * t, [sx, sy] = screen(ci, cj, bridgeZ(br, t));
+      critters.push({ i: ci, j: cj, key: `${br.A.k},${br.B.k}` });
+      x.fillStyle = BG; x.fillRect(sx - 9, sy - 15, 18, 12);
+      x.font = `700 12px ${MONO}`; x.fillStyle = `rgb(${CREAM})`;
+      x.fillText(Math.floor(clock * 6) % 2 ? '°m' : '°n', sx, sy - 9);
+      x.font = `500 12px ${MONO}`;
+    }
   }
 
   function drawMarks() {
@@ -244,18 +261,28 @@
       x.strokeRect(mark.x - 14.5, mark.y - 9.5, 29, 19);
       x.fillStyle = lit ? BG : `rgb(${rgb})`;
       x.fillText(post.no, mark.x, mark.y + 1);
+      if (post.video) {   /* a round sign with a play triangle: this post leads to a video */
+        x.beginPath(); x.arc(mark.x + 29, mark.y, 10, 0, Math.PI * 2);
+        x.fillStyle = BG; x.fill(); x.stroke();
+        x.beginPath(); x.moveTo(mark.x + 26, mark.y - 5); x.lineTo(mark.x + 34, mark.y); x.lineTo(mark.x + 26, mark.y + 5); x.closePath();
+        x.fillStyle = `rgb(${rgb})`; x.fill();
+      }
     }
   }
 
   function drawFigure(t) {
-    const [sx, sy] = screen(fig.i, fig.j, fig.z);
-    const bob = fig.walking ? Math.sin(t * 14) * 1.2 : 0;
+    const [sx, ground_] = screen(fig.i, fig.j, fig.z), up = jumpHeight(), sy = ground_ - up * HZ * 1.7;
+    if (up > 0) { x.fillStyle = ink(FG, 0.34); x.fillText('_', sx, ground_ - 4); }
+    if (stun > 0 && Math.floor(t * 20) % 2) return;
+    const run = fig.walking && Math.floor(t * 8) % 2;
     x.fillStyle = BG;
-    x.fillRect(sx - 6, sy - 25, 12, 24);
+    x.fillRect(sx - 12, sy - 27, 24, 26);
     x.font = `700 13px ${MONO}`;
+    x.fillStyle = `rgb(${CUR})`;
+    x.fillText(up > 0 ? '~' : fig.walking ? '-' : ' ', sx - 9, sy - 19);   // the scarf flies behind
     x.fillStyle = `rgb(${CREAM})`;
-    x.fillText('o', sx, sy - 18 + bob);
-    x.fillText(fig.walking && Math.floor(t * 7) % 2 ? 'Λ' : 'A', sx, sy - 7);
+    x.fillText('o', sx, sy - 19 + (fig.walking && !up ? Math.sin(t * 14) : 0));
+    x.fillText(up > 0 ? '^A^' : fig.walking ? (run ? '<A/' : '/A>') : '<A>', sx, sy - 7);   // no backslash: some system fonts draw it as a yen sign
   }
 
   function draw() {
@@ -266,7 +293,7 @@
     x.textBaseline = 'middle';
     x.font = `500 12px ${MONO}`;
     const range = drawTerrain(t);
-    marks = []; tops = [];
+    marks = []; tops = []; critters = [];
     for (let b = Math.floor(range.j0 / SLOT) - 1; b <= Math.ceil(range.j1 / SLOT) + 1; b += 1) {
       for (let a = Math.floor(range.i0 / SLOT) - 1; a <= Math.ceil(range.i1 / SLOT) + 1; a += 1) {
         const m = mesa(a, b), [sx, sy] = screen(m.cx, m.cy, m.h);
@@ -326,18 +353,14 @@
   function arrive() {
     fig.walking = false;
     const m = slotOf(fig.i, fig.j);
-    near = m.k;
+    updateNear();
     if (goal && goal === m) openPost(m.post);
     goal = null;
   }
-  function stepKeys(amount) {
-    let di = 0, dj = 0;
-    if (keys.has('up')) { di -= 1; dj -= 1; }
-    if (keys.has('down')) { di += 1; dj += 1; }
-    if (keys.has('left')) { di -= 1; dj += 1; }
-    if (keys.has('right')) { di += 1; dj -= 1; }
-    if (di === 0 && dj === 0) return false;
-    const n = Math.hypot(di, dj) || 1;
+  /* One step in the direction (di, dj); where the way is blocked the figure slides along the rim or the bridge. */
+  function step(di, dj, amount) {
+    const n = Math.hypot(di, dj);
+    if (n === 0) return false;
     di = (di / n) * amount; dj = (dj / n) * amount;
     for (const [mi, mj] of [[di, dj], [di * 1.4, 0], [0, dj * 1.4]]) {
       if (mi === 0 && mj === 0) continue;
@@ -346,10 +369,46 @@
     }
     return false;
   }
-  /* A post opens when the figure walks onto the middle of its mesa with the keys. */
-  function checkNear() {
-    const m = slotOf(fig.i, fig.j), d = Math.hypot(m.cx - fig.i, m.cy - fig.j);
-    if (d < 1.2 && near !== m.k) { near = m.k; if (m.post) { keys.clear(); openPost(m.post); } } else if (d > 2.4 && near === m.k) near = null;
+  function keyVector() {
+    let di = 0, dj = 0;
+    if (keys.has('up')) { di -= 1; dj -= 1; }
+    if (keys.has('down')) { di += 1; dj += 1; }
+    if (keys.has('left')) { di -= 1; dj += 1; }
+    if (keys.has('right')) { di += 1; dj -= 1; }
+    return [di, dj];
+  }
+  /* The finger steers: the figure runs towards the place the finger holds. */
+  function steerVector() {
+    const [sx, sy] = screen(fig.i, fig.j, fig.z), dx = steer.x - sx, dy = steer.y - (sy - 10);
+    if (Math.hypot(dx, dy) < 16) return [0, 0];
+    return [dx / TW + dy / TH, dy / TH - dx / TW];
+  }
+  /* The post whose mesa the figure stands on can be read: the sign says so, the space bar opens it. */
+  function updateNear() {
+    const m = slotOf(fig.i, fig.j), post = m.post && inside(m, fig.i, fig.j) ? m.post : null;
+    if (post === nearPost) return;
+    nearPost = post;
+    readButton.hidden = !post;
+    if (post && !opened) setHover(post, !COARSE); else if (!post) setHover(null);   // on a phone the read button says it, the box would cover the map
+  }
+  function startJump() { if (jump <= 0 && !RM()) { jump = JUMP; dirty = true; } }
+  function act() { if (nearPost) openPost(nearPost); else startJump(); }
+  /* An animal in the way: jumped over counts, run into throws the figure back a little. */
+  function meetCritters(before) {
+    for (const c of critters) {
+      const d = Math.hypot(c.i - fig.i, c.j - fig.j);
+      if (path.length > 0 && d < 1.7) startJump();
+      if (d > 0.75) continue;
+      if (jumpHeight() > 0.25) {
+        if ((cleared.get(c.key) || -9) < clock - 1.5) { score += 1; scoreEl.hidden = false; scoreEl.textContent = `${L.score}: ${score}`; }
+        cleared.set(c.key, clock);
+      } else if (path.length === 0 && stun <= 0 && (cleared.get(c.key) || -9) < clock - 0.6) {
+        fig.i = before.i - (fig.i - before.i) * 6; fig.j = before.j - (fig.j - before.j) * 6;
+        const z = ground(fig.i, fig.j);
+        if (z === null) { fig.i = before.i; fig.j = before.j; } else fig.z = z;
+        stun = 0.4;
+      }
+    }
   }
 
   let last = 0, idle = 0;
@@ -360,6 +419,7 @@
     if (RM() || D.hidden || opened) { if (dirty && !D.hidden) draw(); return; }
     clock += dt;
     let moving = false;
+    const before = { i: fig.i, j: fig.j };
     if (path.length > 0) {
       let left = 6.5 * dt;
       while (left > 0 && path.length > 0) {
@@ -370,9 +430,13 @@
       if (z !== null) fig.z = z;
       fig.walking = moving = true;
       if (path.length === 0) arrive();
-    } else if (keys.size > 0) {
-      if (stepKeys(5.5 * dt)) { fig.walking = moving = true; follow = true; checkNear(); } else fig.walking = false;
+    } else if (stun <= 0 && (keys.size > 0 || steer)) {
+      const [di, dj] = steer ? steerVector() : keyVector();
+      if (step(di, dj, 5.5 * dt)) { fig.walking = moving = true; follow = true; updateNear(); } else if (fig.walking) { fig.walking = false; dirty = true; }
     } else if (fig.walking) { fig.walking = false; dirty = true; }
+    if (jump > 0) { jump = Math.max(0, jump - dt); moving = true; }
+    if (stun > 0) { stun = Math.max(0, stun - dt); moving = true; }
+    meetCritters(before);
     if (follow) {
       const tx = worldX(fig.i, fig.j), ty = worldY(fig.i, fig.j, fig.z) - 10, ease = Math.min(1, dt * 5);
       if (Math.abs(tx - cam.x) + Math.abs(ty - cam.y) > 0.5) { cam.x += (tx - cam.x) * ease; cam.y += (ty - cam.y) * ease; moving = true; }
@@ -410,6 +474,7 @@
       const name = D.createElement('p'); name.className = 'tn'; name.textContent = post.title; name.lang = post.link.lang; name.dir = 'ltr';
       const text = D.createElement('p'); text.className = 'tx'; text.textContent = post.short; text.lang = post.link.lang; text.dir = 'ltr';
       tip.append(head, name, text);
+      if (post === nearPost) { const how = D.createElement('p'); how.className = 'tk'; how.textContent = L.near; tip.append(how); }
       placeTip();
     } else tip.hidden = true;
     dirty = true;
@@ -420,13 +485,15 @@
   let press = null;
   cv.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
-    press = { x: event.clientX, y: event.clientY, cx: cam.x, cy: cam.y, moved: false };
+    press = { x: event.clientX, y: event.clientY, cx: cam.x, cy: cam.y, moved: false, touch: event.pointerType === 'touch', at: performance.now() };
+    if (press.touch && !RM()) { const [px, py] = local(event); steer = { x: px, y: py }; path = []; goal = null; }
     cv.setPointerCapture(event.pointerId);
   });
   cv.addEventListener('pointermove', (event) => {
     const [px, py] = local(event);
     if (press) {
       const dx = event.clientX - press.x, dy = event.clientY - press.y;
+      if (press.touch) { if (Math.hypot(dx, dy) >= 8) press.moved = true; if (steer) { steer.x = px; steer.y = py; } return; }
       if (!press.moved && Math.hypot(dx, dy) < 5) return;
       press.moved = true; follow = false;
       stage.classList.add('drag');
@@ -440,11 +507,12 @@
   cv.addEventListener('pointerup', (event) => {
     const was = press; press = null;
     stage.classList.remove('drag');
-    if (!was || was.moved) return;
+    steer = null;
+    if (!was || was.moved || (was.touch && performance.now() - was.at > 350)) return;
     const [px, py] = local(event), mark = markAt(px, py), top = mark || topAt(px, py);
     if (mark) { setHover(mark.m.post); walkTo((m) => m === mark.m, true); } else if (top) walkTo((m) => m === top.m, false);
   });
-  cv.addEventListener('pointercancel', () => { press = null; stage.classList.remove('drag'); });
+  cv.addEventListener('pointercancel', () => { press = null; steer = null; stage.classList.remove('drag'); });
   cv.addEventListener('pointerleave', () => { if (!press) setHover(null); });
 
   const KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
@@ -454,15 +522,20 @@
     if (key) {
       event.preventDefault();
       path = []; goal = null;
-      if (RM()) { keys.add(key); if (stepKeys(1)) { follow = true; cam.x = worldX(fig.i, fig.j); cam.y = worldY(fig.i, fig.j, fig.z) - 10; checkNear(); } keys.clear(); draw(); } else keys.add(key);
-    } else if (event.key === 'Enter') {
-      const m = slotOf(fig.i, fig.j);
-      if (m.post && inside(m, fig.i, fig.j)) { event.preventDefault(); openPost(m.post); }
+      if (RM()) { keys.add(key); if (step(...keyVector(), 1)) { follow = true; cam.x = worldX(fig.i, fig.j); cam.y = worldY(fig.i, fig.j, fig.z) - 10; updateNear(); } keys.clear(); draw(); } else keys.add(key);
+    } else if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      if (event.key === ' ' || nearPost) act();
     }
   });
   stage.addEventListener('keyup', (event) => { keys.delete(KEYS[event.key]); });
   stage.addEventListener('blur', () => keys.clear());
   $('center').addEventListener('click', () => { follow = true; dirty = true; if (RM()) { cam.x = worldX(fig.i, fig.j); cam.y = worldY(fig.i, fig.j, fig.z) - 10; draw(); } });
+
+  const readButton = $('read'), scoreEl = $('score');
+  readButton.addEventListener('click', () => { if (nearPost) openPost(nearPost); });
+  $('jump').addEventListener('click', startJump);
+  if (matchMedia('(hover: none)').matches) $('hint').textContent = L.hintTouch;
 
   /* ---- the list drives the map: a row walks the figure to its post and opens it ---- */
   for (const post of posts) {
@@ -505,7 +578,7 @@
     if (!opened) return;
     opened = null;
     veil.hidden = true; panel.hidden = true;
-    setHover(null);
+    setHover(nearPost);
     const target = back; back = null;
     if (target && target.focus) target.focus({ preventScroll: true });
     dirty = true;
@@ -526,7 +599,8 @@
   motion.addEventListener('change', () => { dirty = true; draw(); });
   resize();
   draw();
+  updateNear();
   requestAnimationFrame(frame);
   /* for the browser check: where things are and what is open (read-only) */
-  window.karte = { state: () => ({ lang: LANG, posts: posts.length, figure: { i: fig.i, j: fig.j, z: fig.z }, camera: { x: cam.x, y: cam.y }, opened: opened ? opened.no : null, hover: hover ? hover.no : null, marks: marks.map((mark) => ({ no: mark.m.post.no, x: mark.x, y: mark.y })), tile: [PA, PB] }) };
+  window.karte = { state: () => ({ lang: LANG, posts: posts.length, figure: { i: fig.i, j: fig.j, z: fig.z }, camera: { x: cam.x, y: cam.y }, opened: opened ? opened.no : null, near: nearPost ? nearPost.no : null, jumping: jump > 0, walking: path.length > 0, score, hover: hover ? hover.no : null, marks: marks.map((mark) => ({ no: mark.m.post.no, x: mark.x, y: mark.y })), free: tops.filter((top) => !top.m.post).map((top) => ({ x: top.x, y: top.y })), tile: [PA, PB] }) };
 })();
