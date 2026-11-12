@@ -88,6 +88,7 @@ await run(async () => {
         check('KARTE-7 there are posts there too: the landscape goes on', after.marks.length >= 3, `${after.marks.length} places`);
         same('KARTE-7 dragging does not move the figure', after.figure, before.figure);
         same('KARTE-2 the console is clean and the policy refused nothing', problems, []);
+        same('KARTE-2 no cookie and nothing in the storage of the browser', [(await context.cookies()).length, await page.evaluate(() => localStorage.length + sessionStorage.length)], [0, 0]);
         await context.close();
       }
 
