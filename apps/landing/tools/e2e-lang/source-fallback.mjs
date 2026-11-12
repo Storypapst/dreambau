@@ -18,7 +18,7 @@ export default async function({base,browser}){
    if(open){
     check(name+': source heading remains German',await t.page.locator('#cv-title').textContent()==='Wie klein ist das?');
     check(name+': actual source and byte measurement remain readable',(await t.page.locator('.cv-code').innerText()).trim().length>100&&/\d/.test(await t.page.locator('#cv-anim-size').textContent()));
-    await t.page.locator('#cv-scale-tab').click();check(name+': all three scale entries remain readable',await t.page.locator('.cv-animation').count()===3);
+    await t.page.locator('#cv-scale-tab').click();check(name+': every scale entry remains readable',await t.page.locator('.cv-animation').count()===await t.page.evaluate(()=>Dream.ids.length));
     await t.page.locator('#cv-size').click();await t.page.locator('.code-comparison[open]').waitFor();check(name+': comparison remains usable in German',await t.page.locator('#cc-title').textContent()==='Größenvergleich');
     await t.page.keyboard.press('Escape');await t.page.keyboard.press('Escape');check(name+': closing returns focus to Quelltext',await t.page.locator('#source-entry').evaluate(n=>n===document.activeElement));
    }
