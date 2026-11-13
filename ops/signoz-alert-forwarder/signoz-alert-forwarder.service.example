@@ -1,0 +1,27 @@
+[Unit]
+Description=Private Dev SigNoz alert forwarder
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+DynamicUser=yes
+ExecStart=/usr/bin/python3 -B /opt/dreambau/signoz-alert-forwarder/forwarder.py /etc/dreambau/signoz-alert-forwarder.json
+StateDirectory=signoz-alert-forwarder
+StateDirectoryMode=0700
+LoadCredential=incoming_token:/etc/dreambau/credentials/signoz-alert-forwarder/incoming_token
+LoadCredential=buzz_private_key:/etc/dreambau/credentials/signoz-alert-forwarder/buzz_private_key
+LoadCredential=openclaw_hook_token:/etc/dreambau/credentials/signoz-alert-forwarder/openclaw_hook_token
+IPAddressDeny=any
+IPAddressAllow=localhost
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+UMask=0077
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
