@@ -87,20 +87,34 @@ try {
       page.on('console', m => { if (m.type() === 'error' && !/GPU stall|GL Driver Message/.test(m.text())) problems.push(m.text().slice(0, 160)); });
       page.on('response', r => { if (r.status() >= 400) problems.push(`HTTP ${r.status()} ${new URL(r.url()).pathname}`); });
       await page.goto(`${base}/`, { waitUntil: 'load' });
-      const early = await page.evaluate(() => { const f = document.getElementById('legal'), r = f && f.getBoundingClientRect(), cs = f && getComputedStyle(f);
-        return f ? { visible: r.width > 0 && r.height > 0 && r.bottom <= innerHeight && cs.visibility === 'visible' && +cs.opacity >= .99, size: parseFloat(cs.fontSize), alpha: cs.color } : null; });
-      // the closing line and the skip button are only shown during or after the animation; measure where they sit, not whether they are visible yet
-      const boxes = await page.evaluate(() => { const box = id => { const n = document.getElementById(id); if (!n) return null; const r = n.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
-        const links = [...document.querySelectorAll('#legal a')].map(a => { const r = a.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; });
-        const hc = document.querySelector('.home-controls'), capsule = getComputedStyle(hc).position === 'fixed' ? hc.getBoundingClientRect().toJSON() : null;
-        return { links, cta: document.querySelector('#cta a') && document.querySelector('#cta').getBoundingClientRect().toJSON(), skip: box('skip'), capsule, w: innerWidth }; });
-      const hit = (a, b) => a && b && a.l < (b.r ?? b.right) && a.r > (b.l ?? b.left) && a.t < (b.b ?? b.bottom) && a.b > (b.t ?? b.top);
-      const clash = boxes.links.filter(l => hit(l, boxes.cta) || hit(l, boxes.skip) || hit(l, boxes.capsule) || l.l < 0 || l.r > boxes.w);
-      check(`${vp.width}x${vp.height}: legal footer visible at once, 14 px or more, opaque enough`, !!early && early.visible && early.size >= 14, JSON.stringify(early));
-      check(`${vp.width}x${vp.height}: legal links do not overlap the closing line, the skip button or the control capsule`, clash.length === 0, JSON.stringify(boxes));
-      check(`${vp.width}x${vp.height}: links tappable (44 px)`, boxes.links.every(l => l.b - l.t >= 44), JSON.stringify(boxes.links));
-      await page.screenshot({ path: path.join(ROOT, `dist/apex-check/home-${vp.width}.png`) });
-      await page.click('#legal a[href$="impressum.html"]');
+      const footer = await page.evaluate(() => { const f = document.getElementById('legal'); return !!f && getComputedStyle(f).display !== 'none'; });
+      if (footer) {
+        const early = await page.evaluate(() => { const f = document.getElementById('legal'), r = f && f.getBoundingClientRect(), cs = f && getComputedStyle(f);
+          return f ? { visible: r.width > 0 && r.height > 0 && r.bottom <= innerHeight && cs.visibility === 'visible' && +cs.opacity >= .99, size: parseFloat(cs.fontSize), alpha: cs.color } : null; });
+        // the closing line and the skip button are only shown during or after the animation; measure where they sit, not whether they are visible yet
+        const boxes = await page.evaluate(() => { const box = id => { const n = document.getElementById(id); if (!n) return null; const r = n.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
+          const links = [...document.querySelectorAll('#legal a')].map(a => { const r = a.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; });
+          const hc = document.querySelector('.home-controls'), capsule = getComputedStyle(hc).position === 'fixed' ? hc.getBoundingClientRect().toJSON() : null;
+          return { links, cta: document.querySelector('#cta a') && document.querySelector('#cta').getBoundingClientRect().toJSON(), skip: box('skip'), capsule, w: innerWidth }; });
+        const hit = (a, b) => a && b && a.l < (b.r ?? b.right) && a.r > (b.l ?? b.left) && a.t < (b.b ?? b.bottom) && a.b > (b.t ?? b.top);
+        const clash = boxes.links.filter(l => hit(l, boxes.cta) || hit(l, boxes.skip) || hit(l, boxes.capsule) || l.l < 0 || l.r > boxes.w);
+        check(`${vp.width}x${vp.height}: legal footer visible at once, 14 px or more, opaque enough`, !!early && early.visible && early.size >= 14, JSON.stringify(early));
+        check(`${vp.width}x${vp.height}: legal links do not overlap the closing line, the skip button or the control capsule`, clash.length === 0, JSON.stringify(boxes));
+        check(`${vp.width}x${vp.height}: links tappable (44 px)`, boxes.links.every(l => l.b - l.t >= 44), JSON.stringify(boxes.links));
+        await page.screenshot({ path: path.join(ROOT, `dist/apex-check/home-${vp.width}.png`) });
+        await page.click('#legal a[href$="impressum.html"]');
+      } else {
+        // phone layout: no footer; Kontakt, Impressum and Datenschutz are reached through the menu
+        await page.click('.site-menu summary');
+        // wait until the sheet has finished sliding in (last link stops moving)
+        await page.waitForFunction(() => { const a = document.querySelector('.menu-links > :last-child'); if (!a) return false; const t = Math.round(a.getBoundingClientRect().top);
+          const ok = window.__menuTop === t; window.__menuTop = t; return ok; }, null, { polling: 150, timeout: 4000 }).catch(() => {});
+        const menu = await page.evaluate(() => ['/kontakt/', 'impressum.html', 'datenschutz.html'].map(h => { const a = document.querySelector(`.menu-links a[href$="${h}"]`); if (!a) return { h, found: false };
+          a.scrollIntoView({ block: 'nearest' }); const r = a.getBoundingClientRect(); return { h, found: true, visible: r.width > 0 && r.top >= 0 && r.bottom <= innerHeight, tall: r.height >= 44 }; }));
+        check(`${vp.width}x${vp.height}: phone shows no legal footer; the menu offers Kontakt, Impressum and Datenschutz, visible and 44 px tall`, menu.every(m => m.found && m.visible && m.tall), JSON.stringify(menu));
+        await page.screenshot({ path: path.join(ROOT, `dist/apex-check/home-${vp.width}.png`) });
+        await page.click('.menu-links a[href$="impressum.html"]');
+      }
       await page.waitForLoadState('load');
       const imp = await page.evaluate(() => ({ h1: document.querySelector('h1') && document.querySelector('h1').textContent, bg: getComputedStyle(document.documentElement).backgroundColor, back: !!document.querySelector('a.back[href="/"]') }));
       check(`${vp.width}x${vp.height}: Impressum opens styled, with a way back`, imp.h1 === 'Impressum' && imp.bg === 'rgb(6, 8, 13)' && imp.back, JSON.stringify(imp));
