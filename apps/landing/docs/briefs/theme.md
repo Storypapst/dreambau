@@ -8,6 +8,31 @@ Vorlage für jeden Lauf mit einem Modell (Fable, Opus, Codex, Kio …). Vor dem 
   Wörter `all`, `clock`, `random`, `test`, denn die Prüfwerkzeuge verstehen sie als Modus und prüfen dann nicht deine
   Fassung. Großbuchstaben oder längere ids scheitern an der Sprachprüfung (`blind.<id>` darf höchstens 40 Zeichen haben).
 
+Optional dazu: eine Bild- oder Stilidee in eigenen Worten, so grob sie ist.
+
+## Bevor du baust: verstehe die Idee
+
+Bau nicht sofort los. Eine Fassung ist nur so gut wie die Idee dahinter, und die steckt meist im Kopf der Person, die das
+Thema gibt, nicht in den drei Feldern.
+
+1. **Frag nach.** Stell in höchstens drei Runden je drei bis fünf Fragen, jede mit deiner empfohlenen Antwort, damit ein
+   „ja“ genügt. Gibt es einen Skill zum Ausfragen (z. B. „grilling“ oder „grill me“), nutze ihn. Frag nach dem, was die
+   Fassung tragen muss: Welches Gefühl soll bleiben? Welches eine Bild erzählt das Thema ohne Worte? Was passiert in den
+   drei Phasen, und welcher Moment trifft auf den Schriftzug? Welche Farben, Materialien, welcher Klang? Was soll es auf
+   keinen Fall sein?
+   Frag immer auch nach dem Schluss: Welche Marke, welcher Claim soll am Ende stehen? Empfiehl dabei den heutigen
+   Schriftzug („Jeht nich…“, „jibs nich…“, „dreambau.com“). Er kommt von der Seite, ist in alle angebotenen Sprachen
+   übersetzt und für alle Fassungen gleich. Will die Person einen anderen Claim oder eine andere Marke, schreib ihn
+   wörtlich in `docs/briefs/<id>.md`, bau die Fassung mit dem heutigen Schriftzug und melde im Pull Request, dass die
+   Laufzeit dafür erst einen eigenen Schlusstext pro Fassung braucht. Zeichne keinen eigenen Text ins Bild.
+2. **Schlag vor.** Danach zwei oder drei deutlich verschiedene Konzepte, je zwei, drei Sätze: Bildbogen über die drei
+   Phasen und Musik. Erst jetzt, nach den Fragen, nicht davor: Sieh dir die Kontaktbögen der Fassungen im Pool an (`verification/<id>/`), damit deine nicht
+   wie eine vorhandene aussieht. Empfiehl eins und sag, warum. Die erste naheliegende Idee ist selten die beste.
+3. **Bau erst nach der Wahl.** Ohne Antwort (unbeaufsichtigter Lauf) nimm deine Empfehlungen und schreib das dazu.
+
+Fragen, Antworten und das gewählte Konzept gehören wörtlich in `docs/briefs/<id>.md` (Punkt 9). So kann man in der
+Quelltextansicht unter „Prompt lesen“ nachvollziehen, wie die Idee entstanden ist.
+
 ## Was du baust
 
 Genau **eine Produktion** für den Zufallspool der Startseite, nach `docs/CONTRACT.md` und `docs/briefs/common.md`:
@@ -21,7 +46,7 @@ Stil und die Definition of Done.
 
 **Was diese Vorlage an `common.md` ändert, und nur das:** `common.md` erlaubt nur `src/p/<id>.js` und `verification/<id>/`,
 weil die drei ersten Fassungen schon eingebunden waren. Eine neue Fassung muss sich selbst in den Pool eintragen. Deshalb
-darfst du zusätzlich genau die Stellen 2, 3, 5 und 7 aus „Was du einträgst“ ändern und `site/p/<id>.js` mit dem Build
+darfst du zusätzlich genau die Stellen 2, 3, 5, 7, 8 und 9 aus „Was du einträgst“ ändern und `site/p/<id>.js` mit dem Build
 erzeugen. Die Regel „`node tools/build.mjs` nie ohne id“ bleibt bestehen: Baue mit `npm run build -- <id>`.
 
 ## Was du nicht baust
@@ -54,9 +79,17 @@ Die Seite stellt das alles schon. Ein Nachbau macht sie kaputt, auch wenn er gut
    `src/i18n/languages.json` und `site/i18n/index.js`). Ohne diesen Eintrag bricht `npm run build:apex` mit „animation
    lacks a complete description“ ab. Das ist kein sichtbarer Text, sondern nur für Screenreader; Ablauf in
    `docs/LANGUAGES.md`.
+8. `site/credits.js`: ein Eintrag für deine id mit `name` (der Name der Fassung), `model` (das Modell, das tatsächlich
+   gearbeitet hat, mit Version und Stufe, z. B. „Claude Opus 5.5“), `built` (Datum der bestandenen Abnahme, `JJJJ-MM-TT`),
+   `brief` (Thema und Bildidee in ein bis zwei deutschen Sätzen) und `prompt` (Link auf deine Datei aus Punkt 9 unter
+   `https://github.com/Storypapst/dreambau/blob/main/apps/landing/docs/briefs/<id>.md`). Die Quelltextansicht zeigt das
+   unter „Wie es entstand“. Das ist die einzige Stelle, an der ein Modell genannt wird.
+9. `docs/briefs/<id>.md`: der Auftrag, wie du ihn bekommen hast, wörtlich: die drei Felder, jede Bild- oder Stilidee, die
+   dir dazu gegeben wurde, und das Gespräch aus „Bevor du baust“ (Fragen, Antworten, Konzepte, die Wahl). Nichts weglassen
+   und nichts dazuerfinden.
 
 Die Quelltextansicht der Seite zeigt deine Fassung automatisch: Sie liest die Fassungen aus `D.ids`, und
-`npm run build:apex` packt das ausgelieferte `p/<id>.js` als `p/<id>.src.js` dazu. In der Ansicht steht deine id als Name.
+`npm run build:apex` packt das ausgelieferte `p/<id>.js` als `p/<id>.src.js` dazu. Der Name aus Punkt 8 steht in der Ansicht.
 
 ## Abnahme
 
@@ -71,5 +104,5 @@ node tools/e2e.mjs <id>       # Ton, Esc, reduzierte Bewegung, kein WebGL, keine
 ```
 
 Sieh dir außerdem den Kontaktbogen (`verification/<id>/frames/sheet.png`) mit eigenen Augen an und hör die Musik an.
-Liefere einen Pull Request, der **nur** die sieben Punkte oben ändert, und nenne darin das Modell, das tatsächlich
+Liefere einen Pull Request, der **nur** die neun Punkte oben ändert, und nenne darin das Modell, das tatsächlich
 gearbeitet hat.

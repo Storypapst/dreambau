@@ -32,7 +32,8 @@ Transformation (~13 to ~40 s): structure appears, grows and becomes musical (a b
 Resolution (~40 to 60 s): the first word arrives at 40-43 s, the second at 44-47 s, the last (`dreambau.com`) at 48-51 s,
 each on a musical event; the final composition is stable and legible from `fin`, the music resolves and fades out by `dur`.
 
-**Do not** name any AI model, tool vendor or person in files, comments or reports you write. Comments in English.
+**Do not** name any AI model, tool vendor or person in files, comments or reports you write, except the production's
+entry in `site/credits.js`, which states the model that did the work. Comments in English.
 
 **Definition of done** (check every point, fix, repeat):
 
