@@ -319,11 +319,15 @@ export function createApp(options: AppOptions = {}) {
   const workspaceGithub = options.workspaceGithub === undefined
     ? config.workspaceGithubConfigFile ? createWorkspaceGithub({ config: loadWorkspaceGithubConfig(config.workspaceGithubConfigFile), store: database.workspaceGithub, now: options.now ? () => options.now!().getTime() : undefined }) : null
     : options.workspaceGithub;
-  api.use("/workspace", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); }, requireActiveHumanSession,
-    createWorkspaceRouter({ database, evidence: workspaceEvidence, github: workspaceGithub, grantsFor: user => passkeyStore.grants.effective(user.id), now: options.now }));
   const accountViews = () => accountLoader().map((account) => ({ ...account, metadata: database.getMetadata(account.email) }));
   const viewProject = (view: ReturnType<typeof accountViews>[number]) => accountTaxonomyProject(view.metadata.project, view.domain);
   const scopedAccountViews = (user: HumanUser) => accountViews().filter((view) => user.projects.includes(viewProject(view)));
+  api.use("/workspace", (_req, res, next) => { res.set("Cache-Control", "no-store"); next(); }, requireActiveHumanSession,
+    createWorkspaceRouter({ database, evidence: workspaceEvidence, github: workspaceGithub, grantsFor: user => passkeyStore.grants.effective(user.id),
+      accountsFor: user => scopedAccountViews(user).map(account => ({ email: account.email, displayName: account.displayName, project: viewProject(account),
+        roles: account.metadata.roles, agencies: account.metadata.agencies, carrier: account.metadata.carrier, postalCode: account.metadata.postalCode,
+        linkedEnvironments: database.getTestAccessLinks(account.email).filter(link => link.project === viewProject(account)).map(link => link.environment) })),
+      now: options.now }));
   const exportPath = options.exportPath === undefined ? (options.loadAccounts ? null : config.exportPath) : options.exportPath;
   let pendingExport = Promise.resolve();
   const regenerate = () => {

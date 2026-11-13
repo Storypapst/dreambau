@@ -90,7 +90,7 @@ export function AccountClassificationTags({ account, locale }: Pick<AccountMetad
     {displayedRoles.map((role) => <span key={role} className="tag-pill tag-role" data-testmails-search-text>{role}</span>)}
     {topics.length > 0 && <span className="flex flex-wrap items-center gap-1">
       <span className="text-xs text-muted-foreground" title={locale === "de" ? "Testmails-Dokumentation, keine ORISO-Zuweisung" : "Testmails documentation, not an ORISO assignment"}>
-        {locale === "de" ? "Themen in Testmails:" : "Topics in Testmails:"}
+        {locale === "de" ? "Themen in ORISO:" : "Topics in ORISO:"}
       </span>
       {topics.map((topic) => <span key={topic} className="tag-pill tag-topic" data-testmails-search-text>{topic}</span>)}
     </span>}

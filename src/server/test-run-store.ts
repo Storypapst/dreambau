@@ -175,6 +175,12 @@ export class TestRunStore {
     };
   }
 
+  runsForEmail(email: string): TestRun[] {
+    const ids = this.sqlite.prepare(`SELECT DISTINCT run_id FROM test_run_accounts
+      WHERE lower(trim(email))=? ORDER BY run_id`).all(email.trim().toLowerCase()) as Array<{ run_id: string }>;
+    return ids.map(({ run_id }) => this.get(run_id)).filter((run): run is TestRun => run !== null);
+  }
+
   list(filter: TestRunFilter = {}): TestRun[] {
     const conditions: string[] = [];
     const values: string[] = [];

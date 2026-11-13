@@ -7,6 +7,7 @@ import { createApp } from "../src/server/app.js";
 import { createDatabase } from "../src/server/db.js";
 import { createPasskeyStore } from "../src/server/passkey-store.js";
 import { WorkspaceEvidenceUnavailable } from "../src/server/workspace-evidence-client.js";
+import type { AccountRecord } from "../src/server/accounts.js";
 
 const cleanup: Array<() => void> = [];
 afterEach(() => cleanup.splice(0).forEach(close => close()));
@@ -20,7 +21,11 @@ async function fixture() {
   passkeyStore.addCredential({ id: "credential", userId: user.id, publicKey: new Uint8Array([1]), counter: 0, transports: [], deviceType: "multiDevice", backedUp: true });
   const proof = gatewayRun();
   const bridge = { list: vi.fn(async () => ({ items: [proof], nextCursor: null })), documents: vi.fn(async () => ({ items: [], nextCursor: null })), get: vi.fn(async (id: string) => id === proof.id ? proof : null), content: vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png", "content-length": "3" } })) };
-  const app = createApp({ database, passkeyStore, loadAccounts: () => [], registryProvider: { list: async () => [], get: async () => null }, secureCookies: false, passwordHash: "unused", workspaceEvidence: bridge, webauthn: { generateRegistrationOptions: async () => ({}), verifyRegistrationResponse: async () => ({ verified: false }), generateAuthenticationOptions: async () => ({ challenge: "test" }), verifyAuthenticationResponse: async () => ({ verified: true, authenticationInfo: { newCounter: 1 } }) } });
+  const mailbox: AccountRecord = { displayName: "Simone", email: "simone@oriso.org", password: "private-mail-secret", domain: "oriso.org",
+    imap: "mail.dreambau.com:993", smtp: "mail.dreambau.com:465", jmap: "https://box.dreambau.com/.well-known/jmap",
+    caldav: "https://box.dreambau.com/dav", carddav: "https://box.dreambau.com/dav", encryption: { state: "disabled" } };
+  database.upsertMetadata(mailbox.email, { project: "ORISO", roles: ["Ratsuchender"], agencies: ["Kinder- und Jugendberatung"], carrier: "Springfield", postalCode: "10551" });
+  const app = createApp({ database, passkeyStore, loadAccounts: () => [mailbox], registryProvider: { list: async () => [], get: async () => null }, secureCookies: false, passwordHash: "unused", workspaceEvidence: bridge, webauthn: { generateRegistrationOptions: async () => ({}), verifyRegistrationResponse: async () => ({ verified: false }), generateAuthenticationOptions: async () => ({ challenge: "test" }), verifyAuthenticationResponse: async () => ({ verified: true, authenticationInfo: { newCounter: 1 } }) } });
   const agent = request.agent(app);
   const options = await agent.post("/testmails/api/auth/passkeys/authentication/options").send({ email: user.email });
   await agent.post("/testmails/api/auth/passkeys/authentication/verify").send({ flowId: options.body.flowId, response: { id: "credential" } }).expect(200);
@@ -30,6 +35,52 @@ function createRun(database: ReturnType<typeof createDatabase>, id: string, pool
   return database.testRuns.create({ project: "oriso", targetEnvironment: "dev", poolEnvironment, applicationVersion: "2.1", commitSha: "abcdef1", scenario: "actual-check", roles: [{ role: "user", count: 1 }] }, [{ accountId: id, email: `${id}@example.test`, roles: ["user"] }], { type: "machine", id: "real-runner" }, "2026-11-07T11:00:00.000Z", id);
 }
 describe("human workspace", () => {
+  it("links an exact mailbox to an evidence run without returning its password", async () => {
+    const f = await fixture();
+    const route = "/testmails/api/workspace/runs/evidence-run/proof/accounts";
+    const linked = await f.agent.post(route).send({ email: "Simone@ORISO.org" }).expect(201);
+    expect(linked.body.accounts).toContainEqual(expect.objectContaining({ email: "simone@oriso.org", displayName: "Simone", resolved: true }));
+    expect(JSON.stringify(linked.body)).not.toContain("private-mail-secret");
+    const history = await f.agent.get("/testmails/api/workspace/accounts/simone%40oriso.org/runs").expect(200);
+    expect(history.body.runs).toContainEqual(expect.objectContaining({ id: "proof", source: "evidence-run" }));
+    await f.agent.delete(route + "/simone%40oriso.org").expect(200);
+    const after = await f.agent.get("/testmails/api/workspace/runs/evidence-run/proof").expect(200);
+    expect(after.body.accounts).toEqual([]);
+  });
+  it("stops remote account-run lookups after an Evidence outage and keeps local runs", async () => {
+    const f = await fixture();
+    f.database.testRuns.create({ project: "oriso", targetEnvironment: "dev", poolEnvironment: "dev",
+      applicationVersion: "2.1", commitSha: "abcdef1", scenario: "local-check", roles: [{ role: "user", count: 1 }] },
+      [{ accountId: "mailbox:simone@oriso.org", email: "simone@oriso.org", roles: ["user"] }],
+      { type: "machine", id: "runner" }, "2026-11-07T11:00:00.000Z", "local-run");
+    for (const id of ["proof-a", "proof-b"]) f.database.workspaceAccountLinks.attach(id, "oriso", "dev", "simone@oriso.org", f.user.id, "2026-11-07T12:00:00.000Z");
+    f.bridge.get.mockRejectedValue(new WorkspaceEvidenceUnavailable());
+    const response = await f.agent.get("/testmails/api/workspace/accounts/simone%40oriso.org/runs").expect(200);
+    expect(response.body.runs).toContainEqual(expect.objectContaining({ id: "local-run", source: "test-run" }));
+    expect(f.bridge.get).toHaveBeenCalledTimes(1);
+  });
+  it("keeps reserved run identities exact and rejects evidence associations outside viewer scope", async () => {
+    const f = await fixture();
+    createRun(f.database, "run", "production-test");
+    const reserved = await f.agent.get("/testmails/api/workspace/runs/test-run/run").expect(200);
+    expect(reserved.body.accounts).toContainEqual(expect.objectContaining({ accountId: "run", email: "run@example.test", resolved: false, source: "reserved" }));
+    f.proof.environment = "pre-dev";
+    await f.agent.post("/testmails/api/workspace/runs/evidence-run/proof/accounts").send({ email: "simone@oriso.org" }).expect(404);
+    expect(f.database.workspaceAccountLinks.forRun("proof")).toEqual([]);
+  });
+  it("does not resolve a reserved product identity from email alone and retains the run outcome", async () => {
+    const f = await fixture();
+    const input = { project: "oriso" as const, targetEnvironment: "dev" as const, poolEnvironment: "dev" as const,
+      applicationVersion: "2.1", commitSha: "abcdef1", scenario: "identity-check", roles: [{ role: "user", count: 1 }] };
+    f.database.testRuns.create(input, [{ accountId: "old-product-record", email: "simone@oriso.org", roles: ["user"] }],
+      { type: "machine", id: "runner" }, "2026-11-07T11:00:00.000Z", "identity-run");
+    const detail = await f.agent.get("/testmails/api/workspace/runs/test-run/identity-run").expect(200);
+    expect(detail.body.accounts).toContainEqual(expect.objectContaining({ accountId: "old-product-record", resolved: false }));
+    f.database.testRuns.transition("identity-run", "reserved", "running", { type: "machine", id: "runner" }, "2026-11-07T11:01:00.000Z");
+    f.database.testRuns.transition("identity-run", "running", "passed", { type: "machine", id: "runner" }, "2026-11-07T11:02:00.000Z");
+    const history = await f.agent.get("/testmails/api/workspace/accounts/simone%40oriso.org/runs").expect(200);
+    expect(history.body.runs).toContainEqual(expect.objectContaining({ id: "identity-run", result: "passed" }));
+  });
   it("keeps released failed outcomes and explicit legacy report links separate from evidence records", async () => {
     const f = await fixture(); createRun(f.database, "run");
     f.database.testRuns.transition("run", "reserved", "running", { type: "machine", id: "real-runner" }, "2026-11-07T11:01:00.000Z");

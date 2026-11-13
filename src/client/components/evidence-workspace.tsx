@@ -20,6 +20,7 @@ import { EvidenceWorkspaceSteps } from "./evidence-workspace-steps";
 import { EvidenceWorkspaceGithub } from "./evidence-workspace-github";
 import { useWorkspaceDefaults } from "./evidence-workspace-defaults";
 import { EvidenceWorkspaceSettings } from "./evidence-workspace-settings";
+import { RunAccountLinks } from "./run-account-links";
 import { cn } from "@/lib/utils";
 import "./evidence-workspace.css";
 
@@ -27,6 +28,11 @@ type LoadState="loading"|"ready"|"denied"|"unavailable"|"refine";
 type Target=Pick<WorkspaceRunSummary,"source"|"id">;
 interface PageState<T> extends WorkspacePage<T> { key:string; state:LoadState; moreBusy:boolean; moreError:boolean }
 const runKey=(run:Target)=>run.source+":"+run.id;
+function runFromPath(pathname: string): Target | null {
+ const match=/^\/testmails\/runs\/(test-run|evidence-run)\/([^/]+)\/?$/.exec(pathname);
+ if(!match)return null;
+ try{return {source:match[1] as WorkspaceSource,id:decodeURIComponent(match[2])};}catch{return null;}
+}
 const documentKey=(file:WorkspaceDocument)=>file.runId+":"+file.id;
 const emptyPage=<T,>(key:string):PageState<T>=>({key,state:"loading",items:[],nextCursor:null,evidenceStatus:"available",moreBusy:false,moreError:false});
 const loadFailure=(error:unknown):LoadState=>error instanceof Error&&["scope_denied","viewer_mismatch","access_denied","HTTP 403"].includes(error.message)?"denied":"unavailable";
@@ -96,15 +102,18 @@ function AddReferenceDialog({detail,locale,onClose,onSaved}:{detail:WorkspaceRun
  }
  return <Dialog open onOpenChange={open=>!open&&onClose()}><DialogContent><DialogHeader><DialogTitle>{text.addLink}</DialogTitle><DialogDescription>{text.linkDescription}</DialogDescription></DialogHeader><form onSubmit={event=>void submit(event)}><FieldGroup><Field><FieldLabel htmlFor="workspace-link-kind">{text.linkKind}</FieldLabel><Select value={kind} onValueChange={value=>setKind(value as typeof kind)} disabled={busy}><SelectTrigger id="workspace-link-kind"><SelectValue/></SelectTrigger><SelectContent><SelectGroup><SelectItem value="issue">{text.issue}</SelectItem><SelectItem value="pull-request">{text.pullRequest}</SelectItem></SelectGroup></SelectContent></Select></Field><Field data-invalid={Boolean(error)}><FieldLabel htmlFor="workspace-link-url">{text.githubUrl}</FieldLabel><Input id="workspace-link-url" aria-label={text.githubUrl} value={url} onChange={event=>{setUrl(event.target.value);setError(null);}} type="url" autoFocus required disabled={busy} aria-invalid={Boolean(error)}/></Field>{error&&<p role="alert" className="text-sm text-destructive">{error}</p>}<div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>{text.cancel}</Button><Button type="submit" disabled={busy}>{busy?text.saving:text.saveLink}</Button></div></FieldGroup></form></DialogContent></Dialog>;
 }
-function RunDetail({detail,locale,onFile,onTarget,onAdd,refreshMinutes}:{detail:WorkspaceRunDetail;locale:Locale;onFile:(file:WorkspaceFile)=>void;onTarget:(target:Target)=>void;onAdd:()=>void;refreshMinutes:0|15|60}) {
+function RunDetail({detail,locale,onFile,onTarget,onAdd,onUpdated,refreshMinutes}:{detail:WorkspaceRunDetail;locale:Locale;onFile:(file:WorkspaceFile)=>void;onTarget:(target:Target)=>void;onAdd:()=>void;onUpdated:(detail:WorkspaceRunDetail)=>void;refreshMinutes:0|15|60}) {
  const text=workspaceCopy[locale];const primaryPr=safeWorkspaceExternalUrl(detail.pullRequestUrl);
  return <article className="workspace-detail">
   <div className="workspace-detail-meta"><Badge variant="secondary">{detail.environment=== "dev"?"Dev":detail.environment==="pre-dev"?"PreDev":detail.environment}</Badge><span>{detail.source==="test-run"?text.testRun:text.evidenceRun}</span><time dateTime={detail.createdAt}>{workspaceDate(detail.createdAt,locale)}</time>{detail.files.length>0&&<a className="underline underline-offset-2" href="#workspace-run-files">Dreambau Evidence · {detail.files.length} {locale==="de"?"Dateien":"files"}</a>}</div>
   <div className="workspace-detail-title"><h2>{detail.title}</h2><WorkspaceResultBadge result={detail.result} locale={locale}/></div>
   <p className="workspace-lifecycle">{workspaceLifecycle(detail,locale)}</p>
-  {detail.source==="evidence-run"&&<p className="workspace-source-explanation">{text.evidenceOnly}</p>}
+  {detail.source==="evidence-run"&&<p className="workspace-source-explanation">{(detail.accounts?.length ?? 0)>0
+    ? (locale==="de"?"Die Konten wurden diesem Evidence-Eintrag ausdrücklich zugeordnet. Ein reservierter Testlauf ist damit nicht belegt.":"The accounts were explicitly linked to this evidence entry. This does not establish a reserved test-account run.")
+    : text.evidenceOnly}</p>}
   <dl className="workspace-metadata"><div><dt>{text.repository}</dt><dd>{detail.repository||"—"}</dd></div><div><dt>{text.commit}</dt><dd><code title={detail.commitSha}>{detail.commitSha.slice(0,12)||"—"}</code></dd></div><div><dt>{text.version}</dt><dd>{detail.applicationVersion||"—"}</dd></div><div><dt>{text.owner}</dt><dd>{detail.owner||"—"}</dd></div></dl>
   <EvidenceWorkspaceSteps detail={detail} locale={locale}/>
+  <RunAccountLinks detail={detail} locale={locale} onUpdated={onUpdated}/>
   <section aria-label={text.links}><div className="workspace-section-heading"><h3>{text.links}</h3><Button variant="outline" size="sm" onClick={onAdd}><LinkIcon data-icon="inline-start"/>{text.addLink}</Button></div><p className="workspace-hint">{text.referenceHint}</p><div className="workspace-references">{detail.references.map(reference=><ReferenceLink key={reference.id} reference={reference} onTarget={onTarget} onFile={onFile} files={detail.files}/>)}{primaryPr&&!detail.references.some(reference=>reference.url===primaryPr)&&<a className="workspace-reference" href={primaryPr} target="_blank" rel="noopener noreferrer"><GitPullRequestIcon/>{text.pullRequest}<ExternalLinkIcon/></a>}{!detail.references.length&&!primaryPr&&<span className="workspace-hint">{text.noLinks}</span>}</div></section>
   <EvidenceWorkspaceGithub detail={detail} locale={locale} refreshMinutes={refreshMinutes}/>
   <section id="workspace-run-files" className="scroll-mt-4" aria-label={text.files}><div className="workspace-section-heading"><h3>{text.files}</h3><span>{detail.filesCount===null?text.unknownCount:detail.filesCount+" "+text.fileCount}</span></div><EvidenceAvailability status={detail.evidenceStatus} locale={locale}/>{detail.files.length>0&&<p className="workspace-hint">{locale==="de"?"Speicherort: Dreambau Evidence. Öffne eine Datei zum Anzeigen oder Herunterladen.":"Stored in Dreambau Evidence. Open a file to view or download it."}</p>}{detail.files.length>0?<div className="workspace-files">{detail.files.map(file=><WorkspaceFileThumbnail key={file.runId+":"+file.id} file={file} locale={locale} onOpen={()=>onFile(file)}/>)}</div>:detail.evidenceStatus==="available"?<p className="workspace-hint">{text.noFiles}</p>:null}</section>
@@ -135,8 +144,14 @@ export function EvidenceWorkspace({locale,project,onBack,onLocaleChange,projects
  useEffect(()=>{
   if(tab!=="runs"||runData.page.state!=="ready")return;
   if(selection?.scope===runsScope)return;
-  setSelection(runData.page.items[0]?{scope:runsScope,target:runData.page.items[0]}:null);
+  const deep=runFromPath(window.location.pathname);
+  setSelection(deep?{scope:runsScope,target:deep}:runData.page.items[0]?{scope:runsScope,target:runData.page.items[0]}:null);
  },[tab,runData.page.state,runData.page.items,runsScope,selection?.scope]);
+ useEffect(()=>{
+  const navigate=()=>{const target=runFromPath(window.location.pathname);setSelection(target?{scope:runsScope,target}:null);};
+  window.addEventListener("popstate",navigate);
+  return()=>window.removeEventListener("popstate",navigate);
+ },[runsScope]);
  useEffect(()=>{
   if(!currentSelection||tab!=="runs")return;
   let active=true;const controller=new AbortController();setDetailState({key:detailKey,state:"loading",value:null});
@@ -144,7 +159,10 @@ export function EvidenceWorkspace({locale,project,onBack,onLocaleChange,projects
   return()=>{active=false;controller.abort();};
  },[detailKey,tab]);
  const detail=detailState.key===detailKey&&detailState.state==="ready"?detailState.value:null;
- function choose(target:Target){setViewer(null);setAdding(null);setSelection({scope:runsScope,target});}
+ function choose(target:Target){setViewer(null);setAdding(null);
+  const from=new URLSearchParams(window.location.search).get("from");
+  window.history.pushState(null,"",`/testmails/runs/${target.source}/${encodeURIComponent(target.id)}?project=${project.toUpperCase()}${from?"&from="+encodeURIComponent(from):""}`);
+  setSelection({scope:runsScope,target});}
  function openFile(file:WorkspaceFile){setViewer({scope:viewScope,file});}
  function resetFilters(){setSearch("");setQuery("");defaults.setFilters({source:"all",environment:"all"});setResult("all");}
  function listKey(event:KeyboardEvent<HTMLButtonElement>,index:number){
@@ -166,9 +184,9 @@ export function EvidenceWorkspace({locale,project,onBack,onLocaleChange,projects
      {hasFilters&&<Button variant="ghost" size="sm" onClick={resetFilters}>{text.clear}</Button>}
     </div>
     <div aria-live="polite" className="workspace-service-state">{activePage.state==="ready"&&<EvidenceAvailability status={activePage.evidenceStatus} locale={locale}/>}</div>
-    {activePage.state==="denied"||activePage.state==="unavailable"||activePage.state==="refine"?<WorkspaceLoadError state={activePage.state} locale={locale} retry={()=>setRetry(value=>value+1)} refine={()=>{searchInput.current?.focus();searchInput.current?.select();}}/>:activePage.state==="loading"?<div className="workspace-loading" role="status" aria-label={text.loading}><Skeleton className="h-12 w-full"/><Skeleton className="h-48 w-full"/></div>:activePage.items.length===0?(activePage.evidenceStatus==="available"?<Empty><EmptyHeader><EmptyTitle>{tab==="runs"?text.empty:text.emptyDocuments}</EmptyTitle><EmptyDescription>{tab==="runs"?text.emptyHint:text.emptyDocumentsHint}</EmptyDescription></EmptyHeader>{hasFilters&&<Button variant="outline" onClick={resetFilters}>{text.clear}</Button>}</Empty>:null):<>
+    {activePage.state==="denied"||activePage.state==="unavailable"||activePage.state==="refine"?<WorkspaceLoadError state={activePage.state} locale={locale} retry={()=>setRetry(value=>value+1)} refine={()=>{searchInput.current?.focus();searchInput.current?.select();}}/>:activePage.state==="loading"?<div className="workspace-loading" role="status" aria-label={text.loading}><Skeleton className="h-12 w-full"/><Skeleton className="h-48 w-full"/></div>:activePage.items.length===0 && !currentSelection?(activePage.evidenceStatus==="available"?<Empty><EmptyHeader><EmptyTitle>{tab==="runs"?text.empty:text.emptyDocuments}</EmptyTitle><EmptyDescription>{tab==="runs"?text.emptyHint:text.emptyDocumentsHint}</EmptyDescription></EmptyHeader>{hasFilters&&<Button variant="outline" onClick={resetFilters}>{text.clear}</Button>}</Empty>:null):<>
      <TabsContent value="runs"><div className="workspace-split"><aside className="workspace-run-list" aria-label={text.runs}><div className="workspace-list-heading">{runData.page.items.length} {locale==="de"?"Einträge geladen":"entries loaded"}</div><div role="listbox" aria-label={text.runs}>{runData.page.items.map((run,index)=>{const selected=Boolean(currentSelection&&runKey(run)===runKey(currentSelection));return <button type="button" role="option" aria-selected={selected} tabIndex={selected||(!currentSelection&&index===0)?0:-1} key={runKey(run)} className={cn("workspace-run-row",selected&&"is-selected")} onClick={()=>choose(run)} onKeyDown={event=>listKey(event,index)}><span className="workspace-run-date">{workspaceDate(run.createdAt,locale)}<Badge variant="secondary">{run.environment==="dev"?"Dev":run.environment==="pre-dev"?"PreDev":run.environment}</Badge></span><strong>{run.title}</strong><span className="workspace-run-source">{run.source==="test-run"?text.testRun:text.evidenceRun}</span><span className="workspace-run-result"><WorkspaceResultBadge result={run.result} locale={locale}/><ChevronRightIcon/></span></button>;})}</div></aside>
-      {currentSelection?(detail?<RunDetail detail={detail} locale={locale} onFile={openFile} onTarget={choose} onAdd={()=>setAdding(detailKey)} refreshMinutes={defaults.refreshMinutes}/>:detailState.key===detailKey&&(detailState.state==="denied"||detailState.state==="unavailable")?<div className="workspace-detail"><WorkspaceLoadError state={detailState.state} locale={locale} retry={()=>{setSelection(null);setRetry(value=>value+1);}}/></div>:<div className="workspace-detail workspace-loading" role="status" aria-label={text.loadingDetail}><Skeleton className="h-9 w-2/3"/><Skeleton className="h-48 w-full"/></div>):<div className="workspace-detail"><p className="workspace-hint">{text.choose}</p></div>}
+      {currentSelection?(detail?<RunDetail detail={detail} locale={locale} onFile={openFile} onTarget={choose} onAdd={()=>setAdding(detailKey)} onUpdated={value=>setDetailState(previous=>previous.key===detailKey?{...previous,value}:previous)} refreshMinutes={defaults.refreshMinutes}/>:detailState.key===detailKey&&(detailState.state==="denied"||detailState.state==="unavailable")?<div className="workspace-detail"><WorkspaceLoadError state={detailState.state} locale={locale} retry={()=>{setSelection(null);setRetry(value=>value+1);}}/></div>:<div className="workspace-detail workspace-loading" role="status" aria-label={text.loadingDetail}><Skeleton className="h-9 w-2/3"/><Skeleton className="h-48 w-full"/></div>):<div className="workspace-detail"><p className="workspace-hint">{text.choose}</p></div>}
      </div><WorkspacePager page={runData.page} onMore={()=>void runData.more()} locale={locale}/></TabsContent>
      <TabsContent value="documents"><div className="workspace-documents">{documentData.page.items.map(file=><article key={documentKey(file)} className="workspace-document-row"><FileTextIcon/><div><button type="button" className="workspace-doc-open" onClick={()=>openFile(file)}>{file.caption||file.filename}</button><p>{file.runTitle} · {file.filename}</p><span>{workspaceDate(file.createdAt,locale)} · {file.environment==="dev"?"Dev":file.environment}</span></div><Button variant="outline" size="sm" aria-label={text.openDocument+": "+(file.caption||file.filename)} onClick={()=>openFile(file)}><ExternalLinkIcon/></Button></article>)}</div><WorkspacePager page={documentData.page} onMore={()=>void documentData.more()} locale={locale}/></TabsContent>
     </>}
