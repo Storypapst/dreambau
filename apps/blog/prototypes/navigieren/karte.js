@@ -5,10 +5,28 @@
   'use strict';
   const D = document, root = D.documentElement;
   const $ = (id) => D.getElementById(id);
+  /* One fault switches the map off for good: the list, which is the content, comes back, one line in the console names
+     the fault, and nothing runs again. Without this a fault in a frame would repeat sixty times a second. */
+  let dead = false;
+  const fail = (error) => {
+    if (dead) return;
+    dead = true;
+    root.classList.remove('js');
+    for (const id of ['veil', 'panel', 'grove']) { const el = $(id); if (el) el.hidden = true; }
+    for (const el of D.querySelectorAll('[inert]')) el.inert = false;
+    console.error('karte.js: the map was switched off after a fault; the list below is complete.', error);
+  };
+  const guard = (fn) => (...args) => { if (dead) return undefined; try { return fn(...args); } catch (error) { fail(error); return undefined; } };
+  const on = (el, type, fn, options) => el.addEventListener(type, guard(fn), options);
+  guard(() => {
   const stage = $('stage'), cv = $('map'), list = $('posts'), tip = $('tip'), panel = $('panel'), veil = $('veil');
   const grove = $('grove'), canopy = $('canopy'), zoomEl = $('zoom'), wood = $('wood'), leafbox = $('leafbox'), cloud = $('cloud');
   const x = cv && cv.getContext && cv.getContext('2d');
   if (!x || !list) return;
+  const readButton = $('read'), scoreEl = $('score');
+  for (const [name, el] of Object.entries({ stage, tip, panel, veil, grove, canopy, zoomEl, wood, leafbox, cloud, readButton, scoreEl, center: $('center'), jump: $('jump'), hint: $('hint'), close: $('close') })) {
+    if (!el) throw new Error(`the page has no element for "${name}"`);
+  }
 
   /* ---- language: ?lang=de|fi|ar (the posts keep their own language) ---- */
   const wanted = new URLSearchParams(location.search).get('lang');
@@ -21,7 +39,6 @@
     for (const el of D.querySelectorAll('[data-l-aria]')) el.setAttribute('aria-label', L[el.dataset.lAria]);
     D.title = `${L.title} · dreambau.com`;
   }
-  root.classList.add('js');
   for (const a of D.querySelectorAll('.langs a')) if (a.dataset.lang === LANG) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
 
   /* ---- the posts, read from the list (newest first) ---- */
@@ -31,7 +48,7 @@
     row, rank, no: row.dataset.no, date: row.dataset.date, newest: row.hasAttribute('data-newest'),
     link: row.querySelector('.tt a'), topic: txt(row.querySelector('.mk.tp')), video: Boolean(row.querySelector('.mk.src')), title: row.querySelector('.tt a').textContent, short: row.querySelector('.ex').textContent,
   }));
-  if (posts.length === 0) { root.classList.remove('js'); return; }
+  if (posts.length === 0) return;
   /* the trees: a topic with many aspects; on the map a tree stands on its own island */
   const trees = [...D.querySelectorAll('#trees article.tree')].map((row) => ({
     tree: true, row, no: row.dataset.id, date: '', newest: false, video: false, link: row.querySelector('.tt a'), topic: txt(row.querySelector('.mk.tp')),
@@ -62,6 +79,9 @@
     return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
   };
   const mod = (n, m) => ((n % m) + m) % m;
+  /* A pair of whole numbers as one number: a key for a Map without building a string (this runs for every cell of every
+     frame). Good for a million slots in every direction. */
+  const pair = (a, b) => (a + 1048576) * 2097152 + (b + 1048576);
 
   /* The posts lie on a tile of PA x PB mesas that repeats like a texture; the shapes of the mesas never repeat. */
   const SLOTS = Math.max(30, places.length * 3), PA = Math.ceil(Math.sqrt(SLOTS * 1.2)), PB = Math.ceil(SLOTS / PA);
@@ -77,7 +97,7 @@
 
   const mesas = new Map();
   function mesa(a, b) {
-    const k = `${a},${b}`;
+    const k = pair(a, b);
     let m = mesas.get(k);
     if (m) return m;
     const post = slotPost.get(`${mod(a, PA)},${mod(b, PB)}`) || null;
@@ -98,30 +118,36 @@
 
   function cellHeight(i, j) {
     const m = slotOf(i, j), di = i - m.cx, dj = j - m.cy, d = Math.hypot(di, dj), r = radius(m, di, dj);
-    if (d <= r) return m.h;
+    if (d <= r) return m.h + 16;   // 16: the cell is the top of its mesa
     const sector = Math.floor((((Math.atan2(dj, di) / (2 * Math.PI)) + 1) % 1) * 8);
     if (d <= r + 1.7 && hash(m.a * 8 + sector, m.b, 50) > 0.55) return Math.ceil(m.h / 2);   // a terrace on part of the rim
     if (d <= r + 2.8 && hash(i, j, 6) > 0.9) return 1;                                      // rubble at the foot
     return hash(i, j, 8) < 0.006 ? 2 + Math.floor(hash(i, j, 12) * (MAXH - 2)) : 0;   // a lone spire
   }
+  /* The cells in blocks of 16 x 16, computed once: the height in the low four bits, 16 where the cell is a mesa top. */
   const chunks = new Map();
-  function H(i, j) {
-    const ci = i >> 4, cj = j >> 4, key = `${ci},${cj}`;
-    let chunk = chunks.get(key);
-    if (!chunk) {
-      chunk = new Int8Array(256);
-      for (let v = 0; v < 16; v += 1) for (let u = 0; u < 16; u += 1) chunk[v * 16 + u] = cellHeight(ci * 16 + u, cj * 16 + v);
-      if (chunks.size > 4000) chunks.clear();
-      chunks.set(key, chunk);
+  let lastKey = NaN, lastChunk = null;
+  function cell(i, j) {
+    const ci = i >> 4, cj = j >> 4, key = pair(ci, cj);
+    if (key !== lastKey) {
+      let chunk = chunks.get(key);
+      if (!chunk) {
+        chunk = new Int8Array(256);
+        for (let v = 0; v < 16; v += 1) for (let u = 0; u < 16; u += 1) chunk[v * 16 + u] = cellHeight(ci * 16 + u, cj * 16 + v);
+        if (chunks.size > 4000) chunks.clear();
+        chunks.set(key, chunk);
+      }
+      lastKey = key; lastChunk = chunk;
     }
-    return chunk[(j & 15) * 16 + (i & 15)];
+    return lastChunk[(j & 15) * 16 + (i & 15)];
   }
+  const H = (i, j) => cell(i, j) & 15;
 
   /* A bridge joins the centres of two neighbouring mesas (dir 0: towards a+1, dir 1: towards b+1); the part between the
      two rims hangs. Which bridges exist is fixed so that every mesa can be reached from every other. */
   const bridges = new Map();
   function bridge(a, b, dir) {
-    const k = `${a},${b},${dir}`;
+    const k = pair(a, b) * 2 + dir;
     let br = bridges.get(k);
     if (br) return br;
     const A = mesa(a, b), B = dir ? mesa(a, b + 1) : mesa(a + 1, b);
@@ -163,7 +189,7 @@
   const fig = { i: home.cx + 1.4, j: home.cy + 0.6, z: home.h, walking: false };
   const worldX = (i, j) => ((i - j) * TW) / 2, worldY = (i, j, z) => ((i + j) * TH) / 2 - z * HZ;
   const cam = { x: worldX(home.cx, home.cy), y: worldY(home.cx, home.cy, home.h) - 10 };
-  let W = 0, Hh = 0, dpr = 1, follow = false, path = [], goal = null, nearPost = null, hover = null, opened = null, clock = 0, dirty = true;
+  let W = 0, Hh = 0, dpr = 1, seen = true, follow = false, path = [], goal = null, nearPost = null, hover = null, opened = null, clock = 0, dirty = true;
   let jump = 0, stun = 0, score = 0, steer = null, critters = [];
   const JUMP = 0.55, cleared = new Map();
   const jumpHeight = () => (jump > 0 ? Math.sin((Math.PI * (JUMP - jump)) / JUMP) : 0);
@@ -178,7 +204,7 @@
     const tick = Math.floor(t * 0.8);
     for (let s = s0; s <= s1; s += 1) {
       for (let d = d0 + ((s + d0) & 1); d <= d1; d += 2) {
-        const i = (s + d) / 2, j = (s - d) / 2, h = H(i, j);
+        const i = (s + d) / 2, j = (s - d) / 2, code = cell(i, j), h = code & 15;
         const sx = d * hw - cam.x + W / 2, base = s * hh - cam.y + Hh / 2;
         if (h === 0) {
           const f = hash(i, j, 7);
@@ -187,9 +213,9 @@
         }
         const top = base - h * HZ, dropL = Math.max(0, h - H(i, j + 1)), dropR = Math.max(0, h - H(i + 1, j)), drop = Math.max(dropL, dropR) * HZ;
         let rgb = FG, alpha = Math.min(0.9, 0.34 + h * 0.055), lit = false;
-        if (h >= 2) {
+        if (code > 15) {
           const m = slotOf(i, j);
-          if (m.post && h === m.h && inside(m, i, j)) { lit = hover === m.post || opened === m.post; rgb = m.post.tree ? CREAM : m.post.newest ? CUR : OLD; alpha = lit ? 0.98 : 0.7; }
+          if (m.post) { lit = hover === m.post || opened === m.post; rgb = m.post.tree ? CREAM : m.post.newest ? CUR : OLD; alpha = lit ? 0.98 : 0.7; }
         }
         /* the column hides what lies behind it; the top face is a little lighter than the ground */
         x.beginPath();
@@ -232,6 +258,8 @@
   const screen = (i, j, z) => [worldX(i, j) - cam.x + W / 2, worldY(i, j, z) - cam.y + Hh / 2];
 
   function drawBridge(br) {
+    const [ax, ay] = screen(br.A.cx, br.A.cy, br.A.h), [bx, by] = screen(br.B.cx, br.B.cy, br.B.h);
+    if ((ax < -60 && bx < -60) || (ax > W + 60 && bx > W + 60) || (ay < -120 && by < -120) || (ay > Hh + 120 && by > Hh + 120)) return;
     const steps = Math.max(2, Math.round((br.t1 - br.t0) * br.len * 2));
     const rope = [];
     for (let n = 0; n <= steps; n += 1) {
@@ -243,7 +271,6 @@
       x.fillStyle = ink(FG, 0.7);
       x.fillText('=', sx, sy);
     }
-    if (rope[0][0] < -200 && rope[steps][0] < -200) return;
     x.strokeStyle = ink(FG, 0.34);
     x.lineWidth = 1;
     x.beginPath();
@@ -251,10 +278,11 @@
     for (let n = 0; n <= steps; n += 2) { x.moveTo(rope[n][0], rope[n][1] - 9); x.lineTo(rope[n][0], rope[n][1] - 4); }
     x.stroke();
     /* a small animal runs to and fro on some bridges; the figure has to jump over it */
-    if (hash(br.A.a, br.A.b, 60 + (br.B.a === br.A.a ? 1 : 0)) < 0.55) {
-      const span = (br.t1 - br.t0) * br.len - 1.6, phase = (RM() ? 0 : clock * 1.3) / span + hash(br.A.a, br.A.b, 61) * 2, wave = Math.abs((phase % 2) - 1);
+    const span = (br.t1 - br.t0) * br.len - 1.6;
+    if (span > 2 && hash(br.A.a, br.A.b, 60 + (br.B.a === br.A.a ? 1 : 0)) < 0.55) {
+      const phase = (RM() ? 0 : clock * 1.3) / span + hash(br.A.a, br.A.b, 61) * 2, wave = Math.abs((phase % 2) - 1);
       const t = br.t0 + (0.8 + wave * span) / br.len, ci = br.A.cx + br.vx * t, cj = br.A.cy + br.vy * t, [sx, sy] = screen(ci, cj, bridgeZ(br, t));
-      critters.push({ i: ci, j: cj, key: `${br.A.k},${br.B.k}` });
+      critters.push({ i: ci, j: cj, key: br.A.k * 2 + (br.B.a === br.A.a ? 1 : 0) });
       x.fillStyle = BG; x.fillRect(sx - 9, sy - 15, 18, 12);
       x.font = `700 12px ${MONO}`; x.fillStyle = `rgb(${CREAM})`;
       x.fillText(Math.floor(clock * 6) % 2 ? '°m' : '°n', sx, sy - 9);
@@ -311,8 +339,18 @@
     x.fillText(up > 0 ? '^A^' : fig.walking ? (run ? '<A/' : '/A>') : '<A>', sx, sy - 7);   // no backslash: some system fonts draw it as a yen sign
   }
 
+  let drawn = 0, drawTime = 0, emptied = 0;   // how many frames were drawn and how long that took, for the checks
   function draw() {
+    const began = performance.now();
+    paint();
+    drawn += 1; drawTime += performance.now() - began;
+  }
+  function paint() {
     const t = RM() ? 0 : clock;
+    /* Islands and bridges are computed from their place alone, so forgetting them is safe; what is in view is built again
+       right below. Without this the two maps would grow for as long as someone walks on. */
+    if (mesas.size > CACHE) { mesas.clear(); bridges.clear(); emptied += 1; }
+    if (cleared.size > 64) cleared.clear();
     x.setTransform(dpr, 0, 0, dpr, 0, 0);
     x.clearRect(0, 0, W, Hh);
     x.textAlign = 'center';
@@ -337,19 +375,22 @@
   function resize() {
     const box = stage.getBoundingClientRect();
     if (box.width === 0) return;
-    W = box.width; Hh = box.height; dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = box.width; Hh = box.height; dpr = sharp ? Math.min(window.devicePixelRatio || 1, 2) : 1;
     cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr);
     dirty = true;
     if (RM()) draw();
   }
 
   /* ---- walking ---- */
+  /* The places repeat on every tile of PA x PB islands, so the nearest copy of any place lies within one tile; the search
+     looks at six tiles' worth of islands before it gives up. The caches hold a few searches and are emptied in draw(). */
+  const REACH = Math.max(900, PA * PB * 6), CACHE = Math.max(3000, REACH * 3);
   function route(from, wants) {
-    const seen = new Map([[from.k, null]]), queue = [from];
-    for (let n = 0; n < queue.length && n < 900; n += 1) {
+    const came = new Map([[from.k, null]]), queue = [from];
+    for (let n = 0; n < queue.length && n < REACH; n += 1) {
       const m = queue[n];
-      if (wants(m)) { const way = []; for (let at = m; at; at = seen.get(at.k)) way.unshift(at); return way; }
-      for (const next of neighbours(m)) if (!seen.has(next.k)) { seen.set(next.k, m); queue.push(next); }
+      if (wants(m)) { const way = []; for (let at = m; at; at = came.get(at.k)) way.unshift(at); return way; }
+      for (const next of neighbours(m)) if (!came.has(next.k)) { came.set(next.k, m); queue.push(next); }
     }
     return null;
   }
@@ -363,24 +404,25 @@
   }
   function walkTo(wants, open) {
     const way = route(standing(), wants);
-    if (!way) return;
+    if (!way) return false;
     const target = way[way.length - 1];
-    goal = open && target.post ? target : null;
+    goal = open && target.post ? target.k : null;
     follow = true;
     if (RM()) {
       fig.i = target.cx; fig.j = target.cy; fig.z = target.h; path = [];
       cam.x = worldX(fig.i, fig.j); cam.y = worldY(fig.i, fig.j, fig.z) - 10;
       arrive(); draw();
-      return;
+      return true;
     }
     path = way.map((m) => ({ i: m.cx, j: m.cy }));
     dirty = true;
+    return true;
   }
   function arrive() {
     fig.walking = false;
     const m = slotOf(fig.i, fig.j);
     updateNear();
-    if (goal && goal === m) openPost(m.post);
+    if (goal !== null && goal === m.k && m.post) openPost(m.post);
     goal = null;
   }
   /* One step in the direction (di, dj); where the way is blocked the figure slides along the rim or the bridge. */
@@ -437,12 +479,11 @@
     }
   }
 
-  let last = 0, idle = 0;
+  let last = 0, idle = 0, lastDraw = 0, slowFrames = 0, sharp = true;
   function frame(now) {
-    requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000 || 0);
     last = now;
-    if (RM() || D.hidden || opened) { if (dirty && !D.hidden) draw(); return; }
+    if (RM() || D.hidden || opened || !seen) { if (dirty && !D.hidden && seen) draw(); return; }
     clock += dt;
     let moving = false;
     const before = { i: fig.i, j: fig.j };
@@ -465,10 +506,18 @@
     meetCritters(before);
     if (follow) {
       const tx = worldX(fig.i, fig.j), ty = worldY(fig.i, fig.j, fig.z) - 10, ease = Math.min(1, dt * 5);
-      if (Math.abs(tx - cam.x) + Math.abs(ty - cam.y) > 0.5) { cam.x += (tx - cam.x) * ease; cam.y += (ty - cam.y) * ease; moving = true; }
+      const off = Math.abs(tx - cam.x) + Math.abs(ty - cam.y);
+      /* after a long drag the map jumps back to the figure: gliding there would compute every region on the way */
+      if (off > 6000) { cam.x = tx; cam.y = ty; moving = true; } else if (off > 0.5) { cam.x += (tx - cam.x) * ease; cam.y += (ty - cam.y) * ease; moving = true; }
     }
     idle += dt;
-    if (moving || dirty || idle > 0.4) { idle = 0; draw(); if (hover) placeTip(); }
+    const since = now - lastDraw;
+    if ((moving || dirty) && since < 30) { dirty = true; return; }   // at most about thirty pictures a second
+    if (moving || dirty || idle > 0.8) {
+      /* a device that cannot keep twenty pictures a second while something moves gets a canvas with fewer pixels */
+      if (moving && since < 400) { slowFrames = since > 50 ? slowFrames + 1 : Math.max(0, slowFrames - 1); if (sharp && slowFrames > 40) { sharp = false; resize(); } }
+      idle = 0; lastDraw = now; draw(); if (hover) placeTip();
+    }
   }
 
   /* ---- hover, click, drag ---- */
@@ -510,13 +559,13 @@
 
   const local = (event) => { const box = cv.getBoundingClientRect(); return [event.clientX - box.left, event.clientY - box.top]; };
   let press = null;
-  cv.addEventListener('pointerdown', (event) => {
+  on(cv, 'pointerdown', (event) => {
     if (event.button !== 0) return;
     press = { x: event.clientX, y: event.clientY, cx: cam.x, cy: cam.y, moved: false, touch: event.pointerType === 'touch', at: performance.now() };
     if (press.touch && !RM()) { const [px, py] = local(event); steer = { x: px, y: py }; path = []; goal = null; }
-    cv.setPointerCapture(event.pointerId);
+    try { cv.setPointerCapture(event.pointerId); } catch { /* the pointer is gone already: the press goes on without capture */ }
   });
-  cv.addEventListener('pointermove', (event) => {
+  on(cv, 'pointermove', (event) => {
     const [px, py] = local(event);
     if (press) {
       const dx = event.clientX - press.x, dy = event.clientY - press.y;
@@ -531,19 +580,19 @@
     }
     if (event.pointerType !== 'touch') { const mark = markAt(px, py); setHover(mark ? mark.m.post : null); }
   });
-  cv.addEventListener('pointerup', (event) => {
+  on(cv, 'pointerup', (event) => {
     const was = press; press = null;
     stage.classList.remove('drag');
     steer = null;
     if (!was || was.moved || (was.touch && performance.now() - was.at > 350)) return;
     const [px, py] = local(event), mark = markAt(px, py), top = mark || topAt(px, py);
-    if (mark) { setHover(mark.m.post); walkTo((m) => m === mark.m, true); } else if (top) walkTo((m) => m === top.m, false);
+    if (mark) { setHover(mark.m.post); walkTo((m) => m.k === mark.m.k, true); } else if (top) walkTo((m) => m.k === top.m.k, false);
   });
-  cv.addEventListener('pointercancel', () => { press = null; steer = null; stage.classList.remove('drag'); });
-  cv.addEventListener('pointerleave', () => { if (!press) setHover(null); });
+  on(cv, 'pointercancel', () => { press = null; steer = null; stage.classList.remove('drag'); });
+  on(cv, 'pointerleave', () => { if (!press) setHover(null); });
 
   const KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
-  stage.addEventListener('keydown', (event) => {
+  on(stage, 'keydown', (event) => {
     if (event.target !== stage || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = KEYS[event.key];
     if (key) {
@@ -555,30 +604,32 @@
       if (event.key === ' ' || nearPost) act();
     }
   });
-  stage.addEventListener('keyup', (event) => { keys.delete(KEYS[event.key]); });
-  stage.addEventListener('blur', () => keys.clear());
-  $('center').addEventListener('click', () => { follow = true; dirty = true; if (RM()) { cam.x = worldX(fig.i, fig.j); cam.y = worldY(fig.i, fig.j, fig.z) - 10; draw(); } });
+  on(stage, 'keyup', (event) => { keys.delete(KEYS[event.key]); });
+  on(stage, 'blur', () => keys.clear());
+  on($('center'), 'click', () => { follow = true; dirty = true; if (RM()) { cam.x = worldX(fig.i, fig.j); cam.y = worldY(fig.i, fig.j, fig.z) - 10; draw(); } });
 
-  const readButton = $('read'), scoreEl = $('score');
-  readButton.addEventListener('click', () => { if (nearPost) openPost(nearPost); });
-  $('jump').addEventListener('click', startJump);
-  if (matchMedia('(hover: none)').matches) $('hint').textContent = L.hintTouch;
+  on(readButton, 'click', () => { if (nearPost) openPost(nearPost); });
+  on($('jump'), 'click', startJump);
+  if (COARSE) $('hint').textContent = L.hintTouch;
 
   /* ---- the list drives the map: a row walks the figure to its post and opens it ---- */
   for (const post of places) {
-    post.link.addEventListener('click', (event) => {
+    on(post.link, 'click', (event) => {
       event.preventDefault();
       stage.scrollIntoView({ block: 'nearest', behavior: RM() ? 'auto' : 'smooth' });
       back = post.link;
       setHover(post, false);
-      walkTo((m) => m.post === post, true);
+      if (!walkTo((m) => m.post === post, true)) openPost(post);   // no way found: the post opens all the same
     });
-    post.row.addEventListener('pointerenter', () => { if (!opened) setHover(post, false); });
-    post.row.addEventListener('pointerleave', () => { if (!opened && hover === post) setHover(null); });
+    on(post.row, 'pointerenter', () => { if (!opened) setHover(post, false); });
+    on(post.row, 'pointerleave', () => { if (!opened && hover === post) setHover(null); });
   }
 
   /* ---- the sheet ---- */
   let back = null;
+  /* While a sheet or a tree is open, the page behind it cannot be reached by keyboard or by a screen reader. */
+  const behind = [D.querySelector('.skip'), D.querySelector('header.top'), stage, D.querySelector('.logp'), $('trees'), D.querySelector('footer.site')].filter(Boolean);
+  const setBehind = (inert) => { for (const el of behind) el.inert = inert; };
   const focusable = () => [...(opened && opened.tree ? grove : panel).querySelectorAll('a[href], button:not([disabled])')];
   function openPost(post) {
     if (opened === post) return;
@@ -597,6 +648,7 @@
     body.append(...full.childNodes);
     if (!back) back = D.activeElement === D.body ? stage : D.activeElement;
     veil.hidden = false; panel.hidden = false;
+    setBehind(true);
     panel.scrollTop = 0;
     $('close').focus();
     dirty = true;
@@ -604,16 +656,17 @@
   }
   function closePost() {
     if (!opened) return;
-    opened = null;
+    opened = null; laid = '';
     veil.hidden = true; panel.hidden = true; grove.hidden = true;
-    setHover(nearPost);
+    setBehind(false);
+    setHover(nearPost, !COARSE);
     const target = back; back = null;
     if (target && target.focus) target.focus({ preventScroll: true });
     dirty = true;
     if (RM()) draw();
   }
-  $('close').addEventListener('click', closePost);
-  $('grove-close').addEventListener('click', closePost);
+  on($('close'), 'click', closePost);
+  on($('grove-close'), 'click', closePost);
 
   /* ---- the tree, zoomed in: aspects from "untrue / hype" on the left to "great" on the right; the more an aspect was
      watered, the bigger it is. The cloud above changes the topic. ---- */
@@ -628,27 +681,38 @@
   }
   const sizeOf = (water) => (water <= 1 ? 'w1' : water <= 3 ? 'w2' : water <= 6 ? 'w3' : 'w4');
   const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  let picked = null;   // the id of the aspect that is shown below the tree
   function showLeaf(li, button) {
+    picked = li.dataset.id;
     for (const other of zoomEl.querySelectorAll('.leaf')) other.setAttribute('aria-pressed', String(other === button));
     leafbox.textContent = '';
     for (const child of li.children) leafbox.append(child.cloneNode(true));
     const water = D.createElement('button'); water.type = 'button'; water.className = 'pill pri'; water.textContent = L.water; water.disabled = li.dataset.done === '1';
     const note = D.createElement('p'); note.className = 'sn'; note.textContent = L.waterNote;
-    water.addEventListener('click', () => {   /* once per aspect; the real count needs the service on the server */
+    on(water, 'click', () => {   /* once per aspect; the real count needs the service on the server */
       li.dataset.done = '1'; li.dataset.water = String(Number(li.dataset.water) + 1);
       li.querySelector('.wn').textContent = li.dataset.water;
       button.querySelector('.wn').textContent = li.dataset.water;
       button.className = `leaf pill ${sizeOf(Number(li.dataset.water))}`;
       showLeaf(li, button);
+      button.focus();   // the spent button is disabled and would drop the focus out of the tree
     });
     const row = D.createElement('p'); row.className = 'wrow'; row.append(water, note);
     leafbox.append(row);
   }
+  let laid = '';
   function layoutTree(place) {
+    const items = [...place.row.querySelectorAll('.asp li')], n = items.length;
+    /* on a narrow screen every aspect gets a row of its own that is high enough for two lines of text */
+    const need = canopy.clientWidth < 600 ? `${Math.max(400, 110 + n * 70)}px` : '';
+    if (canopy.style.height !== need) canopy.style.height = need;
+    const box = canopy.getBoundingClientRect(), Wc = box.width, Hc = box.height, g = wood.getContext('2d');
+    const now = `${place.no}/${Math.round(Wc)}x${Math.round(Hc)}`;
+    if (now === laid || Wc === 0) return;   // the same tree at the same size: nothing to lay out again
+    laid = now;
+    const hadFocus = zoomEl.contains(D.activeElement);
     for (const old of zoomEl.querySelectorAll('.leaf')) old.remove();
     leafbox.textContent = L.treeHint;
-    const items = [...place.row.querySelectorAll('.asp li')], n = items.length;
-    const box = canopy.getBoundingClientRect(), Wc = box.width, Hc = box.height, g = wood.getContext('2d');
     wood.width = Math.round(Wc * 2); wood.height = Math.round(Hc * 2);
     g.setTransform(2, 0, 0, 2, 0, 0); g.clearRect(0, 0, Wc, Hc);
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `500 12px ${MONO}`;
@@ -669,11 +733,14 @@
       const count = D.createElement('span'); count.className = 'wn'; count.textContent = li.dataset.water;
       button.append(name, count);
       button.style.left = `${(lx / Wc) * 100}%`; button.style.top = `${(ly / Hc) * 100}%`;
-      button.addEventListener('click', () => showLeaf(li, button));
+      on(button, 'click', () => showLeaf(li, button));
       zoomEl.append(button);
+      if (li.dataset.id === picked) { showLeaf(li, button); if (hadFocus) button.focus(); }
     });
   }
   function openTree(place) {
+    const fromCloud = Boolean(opened && opened.tree);
+    if (opened !== place) { picked = null; laid = ''; }
     opened = place;
     tip.hidden = true;
     $('grove-title').textContent = place.title;
@@ -681,25 +748,26 @@
     for (const other of trees) {
       const pill = D.createElement('button'); pill.type = 'button'; pill.className = 'pill'; pill.textContent = other.topic;
       if (other === place) pill.setAttribute('aria-current', 'true');
-      pill.addEventListener('click', () => { if (other !== opened) openTree(other); });
+      on(pill, 'click', () => { if (other !== opened) openTree(other); });
       cloud.append(pill);
     }
     if (!back) back = D.activeElement === D.body ? stage : D.activeElement;
     veil.hidden = false; panel.hidden = true; grove.hidden = false;
+    setBehind(true);
     view.s = 1; view.x = 0; view.y = 0; applyZoom();
     layoutTree(place);
     if (!RM()) { zoomEl.classList.add('enter'); requestAnimationFrame(() => requestAnimationFrame(() => zoomEl.classList.remove('enter'))); }
-    $('grove-close').focus();
+    (fromCloud ? cloud.querySelector('[aria-current]') : $('grove-close')).focus();
     dirty = true;
     if (RM()) draw();
   }
-  $('zin').addEventListener('click', () => setZoom(view.s * 1.5));
-  $('zout').addEventListener('click', () => setZoom(view.s / 1.5));
-  canopy.addEventListener('wheel', (event) => { event.preventDefault(); const box = canopy.getBoundingClientRect(); setZoom(view.s * (event.deltaY < 0 ? 1.15 : 1 / 1.15), event.clientX - box.left, event.clientY - box.top); }, { passive: false });
+  on($('zin'), 'click', () => setZoom(view.s * 1.5));
+  on($('zout'), 'click', () => setZoom(view.s / 1.5));
+  on(canopy, 'wheel', (event) => { event.preventDefault(); const box = canopy.getBoundingClientRect(); setZoom(view.s * (event.deltaY < 0 ? 1.15 : 1 / 1.15), event.clientX - box.left, event.clientY - box.top); }, { passive: false });
   const fingers = new Map();
   let pinch = 0;
-  canopy.addEventListener('pointerdown', (event) => { if (!event.target.closest('button')) fingers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
-  canopy.addEventListener('pointermove', (event) => {
+  on(canopy, 'pointerdown', (event) => { if (!event.target.closest('button')) fingers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
+  on(canopy, 'pointermove', (event) => {
     const was = fingers.get(event.pointerId);
     if (!was) return;
     if (fingers.size === 1 && view.s > 1) { view.x += event.clientX - was.x; view.y += event.clientY - was.y; setZoom(view.s); }
@@ -710,23 +778,31 @@
       pinch = d;
     }
   });
-  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) canopy.addEventListener(type, (event) => { fingers.delete(event.pointerId); pinch = 0; });
-  veil.addEventListener('click', closePost);
-  D.addEventListener('keydown', (event) => {
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) on(canopy, type, (event) => { fingers.delete(event.pointerId); pinch = 0; });
+  on(veil, 'click', closePost);
+  on(D, 'keydown', (event) => {
     root.classList.add('kb');
     if (!opened) return;
     if (event.key === 'Escape') { event.preventDefault(); closePost(); return; }
     if (event.key !== 'Tab') return;
     const items = focusable(), first = items[0], final = items[items.length - 1];
+    if (!items.includes(D.activeElement)) { event.preventDefault(); first.focus(); return; }
     if (event.shiftKey && D.activeElement === first) { event.preventDefault(); final.focus(); } else if (!event.shiftKey && D.activeElement === final) { event.preventDefault(); first.focus(); }
   });
 
-  new ResizeObserver(resize).observe(stage);
-  motion.addEventListener('change', () => { dirty = true; draw(); });
+  /* From here on the page uses the map: the class shows the stage and folds the full texts into the sheet. */
+  root.classList.add('js');
+  new ResizeObserver(guard(resize)).observe(stage);
+  new ResizeObserver(guard(() => { if (opened && opened.tree) layoutTree(opened); })).observe(canopy);
+  /* a map that is scrolled out of sight is not drawn and the figure rests */
+  new IntersectionObserver(guard((entries) => { seen = entries[entries.length - 1].isIntersecting; dirty = true; })).observe(stage);
+  on(motion, 'change', () => { dirty = true; draw(); });
   resize();
   draw();
   updateNear();
-  requestAnimationFrame(frame);
+  const tick = guard((now) => { frame(now); requestAnimationFrame(tick); });
+  requestAnimationFrame(tick);
   /* for the browser check: where things are and what is open (read-only) */
-  window.karte = { state: () => ({ lang: LANG, posts: posts.length, figure: { i: fig.i, j: fig.j, z: fig.z }, camera: { x: cam.x, y: cam.y }, opened: opened ? opened.no : null, trees: trees.length, leaves: zoomEl.querySelectorAll('.leaf').length, zoom: view.s, near: nearPost ? nearPost.no : null, jumping: jump > 0, walking: path.length > 0, score, hover: hover ? hover.no : null, marks: marks.map((mark) => ({ kind: mark.m.post.tree ? 'tree' : 'post', no: mark.m.post.no, x: mark.x, y: mark.y })), free: tops.filter((top) => !top.m.post).map((top) => ({ x: top.x, y: top.y })), tile: [PA, PB] }) };
+  window.karte = { state: () => ({ lang: LANG, posts: posts.length, figure: { i: fig.i, j: fig.j, z: fig.z }, camera: { x: cam.x, y: cam.y }, opened: opened ? opened.no : null, trees: trees.length, leaves: zoomEl.querySelectorAll('.leaf').length, zoom: view.s, near: nearPost ? nearPost.no : null, jumping: jump > 0, walking: path.length > 0, score, caches: { mesas: mesas.size, bridges: bridges.size, chunks: chunks.size, limit: CACHE, emptied }, reach: REACH, dead, sharp, drawn, drawMs: drawn ? Math.round((drawTime / drawn) * 100) / 100 : 0, hover: hover ? hover.no : null, marks: marks.map((mark) => ({ kind: mark.m.post.tree ? 'tree' : 'post', no: mark.m.post.no, x: mark.x, y: mark.y })), free: tops.filter((top) => !top.m.post).map((top) => ({ x: top.x, y: top.y })), tile: [PA, PB] }) };
+  })();
 })();

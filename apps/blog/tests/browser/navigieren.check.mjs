@@ -10,14 +10,15 @@ import { check, same, run } from '../lib/check.mjs';
 import { withBrowser } from '../lib/browser.mjs';
 import { DEMO } from '../lib/demo.mjs';
 import { withScratch } from '../lib/scratch.mjs';
-import { buildMap } from '../../prototypes/navigieren/build.mjs';
+import { buildMap, cutLink, readTopics } from '../../prototypes/navigieren/build.mjs';
+import { FIXTURES, REPO, ROOT } from '../lib/paths.mjs';
 
 const POLICY = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 const URL_BASE = 'http://blog.test/blog/navigieren/';
 const NUMBERS = DEMO.map((post) => post.n);
 
-async function open(browser, dir, { query = '', ...options } = {}) {
+async function open(browser, dir, { query = '', page: change = null, init = null, ...options } = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, ...options });
   const requests = [], problems = [];
   await context.route('http://blog.test/**', (route) => {
@@ -25,8 +26,10 @@ async function open(browser, dir, { query = '', ...options } = {}) {
     const name = new URL(route.request().url()).pathname.replace('/blog/navigieren/', '') || 'index.html';
     const file = path.join(dir, name);
     if (!fs.existsSync(file)) return route.fulfill({ status: 404, contentType: 'text/plain', body: 'not found' });
-    return route.fulfill({ status: 200, contentType: MIME[path.extname(file)], headers: { 'content-security-policy': POLICY }, body: fs.readFileSync(file) });
+    const body = name === 'index.html' && change ? change(fs.readFileSync(file, 'utf8')) : fs.readFileSync(file);
+    return route.fulfill({ status: 200, contentType: MIME[path.extname(file)], headers: { 'content-security-policy': POLICY }, body });
   });
+  if (init) await context.addInitScript(init);
   const page = await context.newPage();
   page.on('console', (message) => { if (['error', 'warning'].includes(message.type())) problems.push(message.text()); });
   page.on('pageerror', (error) => problems.push(String(error.message)));
@@ -36,9 +39,56 @@ async function open(browser, dir, { query = '', ...options } = {}) {
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   return { context, page, requests, problems, state, overflow };
 }
+const worldOf = (figure) => ((figure.i - figure.j) * 26) / 2;   // the x of the camera when it rests on the figure
 const visibleMark = (state, box) => state.marks.find((mark) => mark.kind === 'post' && mark.x > 60 && mark.x < box.width - 60 && mark.y > 60 && mark.y < box.height - 80);
 
 await run(async () => {
+  // ---- KARTE-13: the files of the prototype ----
+  const labels = JSON.parse(fs.readFileSync(path.join(ROOT, 'prototypes', 'navigieren', 'labels.json'), 'utf8'));
+  const keysOf = (lang) => Object.keys(labels[lang]).sort();
+  for (const lang of Object.keys(labels)) same(`KARTE-13 the labels of "${lang}" have the same keys as the German ones and none is empty`, [keysOf(lang), Object.values(labels[lang]).filter((text) => typeof text !== 'string' || text.trim() === '').length], [keysOf('de'), 0]);
+  const tokens = (file) => Object.fromEntries([...fs.readFileSync(file, 'utf8').matchAll(/--(old|draft):\s*([\d,\s]+)/g)].map((match) => [match[1], match[2].replace(/\s/g, '')]));
+  same('KARTE-13 the two colours that karte.css adds are the ones of /referenzen/', tokens(path.join(ROOT, 'prototypes', 'navigieren', 'karte.css')), tokens(path.join(REPO, 'apps', 'website', 'site', 'website-assets', 'references.css')));
+  same('KARTE-13 the start of a cut is a query parameter, also for an address without one', [cutLink({ link: 'https://videos.example.test/watch?v=a', start: 95 }), cutLink({ link: 'https://videos.example.test/abc', start: 95 })], ['https://videos.example.test/watch?v=a&t=95s', 'https://videos.example.test/abc?t=95s']);
+  check('KARTE-13 a cut that is not an https address is refused', (() => { try { cutLink({ link: 'http://videos.example.test/a', start: 1 }); return false; } catch { return true; } })());
+  await withScratch('navigieren-rules', async (scratch) => {
+    const real = path.join(scratch, 'posts');
+    fs.mkdirSync(path.join(real, '2026'), { recursive: true });
+    const fixture = fs.readFileSync(path.join(FIXTURES, '2026', 'notiz-aus-der-werkstatt.md'), 'utf8').replace(/^example: true\n/m, '');
+    fs.writeFileSync(path.join(real, '2026', 'notiz-aus-der-werkstatt.md'), fixture);
+    const refused = (options) => { try { buildMap({ outDir: path.join(scratch, 'out'), ...options }); return ''; } catch (error) { return String(error.message); } };
+    check('KARTE-13 the invented trees are not built together with posts that are not the fixtures', /invented example/.test(refused({ postsDir: real })), refused({ postsDir: real }));
+    const bad = path.join(scratch, 'themen.json');
+    fs.writeFileSync(bad, JSON.stringify({ example: true, topics: { ki: { de: 'KI', en: 'AI' } }, posts: { '01': 'nix' }, trees: [{ id: 'x', topic: 'ki', title: { de: 'T', en: 'T' }, aspects: [{ id: 'a', stance: 2, water: -1, label: { de: 'L' }, say: { de: 'S', en: 'S' }, video: { title: 'V', link: 'http://videos.example.test/a', start: 9, end: 3 } }] }] }));
+    const faults = (() => { try { readTopics(bad); return ''; } catch (error) { return String(error.message); } })();
+    check('KARTE-13 a themen.json with faults is refused with every fault named', ['posts.01', 'stance', 'water', 'label.en', 'start and end', 'video.link'].every((word) => faults.includes(word)), faults);
+    // many posts: the tile of places grows, and every row of the list still reaches its post
+    const many = path.join(scratch, 'many');
+    fs.mkdirSync(path.join(many, '2026'), { recursive: true });
+    for (let n = 0; n < 160; n += 1) {
+      const day = new Date(Date.UTC(2026, 0, 1 + n)).toISOString().slice(0, 10);
+      fs.writeFileSync(path.join(many, '2026', `beitrag-nummer-${String(n).padStart(3, '0')}.md`), fixture.replace(/^title: .*$/m, `title: Beitrag Nummer ${n}`).replace(/^date: .*$/m, `date: ${day}`));
+    }
+    const none = path.join(scratch, 'none.json');
+    fs.writeFileSync(none, JSON.stringify({ topics: {}, posts: {}, trees: [] }));
+    const manyOut = path.join(scratch, 'many-out');
+    buildMap({ postsDir: many, outDir: manyOut, topicsFile: none });
+    await withBrowser(async (browser) => {
+      const { context, page, problems, state } = await open(browser, manyOut, { reducedMotion: 'reduce' });
+      const first = await state();
+      check('KARTE-4 with 160 posts the search reaches a whole tile of places', first.posts === 160 && first.reach >= first.tile[0] * first.tile[1] * 6, JSON.stringify([first.posts, first.reach, first.tile]));
+      const opened = [];
+      for (const index of [159, 80, 1]) {
+        await page.locator('#posts li.row').nth(index).locator('.tt a').click();
+        await page.locator('#panel').waitFor({ state: 'visible' });
+        opened.push((await state()).opened === await page.locator('#posts li.row').nth(index).getAttribute('data-no'));
+        await page.keyboard.press('Escape');
+      }
+      same('KARTE-4 with 160 posts a row of the list still brings the figure to its post', [opened, problems], [[true, true, true], []]);
+      await context.close();
+    });
+  });
+
   await withScratch('navigieren', async (dir) => {
     buildMap({ outDir: dir });
     await withBrowser(async (browser) => {
@@ -97,6 +147,18 @@ await run(async () => {
         check('KARTE-7 dragging moves the map far beyond the first view', after.camera.x - before.camera.x > 3500, `${Math.round(after.camera.x - before.camera.x)} px`);
         check('KARTE-7 there are posts there too: the landscape goes on', after.marks.length >= 3, `${after.marks.length} places`);
         same('KARTE-7 dragging does not move the figure', after.figure, before.figure);
+        for (let n = 0; n < 200; n += 1) {
+          await page.mouse.move(box.x + 1100, box.y + 450);
+          await page.mouse.down();
+          await page.mouse.move(box.x + 100, box.y + 60, { steps: 2 });
+          await page.mouse.up();
+        }
+        const far = await state();
+        check('KARTE-12 after a very long way the map still shows places', far.camera.x - before.camera.x > 150000 && far.marks.length >= 1, `${Math.round(far.camera.x - before.camera.x)} px, ${far.marks.length} places`);
+        check('KARTE-12 what the map remembers stays bounded however far one goes (it was emptied on the way)', far.caches.emptied >= 1 && far.caches.mesas <= far.caches.limit + 400 && far.caches.bridges <= far.caches.limit * 2 + 800 && far.caches.chunks <= 4001, JSON.stringify(far.caches));
+        await page.locator('#center').click();
+        await page.waitForFunction((x) => Math.abs(window.karte.state().camera.x - x) < 200, before.camera.x + 0, { timeout: 5000 }).catch(() => {});
+        check('KARTE-12 "Zur Figur" brings the map back at once', Math.abs((await state()).camera.x - worldOf(before.figure)) < 300, JSON.stringify((await state()).camera));
         same('KARTE-2 the console is clean and the policy refused nothing', problems, []);
         same('KARTE-2 no cookie and nothing in the storage of the browser', [(await context.cookies()).length, await page.evaluate(() => localStorage.length + sessionStorage.length)], [0, 0]);
         await context.close();
@@ -130,12 +192,18 @@ await run(async () => {
         same('KARTE-11 the link starts the video at the cut', await page.locator('#leafbox a.sk').getAttribute('href'), 'https://videos.example.test/watch?v=beispiel-4&t=300s');
         await page.locator('#leafbox button').click();
         same('KARTE-11 watering counts once: 8 becomes 9 and the button is spent', [await page.locator('#zoom .leaf').nth(4).locator('.wn').innerText(), await page.locator('#leafbox button').isDisabled()], ['9', true]);
+        same('KARTE-11 after watering the focus is on the aspect, not lost', await page.evaluate(() => document.activeElement.className.includes('leaf')), true);
+        const inside = [];
+        for (let n = 0; n < 14; n += 1) { await page.keyboard.press('Tab'); inside.push(await page.evaluate(() => Boolean(document.activeElement.closest('#grove')))); }
+        check('KARTE-11 the Tab key never leaves the open tree', inside.every(Boolean), JSON.stringify(inside));
+        same('KARTE-11 the page behind the tree cannot be reached', await page.evaluate(() => [document.getElementById('stage').inert, document.querySelector('.logp').inert]), [true, true]);
+        same('KARTE-11 no aspect of the tree covers another', await page.locator('#zoom .leaf').evaluateAll((leaves) => { const boxes = leaves.map((leaf) => leaf.getBoundingClientRect()); let count = 0; for (let a = 0; a < boxes.length; a += 1) for (let b = a + 1; b < boxes.length; b += 1) if (boxes[a].left < boxes[b].right && boxes[b].left < boxes[a].right && boxes[a].top < boxes[b].bottom && boxes[b].top < boxes[a].bottom) count += 1; return count; }), 0);
         await page.locator('#zin').click();
         same('KARTE-11 the tree can be zoomed', (await state()).zoom, 1.5);
         await page.locator('#cloud button').nth(1).click();
         same('KARTE-11 the cloud changes the topic: another tree', [(await state()).opened, (await state()).leaves], ['politik-regeln', 4]);
         await page.keyboard.press('Escape');
-        check('KARTE-11 Esc closes the tree', await page.locator('#grove').isHidden());
+        check('KARTE-11 Esc closes the tree and the page behind is usable again', await page.locator('#grove').isHidden() && !(await page.evaluate(() => document.getElementById('stage').inert)));
         await page.locator('#posts li.row').nth(2).locator('.tt a').click();
         await page.keyboard.press('Escape');
         const from = (await state()).figure;
@@ -145,6 +213,21 @@ await run(async () => {
         const to = (await state()).figure;
         check('KARTE-6 the arrow keys move the figure', to.i !== from.i || to.j !== from.j, `${JSON.stringify(from)} -> ${JSON.stringify(to)}`);
         same('KARTE-10 the console is clean with reduced motion', problems, []);
+        await context.close();
+      }
+
+      // ---- KARTE-12: a fault switches the map off once and gives the list back ----
+      for (const [label, options] of [
+        ['a fault while drawing', { init: () => { let calls = 0; const real = CanvasRenderingContext2D.prototype.fillText; CanvasRenderingContext2D.prototype.fillText = function fillText(...args) { calls += 1; if (calls > 20000) throw new Error('made-up fault in fillText'); return real.apply(this, args); }; } }],
+        ['a page without the tree view', { page: (html) => html.replace(/<section class="grove"[\s\S]*?<\/section>/, '') }],
+      ]) {
+        const { context, page, problems } = await open(browser, dir, options);
+        await page.waitForFunction(() => !document.documentElement.classList.contains('js'), null, { timeout: 20000 });
+        await page.waitForTimeout(1200);
+        same(`KARTE-12 ${label}: one line in the console, not one per frame`, [problems.length, /karte\.js: the map was switched off/.test(problems[0] || '')], [1, true]);
+        check(`KARTE-12 ${label}: the stage is gone and every post shows its full text again`, await page.locator('#stage').isHidden() && (await page.locator('#posts .voll').evaluateAll((nodes) => nodes.filter((node) => node.getBoundingClientRect().height > 20).length)) === DEMO.length);
+        await page.locator('#posts li.row').nth(1).locator('.tt a').click();
+        check(`KARTE-12 ${label}: a row is a plain link again and nothing opens`, (await page.evaluate(() => location.hash)) === `#b-${NUMBERS[1]}` && await page.locator('#panel').isHidden());
         await context.close();
       }
 
@@ -170,6 +253,16 @@ await run(async () => {
         await page.locator('#panel').waitFor({ state: 'visible' });
         const sheet = await page.locator('#panel').boundingBox();
         check('KARTE-9 the sheet comes from below and is as wide as the phone', Math.round(sheet.width) === 390 && Math.round(sheet.y + sheet.height) === 844, JSON.stringify(sheet));
+        await page.keyboard.press('Escape');
+        same('KARTE-9 after closing the sheet on the phone no box covers the map', [await page.locator('#panel').isHidden(), await page.locator('#tip').isHidden()], [true, true]);
+        await page.locator('#t-ki-programmieren .tt a').click();
+        await page.locator('#grove').waitFor({ state: 'visible' });
+        const overlaps = await page.locator('#zoom .leaf').evaluateAll((leaves) => { const boxes = leaves.map((leaf) => leaf.getBoundingClientRect()); let count = 0; for (let a = 0; a < boxes.length; a += 1) for (let b = a + 1; b < boxes.length; b += 1) if (boxes[a].left < boxes[b].right && boxes[b].left < boxes[a].right && boxes[a].top < boxes[b].bottom && boxes[b].top < boxes[a].bottom) count += 1; return count; });
+        same('KARTE-9 on the phone no aspect of the tree covers another', overlaps, 0);
+        same('KARTE-9 on the phone the tree does not make the page scroll sideways', await page.evaluate(() => document.getElementById('grove').scrollWidth - document.getElementById('grove').clientWidth), 0);
+        await page.locator('#grove-close').click();
+        await page.locator('#posts li.row').first().locator('.tt a').click();
+        await page.locator('#panel').waitFor({ state: 'visible' });
         const small = await page.locator('#close, #center').evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect()).filter((rect) => rect.width < 44 || rect.height < 44).length);
         same('KARTE-9 the buttons are at least 44 px', small, 0);
         same('KARTE-9 the console is clean on the phone', problems, []);

@@ -38,6 +38,43 @@ function readPosts(postsDir) {
 // A text in both languages: the German one shows unless the page is switched to English (karte.css).
 const two = (text, tag = 'span') => `<${tag} class="de" lang="de" dir="ltr">${esc(text.de)}</${tag}><${tag} class="en-only" lang="en" dir="ltr">${esc(text.en)}</${tag}>`;
 const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+// The address of a video at the start of a cut. The time is set as a query parameter, whatever the address already carries
+// (a short address without "?" would otherwise end in "&t=...").
+export const cutLink = (video) => { const url = new URL(httpsLink(video.link, 'video.link')); url.searchParams.set('t', `${video.start}s`); return url.href; };
+
+// themen.json through its rules, every fault with the place it is at. The file is the invented example of the prototype
+// ("example": true); what it says goes into the page as text, so nothing but text and whole numbers is let through.
+export function readTopics(file) {
+  const T = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const faults = [];
+  const text = (value, where) => { if (typeof value !== 'string' || value.trim() === '') faults.push(`${where}: a text is missing`); };
+  const both = (value, where) => { text(value && value.de, `${where}.de`); text(value && value.en, `${where}.en`); };
+  if (!T.topics || typeof T.topics !== 'object') faults.push('topics: missing');
+  for (const [id, topic] of Object.entries(T.topics || {})) both(topic, `topics.${id}`);
+  const known = (id, where) => { if (!T.topics || !(id in T.topics)) faults.push(`${where}: the topic "${id}" is not in topics`); };
+  for (const [number, id] of Object.entries(T.posts || {})) known(id, `posts.${number}`);
+  for (const [t, item] of (T.trees || []).entries()) {
+    const at = `trees[${t}]`;
+    if (!/^[a-z0-9-]{1,40}$/.test(String(item.id))) faults.push(`${at}.id: lower case letters, digits and dashes, 1 to 40 characters`);
+    known(item.topic, `${at}.topic`);
+    both(item.title, `${at}.title`);
+    for (const [n, a] of (item.aspects || []).entries()) {
+      const where = `${at}.aspects[${n}]`;
+      if (!/^[a-z0-9-]{1,40}$/.test(String(a.id))) faults.push(`${where}.id: lower case letters, digits and dashes, 1 to 40 characters`);
+      if (typeof a.stance !== 'number' || !(a.stance >= -1 && a.stance <= 1)) faults.push(`${where}.stance: a number from -1 to 1`);
+      if (!Number.isInteger(a.water) || a.water < 0) faults.push(`${where}.water: a whole number, 0 or more`);
+      both(a.label, `${where}.label`);
+      both(a.say, `${where}.say`);
+      const v = a.video || {};
+      text(v.title, `${where}.video.title`);
+      if (!Number.isInteger(v.start) || !Number.isInteger(v.end) || v.start < 0 || v.end <= v.start) faults.push(`${where}.video: start and end are whole seconds, end after start`);
+      try { cutLink({ link: v.link, start: 0 }); } catch (error) { faults.push(`${where}.video.link: ${error.message}`); }
+    }
+  }
+  if (faults.length > 0) throw new Error(`themen.json:\n${faults.join('\n')}`);
+  return { topics: T.topics, posts: T.posts || {}, trees: T.trees || [], example: T.example === true };
+}
+
 const STANCE = ['s0', 's1', 's2', 's3', 's4'];
 const stanceOf = (value) => STANCE[value < -0.6 ? 0 : value < -0.2 ? 1 : value <= 0.2 ? 2 : value <= 0.6 ? 3 : 4];
 
@@ -49,10 +86,10 @@ function tree(M, T, item) {
 <p class="mks"><span class="mk tp">${two(T.topics[item.topic])}</span><span class="mk"><span>${aspects.length}</span> <span data-l="aspects">${esc(M.aspects)}</span></span></p>
 <h3 class="tt"><a href="#t-${esc(item.id)}">${two(item.title)}</a></h3>
 <ol class="asp">
-${aspects.map((a) => `<li data-id="${esc(a.id)}" data-stance="${a.stance}" data-water="${a.water}">
+${aspects.map((a) => `<li data-id="${esc(a.id)}" data-stance="${esc(a.stance)}" data-water="${esc(a.water)}">
 <p class="lab">${two(a.label, 'strong')} <span class="mk st" data-l="${stanceOf(a.stance)}">${esc(M[stanceOf(a.stance)])}</span> <span class="mk wt"><span class="wn">${a.water}</span>× <span data-l="watered">${esc(M.watered)}</span></span></p>
 <p class="say">${two(a.say)}</p>
-<p class="srcbox"><a class="sk" href="${esc(httpsLink(`${a.video.link}&t=${a.video.start}s`, 'video'))}" rel="noopener noreferrer">${esc(a.video.title)}</a><span class="sn"><span data-l="clip">${esc(M.clip)}</span> <span class="clip" dir="ltr">${clock(a.video.start)}–${clock(a.video.end)}</span></span></p>
+<p class="srcbox"><a class="sk" href="${esc(cutLink(a.video))}" rel="noopener noreferrer">${esc(a.video.title)}</a><span class="sn"><span data-l="clip">${esc(M.clip)}</span> <span class="clip" dir="ltr">${clock(a.video.start)}–${clock(a.video.end)}</span></span></p>
 </li>`).join('\n')}
 </ol>
 </article>`;
@@ -77,7 +114,7 @@ ${quote}${source}</div>
 }
 
 function page(L, M, posts, T) {
-  const invented = posts.some((post) => post.example);
+  const invented = T.example || posts.some((post) => post.example);
   return `<!doctype html>
 <html lang="de" dir="ltr">
 <head>
@@ -142,7 +179,7 @@ ${T.trees.map((item) => tree(M, T, item)).join('\n')}
 `;
 }
 
-export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDir = path.join(APP, 'dist-proto', 'navigieren') } = {}) {
+export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDir = path.join(APP, 'dist-proto', 'navigieren'), topicsFile = path.join(HERE, 'themen.json') } = {}) {
   const posts = readPosts(postsDir);
   const L = loadLabels();
   const all = JSON.parse(fs.readFileSync(path.join(HERE, 'labels.json'), 'utf8'));
@@ -150,7 +187,10 @@ export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDi
   const css = `${read(path.join(APP, 'src', 'tokens.css')).replace(/\n$/, '')}\n${read(path.join(APP, 'src', 'blog.css'))}${read(path.join(HERE, 'karte.css'))}`;
   const js = `const KARTE_LABELS = ${JSON.stringify(all)};\n${read(path.join(HERE, 'karte.js'))}`;
   fs.mkdirSync(outDir, { recursive: true });
-  const T = JSON.parse(read(path.join(HERE, 'themen.json')));
+  const T = readTopics(topicsFile);
+  // The invented trees and topics belong to the invented posts (PF-14 keeps those under tests/fixtures/). With real posts
+  // they would stand in the page as if they were Frank's, so the build refuses the mix.
+  if (T.example && !isFixtureTree(postsDir)) throw new Error('themen.json is the invented example ("example": true); it is only built together with the posts under tests/fixtures/');
   fs.writeFileSync(path.join(outDir, 'index.html'), page(L, all.de, posts, T));
   fs.writeFileSync(path.join(outDir, 'karte.css'), css);
   fs.writeFileSync(path.join(outDir, 'karte.js'), js);
