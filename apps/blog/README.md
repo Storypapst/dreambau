@@ -42,3 +42,20 @@ node tools/check-output.mjs dist-demo/public           # nur die Dateiformen aus
 ```
 
 Der Feed-Prüfer ist der Fallback aus der Spezifikation (Anhang D): ein eigener strenger XML-Leser (`src/lib/xml.mjs`) plus die Regeln FD-1 bis FD-5, weil ein fertiger Feed-Prüfer ohne Netz und ohne Abhängigkeit (BD-1) nicht zu haben ist. Im Browser liest `tests/browser/feed.check.mjs` den Feed zusätzlich mit dem XML-Parser von Chromium.
+
+## Prototyp: Karte „Navigieren“ (`prototypes/navigieren/`)
+
+Ein Prototyp zum Ansehen und Entscheiden, kein Teil der Spezifikation und nicht in der Ausgabe von `npm run build`. Er zeigt die Beiträge als nummerierte Orte auf Felsplateaus in einem Canyon aus Zeichen, verbunden durch Hängebrücken; eine Figur läuft dorthin. Zeigen auf einen Ort nennt den Kurztext, ein Klick (oder Hinlaufen mit den Pfeiltasten) öffnet den vollen Text. Die Liste darunter ist derselbe Inhalt und bleibt ohne JavaScript lesbar. Die Beiträge sind die sieben erfundenen Beispiele aus `tests/fixtures/`; die Seite sagt das mit einem gelben Schild.
+
+Für Entwickler — bauen und prüfen:
+
+```sh
+node prototypes/navigieren/build.mjs        # schreibt dist-proto/navigieren/ (nicht im Git)
+npm run check -- browser/navigieren         # Chromium, mit der Richtlinie der Live-Seite; braucht kein Docker
+```
+
+`?lang=fi` und `?lang=ar` schalten die Beschriftung um (Arabisch von rechts nach links); die Übersetzungen in `labels.json` sind Entwürfe und nicht gegengelesen.
+
+Themen und Bäume des Prototyps stehen in `prototypes/navigieren/themen.json` (alles erfunden, `"example": true`): das Thema je Beitrag, und je Baum die Aspekte mit Einordnung (`stance` von −1 „unwahr / Hype“ bis 1 „super gut“), Grundwasser (`water`), einer kurzen Aussage in Deutsch und Englisch und einem Video-Ausschnitt (`start` und `end` in Sekunden). Wässern zählt im Prototyp nur bis zum Neuladen; dauerhaft zählen kann erst der Dienst auf dem Server.
+
+Was die Karte bei einem Fehler tut: Ein Fehler im Skript schaltet die Karte einmal ab. Die Seite zeigt dann wieder die Liste mit allen Texten, in der Konsole steht genau eine Zeile (`karte.js: the map was switched off …`), und nichts läuft weiter. Ohne diesen Schutz würde sich ein Fehler beim Zeichnen sechzigmal pro Sekunde wiederholen. Die Karte merkt sich nur eine begrenzte Zahl von Inseln, zeichnet höchstens etwa dreißig Bilder pro Sekunde und ruht, solange sie aus dem Bild gescrollt ist. Die Prüfung `browser/navigieren` belegt das (Zeilen `KARTE-12`).
