@@ -44,3 +44,19 @@
 @media(max-width:360px){.home-controls #source-entry b{display:none}.home-controls .site-menu summary{width:70px}.home-controls #snd{flex-basis:48px;min-width:48px}}
 
 .site-menu [hidden]{display:none!important}
+
+/* Legal footer: Impressum and Datenschutz, visible from the first second, also in the static and no-script views.
+   14 px at 80 % opacity on the page background (legal draft, dreambau-docs content/legal/impressum-draft.md, "Wo der Link stehen muss").
+   Desktop: centred under the closing line, which moves up by one row. Phone: no footer; Kontakt, Impressum and Datenschutz sit in the menu (Frank, 2026-11-13), so the closing line and skip button keep their original places. */
+#legal{position:fixed;z-index:3;left:50%;transform:translateX(-50%);bottom:max(4px,env(safe-area-inset-bottom));display:flex;align-items:center;margin:0;font-size:14px;line-height:1;color:rgba(var(--fg),.8);white-space:nowrap;text-shadow:0 1px 10px rgba(0,0,0,.7),0 0 2px rgba(0,0,0,.5)}
+#legal a{display:inline-flex;align-items:center;min-height:44px;padding:0 8px;color:inherit;text-decoration:underline;text-decoration-color:rgba(var(--fg),.35);text-underline-offset:.2em}
+#legal a:hover{color:rgb(var(--fg));text-decoration-color:rgba(var(--fg),.8)}
+#legal a:focus-visible{outline:3px solid #fff;outline-offset:2px;border-radius:4px}
+#legal i{font-style:normal;opacity:.6}
+#cta{bottom:max(48px,calc(env(safe-area-inset-bottom) + 44px))}
+#skip{bottom:max(48px,calc(env(safe-area-inset-bottom) + 44px))}
+@media(max-width:600px),(pointer:coarse) and (max-height:520px){
+ #legal{display:none}
+ #cta{bottom:max(88px,calc(env(safe-area-inset-bottom) + 72px))}
+ #skip,html.still #play{bottom:max(132px,calc(env(safe-area-inset-bottom) + 116px))}
+}

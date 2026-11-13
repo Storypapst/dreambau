@@ -81,6 +81,14 @@ no text besides the tagline. Sizes are the built `site/p/<id>.js`.
 | Schlucht | `schlucht64k` | 5,503 B of 65,536 | Two towers rise in a gorge in the blue hour, cables tighten and a suspension bridge closes over glittering water. Single chords grow into a wide, reverberant space. |
 | Signal | `signal60k` | 5,106 B of 60,000 | Trembling blue signal traces are bundled by three checkpoints into one clear turquoise line, an orange arc routes the uncertain cases. Short electronic tones find a shared pulse. |
 
+## Productions made from `briefs/theme.md`
+
+One production for each theme, one row for each. The brief of a production and the conversation it came from are in
+`docs/briefs/<id>.md`. Sizes are the built `site/p/<id>.js`.
+
+| name | id | size | picture and music |
+|---|---|---:|---|
+| Formsache | `formsache16k` | 10,948 B of 16,384 | Seen from above on a dark workbench under one lamp, a lump of pale clay is asked the same question twenty times and answers with a different form each time (star, ring, snail, fried egg), until four wooden bars close into a brick mould and three identical bricks come out, one for each line of the tagline; one answer in twenty still goes astray. A plucked bass, marimba and musical box play question and answer in swung eighths at 108 BPM: the answer closes in on two notes and is then played the same three times. |
 
 ## Further productions, one theme each
 

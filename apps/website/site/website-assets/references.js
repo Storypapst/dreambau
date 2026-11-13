@@ -18,8 +18,7 @@ const D = document, R = D.documentElement;
 const $ = (s, r = D) => r.querySelector(s), $$ = (s, r = D) => Array.from(r.querySelectorAll(s));
 const Q = new URLSearchParams(location.search);
 const E = JSON.parse(document.querySelector('#reference-data').content.textContent);
-const LABELS = {"de":{"title":"Referenzen","sub":"Was gebaut wurde und für wen.","back":"Startseite","cur":"Aktuelle Projekte","old":"Ältere Referenzen","search":"Suchen","searchPh":"Name, Jahr oder Stichwort","clear":"Suche leeren","filter":"Filter","filterTitle":"Filter","secTitle":"Bereich","secAll":"Alle","secCur":"Aktuell","secOld":"Älter","tagsTitle":"Tags","reset":"Filter zurücksetzen","show1":"1 Eintrag anzeigen","showN":"{n} Einträge anzeigen","showNone":"Keine Treffer","count":"{n} von {m} Einträgen","none":"Keine Treffer","noneHelp":"Suchbegriff kürzen oder den Filter zurücksetzen.","open":"Öffnen","close":"Schließen","closeView":"Projektansicht schließen","view":"Projektansicht","year":"Jahr","client":"Projekt / Auftraggeber","scope":"Umfang","short":"Kurztext","lang":"Sprache","now":"jetzt","entries":"Einträge","draft":"Entwurf, von Frank freizugeben","pending":"Kurztext folgt","linkPending":"Link folgt","st_live":"Online","st_soon":"Bald geht‘s los","st_unk":"Status folgt","enTitle":"Text auf Englisch","same":"siehe Aktuelle Projekte","noView":"ohne Projektansicht","what":"Was","role":"Rolle","tasks":"Aufgaben","status":"Status","links":"Links","imageSlot":"Bild oder Video (Platzhalter)","video":"Video (nicht eingebettet)","slides":"Folien","impressum":"Impressum","datenschutz":"Datenschutz","teamwork":"Teamwork","axis":"Zeitstrahl","axisBreak":"Skala gekürzt","hint":"Einen Punkt anwählen, um die Projektansicht zu öffnen.","legend":"Legende","tag":{"website":"Website","plattform":"Plattform","redesign":"Redesign","prozess":"Prozess-Software","opensource":"Open Source","bildung":"Bildung","designsystem":"Design-System"}},"fi":{"title":"Referenssit","sub":"Mitä on rakennettu ja kenelle.","back":"Takaisin etusivulle","cur":"Ajankohtaiset projektit","old":"Aiemmat referenssit","search":"Hae","searchPh":"Nimi, vuosi tai hakusana","clear":"Tyhjennä haku","filter":"Suodata","filterTitle":"Suodattimet","secTitle":"Osio","secAll":"Kaikki","secCur":"Ajankohtaiset","secOld":"Aiemmat","tagsTitle":"Tunnisteet","reset":"Palauta suodattimet","show1":"Näytä 1 kohde","showN":"Näytä {n} kohdetta","showNone":"Ei hakutuloksia","count":"{n} / {m} kohteesta","none":"Ei hakutuloksia","noneHelp":"Lyhennä hakusanaa tai palauta suodattimet.","open":"Avaa","close":"Sulje","closeView":"Sulje projektinäkymä","view":"Projektinäkymä","year":"Vuosi","client":"Projekti / toimeksiantaja","scope":"Laajuus","short":"Lyhyt kuvaus","lang":"Kieli","now":"nyt","entries":"kohdetta","draft":"Luonnos, Frankin hyväksyttävänä","pending":"Lyhyt kuvaus tulossa","linkPending":"Linkki tulossa","st_live":"Verkossa","st_soon":"Pian käynnistyy","st_unk":"Tila selviää myöhemmin","enTitle":"Teksti englanniksi","same":"katso Ajankohtaiset projektit","noView":"ei projektinäkymää","what":"Mitä","role":"Rooli","tasks":"Tehtävät","status":"Tila","links":"Linkit","imageSlot":"Kuva tai video (paikkamerkki)","video":"Video (ei upotettu)","slides":"Kuvat","impressum":"Julkaisijatiedot","datenschutz":"Tietosuoja","teamwork":"Teamwork","axis":"Aikajana","axisBreak":"Asteikkoa lyhennetty","hint":"Valitse piste avataksesi projektinäkymän.","legend":"Selite","tag":{"website":"Verkkosivusto","plattform":"Alusta","redesign":"Uudistus","prozess":"Prosessiohjelmisto","opensource":"Avoin lähdekoodi","bildung":"Koulutus","designsystem":"Suunnittelujärjestelmä"}},"ar":{"title":"المراجع","sub":"ما تم بناؤه ولمن.","back":"الصفحة الرئيسية","cur":"المشاريع الحالية","old":"المراجع السابقة","search":"بحث","searchPh":"الاسم أو السنة أو كلمة مفتاحية","clear":"مسح البحث","filter":"تصفية","filterTitle":"التصفية","secTitle":"القسم","secAll":"الكل","secCur":"الحالية","secOld":"السابقة","tagsTitle":"الوسوم","reset":"إعادة ضبط التصفية","show1":"عرض إدخال واحد","showN":"عرض {n} من الإدخالات","showNone":"لا توجد نتائج","count":"{n} من {m} إدخالات","none":"لا توجد نتائج","noneHelp":"اختصر كلمة البحث أو أعد ضبط التصفية.","open":"فتح","close":"إغلاق","closeView":"إغلاق عرض المشروع","view":"عرض المشروع","year":"السنة","client":"المشروع / العميل","scope":"النطاق","short":"نص قصير","lang":"اللغة","now":"الآن","entries":"إدخالات","draft":"مسودة، بانتظار موافقة فرانك","pending":"النص القصير لاحقًا","linkPending":"الرابط لاحقًا","st_live":"متاح على الإنترنت","st_soon":"يبدأ قريبًا","st_unk":"الحالة لاحقًا","enTitle":"النص بالإنجليزية","same":"انظر المشاريع الحالية","noView":"بدون عرض للمشروع","what":"ماذا","role":"الدور","tasks":"المهام","status":"الحالة","links":"الروابط","imageSlot":"صورة أو فيديو (عنصر نائب)","video":"فيديو (غير مضمّن)","slides":"الشرائح","impressum":"بيانات النشر","datenschutz":"حماية البيانات","teamwork":"Teamwork","axis":"الخط الزمني","axisBreak":"المقياس مختصر","hint":"اختر نقطة لفتح عرض المشروع.","legend":"المفتاح","tag":{"website":"موقع إلكتروني","plattform":"منصة","redesign":"إعادة تصميم","prozess":"برنامج العمليات","opensource":"مفتوح المصدر","bildung":"تعليم","designsystem":"نظام تصميم"}}};
-const TAGS = ['website', 'plattform', 'redesign', 'prozess', 'opensource', 'bildung', 'designsystem'];
+const LABELS = {"de":{"title":"Referenzen","sub":"Was gebaut wurde und für wen.","back":"Startseite","cur":"Aktuelle Projekte","old":"Ältere Referenzen","search":"Suchen","searchPh":"Name, Jahr oder Stichwort","clear":"Suche leeren","filter":"Filter","filterTitle":"Filter","secTitle":"Bereich","secAll":"Alle","secCur":"Aktuell","secOld":"Älter","reset":"Filter zurücksetzen","show1":"1 Eintrag anzeigen","showN":"{n} Einträge anzeigen","showNone":"Keine Treffer","count":"{n} von {m} Einträgen","none":"Keine Treffer","noneHelp":"Suchbegriff kürzen oder den Filter zurücksetzen.","open":"Öffnen","close":"Schließen","closeView":"Projektansicht schließen","view":"Projektansicht","year":"Jahr","client":"Projekt / Auftraggeber","scope":"Umfang","short":"Kurztext","lang":"Sprache","now":"jetzt","entries":"Einträge","draft":"Entwurf, von Frank freizugeben","pending":"Kurztext folgt","linkPending":"Link folgt","st_live":"Online","st_soon":"Bald geht's los","st_unk":"Status folgt","enTitle":"Text auf Englisch","same":"siehe Aktuelle Projekte","what":"Was","role":"Rolle","tasks":"Aufgaben","status":"Status","links":"Links","imageSlot":"Bild oder Video (Platzhalter)","video":"Video (nicht eingebettet)","enlarge":"Bild groß öffnen","prev":"Vorheriges Bild","next":"Nächstes Bild","pics":"Bilder","slides":"Folien","impressum":"Impressum","datenschutz":"Datenschutz","teamwork":"Teamwork","axis":"Zeitstrahl","axisBreak":"Skala gekürzt","hint":"Einen Punkt anwählen, um die Projektansicht zu öffnen.","legend":"Legende","tag":{"website":"Website","plattform":"Plattform","redesign":"Redesign","prozess":"Prozess-Software","opensource":"Open Source","bildung":"Bildung","designsystem":"Design-System"}},"fi":{"title":"Referenssit","sub":"Mitä on rakennettu ja kenelle.","back":"Takaisin etusivulle","cur":"Ajankohtaiset projektit","old":"Aiemmat referenssit","search":"Hae","searchPh":"Nimi, vuosi tai hakusana","clear":"Tyhjennä haku","filter":"Suodata","filterTitle":"Suodattimet","secTitle":"Osio","secAll":"Kaikki","secCur":"Ajankohtaiset","secOld":"Aiemmat","reset":"Palauta suodattimet","show1":"Näytä 1 kohde","showN":"Näytä {n} kohdetta","showNone":"Ei hakutuloksia","count":"{n} / {m} kohteesta","none":"Ei hakutuloksia","noneHelp":"Lyhennä hakusanaa tai palauta suodattimet.","open":"Avaa","close":"Sulje","closeView":"Sulje projektinäkymä","view":"Projektinäkymä","year":"Vuosi","client":"Projekti / toimeksiantaja","scope":"Laajuus","short":"Lyhyt kuvaus","lang":"Kieli","now":"nyt","entries":"kohdetta","draft":"Luonnos, Frankin hyväksyttävänä","pending":"Lyhyt kuvaus tulossa","linkPending":"Linkki tulossa","st_live":"Verkossa","st_soon":"Pian käynnistyy","st_unk":"Tila selviää myöhemmin","enTitle":"Teksti englanniksi","same":"katso Ajankohtaiset projektit","what":"Mitä","role":"Rooli","tasks":"Tehtävät","status":"Tila","links":"Linkit","imageSlot":"Kuva tai video (paikkamerkki)","video":"Video (ei upotettu)","enlarge":"Avaa kuva suurena","prev":"Edellinen kuva","next":"Seuraava kuva","pics":"Kuvat","slides":"Kuvat","impressum":"Julkaisijatiedot","datenschutz":"Tietosuoja","teamwork":"Teamwork","axis":"Aikajana","axisBreak":"Asteikkoa lyhennetty","hint":"Valitse piste avataksesi projektinäkymän.","legend":"Selite","tag":{"website":"Verkkosivusto","plattform":"Alusta","redesign":"Uudistus","prozess":"Prosessiohjelmisto","opensource":"Avoin lähdekoodi","bildung":"Koulutus","designsystem":"Suunnittelujärjestelmä"}},"ar":{"title":"المراجع","sub":"ما تم بناؤه ولمن.","back":"الصفحة الرئيسية","cur":"المشاريع الحالية","old":"المراجع السابقة","search":"بحث","searchPh":"الاسم أو السنة أو كلمة مفتاحية","clear":"مسح البحث","filter":"تصفية","filterTitle":"التصفية","secTitle":"القسم","secAll":"الكل","secCur":"الحالية","secOld":"السابقة","reset":"إعادة ضبط التصفية","show1":"عرض إدخال واحد","showN":"عرض {n} من الإدخالات","showNone":"لا توجد نتائج","count":"{n} من {m} إدخالات","none":"لا توجد نتائج","noneHelp":"اختصر كلمة البحث أو أعد ضبط التصفية.","open":"فتح","close":"إغلاق","closeView":"إغلاق عرض المشروع","view":"عرض المشروع","year":"السنة","client":"المشروع / العميل","scope":"النطاق","short":"نص قصير","lang":"اللغة","now":"الآن","entries":"إدخالات","draft":"مسودة، بانتظار موافقة فرانك","pending":"النص القصير لاحقًا","linkPending":"الرابط لاحقًا","st_live":"متاح على الإنترنت","st_soon":"يبدأ قريبًا","st_unk":"الحالة لاحقًا","enTitle":"النص بالإنجليزية","same":"انظر المشاريع الحالية","what":"ماذا","role":"الدور","tasks":"المهام","status":"الحالة","links":"الروابط","imageSlot":"صورة أو فيديو (عنصر نائب)","video":"فيديو (غير مضمّن)","enlarge":"فتح الصورة بالحجم الكامل","prev":"الصورة السابقة","next":"الصورة التالية","pics":"الصور","slides":"الشرائح","impressum":"بيانات النشر","datenschutz":"حماية البيانات","teamwork":"Teamwork","axis":"الخط الزمني","axisBreak":"المقياس مختصر","hint":"اختر نقطة لفتح عرض المشروع.","legend":"المفتاح","tag":{"website":"موقع إلكتروني","plattform":"منصة","redesign":"إعادة تصميم","prozess":"برنامج العمليات","opensource":"مفتوح المصدر","bildung":"تعليم","designsystem":"نظام تصميم"}}};
 const LANG = LABELS[Q.get('lang')] ? Q.get('lang') : 'de', DIR = LANG === 'ar' ? 'rtl' : 'ltr';
 R.lang = LANG; R.dir = DIR;
 const L = (k, v) => { let s = LABELS[LANG][k]; if (s == null) s = LABELS.de[k]; return v ? s.replace(/\{(\w+)\}/g, (_, n) => v[n]) : s; };
@@ -51,7 +50,7 @@ const mix = (a, b, k) => { const p = a.split(',').map(Number), q = b.split(',').
 
 /* ---- state ---- */
 const mq = matchMedia('(prefers-reduced-motion: reduce)');
-const S = { q: Q.get('q') || '', sec: 'all', tags: new Set(), open: null, vis: [], visSet: new Set() };
+const S = { q: Q.get('q') || '', sec: 'all', open: null, vis: [], visSet: new Set() };
 const RM = () => mq.matches;
 const RM_T = 4.6;
 let V = null, app = null, last = 0, lastArt = 0, raf = 0, resizeObs = null, closing = false;
@@ -160,10 +159,30 @@ function drawField(cv, t, spec) {
 
 /* ---- small html parts ---- */
 const enChip = e => (e.lang === 'en' ? `<abbr class="en" title="${esc(L('enTitle'))}">EN</abbr>` : '');
-const stChip = e => (e.status ? `<span class="st st-${e.status}"><i></i>${esc(L('st_' + e.status))}</span>` : '');
+const stOf = e => (e.status ? (LABELS.de['st_' + e.status] ? e.status : 'unk') : null);
+const stChip = e => (stOf(e) ? `<span class="st st-${stOf(e)}"><i></i>${esc(L('st_' + stOf(e)))}</span>` : '');
 const tagsHTML = e => (e.tags.length ? `<ul class="tags" aria-label="Tags">${e.tags.map(t => `<li>${esc(tagL(t))}</li>`).join('')}</ul>` : '');
-const linksHTML = e => `<div class="lks">${e.links.length ? e.links.map(l => l.href ? `<a class="lk" href="${esc(l.href)}">${esc(l.u)}</a>` : `<span class="lk none" dir="ltr">${esc(l.u)} · nicht geprüft</span>`).join('') : `<span class="lk none">${esc(L('linkPending'))}</span>`}</div>`;
-const sameHTML = e => (e.same ? `<a class="same" href="#${e.same}">${esc(L('same'))}</a>` : '');
+const linksHTML = e => `<div class="lks">${e.links.length ? e.links.map(l => l.href ? `<a class="lk" href="${esc(l.href)}"${/^https?:/.test(l.href) ? ' rel="noopener"' : ''}>${esc(l.u)}</a>` : `<span class="lk none" dir="ltr">${esc(l.u)} · nicht geprüft</span>`).join('') : `<span class="lk none">${esc(L('linkPending'))}</span>`}</div>`;
+/* one scroll strip instead of small thumbnails: swipe, scroll, arrow keys or the two buttons; a click opens the picture full size */
+const stripHTML = (name, imgs, lab, lang) => (imgs && imgs.length ? `<div class="pv-strip-w"><div class="pv-strip" tabindex="0" role="group" aria-label="${esc(lab)} · ${imgs.length}">${imgs.map((m, i) => `<figure><a class="pv-zoom" tabindex="-1" href="${esc(m.src)}" target="_blank" rel="noopener" title="${esc(L('enlarge'))}"><img loading="lazy" src="${esc(m.src)}" alt="${esc(name)} · ${esc(m.label)}"></a><figcaption${lang ? ` lang="${lang}" dir="ltr"` : ''}><b>${i + 1}/${imgs.length}</b> ${esc(m.label)}</figcaption></figure>`).join('')}</div>${imgs.length > 1 ? `<div class="pv-nav"><button type="button" class="pill" data-strip="-1" aria-label="${esc(L('prev'))}"><span class="flip" aria-hidden="true">‹</span></button><button type="button" class="pill" data-strip="1" aria-label="${esc(L('next'))}"><span class="flip" aria-hidden="true">›</span></button></div>` : ''}</div>` : '');
+/* the picture nearest the middle is the current one; a step centres its neighbour (the first and the last end up flush) */
+function stripIndex(s) {
+  const m = s.getBoundingClientRect(), c = m.left + m.width / 2; let best = 0, d = Infinity;
+  Array.from(s.children).forEach((f, i) => { const r = f.getBoundingClientRect(), k = Math.abs(r.left + r.width / 2 - c); if (k < d) { d = k; best = i; } });
+  return best;
+}
+function stripGo(s, by) {
+  /* quick repeats count from the picture already aimed at, not from wherever the smooth scroll happens to be */
+  const from = s._to != null && performance.now() - s._at < 500 ? s._to : stripIndex(s);
+  const i = Math.max(0, Math.min(s.children.length - 1, from + by)), f = s.children[i], m = s.getBoundingClientRect(), r = f.getBoundingClientRect();
+  s._to = i; s._at = performance.now();
+  s.scrollBy({ left: r.left + r.width / 2 - (m.left + m.width / 2), behavior: RM() ? 'auto' : 'smooth' });
+}
+function stripSync(s) {
+  const b = $$('[data-strip]', s.closest('.pv-strip-w')); if (b.length < 2) return;
+  const at = Math.abs(s.scrollLeft), max = s.scrollWidth - s.clientWidth;
+  b[0].setAttribute('aria-disabled', String(at < 2)); b[1].setAttribute('aria-disabled', String(at > max - 2));
+}
 function viewHTML(e, o = {}) {
   const cur = e.sec === 'cur', rgb = cur ? COL.cur : COL.old, H = o.h || 2;
   const links = linksHTML(e);
@@ -171,49 +190,52 @@ function viewHTML(e, o = {}) {
     const v = e.view;
     const meta = o.meta === false ? '' : `<div class="pv-meta"><span class="y">${esc(e.year)}</span>${EN(e.client, 'span', 'c')}${EN(e.scope.trim(), 'span')}${enChip(e)}</div>`;
     const top = [['what', v.top1], ['role', v.top2], ['tasks', v.top3]].map(([k, s]) => `<div class="pv-c"><dt>${esc(L(k))}</dt><dd>${EN(s, 'p')}</dd></div>`).join('');
-    const image = m => `<img loading="lazy" src="${esc(m.src)}" alt="${esc(e.client)} · ${esc(m.label)}">`;
-    const gal = e.images.slice(0,5).map(image).join('');
-    const sl = e.images.slice(5).map(m=>`<figure>${image(m)}<figcaption lang="en" dir="ltr">${esc(m.label)}</figcaption></figure>`).join('');
+    const gal = stripHTML(e.client, e.images.slice(0, 5), L('pics'), 'en');
+    const sl = stripHTML(e.client, e.images.slice(5), L('slides'), 'en');
+    const vids = e.videos && e.videos.length ? `<section class="pv-sec" data-css="--zc:${rgb}"><h${H + 1}>${esc(L('video'))}</h${H + 1}><ul class="pv-vl">${e.videos.map(x => `<li><span class="vk" lang="en" dir="ltr">${esc(x.label)}</span><a class="lk" href="${esc(x.href)}" rel="noopener" lang="en" dir="ltr">${esc(x.title)}</a></li>`).join('')}</ul></section>` : '';
     return `<article class="pv" aria-labelledby="pvt-${e.id}">${meta}
 <header class="pv-hd" data-css="--zc:${rgb}">${e.media ? `<img class="pv-art" src="${esc(e.media)}" alt="">` : ''}<dl class="pv-top">${top}</dl><div class="pv-tt"><h${H} class="pv-title" id="pvt-${e.id}" lang="en" dir="ltr">${esc(vt(v.title))}</h${H}></div></header>
 <section class="pv-sec" data-css="--zc:${rgb}">${EN(v.briefLabel, 'h' + (H + 1))}${EN(v.brief, 'p')}</section>
-<div class="pv-gal">${gal}</div>
+${gal}
 <section class="pv-sec" data-css="--zc:${rgb}">${EN(v.challengeLabel, 'h' + (H + 1))}${EN(v.challenge, 'p')}</section>
-<div class="pv-sl" role="group" aria-label="${esc(L('slides'))}">${sl}</div>
+${sl}${vids}
 <section class="pv-sec" data-css="--zc:${rgb}">${EN(v.stackLabel, 'h' + (H + 1))}${EN(v.stack, 'p')}</section>
 ${links}<details class="pv-sec"><summary class="pill">Originaltext · EN</summary><p class="original" lang="en" dir="ltr">${esc(e.original)}</p></details></article>`;
   }
+  if (e.sec === 'old') return `<article class="pv" aria-labelledby="pvt-${e.id}"><div class="pv-meta"><span class="y">${esc(e.year)}</span>${EN(e.client, 'span', 'c')}${enChip(e)}</div>
+<header class="pv-hd" data-css="--zc:${rgb}">${artHTML('pv-art', e.id + ':hd', e.motif, rgb, 13)}<div class="pv-tt"><h${H} class="pv-title" id="pvt-${e.id}" lang="en" dir="ltr">${esc(vt(e.client))}</h${H}></div></header>
+<section class="pv-sec" data-css="--zc:${rgb}"><h${H + 1}>${esc(L('scope'))}</h${H + 1}>${EN(e.scope.trim(), 'p')}</section>${links}</article>`;
+  const sec = s => `<section class="pv-sec" data-css="--zc:${rgb}"><h${H + 1}>${esc(s.label)}</h${H + 1}>${s.text ? `<p lang="de" dir="ltr">${esc(s.text)}</p>` : ''}${stripHTML(e.title, s.images, s.label, 'de')}</section>`;
+  const extra = (e.more || []).map(sec).join('') + (e.groups || []).map(sec).join('') + (e.after || []).map(sec).join('');
   const sent = e.sent ? `<p class="pv-sent" lang="de" dir="ltr">${esc(e.sent)}</p><span class="draft">${esc(L('draft'))}</span>` : `<p class="pv-sent pending">${esc(L('pending'))}</p>`;
   return `<article class="pv cur" aria-labelledby="pvt-${e.id}">
 <header class="pv-hd" data-css="--zc:${rgb}">${artHTML('pv-art', e.id + ':hd', e.motif, rgb, 13)}<div class="pv-tt"><h${H} class="pv-title" id="pvt-${e.id}">${esc(e.title)}</h${H}>${stChip(e)}</div></header>
 <div class="pv-body">${sent}${tagsHTML(e)}${links}</div>
-<figure class="pv-slot">${artHTML('', e.id + ':slot', e.motif, rgb, 10)}<figcaption>${esc(L('imageSlot'))}</figcaption></figure></article>`;
+${extra}${(e.groups || []).length ? '' : `<figure class="pv-slot">${artHTML('', e.id + ':slot', e.motif, rgb, 10)}<figcaption>${esc(L('imageSlot'))}</figcaption></figure>`}</article>`;
 }
 
 /* ---- filter ---- */
 const norm = s => String(s).toLowerCase();
-const hay = e => norm([titleOf(e), e.year || L('now'), e.scope || '', e.sent || '', e.tags.map(tagL).join(' '), e.status ? L('st_' + e.status) : ''].join(' \n '));
-const matches = e => (S.sec === 'all' || S.sec === e.sec) && (!S.tags.size || e.tags.some(t => S.tags.has(t))) && (!S.q.trim() || hay(e).includes(norm(S.q.trim())));
-const active = () => (S.q.trim() ? 1 : 0) + (S.sec !== 'all' ? 1 : 0) + S.tags.size;
+const hay = e => norm([titleOf(e), e.year || L('now'), e.scope || '', e.sent || '', e.tags.map(tagL).join(' '), stOf(e) ? L('st_' + stOf(e)) : ''].join(' \n '));
+const matches = e => (S.sec === 'all' || S.sec === e.sec) && (!S.q.trim() || hay(e).includes(norm(S.q.trim())));
+const active = () => (S.q.trim() ? 1 : 0) + (S.sec !== 'all' ? 1 : 0);
 const secList = sec => E.filter(e => e.sec === sec && S.visSet.has(e.id));
 const svg = (p, w = 18) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const ICO = { search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>', filter: '<path d="M4 6h16M7 12h10M10 18h4"/>', back: '<path d="M15 5l-7 7 7 7"/>' };
 function filterHTML() {
   const sec = [['all', 'secAll'], ['cur', 'secCur'], ['old', 'secOld']].map(([k, l]) => `<button type="button" class="fchip" data-sec="${k}" aria-pressed="false">${esc(L(l))}</button>`).join('');
-  const tags = TAGS.map(t => `<button type="button" class="fchip" data-tag="${t}" aria-pressed="false">${esc(tagL(t))}</button>`).join('');
   return `<div class="fbar"><label class="fsearch"><span class="sr">${esc(L('search'))}</span><span class="ico">${svg(ICO.search)}</span><input id="q" type="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="${esc(L('searchPh'))}"><button type="button" class="fclear" id="fclear" aria-label="${esc(L('clear'))}" hidden>${svg(ICO.x, 16)}</button></label><button type="button" class="pill fbtn" id="fbtn" aria-haspopup="dialog">${svg(ICO.filter)}<span>${esc(L('filter'))}</span><b id="fbadge" hidden></b></button></div>
-<div class="fpanel" id="fpanel"><div class="fgroup fg-sec" role="group" aria-label="${esc(L('secTitle'))}"><span class="flab" aria-hidden="true">${esc(L('secTitle'))}</span>${sec}</div><div class="fgroup fg-tags" role="group" aria-label="${esc(L('tagsTitle'))}"><span class="flab" aria-hidden="true">${esc(L('tagsTitle'))}</span>${tags}</div><div class="fnote"><span class="fres" id="fres"></span><button type="button" class="pill freset" data-act="reset">${esc(L('reset'))}</button></div></div>`;
+<div class="fpanel" id="fpanel"><div class="fgroup fg-sec" role="group" aria-label="${esc(L('secTitle'))}"><span class="flab" aria-hidden="true">${esc(L('secTitle'))}</span>${sec}</div><div class="fnote"><span class="fres" id="fres"></span><button type="button" class="pill freset" data-act="reset">${esc(L('reset'))}</button></div></div>`;
 }
 function emptyHTML() {
   return `<div class="empty" role="group" aria-labelledby="empt"><span class="gl" aria-hidden="true">∅</span><h2 id="empt">${esc(L('none'))}${S.q.trim() ? ' · „' + esc(S.q.trim()) + '“' : ''}</h2><p>${esc(L('noneHelp'))}</p><button type="button" class="pill pri" data-act="reset">${esc(L('reset'))}</button></div>`;
 }
-function resetFilter() { S.q = ''; S.sec = 'all'; S.tags.clear(); const q = $('#q'); if (q) q.value = ''; refresh(); }
+function resetFilter() { S.q = ''; S.sec = 'all'; const q = $('#q'); if (q) q.value = ''; refresh(); }
 function syncFilterUI() {
   $$('[data-sec]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sec === S.sec)));
-  $$('[data-tag]').forEach(b => b.setAttribute('aria-pressed', String(S.tags.has(b.dataset.tag))));
   const q = $('#q'); if (q && q.value !== S.q) q.value = S.q;
   const n = S.vis.length, m = E.length;
-  $('#fclear').hidden = !S.q;
+  $('#fclear').hidden = !S.q; $('.filter').classList.toggle('on', !!active());
   const bd = $('#fbadge'); bd.hidden = !active(); bd.textContent = active();
   const msg = L('count', { n, m });
   $('#fres').textContent = msg; $('#meta').textContent = msg; $('#live').textContent = n ? msg : L('none');
@@ -289,7 +311,7 @@ const entryFromHash = () => { let id = ''; try { id = decodeURIComponent(locatio
 function sync(initial) {
   closing = false;
   const e = entryFromHash(), prev = S.open;
-  if (e && !S.visSet.has(e.id)) { S.q = ''; S.sec = 'all'; S.tags.clear(); refresh(); }
+  if (e && !S.visSet.has(e.id)) { S.q = ''; S.sec = 'all'; refresh(); }
   S.open = e ? e.id : null;
   if (prev !== S.open || initial) V.setOpen(S.open, prev, !!initial);
 }
@@ -337,9 +359,9 @@ function loop() { if (!raf && !RM() && nowT() < RM_T) raf = requestAnimationFram
 function wire() {
   D.addEventListener('click', e => {
     const t = e.target; let b;
+    if ((b = t.closest('[data-strip]'))) { if (b.getAttribute('aria-disabled') !== 'true') stripGo($('.pv-strip', b.closest('.pv-strip-w')), +b.dataset.strip); return; }
     if ((b = t.closest('[data-act="reset"]'))) { resetFilter(); const q = $('#q'); if (q && !isPhone()) q.focus(); return; }
     if ((b = t.closest('[data-sec]'))) { S.sec = b.dataset.sec; refresh(); return; }
-    if ((b = t.closest('[data-tag]'))) { const k = b.dataset.tag; if (S.tags.has(k)) S.tags.delete(k); else S.tags.add(k); refresh(); return; }
     if ((b = t.closest('#fclear'))) { S.q = ''; $('#q').value = ''; refresh(); $('#q').focus(); return; }
     if (t.closest('#fbtn')) { modalShow($('#fsheet'), $('#fbtn')); return; }
     if (t.closest('#fsshow') || t.closest('#fsheet [data-close]') || t.closest('#fsheet .mbk')) { modalHide($('#fsheet')); return; }
@@ -348,13 +370,21 @@ function wire() {
   });
   D.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; refresh(); } });
   D.addEventListener('keydown', e => {
-    if(e.key==='Tab' && Mo.cur){const f=[...Mo.cur.querySelectorAll('a[href],button,input,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length);if(f.length){if(e.shiftKey&&D.activeElement===f[0]){f.at(-1).focus();e.preventDefault();}else if(!e.shiftKey&&D.activeElement===f.at(-1)){f[0].focus();e.preventDefault();}}}
+    if(e.key==='Tab' && Mo.cur){const f=[...Mo.cur.querySelectorAll('a[href]:not([tabindex="-1"]),button,input,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length);if(f.length){if(e.shiftKey&&D.activeElement===f[0]){f.at(-1).focus();e.preventDefault();}else if(!e.shiftKey&&D.activeElement===f.at(-1)){f[0].focus();e.preventDefault();}}}
+    const strip = e.target.classList && e.target.classList.contains('pv-strip') && !e.metaKey && !e.ctrlKey && !e.altKey ? e.target : null;
+    if (strip) {
+      const by = { ArrowRight: DIR === 'rtl' ? -1 : 1, ArrowLeft: DIR === 'rtl' ? 1 : -1, Home: -strip.children.length, End: strip.children.length }[e.key];
+      if (by) { stripGo(strip, by); e.preventDefault(); return; }
+      if (e.key === 'Enter') { const a = $('.pv-zoom', strip.children[stripIndex(strip)]); if (a) a.click(); e.preventDefault(); return; }
+    }
     if (e.key !== 'Escape'  || e.metaKey || e.ctrlKey || e.altKey) return;
     const fs = $('#fsheet');
     if (Mo.cur === fs) { modalHide(fs); e.preventDefault(); return; }
     const q = $('#q'); if (D.activeElement === q && q.value) { S.q = ''; q.value = ''; refresh(); e.preventDefault(); return; }
     if (S.open) { closeEntry(); e.preventDefault(); }
+    else if (V.dismiss && V.dismiss(e.target)) e.preventDefault();
   });
+  D.addEventListener('scroll', e => { if (e.target.classList && e.target.classList.contains('pv-strip')) stripSync(e.target); }, true);
   addEventListener('hashchange', () => sync());
   addEventListener('popstate', () => sync());
   if (mq.addEventListener) mq.addEventListener('change', () => { R.classList.toggle('rm', RM()); loop(); layoutAll(); paintArts(); });
@@ -403,7 +433,7 @@ function start(Vv) {
  }
 }
 
-const controller = { E, byId, S, L, LANG, DIR, COL, NEU, MONO, RM_T, titleOf, scopeOf, vt, esc, EN, hl, hash, glyph, sty, mix, strHash, decode, fit, rel, drawField, drawArt, paintArts, artHTML, viewHTML, enChip, stChip, tagsHTML, linksHTML, sameHTML, tagL, secList, emptyHTML, openEntry, closeEntry, modalShow, modalHide, wireGrip, Mo, isPhone, RM, redraw, layoutAll, refresh, svg, ICO, start, $, $$,
+const controller = { E, byId, S, L, LANG, DIR, COL, NEU, MONO, RM_T, titleOf, scopeOf, vt, esc, EN, hl, hash, glyph, sty, mix, strHash, decode, fit, rel, drawField, drawArt, paintArts, artHTML, viewHTML, stripSync, enChip, stChip, tagsHTML, linksHTML, tagL, secList, emptyHTML, openEntry, closeEntry, modalShow, modalHide, wireGrip, Mo, isPhone, RM, redraw, layoutAll, refresh, svg, ICO, start, $, $$,
 };
 referenceTimeline = controller;
 })();
@@ -411,15 +441,16 @@ referenceTimeline = controller;
 /* ---- C · Zeitstrahl ---- */
 (() => {
 'use strict';
-const M = referenceTimeline, { $, $$, E, S, L, esc, hl, vt, tagL, COL, NEU, MONO, mix, rel, hash, glyph, sty, strHash, viewHTML, openEntry, closeEntry, decode, paintArts, fit, enChip, stChip, sameHTML, emptyHTML } = M;
+const M = referenceTimeline, { $, $$, E, S, L, esc, hl, vt, COL, NEU, MONO, mix, rel, hash, glyph, sty, strHash, viewHTML, openEntry, closeEntry, decode, paintArts, fit, enChip, stChip, emptyHTML } = M;
 const R = document.documentElement;
-/* the ray: segments in time order with a weight each (width on the axis); 2019 to 2022 hold no entry and are cut short */
+/* the ray: segments in time order; 2019 to 2022 hold no entry and are cut short */
 const SEGS = [
-  { k: '2017', w: 1.0 }, { k: '2018', w: 1.0 }, { k: 'brk', w: .5 }, { k: '2023', w: 2.4 }, { k: '2024', w: 1.1 }, { k: 'now', w: 4.4 },
+  { k: '2017' }, { k: '2018' }, { k: 'brk' }, { k: '2023' }, { k: '2024' }, { k: 'now' },
 ];
 const segOf = e => (e.sec === 'cur' ? 'now' : e.year);
 SEGS.forEach(s => { s.nodes = s.k === 'brk' ? [] : E.filter(e => segOf(e) === s.k).map(e => e.id); });
 if (SEGS.reduce((a, s) => a + s.nodes.length, 0) !== E.length) throw new Error('an entry has no place on the ray');
+SEGS.forEach(s => { s.w = s.k === 'brk' ? .45 : Math.max(1, s.nodes.length) + (s.k === 'now' ? .5 : 0); });
 const segLabel = s => (s.k === 'now' ? L('now') : s.k === 'brk' ? '//' : s.k);
 
 let app = null, nodesEl = null, mode = null, hoverId = null, sideMode = null, tiersUsed = 0;
@@ -429,17 +460,14 @@ const isDocked = () => app.clientWidth >= 1280;
 const eh = (s, q) => `<span lang="en" dir="ltr">${hl(vt(s), q)}</span>`;
 
 function nodeHTML(e) {
+  /* every entry opens something: its own view, or (the 2024 pointer) the current project it stands for */
   const q = S.q.trim(), cur = e.sec === 'cur';
   const name = cur ? hl(e.title, q) : `<span lang="en" dir="ltr">${hl(vt(e.client), q)}</span>`;
-  const tags = e.tags.length ? `<span class="tags">${e.tags.map(t => `<span class="tag">${hl(tagL(t), q)}</span>`).join('')}</span>` : '';
   const ds = cur
-    ? (e.sent ? `<span lang="de" dir="ltr">${hl(e.sent, q)}</span><span class="draft">${esc(L('draft'))}</span>` : `<span class="pending">${hl(L('pending'), q)}</span>`) + tags
-    : `<span><span class="y">${hl(e.year, q)}</span> · ${eh(e.scope.trim(), q)}</span>${tags}`;
-  const inner = `<span class="orb"><canvas class="oc" aria-hidden="true"></canvas>${e.openable ? '' : '<i class="ex" aria-hidden="true">↗</i>'}${cur ? '' : `<abbr class="en enb" title="${esc(L('enTitle'))}">EN</abbr>`}</span><span class="lb"><span class="nm">${name}</span><span class="mk">${cur ? stChip(e) : enChip(e)}</span><span class="ds">${ds}</span>${e.openable ? '' : `<span class="sr">${esc(L('noView'))}</span>`}</span>`;
-  const main = e.openable
-    ? `<a class="nd" href="#${e.id}" data-id="${e.id}">${inner}</a>`
-    : `<div class="nd" role="group" aria-label="${esc(e.client)} · ${esc(L('noView'))}">${inner}</div>`;
-  return `<li class="node ${e.sec}${e.openable ? '' : ' row'}" data-id="${e.id}">${main}${e.same ? sameHTML(e) : ''}</li>`;
+    ? (e.sent ? `<span class="tx" lang="de" dir="ltr">${hl(e.sent, q)}</span><span class="draft">${esc(L('draft'))}</span>` : `<span class="pending">${hl(L('pending'), q)}</span>`)
+    : `<span class="tx"><span class="y">${hl(e.year, q)}</span> · ${eh(e.scope.trim(), q)}</span>${e.same ? `<span class="ptr">→ ${esc(L('same'))}</span>` : ''}`;
+  const inner = `<span class="orb"><canvas class="oc" aria-hidden="true"></canvas></span><span class="lb"><span class="nm">${name}</span><span class="mk">${cur ? stChip(e) : enChip(e)}</span><span class="ds">${ds}</span></span>`;
+  return `<li class="node ${e.sec}${e.same ? ' row' : ''}" data-id="${esc(e.id)}"><a class="nd" href="#${esc(e.same || e.id)}" data-id="${esc(e.id)}"${e.same ? ` data-open="${esc(e.same)}" title="${esc(L('same'))}"` : ''}>${inner}</a></li>`;
 }
 function shHTML(s) {
   if (s.k === 'brk') return S.vis.length === E.length ? `<li class="sh brk" aria-hidden="true"><p>// 2019–2022 · ${esc(L('axisBreak'))}</p></li>` : '';
@@ -447,7 +475,7 @@ function shHTML(s) {
   return `<li class="sh ${s.k === 'now' ? 'now' : ''}"><h2>${esc(segLabel(s))}</h2></li>`;
 }
 function legendHTML() {
-  return `<ul class="c-legend" aria-label="${esc(L('legend'))}"><li data-css="--lc:var(--cur)"><i class="dot"></i>${esc(L('cur'))}</li><li data-css="--lc:var(--old)"><i class="dot"></i>${esc(L('old'))}</li><li><abbr class="en" title="${esc(L('enTitle'))}">EN</abbr>${esc(L('enTitle'))}</li><li><i class="sw"></i>${esc(L('noView'))}</li><li><span class="slash" aria-hidden="true">//</span>${esc(L('axisBreak'))}</li></ul>`;
+  return `<ul class="c-legend" aria-label="${esc(L('legend'))}"><li data-css="--lc:var(--cur)"><i class="dot"></i>${esc(L('cur'))}</li><li data-css="--lc:var(--old)"><i class="dot"></i>${esc(L('old'))}</li></ul>`;
 }
 function bandHTML() {
   return SEGS.map(s => `<span class="seg ${s.k === 'now' ? 'now' : s.k === 'brk' ? 'brk' : ''}" data-css="flex-grow:${s.w}">${esc(segLabel(s))}${s.k === 'brk' ? `<span class="sr">${esc(L('axisBreak'))}</span>` : ''}</span>`).join('');
@@ -481,20 +509,34 @@ function drawOrb(cv, t, rgb, hot, id, row) {
 const isHot = li => !!li && (li.dataset.id === hoverId || li.dataset.id === S.open || li.contains(document.activeElement));
 
 /* the horizontal layout: nodes are placed along the ray by time; where labels would collide they move to another tier above or below the axis */
+/* a wrapped label keeps its full box width; the node gets the width of its widest line instead */
+function tightWidth(li) {
+  const r = document.createRange(); let m = 0;
+  $$('.orb,.nm,.mk', li).forEach(n => { if (n.classList.contains('orb')) { m = Math.max(m, n.offsetWidth); return; } r.selectNodeContents(n); m = Math.max(m, r.getBoundingClientRect().width); });
+  /* rounded up on both sides: a width cut by a fraction of a pixel makes a one-line label wrap */
+  return Math.min(Math.ceil(li.getBoundingClientRect().width), Math.ceil(m) + 15);
+}
 function placeH() {
   const stage = $('#c-stage'), W = stage.clientWidth, rtl = M.DIR === 'rtl', X = x => (rtl ? W - x : x);
   const total = SEGS.reduce((a, s) => a + s.w, 0); let acc = 0;
   SEGS.forEach(s => { s.x0 = acc / total * W; acc += s.w; s.x1 = acc / total * W; });
+  /* neighbours on one side stand two slots apart: where that is less than a full label, the labels get narrower and a size smaller instead of moving to a second row */
+  const pair = Math.floor(2 * W / total) - 18;
+  stage.classList.toggle('dense', pair < 116); css(stage, '--lbw', Math.max(84, Math.min(128, pair)) + 'px');
   const bandH = 30, stem = 14, gap = 12, pad = 12;
-  const lis = $$('.node', nodesEl); lis.forEach(li => li.classList.remove('up'));
-  let NH = 0; lis.forEach(li => { NH = Math.max(NH, li.offsetHeight); });
+  const lis = $$('.node', nodesEl); lis.forEach(li => { li.classList.remove('up'); css(li, 'width', ''); });
+  /* widths first (measured on the natural boxes, then set), heights after: a narrower node must not change its line breaks unnoticed */
+  const tight = lis.map(tightWidth); lis.forEach((li, i) => css(li, 'width', tight[i] + 'px'));
+  /* heights with their fractions: rounded heights left the orbs of one row up to half a pixel apart */
+  const high = li => li.getBoundingClientRect().height;
+  let NH = 0; lis.forEach(li => { NH = Math.max(NH, high(li)); });
   /* y is measured from the middle of the axis band: negative above, positive below */
   const placed = [], hit = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
   let last = -1; const out = [];
   tiersUsed = 0;
   SEGS.forEach(s => s.nodes.forEach((id, i) => {
     const li = nodesEl.querySelector(`.node[data-id="${id}"]`); if (!li) return;
-    const w = li.offsetWidth, h = li.offsetHeight;
+    const w = li.offsetWidth, h = high(li);
     let cx = s.x0 + (i + .5) / s.nodes.length * (s.x1 - s.x0);
     cx = Math.max(w / 2 + 2, Math.min(W - w / 2 - 2, cx));
     const side = last > 0 ? [-1, 1] : [1, -1], order = [];
@@ -529,28 +571,48 @@ function placeH() {
   });
   $('#c-links').innerHTML = svg;
 }
-function clearH() { $$('.node', nodesEl).forEach(li => { css(li,'left','');css(li,'top',''); li.classList.remove('up'); }); css($('#c-stage'),'height',''); $('#c-links').innerHTML = ''; }
+function clearH() { $$('.node', nodesEl).forEach(li => { css(li,'left','');css(li,'top','');css(li,'width',''); li.classList.remove('up'); }); css($('#c-stage'),'height',''); css($('#c-stage'),'--lbw',''); $('#c-stage').classList.remove('dense'); $('#c-links').innerHTML = ''; }
 
 /* the project view: docked panel (wide) or bottom sheet (otherwise) */
 function viewInto(host, e) {
   host.innerHTML = `<div class="pvbox">${viewHTML(e)}</div>`;
-  absorbStyles(); paintArts(host);
+  absorbStyles(); paintArts(host); $$('.pv-strip', host).forEach(M.stripSync);
+}
+function dock(e, kicker) {
+  sideMode = 'dock';
+  const side = $('#c-side'); side.classList.toggle('cur', e.sec === 'cur');
+  $('#c-hint').hidden = true; $('#c-view').hidden = false;
+  $('#sd-k').textContent = kicker;
+  viewInto($('#sd-b'), e); side.scrollTop = 0;
+}
+function undock() { $('#c-view').hidden = true; $('#sd-b').innerHTML = ''; $('#c-hint').hidden = false; }
+/* the node a project was opened from: the 2024 pointer opens the current project, and closing must return to the pointer */
+let openerId = null;
+const openerOf = id => (openerId && $(`.nd[data-id="${openerId}"]`, nodesEl)) || $(`.nd[data-id="${id}"]`, nodesEl);
+let previewId = null;
+function markPreview() { $$('.nd.pre', nodesEl).forEach(n => n.classList.remove('pre')); const n = previewId && $(`.nd[data-id="${previewId}"]`, nodesEl); if (n) n.classList.add('pre'); }
+function showPreview() {
+  if (!isDocked() || S.open) return;
+  const e = E.find(x => x.sec === 'cur' && S.visSet.has(x.id)); if (!e) return;
+  previewId = e.id; dock(e, L('view') + ' · ' + L('now')); markPreview();
+}
+function dropPreview(refocus) {
+  if (!previewId) return;
+  const node = $(`.nd[data-id="${previewId}"]`, nodesEl);
+  previewId = null; markPreview();
+  if (!S.open) { undock(); sideMode = null; }
+  if (refocus && node) node.focus({ preventScroll: true });
 }
 function markOpen(id) { $$('.nd[aria-current]', nodesEl).forEach(n => n.removeAttribute('aria-current')); const n = id && $(`.nd[data-id="${id}"]`, nodesEl); if (n) n.setAttribute('aria-current', 'true'); }
 function showOpen(id, prev, initial) {
   markOpen(id);
-  const e = M.byId[id], docked = isDocked(), opener = $(`.nd[data-id="${id}"]`), kicker = L('view') + ' · ' + (e.sec === 'cur' ? L('now') : e.year);
+  const e = M.byId[id], docked = isDocked(), opener = openerOf(id), kicker = L('view') + ' · ' + (e.sec === 'cur' ? L('now') : e.year);
   if (docked) {
     if (sideMode === 'sheet') { M.modalHide($('#cs'), false); $('#cs-b').innerHTML = ''; }
-    sideMode = 'dock';
-    const side = $('#c-side'); side.classList.toggle('cur', e.sec === 'cur');
-    $('#c-hint').hidden = true; $('#c-view').hidden = false;
-    $('#sd-k').textContent = kicker;
-    viewInto($('#sd-b'), e);
-    side.scrollTop = 0;
+    dock(e, kicker);
     if (!initial) { const h = $('#sd-b .pv-title'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
   } else {
-    if (sideMode === 'dock') { $('#c-view').hidden = true; $('#sd-b').innerHTML = ''; $('#c-hint').hidden = false; }
+    if (sideMode === 'dock') undock();
     sideMode = 'sheet';
     const cs = $('#cs');
     $('#cs-k').textContent = kicker;
@@ -563,9 +625,10 @@ function showOpen(id, prev, initial) {
 function hideOpen(prev, initial) {
   markOpen(null);
   if (sideMode === 'sheet') { M.modalHide($('#cs'), false); $('#cs-b').innerHTML = ''; }
-  if (sideMode === 'dock') { $('#c-view').hidden = true; $('#sd-b').innerHTML = ''; $('#c-hint').hidden = false; }
+  if (sideMode === 'dock') undock();
   sideMode = null;
-  if (prev && !initial) { const a = $(`.nd[data-id="${prev}"]`); if (a) a.focus({ preventScroll: true }); }
+  if (prev && !initial) { const a = openerOf(prev); if (a) a.focus({ preventScroll: true }); }
+  openerId = null;
 }
 
 const V = {
@@ -580,10 +643,8 @@ const V = {
     M.wireGrip($('#cs'), closeEntry);
     c.addEventListener('click', ev => {
       const t = ev.target.closest('a.nd[data-id]');
-      if (t) { if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button) return; ev.preventDefault(); openEntry(t.dataset.id); return; }
-      const sm = ev.target.closest('a.same');
-      if (sm) { ev.preventDefault(); openEntry(sm.getAttribute('href').slice(1)); return; }
-      if (ev.target.closest('[data-closeview]')) closeEntry();
+      if (t) { if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey || ev.button) return; ev.preventDefault(); openerId = t.dataset.open ? t.dataset.id : null; openEntry(t.dataset.open || t.dataset.id); return; }
+      if (ev.target.closest('[data-closeview]')) { if (previewId && !S.open) dropPreview(true); else closeEntry(); }
     });
     c.addEventListener('mouseover', ev => {
       const t = ev.target.closest('.node'), id = t ? t.dataset.id : null;
@@ -603,14 +664,17 @@ const V = {
     });
     const a = document.activeElement, keep = a && a.closest && a.closest('.node') ? a.closest('.node').dataset.id : null;
     nodesEl.innerHTML = html; markOpen(S.open);
+    if (previewId && !S.visSet.has(previewId)) dropPreview(); else markPreview();
     $$('.node', nodesEl).forEach(li => { const ok = S.visSet.has(li.dataset.id); li.classList.toggle('dim', !ok); li.inert = !ok; });
     $('#c-empty').innerHTML = S.vis.length ? '' : emptyHTML();
     if (keep) { const n = $(`.nd[data-id="${keep}"]`); if (n) n.focus({ preventScroll: true }); }
   },
-  setOpen(id, prev, initial) { if (id) showOpen(id, prev, initial); else hideOpen(prev, initial); },
+  dismiss(from) { if (!previewId || S.open || !from.closest || !from.closest('#c-side')) return false; dropPreview(true); return true; },
+  setOpen(id, prev, initial) { if (id) { previewId = null; markPreview(); showOpen(id, prev, initial); } else { hideOpen(prev, initial); if (initial) showPreview(); } },
   layout() {
     const m = M.isPhone() ? 'v' : 'h';
     if (m !== mode) V.render();
+    if (previewId && !isDocked()) dropPreview();
     if (m === 'h') placeH(); else clearH();
     const sc = $('#scroll'); css(app,'--sideh',Math.max(420,sc.clientHeight-24)+'px');
     if (S.open) {

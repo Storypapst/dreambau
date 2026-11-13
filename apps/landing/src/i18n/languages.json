@@ -11,7 +11,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "4dc0141c86307fc8b614cb83c41ef12dad4bfb287de05c9b89ea2cef1f87da81"
+      "sha256": "fe21ed78d99dee34191b37f559a57867f9a6c72be057179ce3df3dd75339dc84"
     },
     {
       "code": "hr",
@@ -22,7 +22,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "225e34fb4a50c142ef56bb22168f845fbd0b6b7826ee6215c7efa1c26463c95f"
+      "sha256": "35c1d7d73f3f42f778a3e503bee5fb782ff0c1d7cac4d334cc1a6ea5d4cbf58e"
     },
     {
       "code": "cs",
@@ -33,7 +33,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "a4d19bf5b4d39acd27de2d7fde6951f56551000d1276633125bfb1823cca5de7"
+      "sha256": "f1e056815b14e44bc1cd9a68bc0b824ad83ceeedc5b265d4fe1c323eb8cb477e"
     },
     {
       "code": "da",
@@ -44,7 +44,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "dc1a0ee993f3596de7b30cfcbd7cd25e13c30a05874b909dedb22e392519bbf1"
+      "sha256": "476cc48736ee0a418ac717ee481fda34893e2e0ff2189ad0dfd4a454497953ec"
     },
     {
       "code": "nl",
@@ -55,7 +55,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "2e70af41be3c365e186c3e2777368e89594902ed39d1fe8e06bb4ac58353b3c1"
+      "sha256": "bf6b07ea0470719e96664425094a2582aa295520acba8ccd2569942b8ab94274"
     },
     {
       "code": "en",
@@ -66,7 +66,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "de28a4cabf7482949d1570497160626614ce9b81b08411daeb9ce025c85955d4"
+      "sha256": "b872dde986e173c58cabc22573c54903682d9c52de80f6f29f109932f9931a43"
     },
     {
       "code": "et",
@@ -77,7 +77,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "c0db372c35356d8d0f26def0ae6088c6a5bb875706f78e3a904001d8af1d1ffc"
+      "sha256": "581ecf952b78b1654074dbb9ab5221aaf0a3f9322375f8b6724ed093ae5e9f30"
     },
     {
       "code": "fi",
@@ -88,7 +88,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "5e7673c72b208adba47041fd8d2f8613a46b9194cadf1ea96aff527387f3f81d"
+      "sha256": "9f723765bce4faeb5f4ddf2ea498d8624f51e529b70c86d3208ecc3e26fb17da"
     },
     {
       "code": "fr",
@@ -99,7 +99,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "f0fc263364eaa39537a43dc67c50fd41d18ce06dcadd976390133f603a3adc53"
+      "sha256": "24ad7ea5c675f22f3ddc95a26a6f6acdaf959cd43180234b7fd2ba70b0faff2c"
     },
     {
       "code": "de",
@@ -121,7 +121,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "71714a9b3e6de2f41da12a836d07297f4c8192e5709dc9d80679f5aa7425cbc4"
+      "sha256": "fc27c5fbcbbd0d10ceb5121d70cabee47c97ac7687fb6337e52cd48203b4552a"
     },
     {
       "code": "hu",
@@ -132,7 +132,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "c1702176377a5f78075e08d7dfe6e3ab66e93d962c4bd7a593cd9458644dc6a2"
+      "sha256": "bd673b6210da986da6bd6dec433f31722976e01273571b7401d84a022c87e3c2"
     },
     {
       "code": "ga",
@@ -143,7 +143,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "8b06ab49d2d8a9006fe29d77580e4261efe37c97d0adf19c00224010dfa076d7"
+      "sha256": "c793a4efaa06d09a01921ad3789799ea7c203f589da350b5e32ec39769ec07d6"
     },
     {
       "code": "it",
@@ -154,7 +154,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "936382cb692e225621be19ff4e57cc89032c0fa0691ec77b51225d8d0d92a9d2"
+      "sha256": "3a25a3e4e2b107d6b6c9dfc1858b38cb2d1ba102d7b088c70f1bebc7d1ffbb01"
     },
     {
       "code": "lv",
@@ -165,7 +165,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "286d5940e563dadd2780a5f8bad4ab2b89681eae1e34c69d871a5dd344566162"
+      "sha256": "002eed386d450d9188d22b87ea44f1ffd4e2264e5428d2bc4618c262aae32b07"
     },
     {
       "code": "lt",
@@ -176,7 +176,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "ba4e528b6a7e066d3eea8ccb1879025d90809f814e65287e93fe966af2492663"
+      "sha256": "8be64ba0e3bb6d179e7a379d726468541cf44fa8de0f28ead67fbdb99236c006"
     },
     {
       "code": "mt",
@@ -187,7 +187,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "e3d4e0e315c360bbbe1aa76f80a82ffd7737a406915921479cf149944adfb20c"
+      "sha256": "983709148638e02e3bcb0af38db37128a3e8ea6361a4b346fd10f502cc54a1f2"
     },
     {
       "code": "pl",
@@ -198,7 +198,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "eae6116c022aaf6d5abc0bcc397eab5185bd6e06749310f3d5b988ab96b528e7"
+      "sha256": "c8495fe396791cae01b44ea3ed9892a5eb8d006637261fa1c2d2e7139316b7b0"
     },
     {
       "code": "pt-BR",
@@ -209,7 +209,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "ac4b18a63748599a6408b4b9a72ab87591c9f86e2b195ed18d43033b3168b520"
+      "sha256": "af14a8c4d9b370ca274d2247ae207b32a2a626adbb48ecb90478761563db9937"
     },
     {
       "code": "ro",
@@ -220,7 +220,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "05b252a062217d84ee1e44ee6e639af34a2221f8d964e1d2885de4d93cbb651f"
+      "sha256": "3685bba40307b519c926395d130bcdb9cbf86aec53fc07cb3339ef6ae1ef2b8b"
     },
     {
       "code": "sk",
@@ -231,7 +231,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "6c11202f9601244db5a58f025608c2bdfd28d9886b3764cfc8bb6dc985f13c88"
+      "sha256": "66d1a8a9879fad5f96594dab1d9837f02bc80b9d957d3c5287c5839924d2dfcb"
     },
     {
       "code": "sl",
@@ -242,7 +242,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "19cdc5a06d20899c31fd06946fadc4f93bf689d789c14f837a1183eb2263ca16"
+      "sha256": "7dd04bd3ed8ce80876c57192bcbe2e8ba31db441f5d27ab6ba47c3e0a01bb362"
     },
     {
       "code": "es",
@@ -253,7 +253,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "6e98ccae6c38b4534186163b78fee6cdafc020ae85b752605a9e50f902cd2086"
+      "sha256": "7d3638b59ebb53ae05f2dbf39d0cc11739dd58955cef9d0ae352b63ef4da199c"
     },
     {
       "code": "sv",
@@ -264,7 +264,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "5dfb94f052ec5a8dd896af5ea94cc1b104f46b72c0822c8147db754b948f3edd"
+      "sha256": "59c5c85de3469133c581dbd5d78b491441a71d0de1734ac33926d3d5f537cd88"
     },
     {
       "code": "sq",
@@ -275,7 +275,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "534af6ea0ffafd51a5cb1a161cdd1524c3c010484f0d6ee99bf7ba0305fdfe80"
+      "sha256": "3ae4839ade96c0c8f1b894713f522c6d998b326efc1d4bbe15ff468c4d0d55a4"
     },
     {
       "code": "be",
@@ -286,7 +286,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "3279f386cc1755d0f1bbc66b18c319a85752947287fafa72d2809e457481ed9d"
+      "sha256": "c29b7dc7ad65e7c7d16ba5833f8f10178a2b02b14ede10cb6e9a68fd94f39a62"
     },
     {
       "code": "bs",
@@ -297,7 +297,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "7e8df2798b08afd1f6da0303fbbf1f6de4edaa6d6b3353b18306e6f71cfefcd2"
+      "sha256": "da01c0ce0b2d5efee912dbe04718d6888474fbb9757cd706fc3d4df51f258b54"
     },
     {
       "code": "ca",
@@ -308,7 +308,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "906adc8e522fcf7d4d957c2d402585a02040abb6041f7ada5228f9679058ed2e"
+      "sha256": "1700eb92c5b993d33696ef793cb8c2dce068f43d1d6d1acb014203f4a0f95e60"
     },
     {
       "code": "is",
@@ -319,7 +319,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "20831f541723432021148809af109580dd01930c0607a0cfc165bee2d7ec0b7b"
+      "sha256": "93f70ddc366ada1db22e8fb1b654fb4a3e74fcf4b440994bf08be50c2833cdc5"
     },
     {
       "code": "lb",
@@ -330,7 +330,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "27391065447c6d946ac773e5d9ef5ee417b1666cb6c27c7a0afc47d15ec210f4"
+      "sha256": "32fdceec48acb39f1297966b9fd9ddde56f3fc60cce65a02389ef33e1596d833"
     },
     {
       "code": "mk",
@@ -341,7 +341,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "1eb520db335cf86588bdd42a74c6bfa1ef8685a38ea24e8938c87adb146331c8"
+      "sha256": "1e9569ad3bf0595c18b06ce3d84d983339a8dca595c8bcbd899a4302106a5fa3"
     },
     {
       "code": "nb",
@@ -352,7 +352,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "fa7e530af3e9acdbdaa4653fcd73d46eb180d9e3415dc2686549934cfebdf0fe"
+      "sha256": "cad48b452c10170c96dd97c612dd6a4c35c7e731d20836be127e5d0630a39e4a"
     },
     {
       "code": "ru",
@@ -363,7 +363,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "4583d423d4294164671dd449d1c315de97603bb1c6ebb64083166f93ce83594f"
+      "sha256": "5c17bdf1198ff5f882bfa8bf9533dc1ed238f9177cace102632d81877c2706c9"
     },
     {
       "code": "sr-Latn",
@@ -374,7 +374,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "92fa5a7e0c9c48b5b4a096b858ff35da864b2a566fe5ce5268d5b5454ade3e97"
+      "sha256": "e45260b66d62f75046f3d8df20f64bfb190ef38024be594b39ddc4ae1af3e2e7"
     },
     {
       "code": "tr",
@@ -385,7 +385,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "5bc52e283712a16251bd72f9e9373b3a82a975eefd84cca70abd85a58d58c216"
+      "sha256": "8ca2118b0b3f71d4acde0e4a847e1bbc38aa200e74569a122e9f98a0b4c2fac6"
     },
     {
       "code": "uk",
@@ -396,7 +396,7 @@
       "group": "Europe",
       "offered": true,
       "reviewed": false,
-      "sha256": "cb3d638e94089da198314db1163e29f03217e2d273a4a85645a384f906ba4247"
+      "sha256": "fc905e7478dc245fc4ee6d51f67c681d5aed5f211eb7d86d68fd698bd42c2166"
     },
     {
       "code": "ar",
@@ -407,7 +407,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "ff7e09e09fa048e64e35978eb552f36b76bb0cfafe4f827fe605fee2f549e09d"
+      "sha256": "48cc435201ca7d6ca82c935b59582c69eebebfff538fe9f02ffe2c2888dd6c62"
     },
     {
       "code": "zh-Hans",
@@ -418,7 +418,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "8fed38ad038da721fe847deaf1e2f5e8423b9f67fc7072f3ca29ea3c1806d16f"
+      "sha256": "205cb5239ba18adfc09efd917c9aff1a2a4399e04d925efb679c4d35e5beac14"
     },
     {
       "code": "he",
@@ -429,7 +429,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "daeea4cd4ac23a1b88f954a6f522be89c4ae1eaba1e650f6bd379697ebded909"
+      "sha256": "0ec4ec6203215ffcf61ce1113c8ec82b066f5ee871219702d181c1af98c84762"
     },
     {
       "code": "hi",
@@ -440,7 +440,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "42b2027975a41c5e91bca2a528798aee2eed2e78055ef82890f1f79dfcd35f70"
+      "sha256": "fd56c36798c1d7d8e15627268c172adf308e251ed97a591a14535bfac9c6839f"
     },
     {
       "code": "id",
@@ -451,7 +451,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "f8f67f742a510cdb2022ec487d419acf5ec49bb5c873374a5b81855ec25e1a0d"
+      "sha256": "9dcae6a1500d05820039183012c02bbee8418a758356f24ab46e1d9e7c31ccb9"
     },
     {
       "code": "ja",
@@ -462,7 +462,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "1b8801a4e432c5cb0f5d153b01ea27b4844880d1880b4f44624ac038b05e3b39"
+      "sha256": "cae2f3ba9174b122d7a2bd76e524f7d17901200abada91e48b086940246990ee"
     },
     {
       "code": "ko",
@@ -473,7 +473,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "356d364271f13b5ae7af4e28bb33e14c2404459ce4b946269d45e8ac3cd92681"
+      "sha256": "c126c15dd11212280f5c17d7a37434b3bee325315108b37c047a14bb0ba63f12"
     },
     {
       "code": "fa",
@@ -484,7 +484,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "ed74358948a878508d7931da6c5362f5c49864d8105948d07e31551b6609f9bd"
+      "sha256": "a2a12e7d809d8228d1ddb040e91bad5357ea3a6a4bb91793c14083d7b53e8b5e"
     },
     {
       "code": "pa-Arab",
@@ -495,7 +495,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "55b146e6d2942b3fc4f92760fdd21adac8a693c06b6fa8b47c0deb09540e51ab"
+      "sha256": "1af3fd4eb0335b7cb0c75e21e596c793d48693321e40c58ad41461eb7091fd40"
     },
     {
       "code": "ur",
@@ -506,7 +506,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "868bf195996bfcbb22488167106c81d1f69755f41c42911c5948e51d544695a7"
+      "sha256": "7dd820c474861575daf30277c880d3ee37a635754e25af14f3b7d74e60c37eb2"
     },
     {
       "code": "vi",
@@ -517,7 +517,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "e497b759f8485acdfbe2d1845b80c03d766cbf0646d77282412576ea64a6d07e"
+      "sha256": "2c0e9bbca5a44011e7479ee44476231b4b25b3090297918f4fbeb4d029ab64e5"
     }
   ]
 }

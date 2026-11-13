@@ -1,0 +1,34 @@
+# Example stack for the contact form handler (spec 3.4, D3, D8). Placeholders in <angle brackets>; no value of a secret
+# belongs in this file. The real stack definition and its values live with the operator (private runbook), never here.
+services:
+  contact:
+    image: <image reference>
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    user: node
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    ports: ["127.0.0.1:<free port>:8080"]
+    environment:
+      CONTACT_SIGNING_SECRET_FILE: /run/secrets/contact_signing_secret
+      CONTACT_MAIL_TO: <recipient address>
+      CONTACT_MAIL_FROM: <sender address>
+      CONTACT_SMTP_HOST: <submission host>
+      CONTACT_SMTP_PORT: "<587 or 465>"
+      CONTACT_SMTP_SECURITY: <starttls|tls>
+      CONTACT_SMTP_USER: <account name>
+      CONTACT_SMTP_PASSWORD_FILE: /run/secrets/contact_smtp_password
+      CONTACT_TRUSTED_PROXIES: "1"
+    volumes:
+      - <path to signing secret file>:/run/secrets/contact_signing_secret:ro
+      - <path to smtp password file>:/run/secrets/contact_smtp_password:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/kontakt/').then(r=>process.exit(r.status===200?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: 5m, max-file: "3" }
