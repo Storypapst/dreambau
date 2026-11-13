@@ -63,4 +63,22 @@ describe("safe TOTP window", () => {
     })).resolves.toBe("654321");
     expect(sleep).not.toHaveBeenCalled();
   });
+
+  it("verifies the source and account of the refreshed code", async () => {
+    const accountId = "oriso/dev/fixture";
+    const now = new Date("2026-07-30T08:00:25.000Z").getTime();
+    const request = vi.fn()
+      .mockResolvedValueOnce({
+        source: "totp", accountId, code: "111111", expiresAt: "2026-07-30T08:00:30.000Z"
+      })
+      .mockResolvedValueOnce({
+        source: "totp", accountId: "oriso/dev/wrong", code: "222222", expiresAt: "2026-07-30T08:01:00.000Z"
+      });
+    const sleep = vi.fn(async () => {});
+    await expect(requestSafeOtpCode(request, {
+      now: () => now, sleep, requireTotpFor: accountId
+    })).rejects.toThrow("did not return a fresh TOTP");
+    expect(sleep).toHaveBeenCalledExactlyOnceWith(5_150);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
 });

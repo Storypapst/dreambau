@@ -465,6 +465,26 @@ Eingabe auffordern. Für `local` und `pre-dev` darf der Broker lokal nicht
 vertrauenswürdige TLS-Zertifikate akzeptieren; `dev` und `production-test`
 bleiben strikt.
 
+Für den Nachweis einer Anmeldung mit Authenticator-App gibt es bei der
+ORISO-Beratungs-App auf `https://dev.oriso.org` einen expliziten Modus.
+
+```bash
+test-access session open <oriso-dev-account-id> --require-app-totp
+```
+
+Der Broker bestätigt die App-TOTP-Abfrage, die Annahme des kontogebundenen
+Codes und die dazugehörige Browser-Sitzung. Erst dann liefert er den
+privaten Sitzungspfad mit `secondFactor: "app-totp"`. Dafür muss der Hub
+den angeforderten TOTP-Quellnachweis unterstützen. Der Modus braucht einen
+privaten Runner ohne Browser- oder Netzwerk-Debugausgaben.
+
+Ein privater Runner kann den kontogebundenen App-TOTP-Code auch direkt
+abrufen. Die CLI prüft Konto, Quelle und Zeitstempel der Antwort.
+
+```bash
+test-access otp <oriso-dev-account-id> --source totp --json
+```
+
 Standardmäßig verwendet der Client den macOS-Keychain. Ein fehlender Eintrag
 ermöglicht den vorhandenen Datei-Fallback. Eine verweigerte oder abgelaufene
 Keychain-Abfrage wird als Fehler gemeldet.

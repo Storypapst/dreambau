@@ -296,6 +296,7 @@ export function createTestAccessRouter(options: {
   });
 
   const mailQuery = z.object({ query: z.string().max(200).optional() });
+  const otpQuery = mailQuery.extend({ source: z.literal("totp").optional() });
   router.get("/accounts/:id/mail/latest", async (req, res, next) => {
     const identity = res.locals.machineIdentity as MachineIdentity;
     try {
@@ -320,17 +321,20 @@ export function createTestAccessRouter(options: {
     try {
       const match = await scopedRecord(String(req.params.id), identity);
       if (!match) return res.status(404).json({ error: "account_not_found" });
-      const parsed = mailQuery.safeParse(req.query);
+      const parsed = otpQuery.safeParse(req.query);
       if (!parsed.success) return res.status(400).json({ error: "invalid_query" });
       if (match.totpSecret) {
         res.set("Cache-Control", "no-store");
         recordAccess(match, identity, "otp_requested");
-        return res.json(
-          match.project === "oriso"
-            ? generateCompatibleOrisoTotp(match.totpSecret, options.now?.() ?? new Date())
-            : generateTotp(match.totpSecret, options.now?.() ?? new Date())
-        );
+        const now = options.now?.() ?? new Date();
+        const otp = match.project === "oriso"
+          ? generateCompatibleOrisoTotp(match.totpSecret, now)
+          : generateTotp(match.totpSecret, now);
+        return res.json(parsed.data.source === "totp"
+          ? { accountId: match.id, source: "totp", ...otp }
+          : otp);
       }
+      if (parsed.data.source === "totp") return res.status(404).json({ error: "totp_not_found" });
       const account = mailboxAccount(match);
       if (!account) return res.status(404).json({ error: "mailbox_not_found" });
       const otp = await options.mailReader.otp(account, parsed.data.query ?? "");
