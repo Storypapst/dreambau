@@ -9,9 +9,9 @@ h3 { margin: 20px 0 8px; font-size: 17px; color: rgb(255, 238, 210); line-height
 address { font-style: normal; }
 a { color: inherit; text-underline-offset: .18em; }
 a:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
-.back { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid rgba(var(--fg), .34); border-radius: 24px; text-decoration: none; }
+.back { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid rgba(var(--fg), .34); border-radius: 24px; text-decoration: none; gap: .4em; }
 .back:hover { background: rgba(var(--fg), .06); }
-.open { display: inline-block; padding: 2px 8px; border-inline-start: 3px solid rgb(255, 190, 100); border-radius: 4px; background: rgba(255, 190, 100, .1); color: rgb(255, 224, 180); }
+.stand { margin-top: 32px; font-size: 14px; color: rgba(var(--fg), .7); }
 .foot { width: min(72ch, calc(100% - 32px)); margin: 0 auto 48px; padding-top: 16px; border-top: 1px solid rgba(var(--fg), .14); font-size: 14px; color: rgba(var(--fg), .8); }
 .foot a { display: inline-flex; align-items: center; min-height: 44px; }
 .foot a[aria-current="page"] { text-decoration: none; color: rgb(255, 238, 210); }
