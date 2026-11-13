@@ -32,6 +32,7 @@ Names only; values are created by the operator and never committed.
 |---|---|---|
 | `CONTACT_SIGNING_SECRET` or `CONTACT_SIGNING_SECRET_FILE` | base64 of at least 32 random bytes | required |
 | `CONTACT_MAIL_TO`, `CONTACT_MAIL_FROM` | recipient and the address allowed to send | none (without them a post answers 503) |
+| `CONTACT_SMTP_AUTH` | `login` (submission with `CONTACT_SMTP_USER` and password) or `none` (hand over to our own mail server without an account, e.g. port 25 with `starttls`; only when the recipient domain is ours) | `login` |
 | `CONTACT_SMTP_HOST`, `CONTACT_SMTP_PORT`, `CONTACT_SMTP_SECURITY` | submission server; `starttls`, `tls` or `none` (loopback only) | none, 587, `starttls` |
 | `CONTACT_SMTP_USER`, `CONTACT_SMTP_PASSWORD` or `CONTACT_SMTP_PASSWORD_FILE` | login of the sending account | none |
 | `CONTACT_SMTP_SERVERNAME`, `CONTACT_SMTP_TIMEOUT_MS` | TLS name if it differs from the host; timeout | none, 15000 |

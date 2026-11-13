@@ -48,7 +48,11 @@ export function loadConfig(env = process.env) {
   const mailTo = env.CONTACT_MAIL_TO || '', mailFrom = env.CONTACT_MAIL_FROM || '';
   const smtpUser = env.CONTACT_SMTP_USER || '';
   const smtpPassword = secretValue(env, 'CONTACT_SMTP_PASSWORD');
-  const mailConfigured = !!(mailTo && mailFrom && smtpHost && (security === 'none' || (smtpUser && smtpPassword)));
+  // CONTACT_SMTP_AUTH=none: hand the message to our own mail server like any inbound sender (port 25, TLS still per
+  // CONTACT_SMTP_SECURITY), for when the recipient domain is our own and no sending account exists
+  const smtpAuth = env.CONTACT_SMTP_AUTH || 'login';
+  if (!['login', 'none'].includes(smtpAuth)) throw new ConfigError('CONTACT_SMTP_AUTH', 'must be login or none');
+  const mailConfigured = !!(mailTo && mailFrom && smtpHost && (security === 'none' || smtpAuth === 'none' || (smtpUser && smtpPassword)));
 
   const minAge = int(env, 'CONTACT_MIN_AGE_S', 4, 0, 3600);
   const maxAge = int(env, 'CONTACT_MAX_AGE_S', 7200, 60, 86400);
@@ -59,7 +63,7 @@ export function loadConfig(env = process.env) {
     host: env.CONTACT_LISTEN_HOST || '0.0.0.0',
     secret,
     mail: Object.freeze({ configured: mailConfigured, to: mailTo, from: mailFrom, host: smtpHost,
-      port: int(env, 'CONTACT_SMTP_PORT', 587, 1, 65535), security, user: smtpUser, password: smtpPassword,
+      port: int(env, 'CONTACT_SMTP_PORT', 587, 1, 65535), security, user: smtpAuth === 'none' ? '' : smtpUser, password: smtpAuth === 'none' ? '' : smtpPassword,
       servername: env.CONTACT_SMTP_SERVERNAME || '', timeoutMs: int(env, 'CONTACT_SMTP_TIMEOUT_MS', 15000, 100, 120000) }),
     trustedProxies: int(env, 'CONTACT_TRUSTED_PROXIES', 1, 0, 10),
     minAge, maxAge,

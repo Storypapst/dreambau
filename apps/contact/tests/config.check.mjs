@@ -23,6 +23,15 @@ test('D5: starts without mail settings; mail counts as configured only with reci
   assert.equal(loadConfig(env).mail.configured, false);
   assert.equal(loadConfig({ ...env, CONTACT_SMTP_USER: 'u', CONTACT_SMTP_PASSWORD: 'p' }).mail.configured, true);
 });
+test('CONTACT_SMTP_AUTH=none: configured without login, keeps TLS, drops any user or password; other values refused', () => {
+  const env = { CONTACT_SIGNING_SECRET: SECRET, CONTACT_MAIL_TO: 'info@dreambau.com', CONTACT_MAIL_FROM: 'kontakt-form@dreambau.com', CONTACT_SMTP_HOST: 'mail.example.test', CONTACT_SMTP_PORT: '25' };
+  const c = loadConfig({ ...env, CONTACT_SMTP_AUTH: 'none', CONTACT_SMTP_USER: 'u', CONTACT_SMTP_PASSWORD: 'p' });
+  assert.equal(c.mail.configured, true);
+  assert.equal(c.mail.security, 'starttls');
+  assert.equal(c.mail.user, '');
+  assert.equal(c.mail.password, '');
+  bad({ ...env, CONTACT_SMTP_AUTH: 'plain' }, 'CONTACT_SMTP_AUTH');
+});
 test('defaults of 7.6', () => {
   const c = loadConfig({ CONTACT_SIGNING_SECRET: SECRET });
   assert.deepEqual([c.port, c.minAge, c.maxAge, c.rateKeyMax, c.rateWindow, c.globalPerHour, c.maxEntries, c.mail.port, c.mail.security, c.i18n],
