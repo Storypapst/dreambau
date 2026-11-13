@@ -18,6 +18,7 @@ export interface RuntimeConfig {
   databasePath: string;
   exportPath: string;
   machineIdentitiesPath: string;
+  headlessDevApprovalsFile: string | null;
   secureCookies: boolean;
   emailOtpHmacKey: string;
   smtp: {
@@ -179,6 +180,7 @@ export function loadConfig(): RuntimeConfig {
     databasePath: process.env.TESTMAILS_DATABASE_PATH ?? "/data/testmails.sqlite",
     exportPath: process.env.TESTMAILS_EXPORT_PATH ?? "/data/export/testmails.md",
     machineIdentitiesPath: process.env.TEST_ACCESS_IDENTITIES_PATH ?? "/run/secrets/test-access/machine-identities.json",
+    headlessDevApprovalsFile: process.env.TEST_ACCESS_HEADLESS_DEV_APPROVALS_FILE?.trim() || null,
     secureCookies: process.env.NODE_ENV !== "test",
     emailOtpHmacKey,
     smtp,

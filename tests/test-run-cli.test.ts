@@ -2,6 +2,35 @@ import { describe, expect, it, vi } from "vitest";
 import { buildRunApiRequest, runTestRunCli } from "../src/server/test-run-cli.js";
 
 describe("test-access run CLI", () => {
+  it("builds the exact three headless requests and validates their identifiers locally", () => {
+    const runId = "59c238e5-6115-4aef-bfb4-2f19091017cf";
+    const resourceId = "7ecdd754-8d9f-4abc-8a77-e15bdbec38d2";
+    const bindingHash = "a".repeat(64);
+    const path = `/runs/${runId}/headless-registration`;
+    expect(buildRunApiRequest(["headless-prepare", runId])).toEqual({ method: "GET", path });
+    expect(buildRunApiRequest(["headless-claim", runId, "--binding-hash", bindingHash]))
+      .toEqual({ method: "POST", path, body: { bindingHash } });
+    expect(buildRunApiRequest(["headless-report", runId, "--resource-id", resourceId, "--result", "uncertain"]))
+      .toEqual({ method: "POST", path: `${path}/${resourceId}/outcome`, body: { result: "uncertain" } });
+    expect(() => buildRunApiRequest(["headless-prepare", "run-1"])).toThrow();
+    expect(() => buildRunApiRequest(["headless-claim", runId, "--binding-hash", "bad"])).toThrow();
+    expect(() => buildRunApiRequest(["headless-report", runId, "--resource-id", resourceId, "--result", "present"])).toThrow();
+  });
+
+  it("requires HTTP 201 before printing a headless claim response", async () => {
+    const write = vi.fn();
+    const writeError = vi.fn();
+    const result = await runTestRunCli(["headless-claim", "59c238e5-6115-4aef-bfb4-2f19091017cf", "--binding-hash", "a".repeat(64)], {
+      baseUrl: "https://dreambau.com/testmails/api/v1",
+      identity: "fixture-owner", readKeychainToken: () => "fixture-machine-token",
+      fetch: async () => Response.json({ state: "creating" }),
+      write, writeError
+    });
+    expect(result).toBe(1);
+    expect(write).not.toHaveBeenCalled();
+    expect(writeError).toHaveBeenCalledWith("Test Run API failed with HTTP 200\n");
+  });
+
   it("accepts optional measured finish evidence while preserving old finish payloads", () => {
     expect(buildRunApiRequest(["finish", "run-1", "--result", "failed", "--checks", "12", "--failures", "1", "--report-url", "https://evidence.dreambau.com/r/existing"])).toEqual({ method: "POST", path: "/runs/run-1/finish", body: { result: "failed", evidence: { checks: 12, failures: 1, reportUrl: "https://evidence.dreambau.com/r/existing" } } });
     expect(buildRunApiRequest(["finish", "run-1", "--result", "passed"]).body).toEqual({ result: "passed" });
