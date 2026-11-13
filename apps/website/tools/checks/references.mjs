@@ -7,6 +7,10 @@ export async function run({browser,base,artifact,ok,root}) {
  try {await page.goto(base+'/referenzen/'); await page.waitForTimeout(250);
  ok('A22: unpublished legal pages remain pending text, never dead links',await page.locator('.foot a[href="/impressum.html"],.foot a[href="/datenschutz.html"]').count()===0 && (await page.locator('.foot').innerText()).includes('Impressum · Angaben noch offen') && (await page.locator('.foot').innerText()).includes('Datenschutz · Freigabe noch offen'));
  ok('A01: all twelve entries form the selected Zeitstrahl',await page.locator('.c-stage .node').count()===12);
+ ok('Tidy: the wide layout starts with the first current project in the panel and leaves the address alone',await page.locator('.c-side .pv-title').textContent()==='ORISO'&&new URL(page.url()).hash==='');
+ ok('Tidy: the filter offers the search and three areas, no tag chips, and no count while nothing is filtered',await page.locator('.filter [data-tag]').count()===0&&await page.locator('.filter [data-sec]').count()===3&&!await page.locator('.fnote').isVisible());
+ ok('Tidy: every node stands on the first row of the ray',await page.evaluate(()=>new Set([...document.querySelectorAll('.c-stage .node .orb')].map(n=>Math.round(n.getBoundingClientRect().top))).size<=3));
+ ok('Tidy: current projects show their pictures in labelled scroll strips',await page.locator('.c-side .pv-strip').count()===5&&await page.locator('.c-side .pv-strip img').count()===31);
  await page.screenshot({path:path.join(artifact,'references-desktop-default.png')});
  await page.locator('.nd[data-id="sf-care"]').click(); await page.waitForTimeout(150);
  ok('A01: selecting a reference opens one project beside its timeline',await page.locator('.c-side .pv').isVisible());
@@ -17,6 +21,13 @@ export async function run({browser,base,artifact,ok,root}) {
  ok('A02: reloading a shared address keeps the selected project',await page.locator('.c-side .pv-title').textContent()==='SF Care');
  await page.keyboard.press('Escape');await page.waitForTimeout(150);
  ok('A02: closing returns focus to the selected entry',await page.locator('.nd[data-id="sf-care"]').evaluate(n=>n===document.activeElement));
+ await page.locator('.nd[data-id="sf-care"]').click(); await page.waitForTimeout(150);
+ ok('Tidy: the next button moves a picture strip',await page.evaluate(async()=>{const s=document.querySelector('.c-side .pv-strip');document.querySelector('.c-side [data-strip="1"]').click();await new Promise(r=>setTimeout(r,250));return s.scrollLeft>100;}));
+ await page.locator('.nd[data-id="we-care-remote"]').click(); await page.waitForTimeout(150);
+ ok('Tidy: the 2024 pointer opens the current project it stands for',await page.locator('.c-side .pv-title').textContent()==='WeCareRemote'&&new URL(page.url()).hash==='#wecareremote');
+ await page.locator('.nd[data-id="barkett"]').click(); await page.waitForTimeout(150);
+ ok('Tidy: an older reference without a case study opens a short view with its original scope',await page.locator('.c-side .pv-title').textContent()==='Barkett.berlin'&&(await page.locator('.c-side .pv').innerText()).includes('Website'));
+ await page.keyboard.press('Escape');await page.waitForTimeout(150);
  await page.locator('#q').fill('Eeloy');
  ok('A05: project search reports one of twelve entries',await page.locator('#fres').textContent()==='1 von 12 Einträgen');
  await page.locator('#q').fill('absent-reference-xyz');
