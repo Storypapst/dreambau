@@ -168,10 +168,11 @@ Dream.add({
     const [w, h] = D.size(), asp = w / h, tall = asp < .7,
       bc = T / BT, b = Math.floor(T * 12) / 12 / BT;                 // beats; the clay moves in twelve poses a second
     // the mould: in the middle while it is built, then moved aside so that the tagline has the table
-    const X1 = tall ? -.16 : -.12, Y1 = tall ? .2 : .02, S1 = Math.min(1.2, (asp + (tall ? .12 : -.3)) / 1.05), S3 = tall ? .6 : .66 * Math.min(1, asp / 1.1),
-      P3 = tall ? [-.2025, .64] : [-1.0125 * S3, .545],
+    const X1 = tall ? -.16 : -.12, Y1 = tall ? .2 : .02, S1 = Math.min(1.2, (asp + (tall ? .12 : -.3)) / 1.05), NW = Math.min(1, asp / .46),
+      S3 = tall ? .6 * NW : .66 * Math.min(1, asp / 1.1),                // NW: narrower than a 390 px phone, the final row shrinks
+      P3 = tall ? [-.2025 * NW, .64] : [-1.0125 * S3, .545],
       g = ss(72, 73.6, b), S = mix(S1, S3, g), sx = mix(X1, P3[0], g), sy = mix(Y1, P3[1], g),
-      brickAt = k => tall ? (k ? [(k * 2 - 3) * .2025, .388] : [.2445, .64]) : [P3[0] + (.745 + .675 * k) * S3, .545],
+      brickAt = k => tall ? (k ? [(k * 2 - 3) * .2025 * NW, .388] : [.2445 * NW, .64]) : [P3[0] + (.745 + .675 * k) * S3, .545],
       slot = i => tall
         ? [((i < 5 ? i - 2 : i - 6.6 + (i > 7) * .3) * .39 + (hsh(i) - .5) * .06) * asp, i < 5 ? -.4 : -.58, .075 * Math.min(1.4, asp / .46)]
         : [(i & 1 ? -1 : 1) * (Math.min(asp, 1.95) - .25 - .2 * hsh(i) * sat((asp - 1.34) / .44)), .27 - .23 * (i >> 1) + (hsh(i + 9) - .5) * .05, .11 * Math.min(1, asp / 1.3)];
@@ -211,7 +212,7 @@ Dream.add({
     let [hx, hy] = home(i), us = .25, form = FORM[i] || 0, m = 0, lift = 0, x0 = 0, x1 = 0, col = 0, flush = 0,
       kx = 1, ky = 0, kz = 0, bev = .17, ang = 0, on = b >= START[0];
     if (i < 9 || i > 16) {                                           // it falls in from above and lands with a wobble
-      const u = (b - START[i]) / .6;
+      const u = Math.max(0, (b - START[i]) / .6);                 // before the first lump arrives there is nothing to scale
       lift = u < 1 ? 1 - u * u : 0;
       us *= 1 + .3 * lift + (u > 1 ? .1 * Math.exp((1 - u) * 5) * Math.cos((u - 1) * 13) : 0);
     }

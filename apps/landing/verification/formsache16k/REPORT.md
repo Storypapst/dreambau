@@ -51,13 +51,13 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 
 | what | result |
 |---|---|
-| size | 10 948 of 16 384 bytes (67 %), gzip 5 515 |
+| size | 10 992 of 16 384 bytes (67 %), gzip 5 524 |
 | first frame | mean luminance 0.0 % |
 | phases | differences between snapshots 0.05, 0.07, 0.08, 0.05 |
 | flash safety | largest step in 66 ms: 2.0 % luminance |
 | text contrast, final frame | 16:9 13.0 / 13.3 / 14.8; 21:9 13.1 / 13.3 / 14.8; 4:3 13.0 / 13.3 / 14.8; portrait 13.8 / 13.8 / 14.7 |
 | bottom band, final frame | 0.6 to 0.8 % luminance |
-| picture cost at 640x360 | mean 108 ms, worst 131 ms |
+| picture cost at 640x360 | mean 108 ms, worst 162 ms |
 | music | peak -0.9 dBFS, RMS -23.2 dBFS, estimated tempo 108 BPM, no clipping, first second above -55 dBFS is second 2 (-40.9), silent from second 58 |
 | real-time behaviour (`e2e.mjs`) | all checks passed |
 | start-page build | `build:apex` and `check:apex` passed with the eight productions |
@@ -69,7 +69,7 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
   steps of two pixels when the picture is magnified.
 * The shadow is the same field shifted along its gradient. The shadow of a lifted thing therefore stays attached to its far
   side instead of separating from it.
-* The tested shapes are 16:9, 21:9, 4:3 and a portrait phone. In windows between about 0.7 and 1.1 wide to high the keepsakes
+* The tested shapes are 16:9, 21:9, 4:3 and a portrait phone (390 and 360 wide). In windows between about 0.7 and 1.1 wide to high the keepsakes
   at the sides come close to the mould and to the tagline.
 * In landscape the sausage comes to rest near the "Esc" hint at the bottom right, until the hint disappears at 53 s.
 * The contact sheet with a frame every 5 s mostly catches the questions (the rings); most answers fall between its frames.
