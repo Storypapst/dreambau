@@ -9,12 +9,19 @@ export async function run({browser,base,artifact,ok,root}) {
  ok('A01: all twelve entries form the selected Zeitstrahl',await page.locator('.c-stage .node').count()===12);
  ok('Tidy: the wide layout starts with the first current project in the panel and leaves the address alone',await page.locator('.c-side .pv-title').textContent()==='ORISO'&&new URL(page.url()).hash==='');
  ok('Tidy: the filter offers the search and three areas, no tag chips, and no count while nothing is filtered',await page.locator('.filter [data-tag]').count()===0&&await page.locator('.filter [data-sec]').count()===3&&!await page.locator('.fnote').isVisible());
+ ok('Tidy: no node reaches into its neighbour, so highlight and click area stay with their own label',await page.evaluate(()=>{const b=[...document.querySelectorAll('.c-stage .nd')].map(n=>n.getBoundingClientRect());return b.every((a,i)=>b.every((c,k)=>k<=i||a.right<=c.left+.5||c.right<=a.left+.5||a.bottom<=c.top||c.bottom<=a.top));}));
+ await page.locator('#c-side [data-closeview]').focus();await page.keyboard.press('Escape');await page.waitForTimeout(100);
+ ok('Tidy: Escape in the first project closes it, shows the hint and puts focus on its node',await page.locator('#c-hint').isVisible()&&await page.locator('.nd[data-id="oriso"]').evaluate(n=>n===document.activeElement));
+ await page.reload();await page.waitForTimeout(250);
  ok('Tidy: every node stands on the first row of the ray',await page.evaluate(()=>new Set([...document.querySelectorAll('.c-stage .node .orb')].map(n=>Math.round(n.getBoundingClientRect().top))).size<=3));
+ await page.setViewportSize({width:1280,height:800});await page.waitForTimeout(200);
+ ok('Tidy: at 1280 px, the narrowest docked layout, the nodes still stand on one row without overlap',await page.evaluate(()=>{const b=[...document.querySelectorAll('.c-stage .nd')].map(n=>n.getBoundingClientRect());const free=b.every((a,i)=>b.every((c,k)=>k<=i||a.right<=c.left+.5||c.right<=a.left+.5||a.bottom<=c.top||c.bottom<=a.top));return free&&new Set([...document.querySelectorAll('.c-stage .node .orb')].map(n=>Math.round(n.getBoundingClientRect().top))).size<=3;}));
+ await page.setViewportSize({width:1440,height:900});await page.waitForTimeout(200);
  ok('Tidy: current projects show their pictures in labelled scroll strips',await page.locator('.c-side .pv-strip').count()===5&&await page.locator('.c-side .pv-strip img').count()===31);
  await page.screenshot({path:path.join(artifact,'references-desktop-default.png')});
  await page.locator('.nd[data-id="sf-care"]').click(); await page.waitForTimeout(150);
  ok('A01: selecting a reference opens one project beside its timeline',await page.locator('.c-side .pv').isVisible());
- ok('A02: selected SF Care shows its ten available genuine portfolio screenshots',await page.locator('.c-side .pv-gal img,.c-side .pv-sl img').count()===10);
+ ok('A02: selected SF Care shows its ten available genuine portfolio screenshots',await page.locator('.c-side .pv-strip img').count()===10);
  await page.screenshot({path:path.join(artifact,'references-desktop-selected.png')});
  ok('A01: the wide selected panel has the approved 440 px width',Math.abs((await page.locator('.c-side').boundingBox()).width-440)<1);
  await page.reload();await page.waitForTimeout(150);
@@ -22,9 +29,13 @@ export async function run({browser,base,artifact,ok,root}) {
  await page.keyboard.press('Escape');await page.waitForTimeout(150);
  ok('A02: closing returns focus to the selected entry',await page.locator('.nd[data-id="sf-care"]').evaluate(n=>n===document.activeElement));
  await page.locator('.nd[data-id="sf-care"]').click(); await page.waitForTimeout(150);
- ok('Tidy: the next button moves a picture strip',await page.evaluate(async()=>{const s=document.querySelector('.c-side .pv-strip');document.querySelector('.c-side [data-strip="1"]').click();await new Promise(r=>setTimeout(r,250));return s.scrollLeft>100;}));
+ ok('Tidy: the next button moves a picture strip by one picture and the previous button is off at the start',await page.evaluate(async()=>{const s=document.querySelector('.c-side .pv-strip'),[prev,next]=s.closest('.pv-strip-w').querySelectorAll('[data-strip]');const off=prev.getAttribute('aria-disabled')==='true';next.click();await new Promise(r=>setTimeout(r,250));return off&&s.scrollLeft>100&&prev.getAttribute('aria-disabled')==='false';}));
+ ok('Tidy: arrow keys walk a focused strip to its last picture and back, End and Home jump',await page.evaluate(async()=>{const s=document.querySelector('.c-side .pv-strip'),max=s.scrollWidth-s.clientWidth,key=k=>s.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true})),wait=()=>new Promise(r=>setTimeout(r,60));s.focus();for(let n=0;n<8;n++){key('ArrowRight');await wait();}const end=Math.abs(s.scrollLeft-max)<=2&&s.closest('.pv-strip-w').querySelectorAll('[data-strip]')[1].getAttribute('aria-disabled')==='true';for(let n=0;n<8;n++){key('ArrowLeft');await wait();}const start=s.scrollLeft<=2;key('End');await wait();const jumped=Math.abs(s.scrollLeft-max)<=2;key('Home');await wait();return end&&start&&jumped&&s.scrollLeft<=2;}));
+ ok('Tidy: the pictures are not tab stops of their own; the strip is one stop',await page.locator('.c-side .pv-zoom:not([tabindex="-1"])').count()===0&&await page.locator('.c-side .pv-strip[tabindex="0"]').count()===2);
  await page.locator('.nd[data-id="we-care-remote"]').click(); await page.waitForTimeout(150);
  ok('Tidy: the 2024 pointer opens the current project it stands for',await page.locator('.c-side .pv-title').textContent()==='WeCareRemote'&&new URL(page.url()).hash==='#wecareremote');
+ await page.keyboard.press('Escape');await page.waitForTimeout(150);
+ ok('Tidy: closing it returns focus to the pointer that opened it',await page.locator('.nd[data-id="we-care-remote"]').evaluate(n=>n===document.activeElement));
  await page.locator('.nd[data-id="barkett"]').click(); await page.waitForTimeout(150);
  ok('Tidy: an older reference without a case study opens a short view with its original scope',await page.locator('.c-side .pv-title').textContent()==='Barkett.berlin'&&(await page.locator('.c-side .pv').innerText()).includes('Website'));
  await page.keyboard.press('Escape');await page.waitForTimeout(150);
@@ -46,6 +57,7 @@ export async function run({browser,base,artifact,ok,root}) {
  ok('A03: below 900 px the timeline uses continuous vertical year groups',await page.locator('.sh').count()===6 && !await page.locator('.c-band').isVisible());
  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);
  await page.screenshot({path:path.join(artifact,'references-phone-default.png')});
+ ok('Tidy: phone rows mark the unreleased short texts as drafts and name the 2024 pointer',await page.locator('.node.cur .ds .draft').count()===4&&(await page.locator('.node[data-id="we-care-remote"] .ptr').innerText()).includes('siehe Aktuelle Projekte'));
  ok('A03: phone labels are 16 px and orbs are 40 px',await page.locator('.node.cur .nm').first().evaluate(n=>getComputedStyle(n).fontSize==='16px')&&(await page.locator('.orb').first().boundingBox()).width===40);
  const dock=await page.locator('.filter').boundingBox();ok('A05: phone search and filters sit in the lower dock',dock.y+dock.height>=843);
  await page.locator('#fbtn').click();await page.waitForTimeout(150);await page.locator('#fsheet [data-sec="old"]').click();
@@ -96,6 +108,7 @@ export async function run({browser,base,artifact,ok,root}) {
  try {await fallback.goto(base+'/referenzen/');
  const catalogue=JSON.parse(fs.readFileSync(path.join(root,'content.json'),'utf8')).references;
  for(const project of [...catalogue.current_projects,...catalogue.older_references]){const labels=project.links?.map(l=>l.label)||project.displayed_original_addresses;const article=fallback.locator('article[id="'+project.id+'"]');for(const label of labels)ok('A04: no-JS reference retains offered address '+label,(await article.innerText()).includes(label));for(const link of project.links||[])ok('A04: no-JS unverified addresses stay inert: '+link.label,link.reachability_verified||(await article.getByRole('link',{name:link.label,exact:true}).count())===0);}
+ ok('Tidy: without JavaScript the unreleased short texts carry the draft mark',await fallback.locator('article .draft').count()===4);
  ok('A22: no-JS footer retains honest pending legal text',(await fallback.locator('.foot').innerText()).includes('Impressum · Angaben noch offen')&&(await fallback.locator('.foot').innerText()).includes('Datenschutz · Freigabe noch offen'));
  ok('A01: without JavaScript every genuine entry remains readable',await fallback.locator('article').count()===12);ok('A02: English original content remains readable without JavaScript',(await fallback.locator('article#eeloy').textContent()).includes('Redesign the 8 Years old Direct Mailing solution'));}finally{await nojs.close();}
  await runRepairs({browser,base,artifact,ok});
