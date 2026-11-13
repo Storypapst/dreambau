@@ -81,3 +81,13 @@ no text besides the tagline. Sizes are the built `site/p/<id>.js`.
 | Schlucht | `schlucht64k` | 5,503 B of 65,536 | Two towers rise in a gorge in the blue hour, cables tighten and a suspension bridge closes over glittering water. Single chords grow into a wide, reverberant space. |
 | Signal | `signal60k` | 5,106 B of 60,000 | Trembling blue signal traces are bundled by three checkpoints into one clear turquoise line, an orange arc routes the uncertain cases. Short electronic tones find a shared pulse. |
 
+
+## Further productions, one theme each
+
+Productions made from `docs/briefs/theme.md`: one theme, one size class, the conversation that shaped it in
+`docs/briefs/<id>.md`. Same structure as above (`dur` 60 s, `fin` 53 s, `cta` 54.5 s, full screen, no text besides the
+tagline). Sizes are the built `site/p/<id>.js`.
+
+| name | id | size | picture and music |
+|---|---|---:|---|
+| Blickwinkel | `blickwinkel64k` | 15,002 B of 65,536 | Seen through a glass prism in front of the lens, a few lamps appear doubled and split into colour; then three exposed-concrete beams are cast in timber formwork and stripped on the beat, and a dolly zoom along the one diagonal from which they line up closes them into an impossible triangle on the click at 40 s, while their shadow keeps showing three separate beams. Glass and marimba play the same figure in G Lydian at 108 BPM, the glass a sixteenth late like a refracted image, until the gap closes and both fall into unison on the click. |
