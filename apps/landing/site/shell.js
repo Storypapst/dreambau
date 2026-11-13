@@ -13,7 +13,7 @@ const doc = document, $ = id => doc.getElementById(id), root = doc.documentEleme
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');                       // headless test mode: no autoplay, no adaptive scaling, manual clock
 const D = (window.Dream = window.Dream || {});
-D.ids = ['4k', '16k', '64k', 'kante4k', 'tragwerk16k', 'schlucht64k', 'signal60k'];
+D.ids = ['4k', '16k', '64k', 'kante4k', 'tragwerk16k', 'schlucht64k', 'signal60k', 'formsache16k'];
 D.prods = D.prods || {};                          // a single-file build registers the productions before the runtime runs
 D.add = def => { D.prods[def.id] = def; };
 D.state = Object.assign(D.state || {}, { id: null, T: 0, audio: 'idle', muted: false, mode: 'boot', error: null, scale: 1, fps: 0, lang: 'de', langSource: 'fallback', langFallback: '', ...D.state });   // the object that i18n.js writes into stays
