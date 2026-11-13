@@ -13,10 +13,179 @@
           {
             "label": "github.com/OpenResilienceInitiative",
             "href_candidate": "https://github.com/OpenResilienceInitiative",
+            "reachability_verified": true
+          },
+          {
+            "label": "oriso.org",
+            "href_candidate": "https://oriso.org",
             "reachability_verified": false
           }
         ],
-        "short_text": null
+        "short_text": "ORISO ist die Online-Beratungsplattform der Open Resilience Initiative für eine einzelne große Organisation (Single Organisation). Wir bauen sie für die Caritas: Ratsuchende finden anonym die passende Beratungsstelle und schreiben, chatten oder sprechen per Video mit Beratenden, Ende-zu-Ende-verschlüsselt. Veröffentlichung: Anfang 2027.",
+        "picture_groups": [
+          {
+            "label": "Ratsuchende: vom Thema bis zum ersten Gespräch",
+            "images": [
+              {
+                "file": "oriso-01.webp",
+                "label": "Einstieg: anmelden oder Beratungsthemen ansehen"
+              },
+              {
+                "file": "oriso-02.webp",
+                "label": "Registrierung, Schritt 1: Thema wählen"
+              },
+              {
+                "file": "oriso-03.webp",
+                "label": "Registrierung, Schritt 4: anonymes Konto mit vorgeschlagener User-ID"
+              },
+              {
+                "file": "oriso-04.webp",
+                "label": "Registriert: so geht es weiter"
+              },
+              {
+                "file": "oriso-05.webp",
+                "label": "Live-Chat außerhalb der Öffnungszeiten"
+              },
+              {
+                "file": "oriso-06.webp",
+                "label": "Termin buchen"
+              }
+            ]
+          },
+          {
+            "label": "Beratende: Anfragen, Gespräche, Team",
+            "images": [
+              {
+                "file": "oriso-07.webp",
+                "label": "Gesprächsansicht mit Beratungsliste"
+              },
+              {
+                "file": "oriso-08.webp",
+                "label": "Team-Kanal und Thread neben dem Gespräch"
+              },
+              {
+                "file": "oriso-09.webp",
+                "label": "Neue Unterhaltung: Gesprächskreis, Interna oder Direktlink"
+              },
+              {
+                "file": "oriso-10.webp",
+                "label": "Fallübergabe: Grund wählen"
+              },
+              {
+                "file": "oriso-11.webp",
+                "label": "Hilfe: Rundgänge und Übungsbereich"
+              },
+              {
+                "file": "oriso-12.webp",
+                "label": "Profil: Passwort, Zwei-Faktor, Wiederherstellung"
+              }
+            ]
+          },
+          {
+            "label": "Gruppen, Video und Audio",
+            "images": [
+              {
+                "file": "oriso-13.webp",
+                "label": "Gesprächskreis: Countdown bis zum Start"
+              },
+              {
+                "file": "oriso-14.webp",
+                "label": "Einstieg in die Selbsthilfegruppe"
+              },
+              {
+                "file": "oriso-15.webp",
+                "label": "Chat-Info: Teilnehmende, Rollen, Einstellungen"
+              },
+              {
+                "file": "oriso-16.webp",
+                "label": "Videogespräch: Bild und Ton prüfen"
+              },
+              {
+                "file": "oriso-17.webp",
+                "label": "Anruf per Link und QR-Code teilen"
+              }
+            ]
+          },
+          {
+            "label": "Verwaltung: Plattform, Träger, Beratungsstelle",
+            "images": [
+              {
+                "file": "oriso-18.webp",
+                "label": "Startseite für Plattform-Admins"
+              },
+              {
+                "file": "oriso-19.webp",
+                "label": "Träger"
+              },
+              {
+                "file": "oriso-20.webp",
+                "label": "Beratungsstellen"
+              },
+              {
+                "file": "oriso-21.webp",
+                "label": "Konten nach Rolle: Plattform, Träger, Beratungsstelle, Beratende"
+              },
+              {
+                "file": "oriso-22.webp",
+                "label": "Einladungen mit Onboarding-Fortschritt"
+              },
+              {
+                "file": "oriso-23.webp",
+                "label": "Statistik: Anfragen, Gespräche, Themen"
+              },
+              {
+                "file": "oriso-24.webp",
+                "label": "Einstellungen: Systemhinweise"
+              },
+              {
+                "file": "oriso-25.webp",
+                "label": "Träger-Onboarding: Organisation einrichten, Vertrag lesen"
+              },
+              {
+                "file": "oriso-26.webp",
+                "label": "Pflicht: Zwei-Faktor-Anmeldung"
+              },
+              {
+                "file": "oriso-27.webp",
+                "label": "Datenschutz-Folgenabschätzung als Dokument"
+              }
+            ]
+          },
+          {
+            "label": "Sicherheit, E-Mails, mobil",
+            "images": [
+              {
+                "file": "oriso-28.webp",
+                "label": "Neues Gerät: Verlauf mit Ersatzschlüssel wiederherstellen"
+              },
+              {
+                "file": "oriso-29.webp",
+                "label": "Anhänge werden vor dem Öffnen geprüft"
+              },
+              {
+                "file": "oriso-30.webp",
+                "label": "System-E-Mails: Zugang eingerichtet, Termin bestätigt"
+              },
+              {
+                "file": "oriso-31.webp",
+                "label": "Mobil: Themenwahl, Postleitzahl, Gespräch"
+              }
+            ]
+          }
+        ],
+        "status": "soon",
+        "sections_before": [
+          {
+            "label": "Vision",
+            "text": "Die Open Resilience Initiative baut mit intelligenten Systemen Software, die Menschen in Krisensituationen aller Art vernetzt. Wir setzen dabei verstärkt auf KI, damit Menschen mit den größten Problemen schnell und wirksam Hilfe bekommen."
+          }
+        ],
+        "sections_after": [
+          {
+            "label": "So wird gebaut",
+            "text": "Jede Oberfläche entsteht zuerst in Storybook: über 3.800 Stories (2.359 in der Beratungsoberfläche, 1.447 in der Verwaltung), eine automatische Barrierefreiheitsprüfung bei jeder Änderung und Vorher-Nachher-Bilder zu 78 dokumentierten UI-Änderungen. Jedes Repository führt einen Wissensgraphen (Understand-Anything) mit Architektur, Einstieg und offenen Befunden. Technik: React und TypeScript, Spring Boot, Keycloak, Matrix, Kubernetes per Helm-Chart. Quelloffen unter AGPL-3.0."
+          }
+        ]
       },
       {
         "id": "wecareremote",
@@ -24,8 +193,38 @@
         "tags": [
           "plattform"
         ],
-        "links": [],
-        "short_text": null
+        "links": [
+          {
+            "label": "wcr.is",
+            "href_candidate": "https://wcr.is",
+            "reachability_verified": true
+          }
+        ],
+        "short_text": "We Care Remote ist ein Krisennetzwerk, das hält, wenn es darauf ankommt: Wer Hilfe braucht, beschreibt seine Lage und wird mit passenden Fachleuten und Beratenden verbunden. Mit neuer Technologie veröffentlichen Hilfsorganisationen ihr Wissen dezentral über die Blog-Chain. Getragen wird die Plattform von Sunflower Care e.V.",
+        "picture_groups": [
+          {
+            "label": "Einblicke",
+            "images": [
+              {
+                "file": "wecareremote-01.webp",
+                "label": "Startseite von wcr.is"
+              },
+              {
+                "file": "wecareremote-02.webp",
+                "label": "Drei Schritte: Hilfe anfragen, verbunden werden, begleitet bleiben"
+              },
+              {
+                "file": "wecareremote-03.webp",
+                "label": "Hilfe erhalten: Thema und Fokus wählen"
+              },
+              {
+                "file": "wecareremote-04.webp",
+                "label": "Blog-Chain: Ratgeber von Sunflower Care"
+              }
+            ]
+          }
+        ],
+        "status": "live"
       },
       {
         "id": "ori",
@@ -40,7 +239,8 @@
             "reachability_verified": false
           }
         ],
-        "short_text": null
+        "short_text": "Die Open Resilience Initiative baut mit intelligenten Systemen Software, die Menschen in Krisensituationen aller Art vernetzt. Wir setzen dabei verstärkt auf KI, damit Menschen mit den größten Problemen schnell und wirksam Hilfe bekommen. Alles entsteht quelloffen; das erste Produkt ist ORISO.",
+        "status": null
       },
       {
         "id": "bildungshaus",
@@ -52,10 +252,50 @@
           {
             "label": "dreambau.com/bildungshaus/",
             "href_candidate": "/bildungshaus/",
-            "reachability_verified": false
+            "reachability_verified": true
           }
         ],
-        "short_text": null
+        "short_text": "Im Bildungshaus weWeit gestalten Kinder, Familien und Team den Alltag gemeinsam. Das Konzept verbindet Reggio-inspirierte Bildung, verlässliche Beziehungen und echte Mitwirkung; es beginnt mit einer Kita und denkt Krippe, Hort und Schule mit.",
+        "picture_groups": [
+          {
+            "label": "Einblicke",
+            "images": [
+              {
+                "file": "bildungshaus-01.webp",
+                "label": "Startbild der Präsentation"
+              },
+              {
+                "file": "bildungshaus-02.webp",
+                "label": "Leitgedanke: Kinder stärken"
+              },
+              {
+                "file": "bildungshaus-03.webp",
+                "label": "Ein Kind, viele Beziehungen"
+              },
+              {
+                "file": "bildungshaus-04.webp",
+                "label": "Ein Haus, das selbst dazulernt"
+              },
+              {
+                "file": "bildungshaus-05.webp",
+                "label": "Beispiel: Der Koch geht. Was bleibt im Haus?"
+              },
+              {
+                "file": "bildungshaus-06.webp",
+                "label": "Rechner: was frei wird, soll Qualität stärken"
+              },
+              {
+                "file": "bildungshaus-07.webp",
+                "label": "Fahrplan: mit einem Haus lernen"
+              },
+              {
+                "file": "bildungshaus-08.webp",
+                "label": "Umfrage: Wie ist es bei euch?"
+              }
+            ]
+          }
+        ],
+        "status": "live"
       },
       {
         "id": "trail-ist",
@@ -65,10 +305,11 @@
           {
             "label": "trail.ist",
             "href_candidate": "https://trail.ist",
-            "reachability_verified": false
+            "reachability_verified": true
           }
         ],
-        "short_text": null
+        "short_text": null,
+        "status": "soon"
       }
     ],
     "older_references": [
@@ -132,6 +373,13 @@
         "same_as_current": null,
         "displayed_original_addresses": [
           "sunflower-care.org"
+        ],
+        "links": [
+          {
+            "label": "sunflower-care.org",
+            "href_candidate": "https://sunflower-care.org",
+            "reachability_verified": true
+          }
         ]
       },
       {
@@ -160,6 +408,13 @@
         "same_as_current": null,
         "displayed_original_addresses": [
           "eeloy.com"
+        ],
+        "links": [
+          {
+            "label": "eeloy.com",
+            "href_candidate": "https://eeloy.com",
+            "reachability_verified": true
+          }
         ]
       },
       {
@@ -188,6 +443,13 @@
         "same_as_current": null,
         "displayed_original_addresses": [
           "wespro-retail.de"
+        ],
+        "links": [
+          {
+            "label": "wespro-retail.de",
+            "href_candidate": "https://wespro-retail.de/",
+            "reachability_verified": true
+          }
         ]
       },
       {
@@ -213,6 +475,28 @@
         "same_as_current": null,
         "displayed_original_addresses": [
           "getme.global"
+        ],
+        "videos": [
+          {
+            "label": "upload",
+            "title": "What to consider during Upload?",
+            "href": "https://www.youtube.com/watch?v=jEi2tr-C6mY"
+          },
+          {
+            "label": "feedback",
+            "title": "greyt.me's feedback tool explained",
+            "href": "https://www.youtube.com/watch?v=NtPxDIEQnsY"
+          },
+          {
+            "label": "projects",
+            "title": "How to analyse insights on my projects?",
+            "href": "https://www.youtube.com/watch?v=SmAEC1GlGio"
+          },
+          {
+            "label": "dialouges",
+            "title": "how to manage all your conversations easily",
+            "href": "https://www.youtube.com/watch?v=ZwVO5HlrlBA"
+          }
         ]
       },
       {
