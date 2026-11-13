@@ -26,7 +26,7 @@ Thema gibt, nicht in den drei Feldern.
    wörtlich in `docs/briefs/<id>.md`, bau die Fassung mit dem heutigen Schriftzug und melde im Pull Request, dass die
    Laufzeit dafür erst einen eigenen Schlusstext pro Fassung braucht. Zeichne keinen eigenen Text ins Bild.
 2. **Schlag vor.** Danach zwei oder drei deutlich verschiedene Konzepte, je zwei, drei Sätze: Bildbogen über die drei
-   Phasen und Musik. Sieh dir vorher die Kontaktbögen der Fassungen im Pool an (`verification/<id>/`), damit deine nicht
+   Phasen und Musik. Erst jetzt, nach den Fragen, nicht davor: Sieh dir die Kontaktbögen der Fassungen im Pool an (`verification/<id>/`), damit deine nicht
    wie eine vorhandene aussieht. Empfiehl eins und sag, warum. Die erste naheliegende Idee ist selten die beste.
 3. **Bau erst nach der Wahl.** Ohne Antwort (unbeaufsichtigter Lauf) nimm deine Empfehlungen und schreib das dazu.
 
