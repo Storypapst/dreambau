@@ -14,7 +14,7 @@ label { margin-top: 8px; font-weight: 600; color: rgb(var(--warm)); }
 input, textarea { width: 100%; min-height: 48px; padding: 11px 14px; border: 1px solid rgba(var(--fg), .45); border-radius: 12px; background: #0c1119; color: rgb(var(--fg)); font: inherit; font-size: 16px; }
 textarea { min-height: 120px; resize: vertical; }
 /* phones: a little less height so the form fits without scrolling even with taller system fonts (Linux CI, P7) */
-@media (max-width: 600px) { textarea { min-height: 96px; } main { gap: 8px; } }
+@media (max-width: 600px) { textarea { height: 120px; min-height: 96px; } main { gap: 8px; } }
 input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: rgb(255, 160, 140); }
 .fielderr { margin: 2px 0 0; color: rgb(255, 196, 180); font-size: 15px; }
 .notice { margin: 0 0 8px; padding: 10px 12px; border-inline-start: 3px solid rgb(255, 190, 100); border-radius: 8px; background: rgba(255, 190, 100, .1); color: rgb(255, 224, 180); }
