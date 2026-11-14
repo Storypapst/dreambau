@@ -52,18 +52,24 @@ I.missing=text=>{
  return chars.filter(c=>glyphCache.get(c)).map(c=>'U+'+c.codePointAt(0).toString(16).toUpperCase().padStart(4,'0'));
 };
 const visible=['tag.1','tag.2','cta.words','snd.on_label','skip.label','play.label','lang.title','lang.close','lang.error'];
+// A production can close with its own two lead-in lines (the third line is always the brand): the keys claim.<id>.1 and claim.<id>.2.
+// Without them the shared tag.1 and tag.2 are shown. German is the fallback per line, as for every other key.
+const claimKeys=()=>S.id?['claim.'+S.id+'.1','claim.'+S.id+'.2']:[];
+const pairOf=words=>{const k=claimKeys();return k.length&&words[k[0]]&&words[k[1]]?[words[k[0]],words[k[1]]]:[words['tag.1'],words['tag.2']];};
+const shown=words=>{const p=pairOf(words||{}),q=pairOf(reg.de||{});return [p[0]||q[0]||'',p[1]||q[1]||''];};
+const glyphText=words=>[...visible,...claimKeys()].map(k=>words[k]||'').join('');
 I.available=()=>offered().filter(l=>l.c==='de'||l.c===S.lang||!I.missing(l.n).length).map(({c,n,d,s})=>({c,n,d,s}));
 I.format=(n,options)=>{try{return new Intl.NumberFormat(S.lang,{...options,numberingSystem:'latn'}).format(n);}catch{return new Intl.NumberFormat('de',{...options,numberingSystem:'latn'}).format(n);}};
 D.t=(key,vars)=>{
  const words=reg[S.lang]||{},de=reg.de||{},r=row(S.lang),value=typeof words[key]==='string'?words[key]:typeof de[key]==='string'?de[key]:'';
- const v={tag1:words['tag.1']||de['tag.1']||'',tag2:words['tag.2']||de['tag.2']||'',brand:r&&r.d==='rtl'?'\u2066dreambau.com\u2069':'dreambau.com',name:r?r.n:'Deutsch',code:r?r.s:'DE',count:I.available().length,...vars};
+ const v={tag1:shown(words)[0],tag2:shown(words)[1],brand:r&&r.d==='rtl'?'\u2066dreambau.com\u2069':'dreambau.com',name:r?r.n:'Deutsch',code:r?r.s:'DE',count:I.available().length,...vars};
  return value.replace(/\{([^{}]+)\}/g,(all,k)=>k in v?String(v[k]):all);
 };
 function apply(){
  root.lang=S.lang;root.dir=(row(S.lang)||{}).d||'ltr';
  for(const el of document.querySelectorAll('[data-i18n]')){const key=el.dataset.i18n.replace('{anim}',S.id||''),value=D.t(key);if(value){el.textContent=value;el.lang=reg[S.lang]&&typeof reg[S.lang][key]==='string'?S.lang:'de';}}
  for(const el of document.querySelectorAll('[data-i18n-attr]')){const [attr,key]=el.dataset.i18nAttr.split(':');const value=D.t(key);if(value){el.setAttribute(attr,value);el.lang=reg[S.lang]&&typeof reg[S.lang][key]==='string'?S.lang:'de';}}
- const tag=document.querySelector('#tag'),a=D.t('tag.1'),b=D.t('tag.2');if(tag&&a&&b){tag.dataset.lines=[a,b,'dreambau.com'].join('|');tag.querySelectorAll('span').forEach((el,i)=>{el.textContent=[a,b,'dreambau.com'][i]||'';});}
+ const tag=document.querySelector('#tag'),[a,b]=shown(reg[S.lang]);if(tag&&a&&b){tag.dataset.lines=[a,b,'dreambau.com'].join('|');tag.querySelectorAll('span').forEach((el,i)=>{el.textContent=[a,b,'dreambau.com'][i]||'';});}
  const code=document.querySelector('#lang .code');if(code)code.textContent=(row(S.lang)||{s:'DE'}).s;
  const sw=document.querySelector('.sw');if(sw)sw.hidden=I.available().length<2;
  for(const el of document.querySelectorAll('[data-i18n-keep]')){const url=new URL(el.getAttribute('href'),location.href);if(url.origin===location.origin&&S.langSource==='url'){url.searchParams.set('lang',S.lang);el.href=url.href;}}
@@ -81,7 +87,7 @@ async function startup(){
  if(result.failure){code='de';S.langFallback=result.failure;}
  else if(!result.loaded[1]||!words){code='de';S.langFallback=failures[chosen.code]||'load';}
  else if(!words['tag.1']||!words['tag.2']){code='de';S.langFallback='keys';}
- else if(code!=='de'&&I.missing(visible.map(k=>words[k]||'').join('')).length){code='de';S.langFallback='glyphs';}
+ else if(code!=='de'&&I.missing(glyphText(words)).length){code='de';S.langFallback='glyphs';}
  S.lang=code;S.langSource=S.langFallback?'fallback':chosen.source;
  apply();notify();resolveReady();
 }
@@ -97,9 +103,9 @@ D.setLang=async code=>{
  const options=document.querySelectorAll('#langsheet [role=option]');for(const el of options)el.setAttribute('aria-disabled','true');
  try{
   if(!await load(code))return false;
-  const words=reg[code];if(!words||!words['tag.1']||!words['tag.2']||I.missing(visible.map(k=>words[k]||'').join('')).length)return false;
+  const words=reg[code];if(!words||!words['tag.1']||!words['tag.2']||I.missing(glyphText(words)).length)return false;
   if(fade){dip.classList.add('on');await new Promise(r=>setTimeout(r,260));}
-  if(I.redraw&&!I.redraw([words['tag.1'],words['tag.2'],'dreambau.com'],code,(row(code)||{}).d))return false;
+  if(I.redraw&&!I.redraw([...shown(words),'dreambau.com'],code,(row(code)||{}).d))return false;
   S.lang=code;S.langSource='url';S.langFallback='';apply();
   const url=new URL(location.href);url.searchParams.set('lang',code);history.replaceState(null,'',url);notify();return true;
  }catch{return false;}finally{if(fade)dip.classList.remove('on');for(const el of options)el.removeAttribute('aria-disabled');switching=false;}

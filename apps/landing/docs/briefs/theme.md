@@ -22,9 +22,10 @@ Thema gibt, nicht in den drei Feldern.
    keinen Fall sein?
    Frag immer auch nach dem Schluss: Welche Marke, welcher Claim soll am Ende stehen? Empfiehl dabei den heutigen
    Schriftzug („Jeht nich…“, „jibs nich…“, „dreambau.com“). Er kommt von der Seite, ist in alle angebotenen Sprachen
-   übersetzt und für alle Fassungen gleich. Will die Person einen anderen Claim oder eine andere Marke, schreib ihn
-   wörtlich in `docs/briefs/<id>.md`, bau die Fassung mit dem heutigen Schriftzug und melde im Pull Request, dass die
-   Laufzeit dafür erst einen eigenen Schlusstext pro Fassung braucht. Zeichne keinen eigenen Text ins Bild.
+   übersetzt und für alle Fassungen gleich. Will die Person einen anderen Claim, schreib ihn wörtlich in
+   `docs/briefs/<id>.md` und trag ihn als eigene Schlusszeilen deiner Fassung ein (Punkt 7: die Schlüssel
+   `claim.<id>.1` und `claim.<id>.2`, die dritte Zeile bleibt immer „dreambau.com“). Eine andere Marke statt
+   „dreambau.com“ kann die Laufzeit nicht; melde das im Pull Request. Zeichne keinen eigenen Text ins Bild.
 2. **Schlag vor.** Danach zwei oder drei deutlich verschiedene Konzepte, je zwei, drei Sätze: Bildbogen über die drei
    Phasen und Musik. Erst jetzt, nach den Fragen, nicht davor: Sieh dir die Kontaktbögen der Fassungen im Pool an (`verification/<id>/`), damit deine nicht
    wie eine vorhandene aussieht. Empfiehl eins und sag, warum. Die erste naheliegende Idee ist selten die beste.
@@ -79,6 +80,12 @@ Die Seite stellt das alles schon. Ein Nachbau macht sie kaputt, auch wenn er gut
    `src/i18n/languages.json` und `site/i18n/index.js`). Ohne diesen Eintrag bricht `npm run build:apex` mit „animation
    lacks a complete description“ ab. Das ist kein sichtbarer Text, sondern nur für Screenreader; Ablauf in
    `docs/LANGUAGES.md`.
+   Hat die Person einen eigenen Claim gewünscht, kommen pro Sprachdatei zwei Schlüssel dazu, hinter allen
+   `blind.<id>`-Schlüsseln: `claim.<id>.1` und `claim.<id>.2` (die beiden Zeilen vor der Marke, einzeilig, höchstens 40
+   und 30 Zeichen; Regel C13 der Sprachprüfung). Die Laufzeit (`site/i18n.js`) zeigt sie statt „Jeht nich…“ und
+   „jibs nich…“, auch in der Beschreibung für blinde Menschen (`{tag1}`, `{tag2}`). Fehlen sie in einer Sprache, bricht
+   die Prüfung ab; zur Laufzeit gilt dann der Schriftzug der Seite in dieser Sprache. Der deutsche Wortlaut kommt von der
+   Person, die Übersetzungen sind Entwürfe wie alle anderen.
 8. `site/credits.js`: ein Eintrag für deine id mit `name` (der Name der Fassung), `model` (das Modell, das tatsächlich
    gearbeitet hat, mit Version und Stufe, z. B. „Claude Opus 5.5“), `built` (Datum der bestandenen Abnahme, `JJJJ-MM-TT`),
    `brief` (Thema und Bildidee in ein bis zwei deutschen Sätzen) und `prompt` (Link auf deine Datei aus Punkt 9 unter

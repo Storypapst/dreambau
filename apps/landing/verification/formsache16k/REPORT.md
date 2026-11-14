@@ -32,8 +32,8 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 | 31.1 to 37.8 s | question and answer twice a bar, the tongue shrinks | the last note of the answer closes in on the right one |
 | 38.9 s (beat 70) | the clay leaves through the open side as a sausage, lies there and then walks to the edge | a fanfare that lands a semitone too high, then nothing, then one dry knock |
 | 40.0 s (bar 18) | the fourth bar comes down and closes the mould; the mould moves aside and makes room | knock |
-| 41.1 s (beat 74) | a brick; **"Jeht nich…"** swells into place | the right answer A F, a bell, a chord |
-| 45.6 s (beat 82) | a second brick, the same; **"jibs nich…"** | the same answer |
+| 41.1 s (beat 74) | a brick; **"Kann alles. Außer konstant."** swells into place | the right answer A F, a bell, a chord |
+| 45.6 s (beat 82) | a second brick, the same; **"Unser Part."** | the same answer |
 | 50.0 s (beat 90) | a third brick, the same; **"dreambau.com"** | the same answer, final chord |
 | 53 s | final composition: mould with a fresh lump, three bricks in a row, the tagline, the keepsakes at the sides | C, A, F ring out |
 | 55.6 s (beat 100) | the sausage wriggles once more | a very quiet echo of the fanfare |
@@ -78,4 +78,4 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 
 ## Texts
 
-None. The production shows and says nothing besides the three lines of the tagline, which come from the runtime.
+None in the picture. The production shows and says nothing besides the three closing lines, which the runtime draws: its own claim "Kann alles. Außer konstant." / "Unser Part." (keys `claim.formsache16k.1` and `.2`, translated into all 47 languages as drafts) and the brand "dreambau.com".
