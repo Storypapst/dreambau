@@ -32,8 +32,8 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 | 31.1 to 37.8 s | question and answer twice a bar, the tongue shrinks | the last note of the answer closes in on the right one |
 | 38.9 s (beat 70) | the clay leaves through the open side as a sausage, lies there and then walks to the edge | a fanfare that lands a semitone too high, then nothing, then one dry knock |
 | 40.0 s (bar 18) | the fourth bar comes down and closes the mould; the mould moves aside and makes room | knock |
-| 41.1 s (beat 74) | a brick; **"Jeht nich…"** swells into place | the right answer A F, a bell, a chord |
-| 45.6 s (beat 82) | a second brick, the same; **"jibs nich…"** | the same answer |
+| 41.1 s (beat 74) | a brick; **"Kann alles. Außer konstant."** swells into place | the right answer A F, a bell, a chord |
+| 45.6 s (beat 82) | a second brick, the same; **"Unser Part."** | the same answer |
 | 50.0 s (beat 90) | a third brick, the same; **"dreambau.com"** | the same answer, final chord |
 | 53 s | final composition: mould with a fresh lump, three bricks in a row, the tagline, the keepsakes at the sides | C, A, F ring out |
 | 55.6 s (beat 100) | the sausage wriggles once more | a very quiet echo of the fanfare |
@@ -45,7 +45,7 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 * Bars of the mould: each arrives exactly on a downbeat (beats 32, 40, 48, 72) with a knock.
 * Every lump lands with a plop, every brick is laid down with a knock.
 * The three lines: beats 74, 82, 90, each on the last note of the same answer. Measured reveal: 41.5 s, 46 s, 50.5 s.
-* The lamp follows the bass (`E.x`), at most 14 % brighter. Measured: brightness against bass energy r = 0.78, lag 0 ms.
+* The lamp follows the bass (`E.x`), at most 14 % brighter. Measured: brightness against bass energy r = 0.79, lag 0 ms.
 
 ## Measured (`npm run verify -- formsache16k`, software GL)
 
@@ -53,11 +53,11 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 |---|---|
 | size | 10 992 of 16 384 bytes (67 %), gzip 5 524 |
 | first frame | mean luminance 0.0 % |
-| phases | differences between snapshots 0.05, 0.07, 0.08, 0.05 |
-| flash safety | largest step in 66 ms: 2.0 % luminance |
-| text contrast, final frame | 16:9 13.0 / 13.3 / 14.8; 21:9 13.1 / 13.3 / 14.8; 4:3 13.0 / 13.3 / 14.8; portrait 13.8 / 13.8 / 14.7 |
+| phases | differences between snapshots 0.05, 0.07, 0.08, 0.04 |
+| flash safety | largest step in 66 ms: 1.0 % luminance |
+| text contrast, final frame | 16:9 13.4 / 13.3 / 14.3; 21:9 13.4 / 13.3 / 14.3; 4:3 13.4 / 13.3 / 14.3; portrait 13.5 / 13.4 / 14.2 |
 | bottom band, final frame | 0.6 to 0.8 % luminance |
-| picture cost at 640x360 | mean 108 ms, worst 162 ms |
+| picture cost at 640x360 | mean 74 ms, worst 98 ms |
 | music | peak -0.9 dBFS, RMS -23.2 dBFS, estimated tempo 108 BPM, no clipping, first second above -55 dBFS is second 2 (-40.9), silent from second 58 |
 | real-time behaviour (`e2e.mjs`) | all checks passed |
 | start-page build | `build:apex` and `check:apex` passed with the eight productions |
@@ -78,4 +78,4 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 
 ## Texts
 
-None. The production shows and says nothing besides the three lines of the tagline, which come from the runtime.
+None in the picture. The production shows and says nothing besides the three closing lines, which the runtime draws: its own claim "Kann alles. Außer konstant." / "Unser Part." (keys `claim.formsache16k.1` and `.2`, translated into all 47 languages as drafts) and the brand "dreambau.com".

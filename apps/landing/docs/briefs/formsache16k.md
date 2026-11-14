@@ -224,3 +224,17 @@ fand nicht statt; die Lücke „diese I guess“ aus der ersten Antwort blieb of
 
 Am Ende steht der heutige Schriftzug der Seite. Ein eigener Claim oder eine andere Marke wurde nicht gewünscht, die Laufzeit
 braucht deshalb keinen eigenen Schlusstext für diese Fassung.
+
+## Nachtrag, 2026-11-14: der Claim
+
+Nach dem Merge kam der Claim, den die Fassung zum Schluss zeigen soll (Auszug aus der Nachricht, wörtlich):
+
+```text
+hier ist der claim:
+
+Kann alles. Außer konstant. / Unser Part. / dreambau.com
+```
+
+Damit gilt der Absatz „Am Ende steht der heutige Schriftzug“ oben nicht mehr. Die drei Zeilen sind die drei Ziegel: „Kann alles.
+Außer konstant.“, „Unser Part.“ und „dreambau.com“. Dafür bekam die Laufzeit einen eigenen Schlusstext pro Fassung (Schlüssel
+`claim.formsache16k.1` und `.2` in allen 47 Sprachdateien, Regel C13). Die Übersetzungen der beiden Zeilen sind Entwürfe.

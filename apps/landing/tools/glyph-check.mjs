@@ -7,7 +7,8 @@ import { parseLangFile } from './lib-languages.mjs';
 const rows=JSON.parse(fs.readFileSync(ROOT+'/src/i18n/languages.json','utf8')).languages;
 const runtime=fs.readFileSync(ROOT+'/site/i18n.js','utf8'),de=parseLangFile(fs.readFileSync(ROOT+'/site/i18n/de.js','utf8')).texts;
 const visible=['tag.1','tag.2','cta.words','snd.on_label','skip.label','play.label','lang.title','lang.close','lang.error'];
-const words=rows.map(r=>({code:r.code,text:visible.map(k=>parseLangFile(fs.readFileSync(ROOT+'/site/i18n/'+r.code+'.js','utf8')).texts[k]).join('')})),report={generated:new Date().toISOString(),engines:[]};
+const claims=Object.keys(de).filter(k=>k.startsWith('claim.'));   // a production's own closing lines are drawn like the Tagline
+const words=rows.map(r=>({code:r.code,text:[...visible,...claims].map(k=>parseLangFile(fs.readFileSync(ROOT+'/site/i18n/'+r.code+'.js','utf8')).texts[k]).join('')})),report={generated:new Date().toISOString(),engines:[]};
 for(const name of (process.env.GLYPH_ENGINES||'chromium,firefox,webkit').split(',')){
  const executablePath=process.env['GLYPH_'+name.toUpperCase()+'_EXECUTABLE'];
  const browser=await playwright()[name].launch({headless:true,...(executablePath?{executablePath}:{})});

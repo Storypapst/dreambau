@@ -2,7 +2,7 @@
 
 The approved list contains 47 languages. Frank confirmed on 2026-10-07 that all 47 remain and are offered without a reader gate. The German source remains verbatim; the 46 other files are draft translations. `reviewed` is informational and is false for every non-German language. No reader name, date or private inventory is published.
 
-The current scope is the start page's 16 keys, including all three animation descriptions. Code-view, Referenzen and footer keys join in the PR that supplies their approved German wording. Legal pages remain German. This change does not invent a legal/privacy sentence or claim a native reader's approval.
+The current scope is the start page's 16 keys, including all three animation descriptions. A production can close with its own two lead-in lines instead of the shared tagline: the keys `claim.<id>.1` and `claim.<id>.2` follow the `blind.<id>` keys in every file, the brand stays the third line (C13: one pair per described production, at most 40 and 30 characters, one line each; the glyph check covers them). Today `formsache16k` has them. Code-view, Referenzen and footer keys join in the PR that supplies their approved German wording. Legal pages remain German. This change does not invent a legal/privacy sentence or claim a native reader's approval.
 
 ## Build and checks
 
@@ -25,7 +25,7 @@ npm run verify
 
 `sync:languages -- --table <private-file> --check` checks the sanitized table mirror without writing. The sanitized fixture is `tools/fixtures/languages.md`. Existing owner-approved availability and truthful review markers are preserved during table synchronization. `--pin` hashes the exact public language bytes after changes; publication fails when an offered file differs from its pin. Rebuild before using `dist/apex/`. The published manifest contains all 47 approved rows in table order, with no private metadata.
 
-`check:languages` reports C1–C12 for syntax, Unicode, keys, placeholders, limits, source bindings, font list and script order. `--complete` requires every file. `--release` adds R1–R6, including availability, hashes, generated manifest, all animation descriptions and the published file set. The waived reader gate is not silently reintroduced.
+`check:languages` reports C1–C13 for syntax, Unicode, keys, placeholders, limits, source bindings, font list, script order and the closing lines of productions that have their own claim. `--complete` requires every file. `--release` adds R1–R6, including availability, hashes, generated manifest, all animation descriptions and the published file set. The waived reader gate is not silently reintroduced.
 
 `e2e:lang --quick` covers German, English, Arabic and Japanese at 390×844 and 320×568. A full run checks every available file at all six specified viewport sizes. Each run builds and cleans its own temporary directory so concurrent tests cannot remove one another's files. `--allow-missing` records device font limitations instead of treating them as a translation failure. The ordinary full run uses no such waiver.
 

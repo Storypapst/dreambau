@@ -12,7 +12,10 @@ import { IDS } from '../budget.mjs';
 
 const SPEC = ['tag.1', 'tag.2', 'cta.words', 'snd.aria', 'snd.on_label', 'snd.hint_off', 'snd.hint_on', 'skip.label', 'play.label',
   'lang.aria', 'lang.title', 'lang.close', 'lang.error', 'blind.4k', 'blind.16k', 'blind.64k'];
-const KEYS = SPEC.concat(IDS.filter(id => !SPEC.includes('blind.' + id)).map(id => 'blind.' + id));
+// A production can bring its own two closing lines (claim.<id>.1 and .2, after all the blind.<id> keys; the brand is always the third line).
+const CLAIMS = { formsache16k: ['Kann alles. Außer konstant.', 'Unser Part.'] };
+const KEYS = SPEC.concat(IDS.filter(id => !SPEC.includes('blind.' + id)).map(id => 'blind.' + id),
+  Object.keys(CLAIMS).flatMap(id => ['claim.' + id + '.1', 'claim.' + id + '.2']));
 const LIVE = { 'tag.1': 'Jeht nich…', 'tag.2': 'jibs nich…', 'cta.words': '(nich warten, quatschen)', 'snd.aria': 'Ton', 'snd.on_label': 'Ton an',
   'snd.hint_off': 'Ton aus (M)', 'snd.hint_on': 'Ton an (M)', 'skip.label': 'überspringen', 'play.label': 'Animation abspielen' };   // as the live page has them
 
@@ -40,6 +43,14 @@ test('the 16 keys of 7.3, in that order, then one blind.<id> per added productio
   const body = text.split('\n').slice(1, -2);
   assert.equal(body.length, KEYS.length);
   body.forEach((l, i) => assert.match(l, new RegExp(`^  "${KEYS[i].replace('.', '\\.')}": ".*"${i === body.length - 1 ? '' : ','}$`), l.slice(0, 40)));
+});
+
+test('a production with its own closing lines has them verbatim, one line each, and a description to go with them', () => {
+  for (const [id, [a, b]] of Object.entries(CLAIMS)) {
+    assert.equal(obj['claim.' + id + '.1'], a); assert.equal(obj['claim.' + id + '.2'], b);
+    assert.ok(typeof obj['blind.' + id] === 'string', 'no blind.' + id);
+    assert.ok([...a].length <= 40 && [...b].length <= 30 && !/[|\n]/.test(a + b));
+  }
 });
 
 test('the size is the 1,552 bytes that 7.3 measured for these 16 keys', () => {
