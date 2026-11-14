@@ -45,7 +45,7 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 * Bars of the mould: each arrives exactly on a downbeat (beats 32, 40, 48, 72) with a knock.
 * Every lump lands with a plop, every brick is laid down with a knock.
 * The three lines: beats 74, 82, 90, each on the last note of the same answer. Measured reveal: 41.5 s, 46 s, 50.5 s.
-* The lamp follows the bass (`E.x`), at most 14 % brighter. Measured: brightness against bass energy r = 0.78, lag 0 ms.
+* The lamp follows the bass (`E.x`), at most 14 % brighter. Measured: brightness against bass energy r = 0.79, lag 0 ms.
 
 ## Measured (`npm run verify -- formsache16k`, software GL)
 
@@ -53,11 +53,11 @@ bass, marimba, musical box, brushes, a kazoo for the wrong notes.
 |---|---|
 | size | 10 992 of 16 384 bytes (67 %), gzip 5 524 |
 | first frame | mean luminance 0.0 % |
-| phases | differences between snapshots 0.05, 0.07, 0.08, 0.05 |
-| flash safety | largest step in 66 ms: 2.0 % luminance |
-| text contrast, final frame | 16:9 13.0 / 13.3 / 14.8; 21:9 13.1 / 13.3 / 14.8; 4:3 13.0 / 13.3 / 14.8; portrait 13.8 / 13.8 / 14.7 |
+| phases | differences between snapshots 0.05, 0.07, 0.08, 0.04 |
+| flash safety | largest step in 66 ms: 1.0 % luminance |
+| text contrast, final frame | 16:9 13.4 / 13.3 / 14.3; 21:9 13.4 / 13.3 / 14.3; 4:3 13.4 / 13.3 / 14.3; portrait 13.5 / 13.4 / 14.2 |
 | bottom band, final frame | 0.6 to 0.8 % luminance |
-| picture cost at 640x360 | mean 108 ms, worst 162 ms |
+| picture cost at 640x360 | mean 74 ms, worst 98 ms |
 | music | peak -0.9 dBFS, RMS -23.2 dBFS, estimated tempo 108 BPM, no clipping, first second above -55 dBFS is second 2 (-40.9), silent from second 58 |
 | real-time behaviour (`e2e.mjs`) | all checks passed |
 | start-page build | `build:apex` and `check:apex` passed with the eight productions |

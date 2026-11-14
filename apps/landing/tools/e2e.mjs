@@ -9,7 +9,14 @@
 //   no request leaves the page
 //
 //   node tools/e2e.mjs <id|all|clock|random> [--dev]      (clock: runtime clock checks with the light test production; random: choice)
-import { launch, pageUrl, parseArgs, playwright } from './lib.mjs';
+import fs from 'node:fs';
+import { launch, pageUrl, parseArgs, playwright, SITE } from './lib.mjs';
+import { parseLangFile } from './lib-languages.mjs';
+
+// The two lead-in lines a production closes with: its own claim (claim.<id>.1 and .2) or the shared tagline; the brand follows.
+const DE = parseLangFile(fs.readFileSync(SITE + '/i18n/de.js', 'utf8')).texts;
+const esc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const closing = id => new RegExp((DE['claim.' + id + '.1'] ? [DE['claim.' + id + '.1'], DE['claim.' + id + '.2']] : [DE['tag.1'], DE['tag.2']]).map(esc).join('.*') + '.*dreambau\\.com');
 import { IDS } from './budget.mjs';
 
 const a = parseArgs(process.argv.slice(2));
@@ -68,7 +75,7 @@ for (const id of ids) {
       mail: document.querySelector('#cta a')?.getAttribute('href'),
       lang: document.documentElement.lang,
     }));
-    check('accessible: tagline as heading, sound switch (role, state), skip button, mailto link, lang=de', /Jeht nich….*jibs nich….*dreambau\.com/.test(a11y.h1) && a11y.snd === 'Ton' && a11y.role === 'switch' && a11y.checked === 'true' && /überspringen/.test(a11y.skip) && a11y.mail === 'mailto:info@dreambau.com' && a11y.lang === 'de', JSON.stringify(a11y));
+    check('accessible: tagline as heading, sound switch (role, state), skip button, mailto link, lang=de', closing(id).test(a11y.h1) && a11y.snd === 'Ton' && a11y.role === 'switch' && a11y.checked === 'true' && /überspringen/.test(a11y.skip) && a11y.mail === 'mailto:info@dreambau.com' && a11y.lang === 'de', JSON.stringify(a11y));
     check('no console errors', !logs.some(l => /^\[(error|pageerror)\]/.test(l)), logs.filter(l => /^\[(error|pageerror)\]/.test(l)).join(' | '));
     const offsite = reqs.filter(u => !ownRequest(u));
     check('no network request leaves the page', offsite.length === 0, offsite.join(', '));
