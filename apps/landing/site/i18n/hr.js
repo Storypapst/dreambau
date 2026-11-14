@@ -21,6 +21,6 @@ Dream.lang("hr", {
   "blind.signal60k": "Mnogo drhtavih plavih tragova signala teče isprepleteno dok ih tri kontrolne postaje ne spoje u jednu jasnu tirkiznu liniju; narančasti luk vodi nesigurne slučajeve oko njih. Kratki elektronički tonovi pronalaze zajednički puls. Na kraju se pojavljuju tri retka: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Svjetlo lampe pada odozgo na taman drveni stol. Gruda svijetlog plastelina uvijek iznova dobiva isto pitanje, tri prstena svjetla i tri tona, i svaki put odgovara drugim oblikom: zvijezda, kolut, puž, jaje na oko. Drvene letvice sklapaju se u kalup za cigle, plastelin još jednom izmakne kao kobasica, a onda izlaze tri jednake cigle. Sviraju kontrabas pizzicato, marimba i glazbena kutija. Na kraju se pojavljuju tri retka: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "U tami lebde svjetiljke, udvostručene i razložene u dugine boje, kao da ih gledamo kroz staklenu prizmu. Zatim se upali reflektor, u ritmu se izliju tri betonske grede, a kamera se odmiče sve dok se grede iz jednog jedinog kuta ne zatvore u nemogući trokut; njihova sjena i dalje pokazuje tri odvojene grede. Zvukovi stakla i drva sviraju istu melodiju malo pomaknuto i u tom se trenutku stope. Na kraju se pojavljuju tri retka: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Zna sve. Samo ne dosljedno.",
+  "claim.formsache16k.1": "Može sve. Samo ne dosljedno.",
   "claim.formsache16k.2": "Naš dio posla."
 });

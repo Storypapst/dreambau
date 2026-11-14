@@ -22,7 +22,7 @@
       "group": "EU",
       "offered": true,
       "reviewed": false,
-      "sha256": "58d48a6f80a25313ad96086c0d05bc10ca5361222631187eb19b39aa89abd5de"
+      "sha256": "17c27a4af7727c96d0035658b7c0ff9a95b054d6b216935811ca0a2ebd7a2c1c"
     },
     {
       "code": "cs",
@@ -429,7 +429,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "878fac98529896687ee3ef7ec5b6fc1120e8c4ed9f27d4f7c0ae2f91f0a5a912"
+      "sha256": "cbad38c88994ca324aa30fb413deeb4ad70837b865e22d428d63ec3a4b1c026b"
     },
     {
       "code": "hi",
@@ -484,7 +484,7 @@
       "group": "World",
       "offered": true,
       "reviewed": false,
-      "sha256": "47420a7fcaadbe041c3dfa7c5d2bd30738594da9957b39a10604388a8b42522e"
+      "sha256": "ec1fd08eac36e02ae5a8d7f921da847fd964c4c988b1d2d1838298e87be23f1f"
     },
     {
       "code": "pa-Arab",

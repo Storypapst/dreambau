@@ -14,3 +14,9 @@ for(const [name,change,rule]of [
  ['changed hash',s=>s.replace('"tag.1": "','"tag.1": "X'),'R2'],
  ['placeholder loss',s=>s.replace('{brand}','brand'),'C5']
 ])test('rejects '+name,()=>{const dir=scratch();try{const p=path.join(dir,'site/i18n/en.js');fs.writeFileSync(p,change(fs.readFileSync(p,'utf8')));assert.ok(checkLanguages(dir,{release:true}).problems.some(p=>p.startsWith('FAIL '+rule+' ')));}finally{fs.rmSync(dir,{recursive:true,force:true});}});
+test('rejects a claim whose keys are not exactly .1 and .2 (C13), even when every file has the same keys',()=>{
+ const dir=scratch();try{
+  for(const f of fs.readdirSync(path.join(dir,'site/i18n')).filter(f=>f.endsWith('.js')&&f!=='index.js')){const p=path.join(dir,'site/i18n',f);fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace('"claim.formsache16k.2"','"claim.formsache16k.3"'));}
+  assert.ok(checkLanguages(dir,{release:true}).problems.some(p=>p.startsWith('FAIL C13 ')));
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});

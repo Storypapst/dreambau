@@ -4,7 +4,7 @@ Vorlage für jeden Lauf mit einem Modell (Fable, Opus, Codex, Kio …). Vor dem 
 
 - **Thema:** `<THEMA, z. B. „Jagged Intelligence: KI hat Kanten, wir bauen Brücken“>`
 - **Größenklasse:** `<4k | 16k | 64k>` (Obergrenze 4.096 / 16.384 / 65.536 Byte für `site/p/<id>.js`)
-- **id:** `<1–34 Kleinbuchstaben a–z oder Ziffern, z. B. kante4k>`. Nicht erlaubt: eine id, die es schon gibt, und die
+- **id:** `<1–34 Kleinbuchstaben a–z oder Ziffern, z. B. kante4k>` (höchstens 32, wenn die Fassung einen eigenen Claim bekommt: `claim.<id>.1` darf 40 Zeichen nicht überschreiten). Nicht erlaubt: eine id, die es schon gibt, und die
   Wörter `all`, `clock`, `random`, `test`, denn die Prüfwerkzeuge verstehen sie als Modus und prüfen dann nicht deine
   Fassung. Großbuchstaben oder längere ids scheitern an der Sprachprüfung (`blind.<id>` darf höchstens 40 Zeichen haben).
 
