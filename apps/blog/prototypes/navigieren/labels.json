@@ -33,7 +33,19 @@
     "water": "Wässern",
     "waterNote": "Prototyp: zählt nur, bis die Seite neu lädt.",
     "treeHint": "Ein Aspekt antippen: Aussage und Video-Ausschnitt.",
-    "tree": "Baum"
+    "tree": "Baum",
+    "helpTitle": "So bewegst du dich",
+    "helpWalk": "Pfeiltasten: laufen",
+    "helpSpace": "Leertaste: springen, am Beitrag: lesen",
+    "helpPoint": "Zeigen: Kurztext eines Beitrags",
+    "helpClick": "Klicken: hingehen und öffnen",
+    "helpDrag": "Ziehen: die Karte verschieben",
+    "helpTap": "Tippen auf einen Beitrag: hingehen und öffnen",
+    "helpHold": "Finger halten und ziehen: die Figur läuft mit",
+    "helpButtons": "„Springen“ und „Lesen“ stehen unten auf der Karte",
+    "helpMore": "Unter der Karte stehen alle Beiträge als Liste.",
+    "helpGo": "Los geht’s",
+    "helpOpen": "Hilfe: so bewegst du dich"
   },
   "en": {
     "home": "Home",
@@ -69,7 +81,19 @@
     "water": "Water",
     "waterNote": "Prototype: counts only until the page reloads.",
     "treeHint": "Tap an aspect: statement and video clip.",
-    "tree": "Tree"
+    "tree": "Tree",
+    "helpTitle": "How to get around",
+    "helpWalk": "Arrow keys: run",
+    "helpSpace": "Space: jump, at a post: read",
+    "helpPoint": "Point: a post’s short text",
+    "helpClick": "Click: walk there and open it",
+    "helpDrag": "Drag: move the map",
+    "helpTap": "Tap a post: walk there and open it",
+    "helpHold": "Hold and drag a finger: the figure follows",
+    "helpButtons": "“Jump” and “Read” are at the bottom of the map",
+    "helpMore": "Below the map, all posts stand as a list.",
+    "helpGo": "Let’s go",
+    "helpOpen": "Help: how to get around"
   },
   "fi": {
     "home": "Etusivu",
@@ -105,7 +129,19 @@
     "water": "Kastele",
     "waterNote": "Prototyyppi: laskee vain sivun uudelleenlataukseen asti.",
     "treeHint": "Napauta näkökulmaa: väite ja videokatkelma.",
-    "tree": "Puu"
+    "tree": "Puu",
+    "helpTitle": "Näin liikut",
+    "helpWalk": "Nuolinäppäimet: juokse",
+    "helpSpace": "Välilyönti: hyppää, tekstin luona: lue",
+    "helpPoint": "Osoita: tekstin lyhyt kuvaus",
+    "helpClick": "Napsauta: kävele sinne ja avaa",
+    "helpDrag": "Vedä: siirrä karttaa",
+    "helpTap": "Napauta tekstiä: kävele sinne ja avaa",
+    "helpHold": "Pidä ja vedä sormella: hahmo seuraa",
+    "helpButtons": "”Hyppää” ja ”Lue” ovat kartan alareunassa",
+    "helpMore": "Kartan alla kaikki tekstit ovat listana.",
+    "helpGo": "Aloitetaan",
+    "helpOpen": "Ohje: näin liikut"
   },
   "ar": {
     "home": "الصفحة الرئيسية",
@@ -141,6 +177,18 @@
     "water": "اسقِ",
     "waterNote": "نموذج أوّلي: يُحتسب فقط حتى إعادة تحميل الصفحة.",
     "treeHint": "انقر على جانب: العبارة ومقطع الفيديو.",
-    "tree": "شجرة"
+    "tree": "شجرة",
+    "helpTitle": "هكذا تتحرّك",
+    "helpWalk": "مفاتيح الأسهم: الركض",
+    "helpSpace": "المسافة: القفز، وعند المقال: القراءة",
+    "helpPoint": "الإشارة: النص القصير للمقال",
+    "helpClick": "النقر: الذهاب إليه وفتحه",
+    "helpDrag": "السحب: تحريك الخريطة",
+    "helpTap": "النقر على مقال: الذهاب إليه وفتحه",
+    "helpHold": "اضغط بإصبعك واسحب: الشخصية تتبعك",
+    "helpButtons": "«اقفز» و«اقرأ» في أسفل الخريطة",
+    "helpMore": "تحت الخريطة تجد كل المقالات في قائمة.",
+    "helpGo": "لنبدأ",
+    "helpOpen": "مساعدة: هكذا تتحرّك"
   }
 }
