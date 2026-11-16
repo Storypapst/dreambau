@@ -11,4 +11,4 @@ In seiner Tanner Lecture 2026 in Oxford geht Yuval Noah Harari von einer Beobach
 
 KI nennt er eine geborene Bürokratin. Sie kann sich alle Gesetze, Buchungen und Schriften besser merken als jeder Mensch und ist damit in der Lage, Abläufe wie Kreditvergabe, Zulassungen an Universitäten, Strafmaße oder militärische Angriffe zu übernehmen. Seine Frage an das Publikum: Sind wir darauf vorbereitet?
 
-Wir bauen selbst Software mit KI. Der Vortrag ist kein Werkzeugtipp, aber er hilft beim Nachdenken darüber, welche Entscheidungen man einer Maschine überhaupt überlassen will.
+Der Vortrag ist kein Werkzeugtipp, aber er hilft beim Nachdenken darüber, welche Entscheidungen man einer Maschine überhaupt überlassen will.

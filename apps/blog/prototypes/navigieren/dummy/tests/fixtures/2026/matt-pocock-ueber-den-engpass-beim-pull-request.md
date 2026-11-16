@@ -11,4 +11,4 @@ Agenten machen es leicht, einen Pull Request zu öffnen, aber kaum leichter, ein
 
 Er zeigt Tests, die grün sind und trotzdem wenig beweisen, etwa weil sie nur eine Konstante noch einmal abfragen. Seine Vorschläge: tiefe Module mit kleiner Schnittstelle, Programmierregeln in einem eigenen Review-Durchgang statt beim Agenten, der den Code schreibt, und im Pull Request eine Einschätzung, ob sich die Änderung zurücknehmen lässt.
 
-Für ein kleines Team, das viel mit Agenten baut, ist das ein sehr praktischer Vortrag. Vor allem die Idee, aus wiederkehrenden Review-Befunden in einer Retrospektive neue Prüfungen zu machen, wollen wir ausprobieren.
+Für kleine Teams, die viel mit Agenten bauen, ist das ein sehr praktischer Vortrag. Vor allem die Idee, aus wiederkehrenden Review-Befunden in einer Retrospektive neue Prüfungen zu machen, lässt sich direkt ausprobieren.

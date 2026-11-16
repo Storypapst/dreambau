@@ -11,4 +11,4 @@ In einem Vortrag auf der MicroConf zählt Rob Walling zehn Richtungen auf, aus d
 
 Danach trennt er klassische Burggräben, die schwächer werden, von acht, die nach seiner Einschätzung weiter tragen. Er belegt das mit Beispielen von QuickBooks, Gusto, Stripe und Slack sowie von kleineren, selbst finanzierten SaaS-Firmen.
 
-Für ein Studio, das Software für andere baut, ist der Vortrag eine nützliche Gegenprobe. Wenn sich Funktionen schnell nachbauen lassen, muss man genauer sagen können, was ein Produkt über den Code hinaus schützt.
+Für Firmen, die Software für andere bauen, ist der Vortrag eine nützliche Gegenprobe. Wenn sich Funktionen schnell nachbauen lassen, muss man genauer sagen können, was ein Produkt über den Code hinaus schützt.

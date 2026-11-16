@@ -11,4 +11,4 @@ Tristen O'Brien hat sich eine Spielwelt gebaut, in der seine KI-Agenten wohnen u
 
 Im Video baut er das Dorf in sieben Schritten neu auf, ohne Code und ohne API-Schlüssel. Claude dient als Gehirn, Higgsfield erzeugt Bilder und Animationen. Laut Beschreibung dauerte das dreieinhalb Stunden und kostete etwa 47 Dollar. Das Video ist von Higgsfield gesponsert.
 
-Uns interessiert weniger die Spielgrafik als der letzte Schritt: Jeder neue Agent braucht seine Zustimmung, E-Mails bleiben Entwürfe, und ohne sein Ja wird nichts ausgegeben oder veröffentlicht.
+Spannender als die Spielgrafik ist der letzte Schritt: Jeder neue Agent braucht seine Zustimmung, E-Mails bleiben Entwürfe, und ohne sein Ja wird nichts ausgegeben oder veröffentlicht.

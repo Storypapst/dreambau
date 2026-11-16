@@ -11,4 +11,4 @@ Ein RAG-Agent trifft viele kleine Entscheidungen, bevor er eine Antwort gibt. We
 
 Jev übernimmt dort drei Aufgaben: Es wählt das passende Modell für eine Frage, sortiert gefundene Textstellen nach einer steuerbaren Vorgabe neu und prüft Quellenangaben. Man sieht die Funktionen in der App und kann die echten Aufrufe in Langfuse mitverfolgen.
 
-Für uns ist das Video vor allem ein Anlass, die eigenen Abläufe durchzusehen: Wo fragen wir ein großes Modell nach etwas, das ein kleines Modell schneller beantworten könnte?
+Das Video ist vor allem ein Anlass, die eigenen Abläufe durchzusehen: Wo wird ein großes Modell nach etwas gefragt, das ein kleines Modell schneller beantworten könnte?

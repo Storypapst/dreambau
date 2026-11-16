@@ -796,6 +796,8 @@
   on(veil, 'click', closePost);
   on(D, 'keydown', (event) => {
     root.classList.add('kb');
+    /* Esc closes the topmost window: an open post or tree first, else the help, wherever the focus is */
+    if (!opened && event.key === 'Escape' && !help.hidden) { event.preventDefault(); hideHelp(D.activeElement === helpGo); return; }
     if (!opened) return;
     if (event.key === 'Escape') { event.preventDefault(); closePost(); return; }
     if (event.key !== 'Tab') return;

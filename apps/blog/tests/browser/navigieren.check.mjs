@@ -90,6 +90,8 @@ await run(async () => {
   });
 
   await withScratch('navigieren', async (dir) => {
+    const dummy = buildMap({ outDir: path.join(dir, 'dummy') });
+    same('KARTE-14 by default the map builds the six dummy posts about the chosen videos', dummy.posts, 6);
     buildMap({ outDir: dir, postsDir: FIXTURES, topicsFile: path.join(ROOT, 'prototypes', 'navigieren', 'themen.json') });
     await withBrowser(async (browser) => {
       // ---- KARTE-1: without JavaScript ----
@@ -122,6 +124,10 @@ await run(async () => {
         check('KARTE-14 "?" brings the help back', await page.locator('#help').isVisible() && await page.locator('#help-open').getAttribute('aria-expanded') === 'true');
         await page.keyboard.press('Escape');
         check('KARTE-14 Esc closes the help', await page.locator('#help').isHidden() && await page.locator('#help-open').getAttribute('aria-expanded') === 'false');
+        await page.locator('#help-open').click();
+        await page.locator('a.home').focus();
+        await page.keyboard.press('Escape');
+        check('KARTE-14 Esc closes the help also when the focus is outside the map', await page.locator('#help').isHidden());
         await page.mouse.move(box.x + mark.x, box.y + mark.y);
         await page.locator('#tip').waitFor({ state: 'visible' });
         const demo = DEMO.find((post) => post.n === mark.no);
