@@ -3,7 +3,7 @@
 // spec stays as it is). The posts go through the same rules as in the real build, so the map can show nothing that the
 // list could not.
 //
-//   node prototypes/navigieren/build.mjs [--posts <dir>] [--out <dir>]
+//   node prototypes/navigieren/build.mjs [--posts <dir>] [--topics <file>] [--out <dir>]
 //
 // The page is readable without JavaScript: every post stands in the HTML with its short and its full text. karte.js
 // only adds the map and moves the full text into a sheet.
@@ -210,7 +210,12 @@ ${T.trees.map((item) => tree(M, T, item)).join('\n')}
 `;
 }
 
-export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDir = path.join(APP, 'dist-proto', 'navigieren'), topicsFile = path.join(HERE, 'themen.json') } = {}) {
+// What the map shows by default: six dummy posts about real videos and their trees (dummy/, "example": true, under a
+// folder tests/fixtures so the build accepts them). The checks pass the invented examples of tests/fixtures/ and
+// themen.json themselves, so they do not depend on the videos.
+export const DUMMY_POSTS = path.join(HERE, 'dummy', 'tests', 'fixtures');
+export const DUMMY_TOPICS = path.join(HERE, 'dummy', 'themen.json');
+export function buildMap({ postsDir = DUMMY_POSTS, outDir = path.join(APP, 'dist-proto', 'navigieren'), topicsFile = DUMMY_TOPICS } = {}) {
   const posts = readPosts(postsDir);
   const L = loadLabels();
   const all = JSON.parse(fs.readFileSync(path.join(HERE, 'labels.json'), 'utf8'));
@@ -231,6 +236,6 @@ export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDi
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   const option = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-  const result = buildMap({ postsDir: option('--posts'), outDir: option('--out') });
+  const result = buildMap({ postsDir: option('--posts'), outDir: option('--out'), topicsFile: option('--topics') });
   console.log(`${result.posts} posts -> ${path.relative(process.cwd(), result.outDir)}/index.html`);
 }

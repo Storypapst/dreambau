@@ -19,10 +19,16 @@ await run(async () => {
   ]), ['bad.md: host other.org', `bad.md: address someone@${'other'}.org`, 'near.md: host dreambau.com.other.org', 'near.md: host notdreambau.com', 'near.md: host www.dreambau.com']);
 
   // ---- the real folder ----
-  const files = filesBelow(ROOT, { skipFolders: ['node_modules', 'dist', 'dist-demo'] });
+  const files = filesBelow(ROOT, { skipFolders: ['node_modules', 'dist', 'dist-demo', 'dist-proto'] });
   check('hygiene the scan covered the folder (more than ten files)', files.length > 10, `${files.length} files`);
   const lock = files.find((file) => file.name === 'package-lock.json');
-  same('hygiene no host and no address but dreambau.com, info@dreambau.com, *.example.test and the local test addresses (the lock file aside)', foreignNames(files.filter((file) => file.name !== 'package-lock.json')), []);
+  // One exception, asked for by the owner: the map's dummy posts are about six real videos that he chose, so the files of
+  // prototypes/navigieren/dummy/ may name www.youtube.com, and nothing else besides the allowed names.
+  const DUMMY = 'prototypes/navigieren/dummy/';
+  const dummyVideo = (finding) => finding.startsWith(DUMMY) && finding.endsWith(': host www.youtube.com');
+  const found = foreignNames(files.filter((file) => file.name !== 'package-lock.json'));
+  same('hygiene no host and no address but dreambau.com, info@dreambau.com, *.example.test and the local test addresses (the lock file aside; the videos of the map\'s dummy posts aside)', found.filter((finding) => !dummyVideo(finding)), []);
+  check('hygiene the dummy posts of the map name www.youtube.com and no other foreign host', found.some(dummyVideo) && found.filter((finding) => finding.startsWith(DUMMY)).every(dummyVideo), JSON.stringify(found.filter((finding) => finding.startsWith(DUMMY)).slice(0, 3)));
   same('hygiene the lock file names the npm registry and no other host', [...new Set(hostsOf(lock.text))], ['registry.npmjs.org']);
 
   // ---- the fixture ----

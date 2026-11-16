@@ -90,7 +90,7 @@ await run(async () => {
   });
 
   await withScratch('navigieren', async (dir) => {
-    buildMap({ outDir: dir });
+    buildMap({ outDir: dir, postsDir: FIXTURES, topicsFile: path.join(ROOT, 'prototypes', 'navigieren', 'themen.json') });
     await withBrowser(async (browser) => {
       // ---- KARTE-1: without JavaScript ----
       {
