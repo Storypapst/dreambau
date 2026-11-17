@@ -21,6 +21,17 @@ Dream.lang("da", {
   "blind.signal60k": "Mange dirrende blå signalspor løber i et virvar, indtil tre kontrolstationer samler dem i én klar turkis linje; en orange bue leder usikre tilfælde uden om dem. Korte elektroniske toner finder en fælles puls. Til sidst vises tre linjer: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Lampelys falder oppefra på et mørkt træbord. En klump lyst modellervoks får det samme spørgsmål igen og igen, tre ringe af lys og tre toner, og svarer hver gang med en ny form: en stjerne, en ring, en snegl, et spejlæg. Trælister skubbes sammen til en murstensform, voksen smutter endnu en gang ud som en pølse, og så kommer der tre ens mursten ud. Dertil spiller knipset kontrabas, marimba og spilledåse. Til sidst vises tre linjer: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "I mørket svæver lamper, fordoblet og brudt i regnbuens farver, som set gennem et glasprisme. Så tændes en projektør, tre betonbjælker støbes i takt, og kameraet kører baglæns, indtil bjælkerne fra én eneste vinkel slutter sig til en umulig trekant; deres skygge viser stadig tre adskilte bjælker. Lyde af glas og træ spiller den samme melodi let forskudt og falder sammen i netop det øjeblik. Til sidst vises tre linjer: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Kan alt. Bare ikke konsekvent.",
-  "claim.formsache16k.2": "Vores del."
+  "claim.formsache16k.1": "AI kan alt. Bortset fra stabilt.",
+  "claim.formsache16k.2": "Præcis vores job.",
+  "claim.blickwinkel64k.1": "Umuligt?",
+  "claim.blickwinkel64k.2": "Det afhænger af vinklen.",
+  "menu.title": "Menu",
+  "menu.home": "Forside",
+  "menu.references": "Referencer",
+  "menu.glossary": "Ordliste",
+  "menu.contact": "Kontakt",
+  "menu.pending": "Blog · emner følger",
+  "menu.imprint": "Kolofon",
+  "menu.privacy": "Privatliv",
+  "menu.grip": "Træk menuen ned eller luk den"
 });

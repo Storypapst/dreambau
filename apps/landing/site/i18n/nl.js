@@ -21,6 +21,17 @@ Dream.lang("nl", {
   "blind.signal60k": "Veel trillende blauwe signaalsporen lopen door elkaar tot drie controleposten ze bundelen tot één heldere turquoise lijn; een oranje boog leidt onzekere gevallen eromheen. Korte elektronische tonen vinden een gezamenlijke puls. Aan het einde verschijnen drie regels: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Lamplicht valt van boven op een donkere houten tafel. Een klomp lichte klei krijgt steeds opnieuw dezelfde vraag, drie ringen van licht en drie tonen, en antwoordt elke keer met een andere vorm: een ster, een ring, een slak, een spiegelei. Houten latten schuiven samen tot een steenvorm, de klei glipt nog één keer weg als een worst, en dan komen er drie dezelfde bakstenen uit. Daarbij spelen een getokkelde contrabas, een marimba en een speeldoos. Aan het einde verschijnen drie regels: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "In het donker zweven lampen, verdubbeld en in regenboogkleuren gebroken, alsof je ze door een glazen prisma ziet. Dan gaat een schijnwerper aan, worden op de maat drie betonnen balken gestort en rijdt de camera terug tot de balken zich vanuit één enkele hoek sluiten tot een onmogelijke driehoek; hun schaduw toont nog steeds drie losse balken. Klanken van glas en hout spelen dezelfde melodie licht verschoven en vallen op dat moment samen. Aan het einde verschijnen drie regels: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Kan alles. Behalve consistent.",
-  "claim.formsache16k.2": "Ons deel."
+  "claim.formsache16k.1": "AI kan alles. Behalve constant.",
+  "claim.formsache16k.2": "Precies ons werk.",
+  "claim.blickwinkel64k.1": "Onmogelijk?",
+  "claim.blickwinkel64k.2": "Hangt af van de blikhoek.",
+  "menu.title": "Menu",
+  "menu.home": "Home",
+  "menu.references": "Referenties",
+  "menu.glossary": "Woordenlijst",
+  "menu.contact": "Contact",
+  "menu.pending": "Blog · onderwerpen volgen",
+  "menu.imprint": "Colofon",
+  "menu.privacy": "Privacy",
+  "menu.grip": "Menu omlaag slepen of sluiten"
 });

@@ -247,3 +247,8 @@ Name „Blickwinkel“, id `blickwinkel64k`. Ein Wort von dir ändert das. Ich b
   noch keinen eigenen Schlusstext pro Fassung. Die Fassung endet deshalb mit dem heutigen Schriftzug „Jeht nich…“,
   „jibs nich…“, „dreambau.com“; der Pull Request beschreibt die nötige Änderung. Kein eigener Text ist ins Bild
   gezeichnet.
+
+## Nachtrag 2026-11-17: Schluss-Claim
+
+Der Auftraggeber hat den Claim für diese Fassung nachträglich festgelegt: „Unmöglich?“ / „Kommt auf den Blickwinkel an.“ / „dreambau.com“. Die Übersetzungen in die anderen
+Sprachen sind Entwürfe (`claim.blickwinkel64k.1` und `.2` in `site/i18n/`).

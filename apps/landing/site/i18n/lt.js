@@ -21,6 +21,17 @@ Dream.lang("lt", {
   "blind.signal60k": "Daug virpančių mėlynų signalo pėdsakų bėga susipynę, kol trys patikros stotys suriša juos į vieną aiškią turkio liniją; oranžinis lankas nuveda neaiškius atvejus aplink jas. Trumpi elektroniniai tonai randa bendrą pulsą. Galiausiai pasirodo trys eilutės: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Lempos šviesa krinta iš viršaus ant tamsaus medinio stalo. Šviesaus plastilino gumulas vis iš naujo gauna tą patį klausimą, tris šviesos žiedus ir tris garsus, ir kaskart atsako kita forma: žvaigždė, žiedas, sraigė, kepta kiaušinienė. Medinės lentjuostės susistumia į plytų formą, plastilinas dar kartą išsprūsta kaip dešrelė, o tada išeina trys vienodos plytos. Skamba pirštais gnaibomas kontrabosas, marimba ir muzikinė dėžutė. Galiausiai pasirodo trys eilutės: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "Tamsoje plūduriuoja lempos, padvigubėjusios ir išskaidytos vaivorykštės spalvomis, tarsi matomos pro stiklinę prizmę. Tada užsidega prožektorius, ritmu išliejamos trys betoninės sijos, o kamera traukiasi tol, kol iš vienintelio kampo sijos susijungia į neįmanomą trikampį; jų šešėlis vis dar rodo tris atskiras sijas. Stiklo ir medžio garsai groja tą pačią melodiją šiek tiek pasislinkę ir tą akimirką susilieja. Galiausiai pasirodo trys eilutės: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Gali viską. Tik ne nuosekliai.",
-  "claim.formsache16k.2": "Mūsų dalis."
+  "claim.formsache16k.1": "DI gali viską. Išskyrus pastovumą.",
+  "claim.formsache16k.2": "Būtent mūsų darbas.",
+  "claim.blickwinkel64k.1": "Neįmanoma?",
+  "claim.blickwinkel64k.2": "Priklauso nuo žiūrėjimo kampo.",
+  "menu.title": "Meniu",
+  "menu.home": "Pradžia",
+  "menu.references": "Rekomendacijos",
+  "menu.glossary": "Žodynėlis",
+  "menu.contact": "Kontaktai",
+  "menu.pending": "Tinklaraštis · temos netrukus",
+  "menu.imprint": "Teisinė informacija",
+  "menu.privacy": "Privatumas",
+  "menu.grip": "Patraukite meniu žemyn arba uždarykite"
 });

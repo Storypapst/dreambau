@@ -21,6 +21,17 @@ Dream.lang("sv", {
   "blind.signal60k": "Många darrande blå signalspår springer huller om buller tills tre kontrollstationer samlar dem i en klar turkos linje; en orange båge leder osäkra fall runt dem. Korta elektroniska toner hittar en gemensam puls. Till sist syns tre rader: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Lampljus faller uppifrån på ett mörkt träbord. En klump ljus modellera får samma fråga om och om igen, tre ringar av ljus och tre toner, och svarar varje gång med en ny form: en stjärna, en ring, en snigel, ett stekt ägg. Trälister skjuts ihop till en tegelform, leran slinker ut en gång till som en korv, och sedan kommer tre likadana tegelstenar ut. Till det spelar knäppt kontrabas, marimba och speldosa. Till sist syns tre rader: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "I mörkret svävar lampor, dubblerade och brutna i regnbågens färger, som sedda genom ett glasprisma. Sedan tänds en strålkastare, tre betongbalkar gjuts i takt och kameran åker bakåt tills balkarna från en enda vinkel sluter sig till en omöjlig triangel; deras skugga visar fortfarande tre separata balkar. Klanger av glas och trä spelar samma melodi lätt förskjuten och sammanfaller i just det ögonblicket. Till sist syns tre rader: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Kan allt. Utom konsekvent.",
-  "claim.formsache16k.2": "Vår del."
+  "claim.formsache16k.1": "AI kan allt. Utom att vara jämn.",
+  "claim.formsache16k.2": "Precis vårt jobb.",
+  "claim.blickwinkel64k.1": "Omöjligt?",
+  "claim.blickwinkel64k.2": "Beror på vinkeln.",
+  "menu.title": "Meny",
+  "menu.home": "Startsida",
+  "menu.references": "Referenser",
+  "menu.glossary": "Ordlista",
+  "menu.contact": "Kontakt",
+  "menu.pending": "Blogg · ämnen kommer",
+  "menu.imprint": "Juridisk information",
+  "menu.privacy": "Integritet",
+  "menu.grip": "Dra ner menyn eller stäng den"
 });

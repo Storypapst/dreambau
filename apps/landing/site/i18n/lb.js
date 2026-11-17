@@ -21,6 +21,17 @@ Dream.lang("lb", {
   "blind.signal60k": "Vill zidderend blo Signalspuren lafen duerchernee, bis dräi Préifstatiounen se zu enger klorer türkisser Linn bündelen; en orange Bou féiert onsécher Fäll ronderëm. Kuerz elektronesch Téin fanne bei e gemeinsame Puls. Zum Schluss erschéngen dräi Zeilen: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Vun uewe fält d'Luucht vun enger Lampe op en däischteren Holzdësch. E Klompen hell Knietmass kritt ëmmer erëm déiselwecht Fro, dräi Réng aus Luucht an dräi Téin, an äntwert all Kéier mat enger anerer Form: Stär, Rank, Schleek, Spigelee. Holzleeschte réckelen zu enger Zillenform zesummen, d'Knietmass entwëscht nach eng Kéier als Wurscht, da kommen dräi gläich Zillen eraus. Dozou spille gezupfte Kontrabass, Marimba a Spilldous. Zum Schluss erschéngen dräi Zeilen: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "Am Däischteren schwiewen Luuchten, duebel an a Reebouferwe gebrach, wéi duerch e Glasprisma gesinn. Dann geet e Scheinwerfer un, am Takt ginn dräi Balke vu Beton gegoss, an d’Kamera fiert zréck, bis d’Balken sech vun engem eenzege Bléckwénkel aus zu engem onméigleche Dräieck zoumaachen; hire Schiet weist ëmmer nach dräi getrennte Balken. Klänk vu Glas an Holz spillen déi selwecht Melodie liicht versat a falen an deem Moment zesummen. Zum Schluss erschéngen dräi Zeilen: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Kann alles. Just net konstant.",
-  "claim.formsache16k.2": "Eise Part."
+  "claim.formsache16k.1": "KI ka alles. Ausser konstant.",
+  "claim.formsache16k.2": "Genau eis Job.",
+  "claim.blickwinkel64k.1": "Onméiglech?",
+  "claim.blickwinkel64k.2": "Kënnt op de Bléckwénkel un.",
+  "menu.title": "Menü",
+  "menu.home": "Startsäit",
+  "menu.references": "Referenzen",
+  "menu.glossary": "Glossar",
+  "menu.contact": "Kontakt",
+  "menu.pending": "Blog · Themen kommen",
+  "menu.imprint": "Impressum",
+  "menu.privacy": "Dateschutz",
+  "menu.grip": "Menü erofzéien oder zoumaachen"
 });

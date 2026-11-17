@@ -21,6 +21,17 @@ Dream.lang("sr-Latn", {
   "blind.signal60k": "Mnogo drhtavih plavih tragova signala teče isprepleteno dok ih tri kontrolne stanice ne spoje u jednu jasnu tirkiznu liniju; narandžasti luk vodi nesigurne slučajeve oko njih. Kratki elektronski tonovi pronalaze zajednički puls. Na kraju se pojavljuju tri reda: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Svetlo lampe pada odozgo na taman drveni sto. Grumen svetlog plastelina uvek iznova dobija isto pitanje, tri prstena svetla i tri tona, i svaki put odgovara drugim oblikom: zvezda, kolut, puž, jaje na oko. Drvene letvice se sklapaju u kalup za cigle, plastelin još jednom izmakne kao kobasica, a onda izlaze tri jednake cigle. Sviraju kontrabas picikato, marimba i muzička kutija. Na kraju se pojavljuju tri reda: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "U mraku lebde lampe, udvostručene i razložene u dugine boje, kao da ih gledamo kroz staklenu prizmu. Zatim se upali reflektor, u ritmu se izliju tri betonske grede, a kamera se udaljava sve dok se grede iz jednog jedinog ugla ne zatvore u nemoguć trougao; njihova senka i dalje pokazuje tri odvojene grede. Zvuci stakla i drveta sviraju istu melodiju malo pomereno i u tom trenutku se stapaju. Na kraju se pojavljuju tri reda: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Može sve. Samo ne dosledno.",
-  "claim.formsache16k.2": "Naš deo."
+  "claim.formsache16k.1": "VI može sve. Osim dosledno.",
+  "claim.formsache16k.2": "Baš naš posao.",
+  "claim.blickwinkel64k.1": "Nemoguće?",
+  "claim.blickwinkel64k.2": "Zavisi od ugla gledanja.",
+  "menu.title": "Meni",
+  "menu.home": "Početna",
+  "menu.references": "Reference",
+  "menu.glossary": "Pojmovnik",
+  "menu.contact": "Kontakt",
+  "menu.pending": "Blog · teme uskoro",
+  "menu.imprint": "Impresum",
+  "menu.privacy": "Privatnost",
+  "menu.grip": "Povuci meni dole ili zatvori"
 });

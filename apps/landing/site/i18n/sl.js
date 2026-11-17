@@ -21,6 +21,17 @@ Dream.lang("sl", {
   "blind.signal60k": "Veliko tresočih se modrih sledi signala teče vse vprek, dokler jih tri kontrolne postaje ne povežejo v eno jasno turkizno črto; oranžen lok vodi negotove primere okoli njih. Kratki elektronski toni najdejo skupen utrip. Na koncu se pojavijo tri vrstice: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Svetloba svetilke pada od zgoraj na temno leseno mizo. Kepa svetlega plastelina vedno znova dobi isto vprašanje, tri obroče svetlobe in tri tone, in vsakič odgovori z drugo obliko: zvezda, obroč, polž, jajce na oko. Lesene letve se sestavijo v kalup za opeke, plastelin še enkrat uide kot klobasa, nato pa pridejo ven tri enake opeke. Igrajo brenkani kontrabas, marimba in glasbena skrinjica. Na koncu se pojavijo tri vrstice: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "V temi lebdijo svetilke, podvojene in razklonjene v mavrične barve, kot bi jih gledali skozi stekleno prizmo. Nato se prižge žaromet, v ritmu se ulijejo trije betonski nosilci, kamera pa se umika, dokler se nosilci z enega samega zornega kota ne sklenejo v nemogoč trikotnik; njihova senca še vedno kaže tri ločene nosilce. Zvoki stekla in lesa igrajo isto melodijo rahlo zamaknjeno in se v tistem trenutku združijo. Na koncu se pojavijo tri vrstice: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Zmore vse. Samo ne dosledno.",
-  "claim.formsache16k.2": "Naš del."
+  "claim.formsache16k.1": "UI zmore vse. Razen dosledno.",
+  "claim.formsache16k.2": "Točno naše delo.",
+  "claim.blickwinkel64k.1": "Nemogoče?",
+  "claim.blickwinkel64k.2": "Odvisno od zornega kota.",
+  "menu.title": "Meni",
+  "menu.home": "Domov",
+  "menu.references": "Reference",
+  "menu.glossary": "Slovarček",
+  "menu.contact": "Kontakt",
+  "menu.pending": "Blog · teme kmalu",
+  "menu.imprint": "Pravno obvestilo",
+  "menu.privacy": "Zasebnost",
+  "menu.grip": "Povlecite meni navzdol ali ga zaprite"
 });

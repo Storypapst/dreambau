@@ -21,6 +21,17 @@ Dream.lang("lv", {
   "blind.signal60k": "Daudzas trīcošas zilas signāla pēdas skrien sajukumā, līdz trīs pārbaudes stacijas tās savij vienā skaidrā tirkīza līnijā; oranža loka vada nedrošos gadījumus tām apkārt. Īsi elektroniski toņi atrod kopīgu pulsu. Beigās parādās trīs rindas: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Lampas gaisma no augšas krīt uz tumša koka galda. Gaiša plastilīna pika atkal un atkal saņem vienu un to pašu jautājumu, trīs gaismas gredzenus un trīs skaņas, un katru reizi atbild ar citu formu: zvaigzne, gredzens, gliemezis, vēršacs. Koka līstes saslīd kopā ķieģeļu veidnē, plastilīns vēlreiz izsprūk kā desa, un tad iznāk trīs vienādi ķieģeļi. Skan strinkšķināts kontrabass, marimba un mūzikas lādīte. Beigās parādās trīs rindas: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "Tumsā peld lampas, dubultotas un sadalītas varavīksnes krāsās, it kā redzētas caur stikla prizmu. Tad iedegas prožektors, ritmā tiek izlietas trīs betona sijas, un kamera attālinās, līdz no viena vienīga skatpunkta sijas noslēdzas neiespējamā trijstūrī; to ēna joprojām rāda trīs atsevišķas sijas. Stikla un koka skaņas spēlē to pašu melodiju nedaudz nobīdīti un šajā brīdī saplūst. Beigās parādās trīs rindas: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Var visu. Tikai ne konsekventi.",
-  "claim.formsache16k.2": "Mūsu daļa."
+  "claim.formsache16k.1": "MI spēj visu. Izņemot nemainīgi.",
+  "claim.formsache16k.2": "Tieši mūsu darbs.",
+  "claim.blickwinkel64k.1": "Neiespējami?",
+  "claim.blickwinkel64k.2": "Atkarīgs no skatpunkta.",
+  "menu.title": "Izvēlne",
+  "menu.home": "Sākums",
+  "menu.references": "Atsauces",
+  "menu.glossary": "Glosārijs",
+  "menu.contact": "Kontakti",
+  "menu.pending": "Blogs · tēmas drīzumā",
+  "menu.imprint": "Juridiskā informācija",
+  "menu.privacy": "Privātums",
+  "menu.grip": "Velciet izvēlni lejup vai aizveriet"
 });

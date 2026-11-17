@@ -21,6 +21,17 @@ Dream.lang("it", {
   "blind.signal60k": "Molte tracce di segnale blu tremanti corrono aggrovigliate finché tre stazioni di controllo le riuniscono in un'unica linea turchese nitida; un arco arancione fa girare intorno i casi incerti. Brevi suoni elettronici trovano un battito comune. Infine compaiono tre righe: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "La luce di una lampada cade dall'alto su un tavolo di legno scuro. A un pezzo di plastilina chiara viene posta ancora e ancora la stessa domanda, tre anelli di luce e tre note, e ogni volta risponde con una forma diversa: una stella, una ciambella, una chiocciola, un uovo al tegamino. Dei listelli di legno si uniscono in uno stampo per mattoni, la plastilina scappa ancora una volta sotto forma di salsiccia, poi escono tre mattoni identici. Suonano un contrabbasso pizzicato, una marimba e un carillon. Infine compaiono tre righe: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "Nel buio fluttuano delle lampade, sdoppiate e scomposte nei colori dell’arcobaleno, come viste attraverso un prisma di vetro. Poi si accende un riflettore, tre travi di cemento vengono gettate a tempo e la telecamera arretra finché, da un’unica angolazione, le travi si chiudono in un triangolo impossibile; la loro ombra mostra ancora tre travi separate. Suoni di vetro e di legno suonano la stessa melodia leggermente sfasata e in quel momento coincidono. Infine compaiono tre righe: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Fa tutto. Tranne essere costante.",
-  "claim.formsache16k.2": "Il nostro compito."
+  "claim.formsache16k.1": "L'IA sa fare tutto. Tranne con costanza.",
+  "claim.formsache16k.2": "È proprio il nostro lavoro.",
+  "claim.blickwinkel64k.1": "Impossibile?",
+  "claim.blickwinkel64k.2": "Dipende dal punto di vista.",
+  "menu.title": "Menu",
+  "menu.home": "Home",
+  "menu.references": "Referenze",
+  "menu.glossary": "Glossario",
+  "menu.contact": "Contatti",
+  "menu.pending": "Blog · argomenti in arrivo",
+  "menu.imprint": "Note legali",
+  "menu.privacy": "Privacy",
+  "menu.grip": "Trascina giù o chiudi il menu"
 });
