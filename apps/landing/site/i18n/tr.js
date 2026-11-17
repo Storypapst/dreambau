@@ -33,5 +33,6 @@ Dream.lang("tr", {
   "menu.pending": "Blog · konular yakında",
   "menu.imprint": "Künye",
   "menu.privacy": "Gizlilik",
-  "menu.grip": "Menüyü aşağı çekin veya kapatın"
+  "menu.grip": "Menüyü aşağı çekin veya kapatın",
+  "menu.legal": "Yasal bilgiler"
 });

@@ -33,5 +33,6 @@ Dream.lang("vi", {
   "menu.pending": "Blog · chủ đề sắp có",
   "menu.imprint": "Thông tin pháp lý",
   "menu.privacy": "Quyền riêng tư",
-  "menu.grip": "Kéo menu xuống hoặc đóng"
+  "menu.grip": "Kéo menu xuống hoặc đóng",
+  "menu.legal": "Thông tin pháp lý"
 });

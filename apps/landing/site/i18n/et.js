@@ -33,5 +33,6 @@ Dream.lang("et", {
   "menu.pending": "Blogi · teemad tulekul",
   "menu.imprint": "Kontaktandmed",
   "menu.privacy": "Privaatsus",
-  "menu.grip": "Lohista menüü alla või sulge"
+  "menu.grip": "Lohista menüü alla või sulge",
+  "menu.legal": "Õiguslik teave"
 });

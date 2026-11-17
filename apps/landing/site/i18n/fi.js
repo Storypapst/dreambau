@@ -33,5 +33,6 @@ Dream.lang("fi", {
   "menu.pending": "Blogi · aiheet tulossa",
   "menu.imprint": "Julkaisutiedot",
   "menu.privacy": "Tietosuoja",
-  "menu.grip": "Vedä valikko alas tai sulje"
+  "menu.grip": "Vedä valikko alas tai sulje",
+  "menu.legal": "Oikeudelliset tiedot"
 });

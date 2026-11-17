@@ -33,5 +33,6 @@ Dream.lang("hu", {
   "menu.pending": "Blog · témák hamarosan",
   "menu.imprint": "Impresszum",
   "menu.privacy": "Adatvédelem",
-  "menu.grip": "Menü lehúzása vagy bezárása"
+  "menu.grip": "Menü lehúzása vagy bezárása",
+  "menu.legal": "Jogi információk"
 });

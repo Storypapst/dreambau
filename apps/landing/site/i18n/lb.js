@@ -33,5 +33,6 @@ Dream.lang("lb", {
   "menu.pending": "Blog · Themen kommen",
   "menu.imprint": "Impressum",
   "menu.privacy": "Dateschutz",
-  "menu.grip": "Menü erofzéien oder zoumaachen"
+  "menu.grip": "Menü erofzéien oder zoumaachen",
+  "menu.legal": "Rechtleches"
 });

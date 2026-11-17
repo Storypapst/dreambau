@@ -33,5 +33,6 @@ Dream.lang("nb", {
   "menu.pending": "Blogg · temaer kommer",
   "menu.imprint": "Kolofon",
   "menu.privacy": "Personvern",
-  "menu.grip": "Dra menyen ned eller lukk den"
+  "menu.grip": "Dra menyen ned eller lukk den",
+  "menu.legal": "Juridisk"
 });

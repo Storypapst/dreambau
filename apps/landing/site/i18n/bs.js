@@ -33,5 +33,6 @@ Dream.lang("bs", {
   "menu.pending": "Blog · teme uskoro",
   "menu.imprint": "Impresum",
   "menu.privacy": "Privatnost",
-  "menu.grip": "Povuci meni dolje ili zatvori"
+  "menu.grip": "Povuci meni dolje ili zatvori",
+  "menu.legal": "Pravne informacije"
 });
