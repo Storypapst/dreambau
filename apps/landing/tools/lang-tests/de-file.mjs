@@ -13,9 +13,11 @@ import { IDS } from '../budget.mjs';
 const SPEC = ['tag.1', 'tag.2', 'cta.words', 'snd.aria', 'snd.on_label', 'snd.hint_off', 'snd.hint_on', 'skip.label', 'play.label',
   'lang.aria', 'lang.title', 'lang.close', 'lang.error', 'blind.4k', 'blind.16k', 'blind.64k'];
 // A production can bring its own two closing lines (claim.<id>.1 and .2, after all the blind.<id> keys; the brand is always the third line).
-const CLAIMS = { formsache16k: ['Kann alles. Außer konstant.', 'Unser Part.'] };
+const CLAIMS = { formsache16k: ['KI kann alles. Außer konstant.', 'Genau unser Job.'], blickwinkel64k: ['Unmöglich?', 'Kommt auf den Blickwinkel an.'] };
+// The start page menu and footer labels follow the claims.
+const MENU = ['menu.title', 'menu.home', 'menu.references', 'menu.glossary', 'menu.contact', 'menu.pending', 'menu.imprint', 'menu.privacy', 'menu.grip'];
 const KEYS = SPEC.concat(IDS.filter(id => !SPEC.includes('blind.' + id)).map(id => 'blind.' + id),
-  Object.keys(CLAIMS).flatMap(id => ['claim.' + id + '.1', 'claim.' + id + '.2']));
+  Object.keys(CLAIMS).flatMap(id => ['claim.' + id + '.1', 'claim.' + id + '.2']), MENU);
 const LIVE = { 'tag.1': 'Jeht nich…', 'tag.2': 'jibs nich…', 'cta.words': '(nich warten, quatschen)', 'snd.aria': 'Ton', 'snd.on_label': 'Ton an',
   'snd.hint_off': 'Ton aus (M)', 'snd.hint_on': 'Ton an (M)', 'skip.label': 'überspringen', 'play.label': 'Animation abspielen' };   // as the live page has them
 

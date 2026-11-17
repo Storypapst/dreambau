@@ -21,6 +21,17 @@ Dream.lang("nb", {
   "blind.signal60k": "Mange skjelvende blå signalspor løper i et virvar til tre kontrollstasjoner samler dem i én klar turkis linje; en oransje bue leder usikre tilfeller rundt dem. Korte elektroniske toner finner en felles puls. Til slutt vises tre linjer: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Lampelys faller ovenfra på et mørkt trebord. En klump lys modelleire får det samme spørsmålet igjen og igjen, tre ringer av lys og tre toner, og svarer hver gang med en ny form: en stjerne, en ring, en snegle, et speilegg. Trelister skyves sammen til en mursteinsform, leiren smetter ut én gang til som en pølse, og så kommer det ut tre like murstein. Til dette spiller knipset kontrabass, marimba og spilledåse. Til slutt vises tre linjer: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "I mørket svever lamper, doblet og brutt opp i regnbuens farger, som sett gjennom et glassprisme. Så tennes en lyskaster, tre betongbjelker støpes i takt, og kameraet trekker seg tilbake til bjelkene fra én eneste vinkel lukker seg til en umulig trekant; skyggen deres viser fortsatt tre adskilte bjelker. Lyder av glass og tre spiller den samme melodien litt forskjøvet og faller sammen i det øyeblikket. Til slutt vises tre linjer: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Kan alt. Unntatt konsekvent.",
-  "claim.formsache16k.2": "Vår jobb."
+  "claim.formsache16k.1": "KI kan alt. Unntatt stabilt.",
+  "claim.formsache16k.2": "Akkurat vår jobb.",
+  "claim.blickwinkel64k.1": "Umulig?",
+  "claim.blickwinkel64k.2": "Kommer an på vinkelen.",
+  "menu.title": "Meny",
+  "menu.home": "Forside",
+  "menu.references": "Referanser",
+  "menu.glossary": "Ordliste",
+  "menu.contact": "Kontakt",
+  "menu.pending": "Blogg · temaer kommer",
+  "menu.imprint": "Kolofon",
+  "menu.privacy": "Personvern",
+  "menu.grip": "Dra menyen ned eller lukk den"
 });

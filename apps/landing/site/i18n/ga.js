@@ -21,6 +21,17 @@ Dream.lang("ga", {
   "blind.signal60k": "Ritheann go leor rianta comhartha gorma creathánacha trína chéile go dtí go mbailíonn trí stáisiún seiceála iad i líne thurcaí shoiléir amháin; treoraíonn stua oráiste na cásanna éiginnte timpeall orthu. Aimsíonn toin ghearra leictreonacha buille coiteann. Ag an deireadh feictear trí líne: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Titeann solas lampa anuas ar bhord dorcha adhmaid. Cuirtear an cheist chéanna arís is arís eile ar chnap marla ar dhath geal, trí fháinne solais agus trí nóta, agus freagraíonn sé le cruth difriúil gach uair: réalta, fáinne, seilide, ubh fhriochta. Sleamhnaíonn barraí adhmaid le chéile ina múnla brící, éalaíonn an marla uair amháin eile ina ispín, agus ansin tagann trí bhríce chomhionanna amach. Seinneann olldord pioctha, mairimbe agus bosca ceoil. Ag an deireadh feictear trí líne: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "Sa dorchadas bíonn lampaí ar foluain, faoi dhó agus briste i ndathanna an bhogha báistí, amhail is dá bhfeicfí iad trí phriosma gloine. Ansin lastar spotsholas, teilgtear trí bhíoma coincréite de réir an bhuille, agus tarraingíonn an ceamara siar go dtí go ndúnann na bíomaí ina dtriantán dodhéanta ó uillinn amháin; taispeánann a scáth trí bhíoma ar leith i gcónaí. Seinneann fuaimeanna gloine agus adhmaid an fonn céanna beagán as a chéile agus tagann siad le chéile an nóiméad sin. Ag an deireadh feictear trí líne: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Déanann sé gach rud. Ach ní go seasta.",
-  "claim.formsache16k.2": "Ár gcuid den obair."
+  "claim.formsache16k.1": "Is féidir le IS gach rud. Ach go seasta.",
+  "claim.formsache16k.2": "Sin ár bpost go díreach.",
+  "claim.blickwinkel64k.1": "Dodhéanta?",
+  "claim.blickwinkel64k.2": "Braitheann sé ar an uillinn.",
+  "menu.title": "Roghchlár",
+  "menu.home": "Baile",
+  "menu.references": "Tagairtí",
+  "menu.glossary": "Gluais",
+  "menu.contact": "Teagmháil",
+  "menu.pending": "Blag · ábhair ar an mbealach",
+  "menu.imprint": "Fógra dlí",
+  "menu.privacy": "Príobháideachas",
+  "menu.grip": "Tarraing síos nó dún an roghchlár"
 });

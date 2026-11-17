@@ -21,6 +21,17 @@ Dream.lang("fr", {
   "blind.signal60k": "De nombreuses traces de signal bleues tremblent en désordre jusqu'à ce que trois postes de contrôle les réunissent en une ligne turquoise nette ; un arc orange fait contourner les cas incertains. De courts sons électroniques trouvent une pulsation commune. À la fin apparaissent trois lignes : “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "La lumière d'une lampe tombe d'en haut sur une table en bois sombre. Une boule de pâte à modeler claire reçoit encore et encore la même question, trois anneaux de lumière et trois notes, et répond chaque fois par une forme différente : une étoile, un anneau, un escargot, un œuf au plat. Des tasseaux de bois se rejoignent pour former un moule à briques, la pâte s'échappe une dernière fois en saucisse, puis trois briques identiques en sortent. Une contrebasse en pizzicato, un marimba et une boîte à musique jouent. À la fin apparaissent trois lignes : “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "Dans l’obscurité flottent des lampes, dédoublées et décomposées en couleurs de l’arc-en-ciel, comme vues à travers un prisme de verre. Puis un projecteur s’allume, trois poutres de béton sont coulées en rythme et la caméra recule jusqu’à ce que, sous un seul angle, les poutres se referment en un triangle impossible ; leur ombre montre toujours trois poutres séparées. Des sons de verre et de bois jouent la même mélodie légèrement décalée et se rejoignent à cet instant. À la fin apparaissent trois lignes : “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Fait tout. Sauf de façon constante.",
-  "claim.formsache16k.2": "Notre rôle."
+  "claim.formsache16k.1": "L'IA sait tout faire. Sauf constamment.",
+  "claim.formsache16k.2": "C'est notre métier.",
+  "claim.blickwinkel64k.1": "Impossible ?",
+  "claim.blickwinkel64k.2": "Tout dépend du point de vue.",
+  "menu.title": "Menu",
+  "menu.home": "Accueil",
+  "menu.references": "Références",
+  "menu.glossary": "Glossaire",
+  "menu.contact": "Contact",
+  "menu.pending": "Blog · sujets à venir",
+  "menu.imprint": "Mentions légales",
+  "menu.privacy": "Confidentialité",
+  "menu.grip": "Faire glisser le menu ou le fermer"
 });

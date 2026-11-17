@@ -21,6 +21,17 @@ Dream.lang("sk", {
   "blind.signal60k": "Mnoho chvejúcich sa modrých signálových stôp sa prepletá, kým ich tri kontrolné stanice nezviažu do jednej jasnej tyrkysovej čiary; oranžový oblúk vedie neisté prípady okolo nich. Krátke elektronické tóny nájdu spoločný pulz. Nakoniec sa objavia tri riadky: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Zhora dopadá svetlo lampy na tmavý drevený stôl. Hruda svetlej plastelíny dostáva znova a znova tú istú otázku, tri kruhy svetla a tri tóny, a zakaždým odpovie iným tvarom: hviezda, krúžok, slimák, volské oko. Drevené lišty sa zosunú do formy na tehly, plastelína ešte raz vykĺzne ako párok a potom vyjdú tri rovnaké tehly. Hrá k tomu brnkaný kontrabas, marimba a hracia skrinka. Nakoniec sa objavia tri riadky: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "V tme sa vznášajú lampy, zdvojené a rozložené do farieb dúhy, akoby ich človek videl cez sklenený hranol. Potom sa rozsvieti reflektor, do rytmu sa odlejú tri betónové trámy a kamera cúva, kým sa trámy z jediného uhla pohľadu neuzavrú do nemožného trojuholníka; ich tieň stále ukazuje tri oddelené trámy. Zvuky skla a dreva hrajú tú istú melódiu mierne posunutú a v tej chvíli splynú. Nakoniec sa objavia tri riadky: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Zvládne všetko. Len nie konštantne.",
-  "claim.formsache16k.2": "Naša práca."
+  "claim.formsache16k.1": "AI dokáže všetko. Len nie stále rovnako.",
+  "claim.formsache16k.2": "Presne naša práca.",
+  "claim.blickwinkel64k.1": "Nemožné?",
+  "claim.blickwinkel64k.2": "Závisí od uhla pohľadu.",
+  "menu.title": "Menu",
+  "menu.home": "Úvod",
+  "menu.references": "Referencie",
+  "menu.glossary": "Slovník",
+  "menu.contact": "Kontakt",
+  "menu.pending": "Blog · témy čoskoro",
+  "menu.imprint": "Tiráž",
+  "menu.privacy": "Ochrana údajov",
+  "menu.grip": "Stiahnuť menu nadol alebo zavrieť"
 });

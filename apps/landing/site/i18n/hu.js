@@ -21,6 +21,17 @@ Dream.lang("hu", {
   "blind.signal60k": "Sok remegő kék jelnyom fut összevissza, amíg három ellenőrzőpont egyetlen tiszta türkiz vonallá nem fogja őket; egy narancs ív kerülő úton vezeti a bizonytalan eseteket. Rövid elektronikus hangok közös lüktetésre találnak. Végül három sor jelenik meg: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Felülről lámpafény esik egy sötét faasztalra. Egy világos gyurmagombóc újra meg újra ugyanazt a kérdést kapja, három fénygyűrűt és három hangot, és minden alkalommal más formával válaszol: csillag, karika, csiga, tükörtojás. Falécek csúsznak össze téglaformává, a gyurma még egyszer kiszökik kolbászként, aztán három egyforma tégla kerül elő. Pengetett nagybőgő, marimba és zenedoboz szól. Végül három sor jelenik meg: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "A sötétben lámpák lebegnek, megkettőzve és a szivárvány színeire bontva, mintha üvegprizmán át látnánk őket. Aztán felgyullad egy reflektor, ütemre három betongerendát öntenek ki, a kamera pedig addig hátrál, amíg a gerendák egyetlen nézőpontból egy lehetetlen háromszöggé zárulnak; az árnyékuk továbbra is három külön gerendát mutat. Üveg- és fahangok ugyanazt a dallamot játsszák kissé elcsúsztatva, és abban a pillanatban összeérnek. Végül három sor jelenik meg: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Mindent tud. Csak nem következetesen.",
-  "claim.formsache16k.2": "A mi dolgunk."
+  "claim.formsache16k.1": "Az MI mindenre képes. Kivéve egyformán.",
+  "claim.formsache16k.2": "Pont a mi dolgunk.",
+  "claim.blickwinkel64k.1": "Lehetetlen?",
+  "claim.blickwinkel64k.2": "Nézőpont kérdése.",
+  "menu.title": "Menü",
+  "menu.home": "Kezdőlap",
+  "menu.references": "Referenciák",
+  "menu.glossary": "Szószedet",
+  "menu.contact": "Kapcsolat",
+  "menu.pending": "Blog · témák hamarosan",
+  "menu.imprint": "Impresszum",
+  "menu.privacy": "Adatvédelem",
+  "menu.grip": "Menü lehúzása vagy bezárása"
 });

@@ -238,3 +238,8 @@ Kann alles. Außer konstant. / Unser Part. / dreambau.com
 Damit gilt der Absatz „Am Ende steht der heutige Schriftzug“ oben nicht mehr. Die drei Zeilen sind die drei Ziegel: „Kann alles.
 Außer konstant.“, „Unser Part.“ und „dreambau.com“. Dafür bekam die Laufzeit einen eigenen Schlusstext pro Fassung (Schlüssel
 `claim.formsache16k.1` und `.2` in allen 47 Sprachdateien, Regel C13). Die Übersetzungen der beiden Zeilen sind Entwürfe.
+
+## Nachtrag 2026-11-17: Schluss-Claim
+
+Der Auftraggeber hat den Claim für diese Fassung nachträglich festgelegt: „KI kann alles. Außer konstant.“ / „Genau unser Job.“ / „dreambau.com“. Die Übersetzungen in die anderen
+Sprachen sind Entwürfe (`claim.formsache16k.1` und `.2` in `site/i18n/`).

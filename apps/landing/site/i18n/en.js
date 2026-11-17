@@ -21,6 +21,17 @@ Dream.lang("en", {
   "blind.signal60k": "Many trembling blue signal traces run in a tangle until three checkpoints bundle them into one clear turquoise line; an orange arc guides uncertain cases around them. Short electronic tones find a shared pulse. Finally, three lines appear: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Lamplight falls from above onto a dark wooden table. A lump of pale clay is asked the same question again and again, three rings of light and three notes, and answers with a different shape every time: a star, a ring, a snail, a fried egg. Wooden bars slide together into a brick mould, the clay slips out once more as a sausage, then three identical bricks come out. A plucked double bass, a marimba and a music box play along. Finally, three lines appear: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "In the dark, lamps float, doubled and split into rainbow colours, as if seen through a glass prism. Then a spotlight comes on, three concrete beams are cast to the beat, and the camera pulls back until, from one single angle, the beams close into an impossible triangle; their shadow still shows three separate beams. Sounds of glass and wood play the same melody slightly apart and fall together at that moment. Finally, three lines appear: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Can do anything. Except consistently.",
-  "claim.formsache16k.2": "Our part."
+  "claim.formsache16k.1": "AI can do anything. Except consistently.",
+  "claim.formsache16k.2": "That's our job.",
+  "claim.blickwinkel64k.1": "Impossible?",
+  "claim.blickwinkel64k.2": "Depends on your point of view.",
+  "menu.title": "Menu",
+  "menu.home": "Home",
+  "menu.references": "References",
+  "menu.glossary": "Glossary",
+  "menu.contact": "Contact",
+  "menu.pending": "Blog · topics coming soon",
+  "menu.imprint": "Legal notice",
+  "menu.privacy": "Privacy",
+  "menu.grip": "Drag down or close the menu"
 });

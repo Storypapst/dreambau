@@ -21,6 +21,17 @@ Dream.lang("is", {
   "blind.signal60k": "Margar titrandi bláar merkjaslóðir hlaupa í flækju þar til þrjár eftirlitsstöðvar safna þeim í eina skýra grænbláa línu; appelsínugulur bogi leiðir óviss tilvik fram hjá þeim. Stuttir rafrænir tónar finna sameiginlegan púls. Að lokum birtast þrjár línur: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Lampaljós fellur ofan á dökkt tréborð. Klumpur af ljósum leir fær sömu spurninguna aftur og aftur, þrjá ljóshringi og þrjá tóna, og svarar í hvert sinn með nýju formi: stjörnu, hring, snigli, spældu eggi. Trélistar renna saman í múrsteinsmót, leirinn sleppur einu sinni enn út sem pylsa og svo koma út þrír eins múrsteinar. Undir hljóma plokkaður kontrabassi, marimba og spiladós. Að lokum birtast þrjár línur: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "Í myrkrinu svífa lampar, tvöfaldaðir og brotnir í liti regnbogans, eins og séð í gegnum glerstrending. Síðan kviknar á kastara, þrír steypubitar eru steyptir í takt og myndavélin bakkar þar til bitarnir lokast frá einu einasta sjónarhorni í ómögulegan þríhyrning; skuggi þeirra sýnir áfram þrjá aðskilda bita. Hljóð úr gleri og tré leika sömu laglínuna örlítið hliðraða og falla saman á því augnabliki. Að lokum birtast þrjár línur: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Getur allt. Nema stöðugt.",
-  "claim.formsache16k.2": "Okkar hlutverk."
+  "claim.formsache16k.1": "Gervigreind getur allt. Nema stöðugt.",
+  "claim.formsache16k.2": "Einmitt okkar starf.",
+  "claim.blickwinkel64k.1": "Ómögulegt?",
+  "claim.blickwinkel64k.2": "Fer eftir sjónarhorninu.",
+  "menu.title": "Valmynd",
+  "menu.home": "Forsíða",
+  "menu.references": "Tilvísanir",
+  "menu.glossary": "Orðasafn",
+  "menu.contact": "Hafa samband",
+  "menu.pending": "Blogg · efni væntanlegt",
+  "menu.imprint": "Lagalegar upplýsingar",
+  "menu.privacy": "Persónuvernd",
+  "menu.grip": "Dragðu valmyndina niður eða lokaðu"
 });

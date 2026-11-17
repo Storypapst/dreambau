@@ -21,6 +21,17 @@ Dream.lang("vi", {
   "blind.signal60k": "Nhiều vệt tín hiệu xanh lam run rẩy chạy rối vào nhau cho đến khi ba trạm kiểm tra gom chúng thành một đường màu ngọc lam rõ ràng; một vòng cung màu cam dẫn các trường hợp không chắc chắn đi vòng qua. Những âm điện tử ngắn tìm được một nhịp chung. Cuối cùng hiện ba dòng: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.formsache16k": "Ánh đèn từ trên rọi xuống một mặt bàn gỗ sẫm màu. Một cục đất nặn màu sáng nhận đi nhận lại cùng một câu hỏi, ba vòng sáng và ba nốt nhạc, và mỗi lần lại trả lời bằng một hình khác: ngôi sao, chiếc vòng, con ốc sên, quả trứng ốp la. Các thanh gỗ trượt lại thành một khuôn gạch, đất nặn còn lọt ra thêm một lần thành cây xúc xích, rồi ba viên gạch giống hệt nhau ra khỏi khuôn. Đi kèm là tiếng contrabass gảy, marimba và hộp nhạc. Cuối cùng hiện ba dòng: “{tag1}”, “{tag2}”, “{brand}”.",
   "blind.blickwinkel64k": "Trong bóng tối, những ngọn đèn lơ lửng, nhân đôi và tách thành màu cầu vồng, như được nhìn qua một lăng kính thủy tinh. Rồi một đèn pha bật sáng, ba thanh dầm bê tông được đổ theo nhịp, và máy quay lùi dần cho đến khi, từ một góc nhìn duy nhất, các thanh dầm khép lại thành một tam giác bất khả; bóng của chúng vẫn cho thấy ba thanh dầm tách rời. Âm thanh của thủy tinh và gỗ chơi cùng một giai điệu hơi lệch nhau và hòa làm một vào đúng khoảnh khắc ấy. Cuối cùng hiện ba dòng: “{tag1}”, “{tag2}”, “{brand}”.",
-  "claim.formsache16k.1": "Làm được mọi thứ. Trừ sự ổn định.",
-  "claim.formsache16k.2": "Việc của chúng tôi."
+  "claim.formsache16k.1": "AI làm được mọi thứ. Trừ sự ổn định.",
+  "claim.formsache16k.2": "Đúng là việc của chúng tôi.",
+  "claim.blickwinkel64k.1": "Bất khả thi?",
+  "claim.blickwinkel64k.2": "Tùy vào góc nhìn.",
+  "menu.title": "Menu",
+  "menu.home": "Trang chủ",
+  "menu.references": "Dự án tham khảo",
+  "menu.glossary": "Thuật ngữ",
+  "menu.contact": "Liên hệ",
+  "menu.pending": "Blog · chủ đề sắp có",
+  "menu.imprint": "Thông tin pháp lý",
+  "menu.privacy": "Quyền riêng tư",
+  "menu.grip": "Kéo menu xuống hoặc đóng"
 });
