@@ -17,7 +17,7 @@ concurrency:
 jobs:
   check:
     name: Contact form checks
-    runs-on: ubuntu-24.04   # Playwright 1.56 has no Chromium for ubuntu-latest (26.04) yet
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:

@@ -15,7 +15,7 @@ concurrency:
 jobs:
   verify:
     name: Lint, test and build
-    runs-on: ubuntu-24.04   # Playwright 1.56 has no Chromium for ubuntu-latest (26.04) yet
+    runs-on: ubuntu-latest
     steps:
       # Actions are pinned to immutable commit SHAs; tags are repointable.
       # persist-credentials is off because no step here needs git write access,
@@ -73,7 +73,7 @@ jobs:
     name: Tag Test-Access CLI release
     needs: verify
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04   # Playwright 1.56 has no Chromium for ubuntu-latest (26.04) yet
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
