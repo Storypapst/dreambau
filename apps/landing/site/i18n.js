@@ -67,6 +67,7 @@ D.t=(key,vars)=>{
 };
 function apply(){
  root.lang=S.lang;root.dir=(row(S.lang)||{}).d||'ltr';
+ for(const el of document.querySelectorAll('#site-menu,#legal')){el.lang=S.lang;el.dir=root.dir;}   // translated menu and footer follow the page direction; German ltr stays the no-JS default
  for(const el of document.querySelectorAll('[data-i18n]')){const key=el.dataset.i18n.replace('{anim}',S.id||''),value=D.t(key);if(value){el.textContent=value;el.lang=reg[S.lang]&&typeof reg[S.lang][key]==='string'?S.lang:'de';}}
  for(const el of document.querySelectorAll('[data-i18n-attr]')){const [attr,key]=el.dataset.i18nAttr.split(':');const value=D.t(key);if(value){el.setAttribute(attr,value);el.lang=reg[S.lang]&&typeof reg[S.lang][key]==='string'?S.lang:'de';}}
  const tag=document.querySelector('#tag'),[a,b]=shown(reg[S.lang]);if(tag&&a&&b){tag.dataset.lines=[a,b,'dreambau.com'].join('|');tag.querySelectorAll('span').forEach((el,i)=>{el.textContent=[a,b,'dreambau.com'][i]||'';});}
