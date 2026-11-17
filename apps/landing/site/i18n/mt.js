@@ -33,5 +33,6 @@ Dream.lang("mt", {
   "menu.pending": "Blog · suġġetti dalwaqt",
   "menu.imprint": "Avviż legali",
   "menu.privacy": "Privatezza",
-  "menu.grip": "Iġbed il-menu ’l isfel jew agħlqu"
+  "menu.grip": "Iġbed il-menu ’l isfel jew agħlqu",
+  "menu.legal": "Informazzjoni legali"
 });

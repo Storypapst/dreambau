@@ -33,5 +33,6 @@ Dream.lang("id", {
   "menu.pending": "Blog · topik segera",
   "menu.imprint": "Info legal",
   "menu.privacy": "Privasi",
-  "menu.grip": "Tarik menu ke bawah atau tutup"
+  "menu.grip": "Tarik menu ke bawah atau tutup",
+  "menu.legal": "Informasi hukum"
 });

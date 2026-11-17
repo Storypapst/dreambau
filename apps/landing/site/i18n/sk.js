@@ -33,5 +33,6 @@ Dream.lang("sk", {
   "menu.pending": "Blog · témy čoskoro",
   "menu.imprint": "Tiráž",
   "menu.privacy": "Ochrana údajov",
-  "menu.grip": "Stiahnuť menu nadol alebo zavrieť"
+  "menu.grip": "Stiahnuť menu nadol alebo zavrieť",
+  "menu.legal": "Právne informácie"
 });

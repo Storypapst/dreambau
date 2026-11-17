@@ -33,5 +33,6 @@ Dream.lang("fr", {
   "menu.pending": "Blog · sujets à venir",
   "menu.imprint": "Mentions légales",
   "menu.privacy": "Confidentialité",
-  "menu.grip": "Faire glisser le menu ou le fermer"
+  "menu.grip": "Faire glisser le menu ou le fermer",
+  "menu.legal": "Informations légales"
 });

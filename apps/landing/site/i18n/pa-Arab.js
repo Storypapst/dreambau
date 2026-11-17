@@ -33,5 +33,6 @@ Dream.lang("pa-Arab", {
   "menu.pending": "بلاگ · موضوع جلدی",
   "menu.imprint": "قانونی معلومات",
   "menu.privacy": "پرائیویسی",
-  "menu.grip": "مینیو تھلے کھچو یا بند کرو"
+  "menu.grip": "مینیو تھلے کھچو یا بند کرو",
+  "menu.legal": "قانونی معلومات"
 });

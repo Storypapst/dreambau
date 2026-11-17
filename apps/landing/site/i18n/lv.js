@@ -33,5 +33,6 @@ Dream.lang("lv", {
   "menu.pending": "Blogs · tēmas drīzumā",
   "menu.imprint": "Juridiskā informācija",
   "menu.privacy": "Privātums",
-  "menu.grip": "Velciet izvēlni lejup vai aizveriet"
+  "menu.grip": "Velciet izvēlni lejup vai aizveriet",
+  "menu.legal": "Juridiskā informācija"
 });

@@ -33,5 +33,6 @@ Dream.lang("lt", {
   "menu.pending": "Tinklaraštis · temos netrukus",
   "menu.imprint": "Teisinė informacija",
   "menu.privacy": "Privatumas",
-  "menu.grip": "Patraukite meniu žemyn arba uždarykite"
+  "menu.grip": "Patraukite meniu žemyn arba uždarykite",
+  "menu.legal": "Teisinė informacija"
 });

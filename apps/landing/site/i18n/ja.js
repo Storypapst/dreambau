@@ -33,5 +33,6 @@ Dream.lang("ja", {
   "menu.pending": "ブログ · 近日公開",
   "menu.imprint": "法的表示",
   "menu.privacy": "プライバシー",
-  "menu.grip": "メニューを下げるか閉じる"
+  "menu.grip": "メニューを下げるか閉じる",
+  "menu.legal": "法的情報"
 });

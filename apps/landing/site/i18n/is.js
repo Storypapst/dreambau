@@ -33,5 +33,6 @@ Dream.lang("is", {
   "menu.pending": "Blogg · efni væntanlegt",
   "menu.imprint": "Lagalegar upplýsingar",
   "menu.privacy": "Persónuvernd",
-  "menu.grip": "Dragðu valmyndina niður eða lokaðu"
+  "menu.grip": "Dragðu valmyndina niður eða lokaðu",
+  "menu.legal": "Lagalegt"
 });

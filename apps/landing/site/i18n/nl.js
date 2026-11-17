@@ -33,5 +33,6 @@ Dream.lang("nl", {
   "menu.pending": "Blog · onderwerpen volgen",
   "menu.imprint": "Colofon",
   "menu.privacy": "Privacy",
-  "menu.grip": "Menu omlaag slepen of sluiten"
+  "menu.grip": "Menu omlaag slepen of sluiten",
+  "menu.legal": "Juridisch"
 });

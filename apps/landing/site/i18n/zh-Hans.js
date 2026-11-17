@@ -33,5 +33,6 @@ Dream.lang("zh-Hans", {
   "menu.pending": "博客 · 主题即将推出",
   "menu.imprint": "法律声明",
   "menu.privacy": "隐私",
-  "menu.grip": "向下拖动或关闭菜单"
+  "menu.grip": "向下拖动或关闭菜单",
+  "menu.legal": "法律信息"
 });

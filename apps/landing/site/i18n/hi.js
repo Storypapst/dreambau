@@ -33,5 +33,6 @@ Dream.lang("hi", {
   "menu.pending": "ब्लॉग · विषय जल्द",
   "menu.imprint": "कानूनी सूचना",
   "menu.privacy": "गोपनीयता",
-  "menu.grip": "मेनू नीचे खींचें या बंद करें"
+  "menu.grip": "मेनू नीचे खींचें या बंद करें",
+  "menu.legal": "कानूनी जानकारी"
 });

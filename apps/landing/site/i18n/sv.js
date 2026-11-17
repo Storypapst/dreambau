@@ -33,5 +33,6 @@ Dream.lang("sv", {
   "menu.pending": "Blogg · ämnen kommer",
   "menu.imprint": "Juridisk information",
   "menu.privacy": "Integritet",
-  "menu.grip": "Dra ner menyn eller stäng den"
+  "menu.grip": "Dra ner menyn eller stäng den",
+  "menu.legal": "Juridiskt"
 });

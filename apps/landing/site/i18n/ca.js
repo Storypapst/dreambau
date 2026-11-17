@@ -33,5 +33,6 @@ Dream.lang("ca", {
   "menu.pending": "Blog · temes aviat",
   "menu.imprint": "Avís legal",
   "menu.privacy": "Privadesa",
-  "menu.grip": "Arrossega el menú avall o tanca’l"
+  "menu.grip": "Arrossega el menú avall o tanca’l",
+  "menu.legal": "Informació legal"
 });

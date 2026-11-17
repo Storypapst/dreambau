@@ -15,7 +15,7 @@ const SPEC = ['tag.1', 'tag.2', 'cta.words', 'snd.aria', 'snd.on_label', 'snd.hi
 // A production can bring its own two closing lines (claim.<id>.1 and .2, after all the blind.<id> keys; the brand is always the third line).
 const CLAIMS = { formsache16k: ['KI kann alles. Außer konstant.', 'Genau unser Job.'], blickwinkel64k: ['Unmöglich?', 'Kommt auf den Blickwinkel an.'] };
 // The start page menu and footer labels follow the claims.
-const MENU = ['menu.title', 'menu.home', 'menu.references', 'menu.glossary', 'menu.contact', 'menu.pending', 'menu.imprint', 'menu.privacy', 'menu.grip'];
+const MENU = ['menu.title', 'menu.home', 'menu.references', 'menu.glossary', 'menu.contact', 'menu.pending', 'menu.imprint', 'menu.privacy', 'menu.grip', 'menu.legal'];
 const KEYS = SPEC.concat(IDS.filter(id => !SPEC.includes('blind.' + id)).map(id => 'blind.' + id),
   Object.keys(CLAIMS).flatMap(id => ['claim.' + id + '.1', 'claim.' + id + '.2']), MENU);
 const LIVE = { 'tag.1': 'Jeht nich…', 'tag.2': 'jibs nich…', 'cta.words': '(nich warten, quatschen)', 'snd.aria': 'Ton', 'snd.on_label': 'Ton an',

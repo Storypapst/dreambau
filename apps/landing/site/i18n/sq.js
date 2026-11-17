@@ -33,5 +33,6 @@ Dream.lang("sq", {
   "menu.pending": "Blog · tema së shpejti",
   "menu.imprint": "Njoftim ligjor",
   "menu.privacy": "Privatësia",
-  "menu.grip": "Tërhiq menynë poshtë ose mbylle"
+  "menu.grip": "Tërhiq menynë poshtë ose mbylle",
+  "menu.legal": "Informacion ligjor"
 });

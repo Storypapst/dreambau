@@ -33,5 +33,6 @@ Dream.lang("ro", {
   "menu.pending": "Blog · subiecte în curând",
   "menu.imprint": "Informații legale",
   "menu.privacy": "Confidențialitate",
-  "menu.grip": "Trage meniul în jos sau închide-l"
+  "menu.grip": "Trage meniul în jos sau închide-l",
+  "menu.legal": "Informații legale"
 });

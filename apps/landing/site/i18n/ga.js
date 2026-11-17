@@ -33,5 +33,6 @@ Dream.lang("ga", {
   "menu.pending": "Blag · ábhair ar an mbealach",
   "menu.imprint": "Fógra dlí",
   "menu.privacy": "Príobháideachas",
-  "menu.grip": "Tarraing síos nó dún an roghchlár"
+  "menu.grip": "Tarraing síos nó dún an roghchlár",
+  "menu.legal": "Faisnéis dhlíthiúil"
 });
