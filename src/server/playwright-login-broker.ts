@@ -25,12 +25,30 @@ const TOTP_SAFETY_MARGIN_MS = 8_000;
 const TEST_ACCESS_GATEWAY = "https://dreambau.com/testmails/api/v1";
 const ORISO_APP_ORIGINS = { dev: "https://dev.oriso.org", "pre-dev": PREDEV_ORISO_APP_ORIGIN };
 const ORISO_LOGIN_PATHS = ["/", "/login", "/login/"];
+const ADMIN_LOGIN_PATH = "/admin/login";
+const ADMIN_LOGIN_PATHS = [ADMIN_LOGIN_PATH];
+const ADMIN_CATALOG_PATHS = ["/admin", "/admin/", ADMIN_LOGIN_PATH];
+const ADMIN_TENANT_ACCESS = "/service/tenant/access";
+const ADMIN_SESSION_PATH = "/admin/auth/session";
+const ADMIN_SET_TOKEN_PATH = "/admin/auth/set-token";
+const ADMIN_SESSION_COOKIES = [
+  ["access_token", "oriso_admin_access_token"],
+  ["refresh_token", "oriso_admin_refresh_token"]
+] as const;
+const ADMIN_EXPIRY_KEYS = new Set([
+  "oriso-admin.auth.access_token_valid_until", "oriso-admin.auth.refresh_token_valid_until"
+]);
 const ORISO_TOKEN_PATH = "/auth/realms/online-beratung/protocol/openid-connect/token";
 const APP_TOTP = "app-totp";
 
 class AppTotpVerificationError extends Error {}
 
 type PreDevRole = "user" | "consultant";
+type PreDevAdminRole = "platform-admin" | "tenant-admin";
+interface VerifiedGrant {
+  access_token: string;
+  refresh_token?: string;
+}
 
 interface AccountMetadata {
   id: string;
@@ -52,6 +70,7 @@ export interface BrowserLoginRequest {
   ignoreHTTPSErrors: boolean;
   requireAppTotp?: boolean;
   preDevRole?: PreDevRole;
+  preDevAdminRole?: PreDevAdminRole;
   isolatePreDevMatrix?: boolean;
   getOtp: () => Promise<string>;
   requiredAuthState?: {
@@ -91,7 +110,7 @@ export interface BrokerDependencies extends MachineAuthOptions {
   identity: string;
   readKeychainToken: (identity: string) => string;
   fetch: typeof fetch;
-  requireAppTotp?: boolean | "pre-dev";
+  requireAppTotp?: boolean | "pre-dev" | "pre-dev-admin";
   preDevAppOnly?: boolean;
   preDevMatrixDevice?: string;
   preDevMatrixStateRoot?: string;
@@ -403,23 +422,35 @@ function readyPreDevRole(account: AccountMetadata): PreDevRole {
   throw new AppTotpVerificationError("The catalog account must be a ready Pre-Dev asker or consultant");
 }
 
-function isOrisoLoginPage(url: URL, origin: string) {
-  return url.origin === origin && ORISO_LOGIN_PATHS.includes(url.pathname)
+function readyPreDevAdminRole(account: AccountMetadata): PreDevAdminRole {
+  if (account.kind === "admin" && account.provisioningStatus === "ready"
+    && typeof account.username === "string" && account.username.trim()
+    && Array.isArray(account.roles) && account.roles.length === 1) {
+    const [role] = account.roles;
+    if (role === "platform-admin" || role === "tenant-admin") return role;
+  }
+  throw new AppTotpVerificationError("The catalog account must be a ready Pre-Dev platform or tenant admin");
+}
+
+function isOrisoLoginPage(url: URL, origin: string, paths = ORISO_LOGIN_PATHS) {
+  return url.origin === origin && paths.includes(url.pathname)
     && !url.username && !url.password && !url.search && !url.hash;
 }
 
-async function fillLoginField(field: Locator, value: string, privateOrigin?: string, timeout?: number) {
+async function fillLoginField(
+  field: Locator, value: string, privateOrigin?: string, paths = ORISO_LOGIN_PATHS, timeout?: number
+) {
   if (!privateOrigin) return field.fill(value, { timeout });
   // A locator can resolve again after a redirect. Bind the write to the
   // checked document so navigation cannot move a credential into another page.
   const element = await field.elementHandle({ timeout: timeout ?? FIELD_TIMEOUT_MS });
-  if (!element) throw new AppTotpVerificationError("The ORISO counselling app login field is missing");
+  if (!element) throw new AppTotpVerificationError("The ORISO login field is missing");
   try {
     const approved = await element.evaluate((input, { origin, paths }) => {
       const url = new URL(input.ownerDocument.URL);
       return url.origin === origin && paths.includes(url.pathname) && !url.search && !url.hash;
-    }, { origin: privateOrigin, paths: ORISO_LOGIN_PATHS });
-    if (!approved) throw new AppTotpVerificationError("The ORISO counselling app login page changed before entering a credential");
+    }, { origin: privateOrigin, paths });
+    if (!approved) throw new AppTotpVerificationError("The ORISO login page changed before entering a credential");
     await element.fill(value, { timeout: timeout ?? FIELD_TIMEOUT_MS });
   } finally {
     await element.dispose();
@@ -434,6 +465,9 @@ async function verifyAppTotp(
 ) {
   const tokenUrl = new URL(ORISO_TOKEN_PATH, origin).href;
   const userDataUrl = new URL("/service/users/data", origin).href;
+  const admin = request.preDevAdminRole;
+  const readbackUrl = admin ? new URL(ADMIN_TENANT_ACCESS, origin).href : userDataUrl;
+  const loginPaths = admin ? ADMIN_LOGIN_PATHS : ORISO_LOGIN_PATHS;
   const usernames = [request.username, encodeOrisoUsername(request.username)];
   const isMainFrameRequest = (request: BrowserRequest, url: string, method: string) => {
     return request.url() === url && request.method() === method && !request.redirectedFrom()
@@ -461,15 +495,15 @@ async function verifyAppTotp(
   const challengeBody = challenge.status() === 400 ? await challenge.json().catch(() => null) : null;
   const challengedUsername = passwordGrant(challenge, usernames)?.get("username");
   if (challengeBody?.error !== "invalid_grant" || challengeBody.otpType !== "APP" || !challengedUsername) {
-    throw new AppTotpVerificationError("The ORISO counselling app password grant did not require App-TOTP");
+    throw new AppTotpVerificationError("The ORISO password grant did not require App-TOTP");
   }
 
-  if (!isOrisoLoginPage(new URL(page.url()), origin)) {
-    throw new AppTotpVerificationError("The ORISO counselling app login page changed before the App-TOTP challenge");
+  if (!isOrisoLoginPage(new URL(page.url()), origin, loginPaths)) {
+    throw new AppTotpVerificationError("The ORISO login page changed before the App-TOTP challenge");
   }
   const otp = await resolveVisible(otpCandidates(page), "otp");
   const code = await request.getOtp();
-  await fillLoginField(otp, code, origin);
+  await fillLoginField(otp, code, origin, loginPaths);
   const submit = await resolveVisible(submitCandidates(page), "submit");
   let acceptedOtp = false;
   const verifyAcceptance = page.waitForResponse((response) => {
@@ -478,24 +512,28 @@ async function verifyAppTotp(
   }, { timeout: FIELD_TIMEOUT_MS }).then(async (accepted) => {
     const sent = passwordGrant(accepted, [challengedUsername])?.getAll("otp");
     if (accepted.status() !== 200 || sent?.length !== 1 || sent[0] !== code) {
-      throw new AppTotpVerificationError("The ORISO counselling app password grant did not accept the verified App-TOTP code");
+      throw new AppTotpVerificationError("The ORISO password grant did not accept the verified App-TOTP code");
     }
     acceptedOtp = true;
     // Read the body before navigation can discard it. Keep the readback listener active.
     const grantBody = await accepted.json().catch(() => null);
-    return grantBody?.access_token;
+    if (typeof grantBody?.access_token !== "string" || !grantBody.access_token
+      || (admin && (typeof grantBody.refresh_token !== "string" || !grantBody.refresh_token))) {
+      throw new AppTotpVerificationError("The accepted App-TOTP grant did not return the required tokens");
+    }
+    return { access_token: grantBody.access_token, refresh_token: grantBody.refresh_token } satisfies VerifiedGrant;
   });
-  // Observe the app's protected user-data call after the successful grant.
-  // Its bearer must be the access token issued for this exact App-TOTP code.
+  // Counselling proves the grant at UserService. Admin first proves it at
+  // TenantService, since the DPA gate can prevent the profile read.
   const readAuthenticatedToken = page.waitForResponse(
-    (response) => acceptedOtp && isMainFrameRequest(response.request(), userDataUrl, "GET"),
+    (response) => acceptedOtp && isMainFrameRequest(response.request(), readbackUrl, "GET"),
     { timeout: FIELD_TIMEOUT_MS }
   ).then(async (response) => {
-    const authorization = response.status() === 200
+    const authorization = response.status() === (admin ? 204 : 200)
       ? (await response.request().allHeaders()).authorization
       : undefined;
     if (!authorization?.startsWith("Bearer ") || authorization.length <= 7) {
-      throw new AppTotpVerificationError("The ORISO counselling app user-data read did not confirm the authenticated app session");
+      throw new AppTotpVerificationError("The ORISO protected read did not confirm the authenticated app session");
     }
     return authorization.slice(7);
   });
@@ -503,37 +541,71 @@ async function verifyAppTotp(
   // is available, then release only the original request with the issued token.
   const bindReadback = async (route: Route) => {
     const readback = route.request();
-    if (!isMainFrameRequest(readback, userDataUrl, "GET")) {
+    if (!isMainFrameRequest(readback, readbackUrl, "GET")) {
       await route.fallback();
       return;
     }
-    const issuedToken: unknown = await verifyAcceptance.catch(() => undefined);
+    const issued = await verifyAcceptance.catch(() => undefined);
     const authorization = (await readback.allHeaders()).authorization;
-    if (typeof issuedToken !== "string" || !issuedToken || authorization !== `Bearer ${issuedToken}`) {
+    if (!issued || authorization !== `Bearer ${issued.access_token}`) {
       await route.fulfill({ status: 403, json: {} });
       return;
     }
-    if (request.isolatePreDevMatrix) await route.fallback();
+    if (admin || request.isolatePreDevMatrix) await route.fallback();
     else await route.continue();
   };
   // The private context closes on every exit. Unrouting here could resume a
   // paused request before its bearer has been checked.
-  await page.route(userDataUrl, bindReadback);
-  const [issuedToken, token] = await Promise.all([
+  await page.route(readbackUrl, bindReadback);
+  if (admin) {
+    await page.route(new URL(ADMIN_SET_TOKEN_PATH, origin).href, async (route) => {
+      const req = route.request();
+      const grant = await verifyAcceptance.catch(() => undefined);
+      if (isMainFrameRequest(req, origin + ADMIN_SET_TOKEN_PATH, "POST") && grant) {
+        let payload;
+        try {
+          payload = req.postDataJSON();
+        } catch {
+          await route.abort("blockedbyclient");
+          return;
+        }
+        if (payload?.access_token === grant.access_token && payload?.refresh_token === grant.refresh_token) {
+          await route.fallback();
+          return;
+        }
+      }
+      await route.abort("blockedbyclient");
+    });
+  }
+  const [issued, token] = await Promise.all([
     verifyAcceptance,
     readAuthenticatedToken,
     submit.click({ timeout: FIELD_TIMEOUT_MS })
   ]);
-  if (issuedToken !== token) {
-    throw new AppTotpVerificationError("The ORISO counselling app authenticated readback did not use the accepted App-TOTP grant");
+  if (issued.access_token !== token) {
+    throw new AppTotpVerificationError("The ORISO authenticated readback did not use the accepted App-TOTP grant");
   }
-  if (request.preDevRole) await verifyPreDevActor(page, userDataUrl, token, request.username, request.preDevRole);
-  return token;
+  const role = admin ?? request.preDevRole;
+  if (role) await verifyPreDevActor(page, userDataUrl, token, request.username, role);
+  return issued;
 }
 
-async function verifyPreDevActor(page: Page, userDataUrl: string, token: string, username: string, role: PreDevRole) {
-  // The native user-data read already established that UserService accepts this bearer.
-  // The independent role read reuses that same accepted grant.
+function matchesPreDevAdminScope(claims: { tenantId?: unknown; realm_access?: { roles?: unknown } },
+  userRoles: string[], role: PreDevAdminRole
+) {
+  const roles = claims.realm_access?.roles;
+  const id = claims.tenantId;
+  const tenantId = typeof id === "string" && /^\d+$/.test(id) ? Number(id) : id;
+  return Array.isArray(roles) && roles.includes("tenant-admin") && userRoles.includes("tenant-admin")
+    && (role === "platform-admin"
+      ? tenantId === 0 && roles.includes("agency-admin") && userRoles.includes("agency-admin")
+      : typeof tenantId === "number" && Number.isSafeInteger(tenantId) && tenantId > 0);
+}
+
+async function verifyPreDevActor(
+  page: Page, userDataUrl: string, token: string, username: string, role: PreDevRole | PreDevAdminRole
+) {
+  // Independently check the catalogued principal and role using the accepted grant.
   const response = await page.request.get(userDataUrl, {
     headers: { authorization: `Bearer ${token}` },
     maxRedirects: 0,
@@ -543,14 +615,21 @@ async function verifyPreDevActor(page: Page, userDataUrl: string, token: string,
   try {
     const data = response?.status() === 200 ? await response.json() : null;
     const parts = token.split(".");
-    const subject = parts.length === 3
-      ? JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"))?.sub : undefined;
-    const authority = role === "consultant" ? "AUTHORIZATION_CONSULTANT_DEFAULT" : "AUTHORIZATION_USER_DEFAULT";
+    const claims = parts.length === 3
+      ? JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) : undefined;
+    const subject = claims?.sub;
     if (typeof subject === "string" && subject && data?.userId === subject && typeof data.userName === "string"
       && (data.userName === username || data.userName === encodeOrisoUsername(username)
         || encodeOrisoUsername(data.userName) === username)
-      && Array.isArray(data.userRoles) && data.userRoles.includes(role)
-      && Array.isArray(data.grantedAuthorities) && data.grantedAuthorities.includes(authority)) return;
+      && Array.isArray(data.userRoles)) {
+      if (role === "platform-admin" || role === "tenant-admin") {
+        if (matchesPreDevAdminScope(claims, data.userRoles, role)) return;
+      } else {
+        const authority = role === "consultant" ? "AUTHORIZATION_CONSULTANT_DEFAULT" : "AUTHORIZATION_USER_DEFAULT";
+        if (data.userRoles.includes(role)
+          && Array.isArray(data.grantedAuthorities) && data.grantedAuthorities.includes(authority)) return;
+      }
+    }
   } catch {
     // Only the verification outcome leaves the private broker.
   } finally {
@@ -583,12 +662,44 @@ async function saveVerifiedAppState(page: Page, request: BrowserLoginRequest, or
   await writeFile(request.statePath, JSON.stringify(saved), { mode: 0o600, flag: "wx" });
 }
 
+function isOrisoAdminPage(url: URL, origin: string) {
+  return url.origin === origin && (url.pathname === "/admin" || url.pathname.startsWith("/admin/"))
+    && !/^\/admin\/(?:login|auth)(?:\/|$)/.test(url.pathname);
+}
+
+async function saveVerifiedAdminState(page: Page, request: BrowserLoginRequest, origin: string, grant: VerifiedGrant) {
+  const state = await page.context().storageState();
+  const hostname = new URL(origin).hostname;
+  const cookies = ADMIN_SESSION_COOKIES.map(([key, name]) => state.cookies.find(cookie =>
+    cookie.name === name && cookie.domain === hostname && cookie.path === "/admin"
+    && cookie.secure && cookie.httpOnly && cookie.sameSite === "Strict"
+    && cookie.value === grant[key]));
+  if (cookies.some(cookie => !cookie)) {
+    throw new AppTotpVerificationError("The verified ORISO Admin App-TOTP session could not be restored");
+  }
+  const session = await page.request.get(origin + ADMIN_SESSION_PATH, {
+    maxRedirects: 0, maxRetries: 0, timeout: FIELD_TIMEOUT_MS
+  });
+  try {
+    const restored = session.status() === 200 ? await session.json().catch(() => null) : null;
+    if (restored?.access_token !== grant.access_token || restored?.refresh_token !== grant.refresh_token) {
+      throw new AppTotpVerificationError("The verified ORISO Admin App-TOTP session could not be restored");
+    }
+  } finally {
+    await session.dispose();
+  }
+  const localStorage = state.origins.find(item => item.origin === origin)?.localStorage ?? [];
+  await writeFile(request.statePath, JSON.stringify({
+    cookies, origins: [{ origin, localStorage: localStorage.filter(item => ADMIN_EXPIRY_KEYS.has(item.name)) }]
+  }), { mode: 0o600, flag: "wx" });
+}
+
 const preDevLoginReads = new Set([
   "/config.js", "/manifest.json", "/favicon.ico", "/releases/releases.json", "/service/users/data",
   "/service/consultingtypes/basic", "/service/settings", "/service/topic/public", "/service/topic-groups"
 ]);
 
-async function keepMatrixOfflineDuringLogin(page: Page, origin: string, role: PreDevRole) {
+async function restrictPreDevLoginTraffic(page: Page, origin: string, role: PreDevRole | PreDevAdminRole) {
   const context = page.context();
   await context.routeWebSocket("**/*", socket => socket.close());
   await context.route("**/*", async route => {
@@ -600,14 +711,21 @@ async function keepMatrixOfflineDuringLogin(page: Page, origin: string, role: Pr
         await deny();
         return;
       }
+      const admin = role === "platform-admin" || role === "tenant-admin";
       const startup = preDevLoginReads.has(url.pathname) || /^\/(?:assets|static|locales)\//.test(url.pathname)
         || /^\/service\/tenant\/public\/(?:id\/[a-zA-Z0-9-]+)?$/.test(url.pathname);
-      const document = isOrisoLoginPage(url, origin) || url.pathname === "/app" || url.pathname === "/app/"
-        || isOrisoAppPage(url, origin, role);
-      const read = request.method() === "GET" && (request.isNavigationRequest() ? document : startup);
+      const adminRead = [ADMIN_TENANT_ACCESS, ADMIN_SESSION_PATH, "/admin/config.js", "/admin/favicon.ico"]
+        .includes(url.pathname) || /^\/admin\/(?:assets|static|locales)\//.test(url.pathname);
+      const document = admin
+        ? isOrisoLoginPage(url, origin, ADMIN_LOGIN_PATHS) || isOrisoAdminPage(url, origin)
+        : isOrisoLoginPage(url, origin) || url.pathname === "/app" || url.pathname === "/app/"
+          || isOrisoAppPage(url, origin, role);
+      const read = request.method() === "GET" && (request.isNavigationRequest() ? document : startup || (admin && adminRead));
       const grant = request.method() === "POST" && url.href === origin + ORISO_TOKEN_PATH
         && request.resourceType() === "fetch";
-      if (!read && !grant) {
+      const adminAuth = admin && request.method() === "POST" && request.resourceType() === "fetch"
+        && [origin + ADMIN_SET_TOKEN_PATH, origin + "/admin/auth/clear-token"].includes(url.href);
+      if (!read && !grant && !adminAuth) {
         await deny();
         return;
       }
@@ -626,6 +744,10 @@ async function keepMatrixOfflineDuringLogin(page: Page, origin: string, role: Pr
 }
 
 export async function playwrightLogin(request: BrowserLoginRequest) {
+  if (request.preDevAdminRole && (!request.requireAppTotp || request.preDevRole || request.awaitChatUnlock
+    || request.isolatePreDevMatrix || process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0")) {
+    throw new AppTotpVerificationError("Admin sessions require isolated Pre-Dev Admin App-TOTP and TLS");
+  }
   if (request.isolatePreDevMatrix && (!request.requireAppTotp || !request.preDevRole)) {
     throw new PreDevMatrixDeviceError("Matrix isolation requires the Pre-Dev App-TOTP login");
   }
@@ -641,9 +763,9 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
   try {
     const page = await context.newPage();
     const applicationOrigin = new URL(request.loginUrl).origin;
-    if (request.isolatePreDevMatrix && request.preDevRole) {
-      await keepMatrixOfflineDuringLogin(page, applicationOrigin, request.preDevRole);
-    }
+    const isolatedRole = request.preDevAdminRole ?? (request.isolatePreDevMatrix ? request.preDevRole : undefined);
+    if (isolatedRole) await restrictPreDevLoginTraffic(page, applicationOrigin, isolatedRole);
+    const loginPaths = request.preDevAdminRole ? ADMIN_LOGIN_PATHS : ORISO_LOGIN_PATHS;
     const matrix = request.awaitChatUnlock ? trackMatrixTraffic(page) : undefined;
     const failedResponses: string[] = [];
     let submissionMayHaveStarted = false;
@@ -661,13 +783,13 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     }
     const privateOrigin = request.requireAppTotp ? applicationOrigin : undefined;
     await page.goto(request.loginUrl, { waitUntil: "domcontentloaded" });
-    if (privateOrigin && !isOrisoLoginPage(new URL(page.url()), privateOrigin)) {
-      throw new AppTotpVerificationError("The ORISO catalog login did not open the approved counselling app page");
+    if (privateOrigin && !isOrisoLoginPage(new URL(page.url()), privateOrigin, loginPaths)) {
+      throw new AppTotpVerificationError("The ORISO catalog login did not open the approved login page");
     }
     const usernameField = await resolveVisible(usernameCandidates(page), "username");
-    await fillLoginField(usernameField, request.username, privateOrigin);
+    await fillLoginField(usernameField, request.username, privateOrigin, loginPaths);
     const passwordField = await resolveVisible(passwordCandidates(page), "password");
-    await fillLoginField(passwordField, request.password, privateOrigin);
+    await fillLoginField(passwordField, request.password, privateOrigin, loginPaths);
 
     const preSubmitUrl = page.url();
     const otpWasVisibleBeforeSubmit = (await Promise.all(
@@ -697,17 +819,22 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
         if (await username.inputValue() || await password.inputValue()) return;
         if (await loginTransitionStarted()) return;
         recoveredFormReset = true;
-        await fillLoginField(username, request.username, privateOrigin, 2_000);
+        await fillLoginField(username, request.username, privateOrigin, loginPaths, 2_000);
         if (await loginTransitionStarted()) return;
-        await fillLoginField(password, request.password, privateOrigin, 2_000);
+        await fillLoginField(password, request.password, privateOrigin, loginPaths, 2_000);
       }
     );
     if (privateOrigin) {
-      const token = await verifyAppTotp(page, request, privateOrigin, submitPassword);
-      await page.waitForURL((url) => isOrisoAppPage(url, privateOrigin, request.preDevRole),
-        { waitUntil: "domcontentloaded", timeout: FIELD_TIMEOUT_MS });
-      if (request.awaitChatUnlock && matrix) await waitForChatUnlock(page, request.awaitChatUnlock, matrix);
-      await saveVerifiedAppState(page, request, privateOrigin, token);
+      const grant = await verifyAppTotp(page, request, privateOrigin, submitPassword);
+      await page.waitForURL((url) => request.preDevAdminRole
+        ? isOrisoAdminPage(url, privateOrigin) : isOrisoAppPage(url, privateOrigin, request.preDevRole),
+      { waitUntil: "domcontentloaded", timeout: FIELD_TIMEOUT_MS });
+      if (request.preDevAdminRole) {
+        await saveVerifiedAdminState(page, request, privateOrigin, grant);
+      } else {
+        if (request.awaitChatUnlock && matrix) await waitForChatUnlock(page, request.awaitChatUnlock, matrix);
+        await saveVerifiedAppState(page, request, privateOrigin, grant.access_token);
+      }
       return APP_TOTP;
     }
 
@@ -792,11 +919,12 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
   const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
   const secrets: string[] = [];
   const preDevAppTotp = dependencies.requireAppTotp === "pre-dev";
-  const requireAppTotp = preDevAppTotp || dependencies.requireAppTotp === true;
+  const preDevAdminTotp = dependencies.requireAppTotp === "pre-dev-admin";
+  const requireAppTotp = preDevAdminTotp || preDevAppTotp || dependencies.requireAppTotp === true;
   const appOnly = dependencies.preDevAppOnly === true;
   const selectedDevice = dependencies.preDevMatrixDevice;
   const isolateMatrix = appOnly || selectedDevice !== undefined;
-  const totpEnvironment = preDevAppTotp ? "pre-dev" : "dev";
+  const totpEnvironment = preDevAppTotp || preDevAdminTotp ? "pre-dev" : "dev";
   let stateDirectory: string | undefined;
   try {
     if (!dependencies.identity) throw new Error("TEST_ACCESS_IDENTITY or --identity is required");
@@ -806,6 +934,9 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     }
     if (selectedDevice !== undefined && (!preDevAppTotp || process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0")) {
       throw new PreDevMatrixDeviceError("Matrix device handoff requires the strict Pre-Dev App-TOTP login and TLS");
+    }
+    if (preDevAdminTotp && process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+      throw new AppTotpVerificationError("Admin sessions require strict TLS");
     }
     const baseUrl = dependencies.baseUrl.replace(/\/$/, "");
     const scope = accountScope(accountId);
@@ -827,13 +958,17 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
     if (requireAppTotp && (account.project !== scope.project || account.environment !== scope.environment
-      || !isOrisoLoginPage(new URL(account.loginUrl), ORISO_APP_ORIGINS[totpEnvironment]))) {
-      throw new AppTotpVerificationError("The catalog account does not use the canonical ORISO counselling app for this environment");
+      || !isOrisoLoginPage(new URL(account.loginUrl), ORISO_APP_ORIGINS[totpEnvironment],
+        preDevAdminTotp ? ADMIN_CATALOG_PATHS : ORISO_LOGIN_PATHS))) {
+      throw new AppTotpVerificationError(preDevAdminTotp
+        ? "The catalog account does not use the canonical ORISO Pre-Dev Admin login"
+        : "The catalog account does not use the canonical ORISO counselling app for this environment");
     }
-    if (preDevAppTotp && records.filter((candidate) => candidate.id === accountId).length !== 1) {
+    if ((preDevAppTotp || preDevAdminTotp) && records.filter((candidate) => candidate.id === accountId).length !== 1) {
       throw new AppTotpVerificationError("The Test Access catalog did not identify a unique Pre-Dev account");
     }
     const preDevRole = preDevAppTotp ? readyPreDevRole(account) : undefined;
+    const preDevAdminRole = preDevAdminTotp ? readyPreDevAdminRole(account) : undefined;
     secrets.push(account.username);
     const handoff = selectedDevice === undefined ? undefined : await loadApprovedPreDevMatrixDevice({
       root: dependencies.preDevMatrixStateRoot, accountId, deviceId: selectedDevice,
@@ -881,14 +1016,15 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       proxy,
       username: account.username,
       password,
-      loginUrl: account.loginUrl,
+      loginUrl: preDevAdminTotp ? ORISO_APP_ORIGINS["pre-dev"] + ADMIN_LOGIN_PATH : account.loginUrl,
       statePath,
       ignoreHTTPSErrors: !requireAppTotp && (account.environment === "local" || account.environment === "pre-dev"),
       ...(requireAppTotp ? { requireAppTotp } : {}),
       ...(preDevRole ? { preDevRole } : {}),
+      ...(preDevAdminRole ? { preDevAdminRole } : {}),
       getOtp,
       requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined,
-      awaitChatUnlock: account.project === "oriso" && !isolateMatrix ? ORISO_CHAT_UNLOCK_WAIT : undefined,
+      awaitChatUnlock: account.project === "oriso" && !isolateMatrix && !preDevAdminTotp ? ORISO_CHAT_UNLOCK_WAIT : undefined,
       ...(isolateMatrix ? { isolatePreDevMatrix: true } : {})
     });
     if (requireAppTotp && factor !== APP_TOTP) {
@@ -904,7 +1040,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       storageState: statePath,
       expiresAt: new Date(now.getTime() + STATE_TTL_MS).toISOString(),
       ...(requireAppTotp ? { secondFactor: factor } : {}),
-      ...(appOnly ? { sessionKind: "app-only" } : {})
+      ...(preDevAdminTotp ? { sessionKind: "admin" } : appOnly ? { sessionKind: "app-only" } : {})
     })}\n`);
     return 0;
   } catch (error) {
