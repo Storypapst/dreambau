@@ -222,6 +222,25 @@ describe("test-access CLI", () => {
     expect(broker).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the Pre-Dev Admin factor separate from counselling and Matrix sessions", async () => {
+    const broker = vi.fn(async () => 0);
+    const dependencies = {
+      baseUrl: "https://dreambau.com/testmails/api/v1", identity: "agent-fixture",
+      readKeychainToken: () => "synthetic-token", fetch: vi.fn<typeof globalThis.fetch>(),
+      write: vi.fn(), writeError: vi.fn(), playwrightLoginBroker: broker
+    };
+    const account = "oriso/pre-dev/admin-fixture";
+    const factor = "--require-predev-admin-app-totp";
+    expect(await runTestAccessCommand(["session", "open", account, factor], dependencies)).toBe(0);
+    expect(await runTestAccessCommand(["playwright-login", account, factor], dependencies)).toBe(0);
+    expect(broker).toHaveBeenLastCalledWith(account, expect.objectContaining({ requireAppTotp: "pre-dev-admin" }));
+    for (const option of [factor, "--require-app-totp", "--require-predev-app-totp", "--predev-app-only",
+      "--require-predev-matrix-device=ORISO_WEB_FIXTURE"]) {
+      expect(await runTestAccessCommand(["session", "open", account, factor, option], dependencies)).toBe(1);
+    }
+    expect(broker).toHaveBeenCalledTimes(2);
+  });
+
   it("builds list, get, OTP, mail and env URLs without embedding a token", () => {
     const baseUrl = "https://dreambau.com/testmails/api/v1";
     expect(buildApiRequest(["list", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({

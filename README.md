@@ -489,6 +489,19 @@ Katalogeintrag für Ratsuchende oder Beratende. Nach der Anmeldung gleicht der
 Broker die Identität und Rolle mit dem UserService ab und wartet auf den
 passenden App-Bereich, bevor er den Sitzungspfad ausgibt.
 
+Für einen bereiten Pre-Dev-Plattform- oder Träger-Admin gibt es einen eigenen
+Browsermodus.
+
+```bash
+test-access session open <oriso-pre-dev-admin-account-id> --require-predev-admin-app-totp
+```
+
+Der Broker prüft den nativen Trägerzugriff und liest die Identität und Rolle
+aus dem UserService mit dem bestätigten App-TOTP-Grant zurück. Der private
+Sitzungspfad enthält die beiden Admin-Cookies, die beim Sitzungsabruf dieselben
+Token liefern, sowie die Admin-Ablaufdaten. Die Quittung enthält
+`secondFactor: "app-totp"` und `sessionKind: "admin"`.
+
 Für einen Vorabcheck mit lesenden UserService-Aufrufen gibt es einen eigenen
 Modus.
 
