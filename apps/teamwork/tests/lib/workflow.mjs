@@ -60,7 +60,7 @@ export function workflowProblems(text, rootText, { image, lockfileExists }) {
   const jobs = Object.entries(workflow.jobs || {});
   if (jobs.length === 0) problems.push('the workflow has no job');
   for (const [name, job] of jobs) {
-    if (job['runs-on'] !== 'ubuntu-latest') problems.push(`job ${name} runs on ${JSON.stringify(job['runs-on'])}, expected ubuntu-latest`);
+    if (job['runs-on'] !== 'ubuntu-24.04') problems.push(`job ${name} runs on ${JSON.stringify(job['runs-on'])}, expected ubuntu-24.04`);
     if (job['timeout-minutes'] !== 30) problems.push(`job ${name} has the time limit ${JSON.stringify(job['timeout-minutes'])} minutes, expected 30`);
     const inFolder = (step) => (step['working-directory'] || (job.defaults && job.defaults.run && job.defaults.run['working-directory'])) === 'apps/teamwork';
     for (const step of asList(job.steps)) if (typeof step.run === 'string' && !inFolder(step)) problems.push(`the step ${JSON.stringify(step.name || step.run.slice(0, 30))} does not run in apps/teamwork`);
