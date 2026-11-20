@@ -57,7 +57,7 @@ export function workflowProblems(text, modelText, { image, lockfileExists }) {
   const jobs = Object.entries(workflow.jobs || {});
   if (jobs.length === 0) problems.push('the workflow has no job');
   for (const [name, job] of jobs) {
-    if (job['runs-on'] !== 'ubuntu-latest') problems.push(`job ${name} runs on ${JSON.stringify(job['runs-on'])}, expected ubuntu-latest`);
+    if (job['runs-on'] !== 'ubuntu-24.04') problems.push(`job ${name} runs on ${JSON.stringify(job['runs-on'])}, expected ubuntu-24.04`);
     const limit = job['timeout-minutes'];
     if (!Number.isInteger(limit) || limit < 1 || limit > 30) problems.push(`job ${name} has the time limit ${JSON.stringify(limit)} minutes, expected 1 to 30`);
     const inFolder = (step) => (step['working-directory'] || (job.defaults && job.defaults.run && job.defaults.run['working-directory'])) === 'apps/blog';
