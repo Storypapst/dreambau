@@ -278,8 +278,14 @@ describe("test access API v1", () => {
       .set("Authorization", `Bearer ${orisoToken}`);
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ code: "287082", generatedAt: "1970-01-01T00:00:59.000Z", expiresAt: "1970-01-01T00:01:00.000Z" });
+    const verified = await request(target)
+      .get(`/testmails/api/v1/accounts/${encodeURIComponent(record.id)}/otp?source=totp`)
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(verified.status).toBe(200);
+    expect(verified.headers["cache-control"]).toBe("no-store");
+    expect(verified.body).toEqual({ ...response.body, accountId: record.id, source: "totp" });
     expect(mailCalled).toBe(false);
-    expect(JSON.stringify(response.body)).not.toContain(record.totpSecret);
+    expect(JSON.stringify(verified.body)).not.toContain(record.totpSecret);
   });
 
   it("returns an environment only for an in-scope seed profile", async () => {
@@ -412,6 +418,11 @@ describe("test access API v1", () => {
     expect(otp.status).toBe(200);
     expect(otp.headers["cache-control"]).toBe("no-store");
     expect(otp.body).toEqual({ code: "123456", messageId: "message-1", receivedAt: "2026-07-12T06:00:00Z" });
+    const totp = await request(app(mailReader))
+      .get(`/testmails/api/v1/accounts/${id}/otp?source=totp`)
+      .set("Authorization", `Bearer ${orisoToken}`);
+    expect(totp.status).toBe(404);
+    expect(totp.body).toEqual({ error: "totp_not_found" });
     expect(calls).toEqual([
       "mail:spider.pig@oriso.org:verification",
       "otp:spider.pig@oriso.org:verification"

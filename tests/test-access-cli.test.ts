@@ -154,6 +154,26 @@ describe("test-access CLI", () => {
     );
   });
 
+  it.each([["session", "open"], ["playwright-login"]])("routes the strict App-TOTP switch through %j", async (...command) => {
+    const broker = vi.fn(async () => 0);
+    const writeError = vi.fn();
+    const dependencies = {
+      baseUrl: "https://dreambau.com/testmails/api/v1",
+      identity: "agent-fixture",
+      readKeychainToken: () => "synthetic-token",
+      fetch: vi.fn() as unknown as typeof fetch,
+      write: vi.fn(),
+      writeError,
+      playwrightLoginBroker: broker
+    };
+    const account = "oriso/dev/fixture";
+    expect(await runTestAccessCommand([...command, account, "--require-app-totp"], dependencies)).toBe(0);
+    expect(broker).toHaveBeenCalledWith(account, expect.objectContaining({ requireAppTotp: true }));
+    expect(await runTestAccessCommand([...command, account, "--require-app-top"], dependencies)).toBe(1);
+    expect(broker).toHaveBeenCalledTimes(1);
+    expect(writeError).toHaveBeenCalledWith(expect.stringContaining("--require-app-totp"));
+  });
+
   it("builds list, get, OTP, mail and env URLs without embedding a token", () => {
     const baseUrl = "https://dreambau.com/testmails/api/v1";
     expect(buildApiRequest(["list", "--project", "oriso", "--environment", "pre-dev"], baseUrl)).toEqual({
@@ -237,6 +257,48 @@ describe("test-access CLI", () => {
       });
       expect(result).toBe(0);
       expect(output).toEqual([expected]);
+    }
+  });
+
+  it("exposes the explicit account-bound TOTP API through the private CLI", async () => {
+    const accountId = "oriso/dev/fixture-counsellor";
+    const baseUrl = "https://dreambau.com/testmails/api/v1";
+    const response = {
+      accountId, source: "totp", code: "123456",
+      generatedAt: "2026-11-07T20:01:00.000Z", expiresAt: "2026-11-07T20:01:30.000Z"
+    };
+    const output: string[] = [];
+    const fetchMock = vi.fn(async url => {
+      expect(url).toBe(`${baseUrl}/accounts/${encodeURIComponent(accountId)}/otp?source=totp`);
+      return Response.json({ ...response, unrelatedField: "private-upstream-canary" });
+    });
+    const result = await runTestAccessCommand(["otp", accountId, "--source", "totp", "--json"], {
+      baseUrl, identity: "fixture-machine", readKeychainToken: () => "fixture-token",
+      fetch: fetchMock, write: value => output.push(value), writeError: () => {}
+    });
+    expect(result).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(output.map(value => JSON.parse(value))).toEqual([response]);
+  });
+
+  it("prints no code when the broker cannot attest the requested source and account", async () => {
+    const accountId = "oriso/dev/fixture-counsellor";
+    const response = {
+      accountId, source: "totp", code: "123456",
+      generatedAt: "2026-11-07T20:01:00.000Z", expiresAt: "2026-11-07T20:01:30.000Z"
+    };
+    for (const patch of [{ source: undefined }, { source: "mail" }, { accountId: "oriso/dev/foreign" }, { expiresAt: response.generatedAt }]) {
+      const write = vi.fn();
+      const writeError = vi.fn();
+      const fetchMock = vi.fn(async () => Response.json({ ...response, ...patch }));
+      const result = await runTestAccessCli(["otp", accountId, "--source", "totp"], {
+        baseUrl: "https://dreambau.com/testmails/api/v1", identity: "fixture-machine", readKeychainToken: () => "fixture-token",
+        fetch: fetchMock, write, writeError
+      });
+      expect(result).toBe(1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(write).not.toHaveBeenCalled();
+      expect(writeError).toHaveBeenCalledWith("Test Access API returned an invalid response\n");
     }
   });
 

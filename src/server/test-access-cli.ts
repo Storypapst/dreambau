@@ -20,6 +20,7 @@ export interface ApiRequest {
   method?: "POST";
   body?: Record<string, unknown>;
   requiresTotpSecret?: true;
+  verifyTotpFor?: string;
 }
 
 function option(args: string[], name: string) {
@@ -28,7 +29,7 @@ function option(args: string[], name: string) {
 }
 
 function positional(args: string[]) {
-  const options = new Set(["--project", "--environment", "--role", "--version", "--status", "--topics", "--note", "--email"]);
+  const options = new Set(["--project", "--environment", "--role", "--version", "--status", "--topics", "--note", "--email", "--source"]);
   const switches = new Set(["--json", "--repair"]);
   const values: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -45,6 +46,10 @@ function positional(args: string[]) {
 
 export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
   const [command, id, ...terms] = positional(args);
+  const sourceFlags = args.filter(argument => argument === "--source").length;
+  if (sourceFlags && (sourceFlags !== 1 || command !== "otp" || option(args, "--source") !== "totp" || terms.length)) {
+    throw new Error("Use otp <account-id> --source totp [--json]");
+  }
   if (command === "list") {
     const query = new URLSearchParams();
     for (const [flag, key] of [["--project", "project"], ["--environment", "environment"], ["--role", "role"]] as const) {
@@ -95,6 +100,9 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
       requiresTotpSecret: true
     };
   }
+  if (command === "otp" && sourceFlags) {
+    return { path: `/accounts/${encoded}/otp?source=totp`, output: args.includes("--json") ? "json" : "otp", verifyTotpFor: id };
+  }
   const query = terms.length ? `?${new URLSearchParams({ query: terms.join(" ") })}` : "";
   if (command === "otp") return { path: `/accounts/${encoded}/otp${query}`, output: args.includes("--json") ? "json" : "otp" };
   if (command === "mail") return { path: `/accounts/${encoded}/mail/latest${query}`, output: "json" };
@@ -118,6 +126,11 @@ export async function runTestAccessCommand(args: string[], dependencies: CliDepe
   if (["help", "--help", "-h"].includes(args[0])) {
     dependencies.write(`usage: test-access <list|lookup|get|enroll-totp|otp|mail|env|doctor|sync|session open|run|renew> ...
 
+Browser session: session open <account-id> [--require-app-totp]
+Alias: playwright-login <account-id> [--require-app-totp]
+App-TOTP verification is available for the canonical ORISO Dev counselling app.
+Private OTP lookup: otp <account-id> --source totp [--json]
+
 Operator renewal: renew --operator-host <SSH host> [--days 1..90] [--dry-run]
 Uses independent SSH operator authorization; no machine bearer is used.
 
@@ -137,8 +150,14 @@ network-proxy permits only https://dreambau.com/testmails/api/v1.
   if (args[0] === "run") return runTestRunCli(args.slice(1), dependencies);
   const isSessionOpen = args[0] === "session" && args[1] === "open";
   if (args[0] === "playwright-login" || isSessionOpen) {
-    const accountId = isSessionOpen ? args[2] ?? "" : args[1] ?? "";
-    const brokerDependencies: BrokerDependencies = dependencies;
+    const [accountId = "", ...options] = args.slice(isSessionOpen ? 2 : 1);
+    if (accountId.startsWith("--") || (options.length > 0
+      && (options.length !== 1 || options[0] !== "--require-app-totp"))) {
+      const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
+      writeError("usage: test-access session open <account-id> [--require-app-totp]\n");
+      return 1;
+    }
+    const brokerDependencies: BrokerDependencies = options.length ? { ...dependencies, requireAppTotp: true } : dependencies;
     return (dependencies.playwrightLoginBroker ?? runPlaywrightLoginBroker)(accountId, brokerDependencies);
   }
   return runTestAccessCli(args, dependencies);
@@ -164,7 +183,17 @@ export async function runTestAccessCli(args: string[], dependencies: CliDependen
     });
     if (!response.ok) throw new Error(`Test Access API failed with HTTP ${response.status}`);
     const body = await http.json(response);
-    if (request.output === "secret") {
+    if (request.verifyTotpFor) {
+      const attested = z.object({
+        accountId: z.literal(request.verifyTotpFor),
+        source: z.literal("totp"),
+        code: z.string().regex(/^\d{6}$/),
+        generatedAt: z.iso.datetime(),
+        expiresAt: z.iso.datetime()
+      }).refine(value => Date.parse(value.expiresAt) > Date.parse(value.generatedAt)).parse(body);
+      dependencies.write(request.output === "json" ? `${JSON.stringify(attested, null, 2)}\n` : `${attested.code}\n`);
+    }
+    else if (request.output === "secret") {
       const { secret } = z.object({ secret: z.string() }).passthrough().parse(body);
       dependencies.write(`${secret}\n`);
     }
