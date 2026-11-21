@@ -18,6 +18,7 @@ function deferred<T>() { let resolve!: (value:T)=>void; let reject!: (error:unkn
 describe("EvidenceWorkspace", () => {
  let root:Root; let container:HTMLDivElement;
  beforeEach(()=>{
+  window.history.replaceState(null,"","/testmails/runs?project=ORISO");
   container=document.createElement("div"); document.body.append(container); root=createRoot(container); setActiveViewer("viewer-a");
   vi.mocked(loadWorkspacePreferences).mockReset().mockResolvedValue({rememberFilters:true,refreshMinutes:15,filtersByProject:{}});
   vi.mocked(saveWorkspacePreferences).mockReset().mockImplementation(async value=>value);
@@ -30,6 +31,18 @@ describe("EvidenceWorkspace", () => {
  afterEach(async()=>{await act(async()=>root.unmount());container.remove();document.querySelectorAll('[data-slot="dialog-portal"],[data-slot="select-portal"]').forEach(node=>node.remove());setActiveViewer(null);vi.unstubAllGlobals();});
  const render=(locale:"de"|"en"="en",project:"oriso"|"orimo"="oriso")=>act(async()=>root.render(<EvidenceWorkspace locale={locale} project={project} onBack={()=>undefined}/>));
  const button=(label:string)=>[...document.querySelectorAll<HTMLButtonElement>("button")].find(node=>node.textContent===label)!;
+ it("opens a run outside the loaded page from a deep link and shows its exact test account",async()=>{
+  window.history.replaceState(null,"","/testmails/runs/evidence-run/same-id?project=ORISO");
+  vi.mocked(loadWorkspaceRuns).mockResolvedValue(page([]));
+  vi.mocked(loadWorkspaceRun).mockResolvedValue({ ...details(evidence), accounts:[{
+   accountId:null,email:"simone@oriso.org",displayName:"Simone",roles:["Ratsuchender"],
+   agencies:["Kinder- und Jugendberatung"],carrier:"Springfield",postalCode:"10551",resolved:true,source:"explicit"
+  }] });
+  await render("de");
+  expect(loadWorkspaceRun).toHaveBeenCalledWith("evidence-run","same-id",expect.anything());
+  expect(container.querySelector('section[aria-label="Testnutzer"]')?.textContent).toContain("Kinder- und Jugendberatung");
+  expect(container.querySelector('a[href*="#account=simone%40oriso.org"]')).not.toBeNull();
+ });
  it.each(["de","en"] as const)("separates source, released lifecycle and measured result (%s)",async(locale)=>{
   await render(locale);
   expect(container.textContent).toContain(locale==="de"?"Fehlgeschlagen":"Failed");
