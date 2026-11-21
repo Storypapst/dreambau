@@ -180,6 +180,12 @@ print(json.dumps(r))'''
         self.renew()
         self.assertNotIn('actions', json.loads(self.registry.read_text())[0])
 
+    def test_other_identity_headless_grant_survives_renewal(self):
+        self.rows[1]['actions'].append('fixtures:headless-register')
+        self.save(self.rows)
+        self.assertTrue(self.renew()['changed'])
+        self.assertEqual(json.loads(self.registry.read_text())[1], self.rows[1])
+
     def test_registry_and_backup_symlinks_are_rejected(self):
         original = self.directory / 'original.json'
         self.registry.rename(original); self.registry.symlink_to(original)
