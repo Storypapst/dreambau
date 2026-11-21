@@ -49,7 +49,7 @@ await run(async () => {
 
     const json = JSON.parse(fs.readFileSync(path.join(out, 'blog.json'), 'utf8'));
     same('BD-2 blog.json has the fields schema, mode, footerPending, posts, files, in this order', Object.keys(json), ['schema', 'mode', 'footerPending', 'posts', 'files']);
-    same('BD-2 blog.json: schema 1, mode preview, both footer items pending, the seven posts numbered from the oldest', [json.schema, json.mode, json.footerPending, json.posts], [1, 'preview', ['impressum', 'datenschutz'], [
+    same('BD-2 blog.json: schema 1, mode preview, no footer item pending, the seven posts numbered from the oldest', [json.schema, json.mode, json.footerPending, json.posts], [1, 'preview', [], [
       { address: '2026/warum-hier-niemand-mitzaehlt', number: 1 }, { address: '2026/kurzer-film-lange-nachgedacht', number: 2 }, { address: '2026/small-is-a-habit', number: 3 },
       { address: '2026/notiz-aus-der-werkstatt', number: 4 }, { address: '2026/ein-werkzeug-das-zeichen-zaehlt', number: 5 }, { address: '2026/warum-bei-uns-der-text-zuerst-kommt', number: 6 },
       { address: ADDRESS, number: 7 }]]);

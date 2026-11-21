@@ -172,7 +172,7 @@ ${T.trees.map((item) => tree(M, T, item)).join('\n')}
 </section>
 </main>
 <footer class="site">
-<nav class="foot" aria-label="${esc(L['blog.nav.label'])}"><span class="pending" lang="de" dir="ltr">Impressum · Angaben noch offen</span><i aria-hidden="true">·</i><span class="pending" lang="de" dir="ltr">Datenschutz · Freigabe noch offen</span><a href="/">Startseite</a><a href="/referenzen/">Referenzen</a><a href="/teamwork/">Teamwork</a><a href="/glossar/">Glossar</a><a href="mailto:info@dreambau.com">Kontakt</a></nav>
+<nav class="foot" aria-label="${esc(L['blog.nav.label'])}"><a href="/homepage-assets/impressum.html">Impressum</a><i aria-hidden="true">·</i><a href="/homepage-assets/datenschutz.html">Datenschutz</a><a href="/">Startseite</a><a href="/referenzen/">Referenzen</a><a href="/teamwork/">Teamwork</a><a href="/glossar/">Glossar</a><a href="mailto:info@dreambau.com">Kontakt</a></nav>
 </footer>
 </body>
 </html>
