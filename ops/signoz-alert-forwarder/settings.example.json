@@ -1,0 +1,14 @@
+{
+  "listen_host": "127.0.0.1",
+  "listen_port": 18104,
+  "dev_peer": "127.0.0.1",
+  "buzz_executable": "/usr/local/bin/buzz",
+  "buzz_port": 18100,
+  "buzz_channel": "00000000-0000-0000-0000-000000000000",
+  "openclaw_port": 18101,
+  "openclaw_agent": "replace-with-dedicated-agent",
+  "rule_services": {
+    "clickhouse-capacity": "clickhouse",
+    "collector-staleness": "collector"
+  }
+}

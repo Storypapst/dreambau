@@ -1,0 +1,31 @@
+name: SigNoz alert forwarder
+
+on:
+  pull_request:
+    paths:
+      - "ops/signoz-alert-forwarder/**"
+      - ".github/workflows/signoz-alert-forwarder.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  forwarder:
+    name: Private forwarding on Python 3.10
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.10"
+      - name: Test the loopback forwarding service
+        run: python -m unittest discover -s ops/signoz-alert-forwarder -p 'test_*.py' -v
+      - name: Verify the example host unit
+        run: |
+          cp ops/signoz-alert-forwarder/signoz-alert-forwarder.service.example "$RUNNER_TEMP/signoz-alert-forwarder.service"
+          systemd-analyze verify "$RUNNER_TEMP/signoz-alert-forwarder.service"
