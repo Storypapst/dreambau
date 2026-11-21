@@ -24,7 +24,7 @@
   const x = cv && cv.getContext && cv.getContext('2d');
   if (!x || !list) return;
   const readButton = $('read'), scoreEl = $('score');
-  for (const [name, el] of Object.entries({ stage, tip, panel, veil, grove, canopy, zoomEl, wood, leafbox, cloud, readButton, scoreEl, center: $('center'), jump: $('jump'), hint: $('hint'), close: $('close') })) {
+  for (const [name, el] of Object.entries({ stage, tip, panel, veil, grove, canopy, zoomEl, wood, leafbox, cloud, readButton, scoreEl, center: $('center'), jump: $('jump'), hint: $('hint'), close: $('close'), help: $('help'), helpOpen: $('help-open'), helpGo: $('help-go') })) {
     if (!el) throw new Error(`the page has no element for "${name}"`);
   }
 
@@ -612,6 +612,20 @@
   on($('jump'), 'click', startJump);
   if (COARSE) $('hint').textContent = L.hintTouch;
 
+  /* ---- the help over the map: shown when the map starts, gone at the first move; "?" brings it back ---- */
+  const help = $('help'), helpOpen = $('help-open'), helpGo = $('help-go');
+  const showHelp = (focus) => { help.hidden = false; stage.classList.add('helping'); helpOpen.setAttribute('aria-expanded', 'true'); if (focus) helpGo.focus({ preventScroll: true }); };
+  const hideHelp = (refocus) => { if (help.hidden) return; help.hidden = true; stage.classList.remove('helping'); helpOpen.setAttribute('aria-expanded', 'false'); if (refocus) stage.focus({ preventScroll: true }); };
+  on(helpGo, 'click', () => hideHelp(true));
+  on(helpOpen, 'click', () => { if (help.hidden) showHelp(true); else hideHelp(true); });
+  /* a press anywhere on the map, outside the card and the "?", is the first move: the help goes and the press goes on */
+  on(stage, 'pointerdown', (event) => { if (!event.target.closest('.hcard') && event.target !== helpOpen) hideHelp(false); }, true);
+  on(stage, 'keydown', (event) => {
+    if (help.hidden) return;
+    if (event.key === 'Escape') { event.preventDefault(); hideHelp(true); return; }
+    if (event.target === stage && !['Tab', 'Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) hideHelp(false);
+  }, true);
+
   /* ---- the list drives the map: a row walks the figure to its post and opens it ---- */
   for (const post of places) {
     on(post.link, 'click', (event) => {
@@ -782,6 +796,8 @@
   on(veil, 'click', closePost);
   on(D, 'keydown', (event) => {
     root.classList.add('kb');
+    /* Esc closes the topmost window: an open post or tree first, else the help, wherever the focus is */
+    if (!opened && event.key === 'Escape' && !help.hidden) { event.preventDefault(); hideHelp(D.activeElement === helpGo); return; }
     if (!opened) return;
     if (event.key === 'Escape') { event.preventDefault(); closePost(); return; }
     if (event.key !== 'Tab') return;
@@ -792,6 +808,7 @@
 
   /* From here on the page uses the map: the class shows the stage and folds the full texts into the sheet. */
   root.classList.add('js');
+  showHelp(false);
   new ResizeObserver(guard(resize)).observe(stage);
   new ResizeObserver(guard(() => { if (opened && opened.tree) layoutTree(opened); })).observe(canopy);
   /* a map that is scrolled out of sight is not drawn and the figure rests */

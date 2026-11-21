@@ -90,7 +90,9 @@ await run(async () => {
   });
 
   await withScratch('navigieren', async (dir) => {
-    buildMap({ outDir: dir });
+    const dummy = buildMap({ outDir: path.join(dir, 'dummy') });
+    same('KARTE-14 by default the map builds the six dummy posts about the chosen videos', dummy.posts, 6);
+    buildMap({ outDir: dir, postsDir: FIXTURES, topicsFile: path.join(ROOT, 'prototypes', 'navigieren', 'themen.json') });
     await withBrowser(async (browser) => {
       // ---- KARTE-1: without JavaScript ----
       {
@@ -113,6 +115,19 @@ await run(async () => {
         const box = await page.locator('#map').boundingBox();
         const mark = visibleMark(first, box);
         check('KARTE-3 a post is in view at the start', Boolean(mark));
+        // ---- KARTE-14: the help over the map (desktop) ----
+        check('KARTE-14 the help lies over the map at the start, with the keyboard and mouse pictures', await page.locator('#help').isVisible() && await page.locator('#help .hdesk').isVisible() && await page.locator('#help .htouch').isHidden());
+        check('KARTE-14 while the help is open, no box of a post shows through it', await page.evaluate(() => getComputedStyle(document.getElementById('tip')).visibility === 'hidden' || document.getElementById('tip').hidden));
+        await page.locator('#help-go').click();
+        check('KARTE-14 "Los geht’s" closes the help and the map has the keyboard', await page.locator('#help').isHidden() && await page.evaluate(() => document.activeElement.id === 'stage'));
+        await page.locator('#help-open').click();
+        check('KARTE-14 "?" brings the help back', await page.locator('#help').isVisible() && await page.locator('#help-open').getAttribute('aria-expanded') === 'true');
+        await page.keyboard.press('Escape');
+        check('KARTE-14 Esc closes the help', await page.locator('#help').isHidden() && await page.locator('#help-open').getAttribute('aria-expanded') === 'false');
+        await page.locator('#help-open').click();
+        await page.locator('a.home').focus();
+        await page.keyboard.press('Escape');
+        check('KARTE-14 Esc closes the help also when the focus is outside the map', await page.locator('#help').isHidden());
         await page.mouse.move(box.x + mark.x, box.y + mark.y);
         await page.locator('#tip').waitFor({ state: 'visible' });
         const demo = DEMO.find((post) => post.n === mark.no);
@@ -249,6 +264,11 @@ await run(async () => {
         const box = await page.locator('#map').boundingBox();
         const mark = visibleMark(await state(), box);
         check('KARTE-9 a post is in view on the phone', Boolean(mark));
+        check('KARTE-14 on the phone the help shows the finger pictures, not the keyboard', await page.locator('#help').isVisible() && await page.locator('#help .htouch').isVisible() && await page.locator('#help .hdesk').isHidden());
+        await page.locator('#help-go').click();
+        await page.locator('#help-open').click();
+        await page.locator('#help-go').click();
+        check('KARTE-14 on the phone "?" and "Los geht’s" work by touch', await page.locator('#help').isHidden());
         await page.touchscreen.tap(box.x + mark.x, box.y + mark.y);
         await page.locator('#panel').waitFor({ state: 'visible' });
         const sheet = await page.locator('#panel').boundingBox();
