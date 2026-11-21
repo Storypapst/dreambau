@@ -49,7 +49,7 @@ await run(async () => {
     same('BD-3 npm run build (preview, the default) exits 0', npm(app, 'build').status, 0);
     same('BD-3 it writes dist/, and not dist-demo/', [fs.existsSync(path.join(app, 'dist', 'blog.json')), fs.existsSync(path.join(app, 'dist-demo'))], [true, false]);
     const manifest = JSON.parse(fs.readFileSync(path.join(app, 'dist', 'blog.json'), 'utf8'));
-    same('BD-3 no post exists in posts/ yet, so the preview is an empty list in preview mode', [manifest.mode, manifest.posts], ['preview', []]);
+    same('BD-3 the preview builds the posts of posts/ (the German and English first post), in preview mode', [manifest.mode, manifest.posts.map((post) => post.address)], ['preview', ['2026/duenner-rahmen-dicke-skills', '2026/thin-harness-fat-skills']]);
     const wrong = npm(app, 'build', '--', '--publish');
     check('BD-3 an unknown option exits 2 and names the usage', wrong.status === 2 && /Usage/.test(wrong.stderr), `${wrong.status} ${wrong.stderr}`);
   });

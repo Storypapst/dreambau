@@ -33,7 +33,7 @@ await run(async () => {
     check('ER-1 header: the pill to the start page, the title of the Blog as a paragraph (the <h1> is the error), the feed pill', html.includes('<header class="top">') && html.includes('<a class="pill home" href="/">') && /<p class="ttl">Blog<span class="caret" aria-hidden="true"><\/span><\/p>/.test(html) && html.includes('<a class="pill feed" href="/blog/feed.xml"'));
     const back = [...html.matchAll(/<a class="pill pri back" href="([^"]*)">[\s\S]*?<span>([^<]*)<\/span><\/a>/g)].map((match) => [match[1], match[2]]);
     same('ER-1 one link to /blog/ with the text of blog.back', back, [['/blog/', BACK]]);
-    check('ER-1 the footer of the other pages', /<footer class="site">\n<nav class="foot" aria-label="Website">/.test(html) && html.includes('<a href="/referenzen/">Referenzen</a>') && html.includes('<span class="pending"'));
+    check('ER-1 the footer of the other pages', /<footer class="site">\n<nav class="foot" aria-label="Website">/.test(html) && html.includes('<a href="/referenzen/">Referenzen</a>') && html.includes('<a href="/homepage-assets/impressum.html">Impressum</a>'));
     same('ER-1 <meta name="robots" content="noindex"> once', html.match(/<meta name="robots" content="noindex">/g).length, 1);
     check('ER-1 no canonical link and no description (a missing page is nobody\'s address)', !html.includes('rel="canonical"') && !html.includes('name="description"') && !html.includes('og:'));
     same('ER-1 no <script>, no inline handler', [/<script/i.test(html), /\son[a-z]+=/i.test(html)], [false, false]);

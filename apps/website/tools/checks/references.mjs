@@ -5,7 +5,7 @@ export async function run({browser,base,artifact,ok,root}) {
  const context=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'}), page=await context.newPage(); const errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  try {await page.goto(base+'/referenzen/'); await page.waitForTimeout(250);
- ok('A22: unpublished legal pages remain pending text, never dead links',await page.locator('.foot a[href="/impressum.html"],.foot a[href="/datenschutz.html"]').count()===0 && (await page.locator('.foot').innerText()).includes('Impressum · Angaben noch offen') && (await page.locator('.foot').innerText()).includes('Datenschutz · Freigabe noch offen'));
+ ok('A22: the footer links the published legal pages',await page.locator('.foot a[href="/homepage-assets/impressum.html"]').count()===1 && await page.locator('.foot a[href="/homepage-assets/datenschutz.html"]').count()===1 && !(await page.locator('.foot').innerText()).includes('noch offen'));
  ok('A01: all twelve entries form the selected Zeitstrahl',await page.locator('.c-stage .node').count()===12);
  ok('Tidy: the wide layout starts with the first current project in the panel and leaves the address alone',await page.locator('.c-side .pv-title').textContent()==='ORISO'&&new URL(page.url()).hash==='');
  ok('Tidy: the filter offers the search and three areas, no tag chips, and no count while nothing is filtered',await page.locator('.filter [data-tag]').count()===0&&await page.locator('.filter [data-sec]').count()===3&&!await page.locator('.fnote').isVisible());
@@ -109,7 +109,7 @@ export async function run({browser,base,artifact,ok,root}) {
  const catalogue=JSON.parse(fs.readFileSync(path.join(root,'content.json'),'utf8')).references;
  for(const project of [...catalogue.current_projects,...catalogue.older_references]){const labels=project.links?.map(l=>l.label)||project.displayed_original_addresses;const article=fallback.locator('article[id="'+project.id+'"]');for(const label of labels)ok('A04: no-JS reference retains offered address '+label,(await article.innerText()).includes(label));for(const link of project.links||[])ok('A04: no-JS unverified addresses stay inert: '+link.label,link.reachability_verified||(await article.getByRole('link',{name:link.label,exact:true}).count())===0);}
  ok('Tidy: without JavaScript the unreleased short texts carry the draft mark',await fallback.locator('article .draft').count()===4);
- ok('A22: no-JS footer retains honest pending legal text',(await fallback.locator('.foot').innerText()).includes('Impressum · Angaben noch offen')&&(await fallback.locator('.foot').innerText()).includes('Datenschutz · Freigabe noch offen'));
+ ok('A22: the no-JS footer links the published legal pages too',await fallback.locator('.foot a[href="/homepage-assets/impressum.html"]').count()===1 && await fallback.locator('.foot a[href="/homepage-assets/datenschutz.html"]').count()===1);
  ok('A01: without JavaScript every genuine entry remains readable',await fallback.locator('article').count()===12);ok('A02: English original content remains readable without JavaScript',(await fallback.locator('article#eeloy').textContent()).includes('Redesign the 8 Years old Direct Mailing solution'));}finally{await nojs.close();}
  await runRepairs({browser,base,artifact,ok});
 }
