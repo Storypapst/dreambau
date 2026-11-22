@@ -134,6 +134,22 @@ describe("test-access CLI", () => {
     );
     expect(write).not.toHaveBeenCalledWith(expect.stringContaining("machine-bootstrap-token"));
   });
+  it("opts into Matrix ownership only on the named one-shot session command", async () => {
+    const broker = vi.fn(async () => 0);
+    const dependencies = {
+      baseUrl: "https://dreambau.com/testmails/api/v1",
+      identity: "codex-m4-oriso",
+      readKeychainToken: () => "fixture-machine-token",
+      fetch: vi.fn() as unknown as typeof fetch,
+      write: vi.fn(),
+      playwrightLoginBroker: broker
+    };
+    await runTestAccessCommand(
+      ["session", "open", "oriso/dev/fixture-counsellor", "--transfer-matrix-device"], dependencies
+    );
+    expect(broker).toHaveBeenCalledWith("oriso/dev/fixture-counsellor", dependencies, true);
+  });
+
   it("routes playwright-login without sending credentials through normal CLI output", async () => {
     const broker = vi.fn(async () => 0);
     const result = await runTestAccessCommand(

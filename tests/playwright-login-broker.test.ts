@@ -260,6 +260,51 @@ describe("Playwright login broker", () => {
     expect(isOtpChallenge(login, login, false, login)).toBe(false);
   });
 
+  it.each([
+    { environment: "dev", url: "https://dev.oriso.org/login", allowed: true },
+    { environment: "pre-dev", url: "https://predev.oriso.org/login", allowed: false },
+    { environment: "dev", url: "https://other.example.test/login", allowed: false }
+  ])("hands off only a Dev device ID and keeps its bearer in the private snapshot", async ({ environment, url, allowed }) => {
+    const root = await mkdtemp(join(tmpdir(), "broker-transfer-test-"));
+    const accountId = `oriso/${environment}/fixture-counsellor`;
+    const deviceId = "ORISO_WEB_" + "A".repeat(24);
+    const accessToken = "fixture-owned-bearer";
+    const write = vi.fn();
+    const fetch = vi.fn(async (requestUrl: string) => requestUrl.includes("/accounts?")
+      ? Response.json([{ id: accountId, project: "oriso", environment, username: "fixture", loginUrl: url }])
+      : Response.json({ secret: "fixture-password" })) as unknown as typeof globalThis.fetch;
+    const login = vi.fn(async ({ statePath }: { statePath: string }) => {
+      await import("node:fs/promises").then(({ writeFile }) =>
+        writeFile(statePath, JSON.stringify({ accessToken })));
+      return deviceId;
+    });
+    try {
+      const status = await runPlaywrightLoginBroker(accountId, {
+        baseUrl: "https://dreambau.com/testmails/api/v1",
+        identity: "fixture-identity",
+        readKeychainToken: () => "fixture-machine-token",
+        fetch,
+        login,
+        scheduleCleanup: () => {},
+        write,
+        writeError: vi.fn(),
+        stateRoot: root
+      }, true);
+      expect(status).toBe(allowed ? 0 : 1);
+      if (allowed) {
+        const json = write.mock.calls[0][0] as string;
+        expect(JSON.parse(json)).toMatchObject({ accountId, ownedMatrixDeviceId: deviceId });
+        expect(json).not.toContain(accessToken);
+      } else {
+        expect(login).not.toHaveBeenCalled();
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(write).not.toHaveBeenCalled();
+      }
+    } finally {
+      await import("node:fs/promises").then(({ rm }) => rm(root, { recursive: true, force: true }));
+    }
+  });
+
   it("creates a private state handle without printing credentials or tokens", async () => {
     const root = await mkdtemp(join(tmpdir(), "login-broker-test-"));
     const output: string[] = [];
@@ -833,10 +878,22 @@ describe("Playwright login broker", () => {
 });
 
 // ORISO-Frontend#1741: a session saved before the chat unlocked asks for a recovery key.
+const FIXTURE_DEVICE_ID = "ORISO_WEB_" + "A".repeat(24);
+const FIXTURE_MATRIX_TOKEN = "fixture-matrix-token";
 describe("ORISO chat unlock before saving the session", () => {
   /** Logs in to a fixture app; `matrixDelayMs` slows the Matrix replies by path. */
-  async function loginToApp(appScript: string, matrixDelayMs: (path: string) => number, wait: Partial<typeof ORISO_CHAT_UNLOCK_WAIT>) {
+  async function loginToApp(
+    appScript: string,
+    matrixDelayMs: (path: string) => number,
+    wait: Partial<typeof ORISO_CHAT_UNLOCK_WAIT>,
+    transferMatrixDevice = false
+  ) {
     const server = createServer((req, res) => {
+      if (req.url?.startsWith("/service/matrix/me/token?")) {
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ deviceId: FIXTURE_DEVICE_ID, accessToken: FIXTURE_MATRIX_TOKEN }));
+        return;
+      }
       if (req.url?.startsWith("/_matrix/client/")) {
         setTimeout(() => {
           res.setHeader("Content-Type", "application/json");
@@ -878,10 +935,11 @@ describe("ORISO chat unlock before saving the session", () => {
     const statePath = join(await mkdtemp(join(tmpdir(), "playwright-chat-unlock-")), "state.json");
     try {
       const started = Date.now();
-      await playwrightLogin({
+      const ownedMatrixDeviceId = await playwrightLogin({
         username: "test-counsellor",
         password: "test-password",
         loginUrl: `http://127.0.0.1:${address.port}/login`,
+        transferMatrixDevice,
         statePath,
         ignoreHTTPSErrors: false,
         getOtp: async () => { throw new Error("OTP should not be requested"); },
@@ -891,11 +949,35 @@ describe("ORISO chat unlock before saving the session", () => {
       const elapsedMs = Date.now() - started;
       const state = JSON.parse(await readFile(statePath, "utf8"));
       const origin = state.origins.find((entry: { origin: string }) => entry.origin.endsWith(`:${address.port}`));
-      return { indexedDB: JSON.stringify(origin?.indexedDB ?? []), elapsedMs };
+      return { indexedDB: JSON.stringify(origin?.indexedDB ?? []), elapsedMs, ownedMatrixDeviceId };
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
   }
+
+  it.each([
+    { transfer: true, requestedId: FIXTURE_DEVICE_ID, savedToken: FIXTURE_MATRIX_TOKEN, expected: FIXTURE_DEVICE_ID },
+    { transfer: false, requestedId: FIXTURE_DEVICE_ID, savedToken: FIXTURE_MATRIX_TOKEN, expected: undefined },
+    { transfer: true, requestedId: "ORISO_WEB_" + "B".repeat(24), savedToken: FIXTURE_MATRIX_TOKEN, expected: undefined },
+    { transfer: true, requestedId: FIXTURE_DEVICE_ID, savedToken: "unobserved-token", expected: undefined }
+  ])("transfers ownership only for an explicitly requested proven device ($transfer, $requestedId, $expected)", async ({
+    transfer,
+    requestedId,
+    savedToken,
+    expected
+  }) => {
+    const result = await loginToApp(`
+      fetch('/service/matrix/me/token?deviceId=' + ${JSON.stringify(requestedId)})
+        .then(response => response.json())
+        .then(device => {
+          localStorage.setItem('matrix_device_id', device.deviceId);
+          localStorage.setItem('matrix_access_token', ${JSON.stringify(savedToken)});
+          return fetch('/_matrix/client/v3/room_keys/version');
+        }).then(unlock);
+    `, () => 0, { quietMs: 150, maxMs: 3_000 }, transfer);
+    expect(result.indexedDB).toContain("unlocked");
+    expect(result.ownedMatrixDeviceId).toBe(expected);
+  }, 15_000);
 
   it("waits for the app's Matrix traffic to settle and keeps its IndexedDB keys", async () => {
     const result = await loginToApp(`
