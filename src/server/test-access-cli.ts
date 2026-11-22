@@ -118,6 +118,9 @@ export async function runTestAccessCommand(args: string[], dependencies: CliDepe
   if (["help", "--help", "-h"].includes(args[0])) {
     dependencies.write(`usage: test-access <list|lookup|get|enroll-totp|otp|mail|env|doctor|sync|session open|run|renew> ...
 
+One-shot ORISO Dev login: session open <account-id> --transfer-matrix-device
+Returns the ID only when the broker can prove that it issued the saved Matrix device.
+
 Operator renewal: renew --operator-host <SSH host> [--days 1..90] [--dry-run]
 Uses independent SSH operator authorization; no machine bearer is used.
 
@@ -139,7 +142,10 @@ network-proxy permits only https://dreambau.com/testmails/api/v1.
   if (args[0] === "playwright-login" || isSessionOpen) {
     const accountId = isSessionOpen ? args[2] ?? "" : args[1] ?? "";
     const brokerDependencies: BrokerDependencies = dependencies;
-    return (dependencies.playwrightLoginBroker ?? runPlaywrightLoginBroker)(accountId, brokerDependencies);
+    const broker = dependencies.playwrightLoginBroker ?? runPlaywrightLoginBroker;
+    return isSessionOpen && args.slice(3).includes("--transfer-matrix-device")
+      ? broker(accountId, brokerDependencies, true)
+      : broker(accountId, brokerDependencies);
   }
   return runTestAccessCli(args, dependencies);
 }

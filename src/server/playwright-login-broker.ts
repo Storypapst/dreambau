@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { resolveBrowserProxy, type BrowserProxy } from "./browser-proxy.js";
 import { createMachineHttp, type MachineAuthOptions } from "./machine-http.js";
 
-import type { BrowserContext, Locator, Page } from "@playwright/test";
+import type { BrowserContext, Locator, Page, Response as BrowserResponse } from "@playwright/test";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
 const FIELD_TIMEOUT_MS = 20_000;
@@ -18,6 +18,8 @@ const FIELD_TIMEOUT_MS = 20_000;
 const OTP_CHALLENGE_GRACE_MS = 6_000;
 const AUTH_STATE_TIMEOUT_MS = 10_000;
 const TOTP_SAFETY_MARGIN_MS = 8_000;
+const ORISO_DEV_ORIGIN = "https://dev.oriso.org";
+const BROWSER_MATRIX_DEVICE = /^ORISO_WEB_[0-9A-Z]{24}$/;
 
 interface AccountMetadata {
   id: string;
@@ -34,6 +36,7 @@ export interface BrowserLoginRequest {
   loginUrl: string;
   statePath: string;
   ignoreHTTPSErrors: boolean;
+  transferMatrixDevice?: boolean;
   getOtp: () => Promise<string>;
   requiredAuthState?: {
     cookieNames: string[];
@@ -72,7 +75,7 @@ export interface BrokerDependencies extends MachineAuthOptions {
   identity: string;
   readKeychainToken: (identity: string) => string;
   fetch: typeof fetch;
-  login?: (request: BrowserLoginRequest) => Promise<void>;
+  login?: (request: BrowserLoginRequest) => Promise<string | void>;
   stateRoot?: string;
   write: (value: string) => void;
   writeError?: (value: string) => void;
@@ -363,11 +366,58 @@ async function waitForChatUnlock(
   }
 }
 
+function observeMatrixDeviceIssuance(context: BrowserContext, origin: string) {
+  const issued = new Map<string, Set<string>>();
+  const pending = new Set<Promise<void>>();
+  const observe = (response: BrowserResponse) => {
+    const url = new URL(response.url());
+    const deviceId = url.searchParams.get("deviceId");
+    if (url.origin !== origin || url.pathname !== "/service/matrix/me/token" ||
+        response.request().method() !== "GET" || response.status() !== 200 ||
+        response.fromServiceWorker() || !deviceId || !BROWSER_MATRIX_DEVICE.test(deviceId)) return;
+
+    const promise = response.json().then(value => {
+      if (value?.deviceId !== deviceId || typeof value?.accessToken !== "string" || !value.accessToken) return;
+      const tokens = issued.get(deviceId) ?? new Set<string>();
+      tokens.add(value.accessToken);
+      issued.set(deviceId, tokens);
+    }).catch(() => {
+      // No issuance proof if the response could not be read.
+    }).finally(() => pending.delete(promise));
+    pending.add(promise);
+  };
+  context.on("response", observe);
+
+  return async (state: Awaited<ReturnType<BrowserContext["storageState"]>>) => {
+    context.off("response", observe);
+    if (pending.size > 0) {
+      const deadline = new AbortController();
+      try {
+        await Promise.race([
+          Promise.all(pending),
+          delay(1_000, undefined, { signal: deadline.signal })
+        ]);
+      } finally {
+        deadline.abort();
+      }
+    }
+
+    const storage = state.origins.find(entry => entry.origin === origin)?.localStorage;
+    const deviceId = storage?.find(entry => entry.name === "matrix_device_id")?.value;
+    const token = storage?.find(entry => entry.name === "matrix_access_token")?.value;
+    return deviceId && token && issued.get(deviceId)?.has(token) ? deviceId : undefined;
+  };
+}
+
 export async function playwrightLogin(request: BrowserLoginRequest) {
   const { chromium } = await import("@playwright/test");
   const browser = await chromium.launch({ headless: true, proxy: request.proxy });
   const context = await browser.newContext({ ignoreHTTPSErrors: request.ignoreHTTPSErrors });
   try {
+    const applicationOrigin = new URL(request.loginUrl).origin;
+    const ownedMatrixDevice = request.transferMatrixDevice
+      ? observeMatrixDeviceIssuance(context, applicationOrigin)
+      : undefined;
     const page = await context.newPage();
     const matrix = request.awaitChatUnlock ? trackMatrixTraffic(page) : undefined;
     const failedResponses: string[] = [];
@@ -389,7 +439,6 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     await passwordField.fill(request.password);
 
     const preSubmitUrl = page.url();
-    const applicationOrigin = new URL(request.loginUrl).origin;
     const otpWasVisibleBeforeSubmit = (await Promise.all(
       otpCandidates(page).map((candidate) => candidate.first().isVisible().catch(() => false))
     )).some(Boolean);
@@ -488,14 +537,19 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
     }
     if (request.awaitChatUnlock && matrix) await waitForChatUnlock(page, request.awaitChatUnlock, matrix);
     // IndexedDB carries the unlocked chat keys into the reused session.
-    await context.storageState({ path: request.statePath, indexedDB: Boolean(request.awaitChatUnlock) });
+    const state = await context.storageState({ path: request.statePath, indexedDB: Boolean(request.awaitChatUnlock) });
+    return await ownedMatrixDevice?.(state);
   } finally {
     await context.close();
     await browser.close();
   }
 }
 
-export async function runPlaywrightLoginBroker(accountId: string, dependencies: BrokerDependencies) {
+export async function runPlaywrightLoginBroker(
+  accountId: string,
+  dependencies: BrokerDependencies,
+  transferMatrixDevice = false
+) {
   const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
   const secrets: string[] = [];
   try {
@@ -511,6 +565,10 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     const records = await jsonRequest(http, `${baseUrl}/accounts?${query}`) as AccountMetadata[];
     const account = records.find((candidate) => candidate.id === accountId);
     if (!account) throw new Error("account not found in the identity scope");
+    if (transferMatrixDevice && (account.project !== "oriso" || account.environment !== "dev" ||
+        new URL(account.loginUrl).origin !== ORISO_DEV_ORIGIN)) {
+      throw new Error("Matrix device transfer requires a scoped ORISO Dev account");
+    }
     secrets.push(account.username);
 
     const encoded = encodeURIComponent(accountId);
@@ -534,12 +592,13 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       return code;
     };
 
-    await (dependencies.login ?? playwrightLogin)({
+    const ownedMatrixDeviceId = await (dependencies.login ?? playwrightLogin)({
       proxy,
       username: account.username,
       password,
       loginUrl: account.loginUrl,
       statePath,
+      transferMatrixDevice,
       ignoreHTTPSErrors: account.environment === "local" || account.environment === "pre-dev",
       getOtp,
       requiredAuthState: account.project === "oriso" ? ORISO_REQUIRED_AUTH_STATE : undefined,
@@ -552,7 +611,8 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     dependencies.write(`${JSON.stringify({
       accountId,
       storageState: statePath,
-      expiresAt: new Date(now.getTime() + STATE_TTL_MS).toISOString()
+      expiresAt: new Date(now.getTime() + STATE_TTL_MS).toISOString(),
+      ownedMatrixDeviceId: transferMatrixDevice ? ownedMatrixDeviceId : undefined
     })}\n`);
     return 0;
   } catch (error) {
