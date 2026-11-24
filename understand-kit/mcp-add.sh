@@ -42,4 +42,4 @@ claude mcp add --transport http storybook-admin \
   --scope user
 
 echo "mcp-add.sh: registered storybook-frontend and storybook-admin (user scope — never project scope: that would write the secret into the repo's .mcp.json)."
-echo "Storybook 11: the repo skills (component-docs, write-stories, test-stories, ui-review) come first and need no server; this MCP server is the fallback and serves preview URLs."
+echo "Storybook 11: the repo skills (component-docs, write-stories, test-stories, ui-review) come first; component lookup needs no server (ui-review starts a local dev server). This MCP server is the fallback and serves preview URLs."

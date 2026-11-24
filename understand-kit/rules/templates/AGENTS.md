@@ -113,9 +113,10 @@ never have to guess how much verification already happened.
    run Storybook 11, which ships its own agent skills in the repository (`.claude/skills/`
    for Claude Code, `.agents/skills/` for Codex and other agents) and a "Storybook" section
    in the repo's `AGENTS.md`: `component-docs` → `write-stories` → `test-stories` →
-   `ui-review`. Follow that section first. The skills need no server and no secret; the same
-   data is available on the command line with `npx storybook tools docs list` and
-   `npx storybook tools docs show --id <id>`. The Storybook MCP server on predev
+   `ui-review`. Follow that section first. Looking up components needs no server and no
+   secret (`component-docs`, or on the command line `npx storybook tools docs list` and
+   `npx storybook tools docs show --id <id>`); `ui-review` needs a local Storybook dev server
+   and starts one itself when none is running. The Storybook MCP server on predev
    (`docs-show`, `stories-preview`, …) stays as the fallback and for shareable preview URLs.
    HTML mockups become stories via the "HTML → Story" prompt (`prompts/html-to-story.md`).
 4. **Freshness is printed, not assumed.** Run `ua-pull --verify`. It shows the graph's branch,
