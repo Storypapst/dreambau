@@ -104,7 +104,7 @@ note() { SUMMARY_LINES+=("$1"); echo "$1"; }
 retire_kit_items() {
   local marker="$KIT_HOME/.retired-storybook-mcp" item server
   [ -d "$KIT_HOME" ] || return 0
-  for item in "${KIT_RETIRED[@]}"; do rm -rf "$KIT_HOME/$item"; done
+  for item in "${KIT_RETIRED[@]}"; do rm -rf "${KIT_HOME:?}/$item"; done
   [ -f "$marker" ] && return 0
   # Without the claude CLI (a Codex session, a hook with a narrow PATH) nothing can be
   # checked: leave the marker unwritten so a later run with Claude does the cleanup.
@@ -303,10 +303,10 @@ PYEOF
   mkdir -p "$KIT_HOME"
   for item in "${KIT_PAYLOAD[@]}"; do
     [ -e "$tmp/unpacked/$item" ] || continue
-    rm -rf "$KIT_HOME/$item"
+    rm -rf "${KIT_HOME:?}/$item"
     cp -R "$tmp/unpacked/$item" "$KIT_HOME/$item"
   done
-  for item in "${KIT_RETIRED[@]}"; do rm -rf "$KIT_HOME/$item"; done
+  for item in "${KIT_RETIRED[@]}"; do rm -rf "${KIT_HOME:?}/$item"; done
   chmod +x "$KIT_HOME"/*.sh 2>/dev/null || true
   if [ "$decision" = "repair" ]; then
     [ -f "$KIT_HOME/test-access-install.sh" ] || {
@@ -347,10 +347,10 @@ else
   # Copy the kit payload, not build output. dist/ is a build artefact, never installed.
   for item in "${KIT_PAYLOAD[@]}"; do
     [ -e "$SRC_DIR/$item" ] || continue
-    rm -rf "$KIT_HOME/$item"
+    rm -rf "${KIT_HOME:?}/$item"
     cp -R "$SRC_DIR/$item" "$KIT_HOME/$item"
   done
-  for item in "${KIT_RETIRED[@]}"; do rm -rf "$KIT_HOME/$item"; done
+  for item in "${KIT_RETIRED[@]}"; do rm -rf "${KIT_HOME:?}/$item"; done
   chmod +x "$KIT_HOME"/*.sh 2>/dev/null || true
   note "[ok]      kit installed to $KIT_HOME (source: $SRC_DIR)"
 fi

@@ -10,8 +10,11 @@ React-Story in **<ORISO-Frontend|ORISO-Admin>**, ohne das rohe HTML in die
 Komponente einzubauen.
 
 1. Lies das Mockup und entscheide:
-   - **Volle visuelle Treue nötig** (z. B. E-Mail-Template, statisches
-     Layout) → Wrapper-Komponente, die das HTML per `<iframe srcDoc={html}>`
+   - **Screen-Layout oder Variante** (der Normalfall) → Story aus vorhandenen
+     Komponenten und Tokens bauen (`npx storybook tools docs show --id <id>`).
+     Kein roh eingebettetes HTML, keine nachgebauten Styles — Regel 3 in
+     `rules/AGENTS-block.md`.
+   - **Volle visuelle Treue nötig** (z. B. E-Mail-Template) → Wrapper-Komponente, die das HTML per `<iframe srcDoc={html}>`
      rendert. Das HTML bleibt als eigene Datei/Konstante, nicht inline im JSX.
    - **Einfaches Snippet, soll ins Komponenten-Tooling** →
      `dangerouslySetInnerHTML` in einer kleinen Wrapper-Komponente, mit

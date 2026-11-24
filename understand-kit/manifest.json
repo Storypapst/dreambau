@@ -29,7 +29,7 @@
     },
     {
       "path": "install.sh",
-      "sha256": "a92eb1fb74e199cdeaabcfb5f15be04726a4c4498abd071167fb1a30ce34b706"
+      "sha256": "08d629415347be9c70e2a6521eb668ef1668ef0a9e12d47baff07d62a24cadbb"
     },
     {
       "path": "kit-local.sh",
@@ -49,7 +49,7 @@
     },
     {
       "path": "pages/index.html",
-      "sha256": "135508f0b6345f155265c97777d18a4c700d606fd72b873e7f8c46b48e80c4bf"
+      "sha256": "5a7811fabfb14458f8172b4284ba78ed6cf45e7ec71ab1c14f8089f5eb5e06ca"
     },
     {
       "path": "prompts/component-build.md",
@@ -57,7 +57,7 @@
     },
     {
       "path": "prompts/html-to-story.md",
-      "sha256": "b5eee699b6b3f9f30004fc36c0b4ddebf194013bdaa824b3e38a570f9c441c6b"
+      "sha256": "e899b822449405afa9a765e47ba886658ddbbc24ea15a6768ad21c0b3e240534"
     },
     {
       "path": "prompts/onboarding.md",
@@ -65,7 +65,7 @@
     },
     {
       "path": "prompts/story-to-html.md",
-      "sha256": "a37a38cf8d7423b130be5a7d608454bc480b2aa394bf12599fdc5cb019845bd2"
+      "sha256": "9519d698b15aab5528ca578137dedf7ed80da73e0ea4f4f80c9950f6d8eeea44"
     },
     {
       "path": "prompts/ticket-check.md",
