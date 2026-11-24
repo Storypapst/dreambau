@@ -107,16 +107,34 @@ retire_kit_items() {
   for item in "${KIT_RETIRED[@]}"; do rm -rf "${KIT_HOME:?}/$item"; done
   [ -f "$marker" ] && return 0
   # Without the claude CLI (a Codex session, a hook with a narrow PATH) nothing can be
-  # checked: leave the marker unwritten so a later run with Claude does the cleanup.
+  # removed: leave the marker unwritten so a later run with Claude does the cleanup.
   command -v claude >/dev/null 2>&1 || return 0
-  for server in storybook-frontend storybook-admin; do
-    if claude mcp get "$server" >/dev/null 2>&1; then
-      if claude mcp remove "$server" --scope user >/dev/null 2>&1; then
-        echo "[kit-retire] removed retired MCP $server (Storybook 11 skills replace it)"
-      else
-        echo "[kit-retire] could not remove MCP $server — run: claude mcp remove $server --scope user"
-        return 0
-      fi
+  # Read the user-scope registrations straight from Claude Code's config instead of
+  # `claude mcp get/list`: no health check, no network, and a read error is told apart
+  # from "not registered" (exit 2 = unreadable -> no marker, retry next run).
+  local found
+  found="$(python3 - "$HOME/.claude.json" <<'PYEOF' 2>/dev/null
+import json, os, sys
+path = sys.argv[1]
+if not os.path.exists(path):
+    sys.exit(0)
+try:
+    servers = (json.load(open(path)).get("mcpServers") or {})
+except Exception:
+    sys.exit(2)
+for name in ("storybook-frontend", "storybook-admin"):
+    if name in servers:
+        print(name)
+PYEOF
+)" || return 0
+  local limit=""
+  command -v timeout >/dev/null 2>&1 && limit="timeout 5"
+  for server in $found; do
+    if $limit claude mcp remove "$server" --scope user >/dev/null 2>&1; then
+      echo "[kit-retire] removed retired MCP $server (Storybook 11 skills replace it)"
+    else
+      echo "[kit-retire] could not remove MCP $server — run: claude mcp remove $server --scope user"
+      return 0
     fi
   done
   : > "$marker"
@@ -324,9 +342,11 @@ PYEOF
 }
 
 if [ "$MODE" = "subscribe" ]; then
+  # Local and fast, so it runs before the network step and is not cut off by the
+  # session hook's time limit.
+  retire_kit_items
   kit_subscribe
   kit_status=$?
-  retire_kit_items
   # The Test-Access CLI follows the same subscription: one manifest request, a
   # download only when a newer version is served. Never blocks the session.
   if [ -f "$KIT_HOME/test-access-install.sh" ]; then
