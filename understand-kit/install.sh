@@ -438,7 +438,7 @@ if [ "$HAVE_CLAUDE" -eq 1 ] && [ -n "${ORISO_SB_MCP_AUTH:-}" ]; then
     fi
   fi
   rm -f /tmp/sb-admin.$$
-  note "[info]    Storybook MCP tools (10.6): docs-list, docs-show, docs-show-story, stories-preview, stories-find-by-component, stories-changed, test-run"
+  note "[info]    Storybook 11: repo skills (component-docs, write-stories, test-stories, ui-review) come first; the MCP server is the fallback"
 else
   note "[skipped] Storybook MCP registration — ORISO_SB_MCP_AUTH not set and not readable from Infisical."
   note "          Either 'infisical login --domain $INFISICAL_DOMAIN' (project 'ORISO Test Access', env $INFISICAL_ENV) and re-run, or:"

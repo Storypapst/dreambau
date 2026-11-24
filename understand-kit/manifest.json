@@ -1,8 +1,9 @@
 {
   "name": "oriso-understand-kit",
-  "version": "0.5.1",
-  "date": "2026-11-07",
+  "version": "0.5.2",
+  "date": "2026-11-24",
   "changelog": [
+    "0.5.2 (2026-11-24) — Storybook 11 in ORISO-Frontend and ORISO-Admin. The working rule (AGENTS-block, AGENTS template, oriso-graph skill) now sends agents to the Storybook skills committed in each repository (component-docs → write-stories → test-stories → ui-review, in .claude/skills/ and .agents/skills/) and to `npx storybook tools docs show`; both work without a server or a secret, so Codex gets the same component contract as Claude Code. The predev Storybook MCP stays registered as the fallback and for preview URLs.",
     "0.5.1 (2026-11-07) — repair the CLI installer omitted by older subscribers during their kit upgrade. An equal-version subscription downloads the verified bundle again only when its manifest advertises the missing helper. Personal files remain preserved; intact current kits and older servers do not redownload.",
     "0.5.0 (2026-09-14) — the Test-Access CLI ships through the kit. New test-access-install.sh (also copied to ~/.local/bin/test-access-install): fetches /understand/api/v1/cli/manifest with the personal token, downloads the bundle only when a newer version is served, verifies the sha256 before swapping it in with a backup, writes the test-access wrapper and installs Playwright in the manifest's version next to it. install.sh runs it at step 4a; --subscribe (and therefore the session hook) keeps it current. No more hand-delivered CLI files, no checkout needed; 'test-access --version' names the release and commit.",
     "0.4.4 (2026-09-12) — kit subscription sends its authorization header through stdin rather than process arguments. Regression coverage verifies authenticated manifest and bundle downloads, repeat subscription, and preservation of personal files.",
@@ -32,7 +33,7 @@
     },
     {
       "path": "install.sh",
-      "sha256": "fde2b662cd26f4793df1021e89b01be8a16aca73fee920bad824d0c09a0f95e5"
+      "sha256": "adbedd0f370337a81ad8f1a749c377fc7a852870c1bf25ec4dd9737353ab7ccc"
     },
     {
       "path": "kit-local.sh",
@@ -48,7 +49,7 @@
     },
     {
       "path": "mcp-add.sh",
-      "sha256": "24d51709f9b819c4e5f3dd0cf2e460f60522a43d9bdb6426ecd90365412ea566"
+      "sha256": "fa703e61d81377362a8fea16b229065e04f8bd4467654ff40c8f5fc11c9c17f9"
     },
     {
       "path": "pages/features/case-handover.html",
@@ -80,7 +81,7 @@
     },
     {
       "path": "rules/AGENTS-block.md",
-      "sha256": "e887f67c3ff416e8c029e12573913b7cd138c7a6451fac6b2f4d95d1e02941b9"
+      "sha256": "c18f82351c331924cddc82ef41dfd2a26b1186d1161ba166420ecc70053dcd50"
     },
     {
       "path": "rules/devs/Hassan9215.md",
@@ -128,7 +129,7 @@
     },
     {
       "path": "rules/templates/AGENTS.md",
-      "sha256": "2b300aa14465334cd70edfe74e86f199cf53f9b28effffd665bc3af373deab9f"
+      "sha256": "16a5791d191bd694724697665a62043def2b5b781ea19ab841c5dc61063157c5"
     },
     {
       "path": "rules/templates/CLAUDE.md",
@@ -144,7 +145,7 @@
     },
     {
       "path": "skills/README.md",
-      "sha256": "33bcc54aeae0432fd7df1bac11ffebb51fca83c6b485977ae67aa0ad9c420086"
+      "sha256": "4774b1b62dfb2bd1d6f813472075204c77e34842fac1b93739bc891ffe90c7d3"
     },
     {
       "path": "skills/code-archaeology/SKILL.md",
@@ -184,7 +185,7 @@
     },
     {
       "path": "skills/oriso-graph/SKILL.md",
-      "sha256": "3c9a844a384a2edcd67bded18778e07473493ef9978c034b171b126ffc2317da"
+      "sha256": "3f11be0493b4ece58029ac3b1a8e86c81be75b77dc79cd968cc6130956706c57"
     },
     {
       "path": "skills/oriso-quality-gate/SKILL.md",

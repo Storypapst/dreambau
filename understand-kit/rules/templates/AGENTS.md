@@ -109,11 +109,15 @@ never have to guess how much verification already happened.
    not silently deviate. Platform ADRs live in `ORISO-Docs/oriso-platform/decisions/`;
    code-adjacent ADRs sit beside their repository. The numbering drifts between the two —
    link by name, not by number.
-3. **UI components only via Storybook.** Never guess props. Query the Storybook MCP server
-   (`docs-list`, `docs-show`, `docs-show-story`, `stories-find-by-component`,
-   `stories-changed`, `stories-preview`) for ORISO-Frontend and ORISO-Admin; after changing a
-   component or story, run `stories-preview` and include the preview URL in your report. HTML
-   mockups become stories via the "HTML → Story" prompt (`prompts/html-to-story.md`).
+3. **UI components only via Storybook.** Never guess props. ORISO-Frontend and ORISO-Admin
+   run Storybook 11, which ships its own agent skills in the repository (`.claude/skills/`
+   for Claude Code, `.agents/skills/` for Codex and other agents) and a "Storybook" section
+   in the repo's `AGENTS.md`: `component-docs` → `write-stories` → `test-stories` →
+   `ui-review`. Follow that section first. The skills need no server and no secret; the same
+   data is available on the command line with `npx storybook tools docs list` and
+   `npx storybook tools docs show --id <id>`. The Storybook MCP server on predev
+   (`docs-show`, `stories-preview`, …) stays as the fallback and for shareable preview URLs.
+   HTML mockups become stories via the "HTML → Story" prompt (`prompts/html-to-story.md`).
 4. **Freshness is printed, not assumed.** Run `ua-pull --verify`. It shows the graph's branch,
    commit, date (shallow structure: refreshed on demand from `dev`) and the depth date
    (concepts/flows/tour: date of the last deep run). If the shallow date is older than 24 h,
