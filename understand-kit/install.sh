@@ -106,18 +106,19 @@ retire_kit_items() {
   [ -d "$KIT_HOME" ] || return 0
   for item in "${KIT_RETIRED[@]}"; do rm -rf "$KIT_HOME/$item"; done
   [ -f "$marker" ] && return 0
-  if command -v claude >/dev/null 2>&1; then
-    for server in storybook-frontend storybook-admin; do
-      if claude mcp get "$server" >/dev/null 2>&1; then
-        if claude mcp remove "$server" --scope user >/dev/null 2>&1; then
-          echo "[kit-retire] removed retired MCP $server (Storybook 11 skills replace it)"
-        else
-          echo "[kit-retire] could not remove MCP $server — run: claude mcp remove $server --scope user"
-          return 0
-        fi
+  # Without the claude CLI (a Codex session, a hook with a narrow PATH) nothing can be
+  # checked: leave the marker unwritten so a later run with Claude does the cleanup.
+  command -v claude >/dev/null 2>&1 || return 0
+  for server in storybook-frontend storybook-admin; do
+    if claude mcp get "$server" >/dev/null 2>&1; then
+      if claude mcp remove "$server" --scope user >/dev/null 2>&1; then
+        echo "[kit-retire] removed retired MCP $server (Storybook 11 skills replace it)"
+      else
+        echo "[kit-retire] could not remove MCP $server — run: claude mcp remove $server --scope user"
+        return 0
       fi
-    done
-  fi
+    fi
+  done
   : > "$marker"
   return 0
 }
