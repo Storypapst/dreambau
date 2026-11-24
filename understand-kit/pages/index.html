@@ -174,7 +174,7 @@
         <ul>
           <li>Arbeitsregel: Ticket → Graph + ADRs → Storybook → Code</li>
           <li>Fünf Prompts: Ticket-Check, Onboarding, Komponente, HTML→Story, Story→HTML</li>
-          <li>Installer, Graph-Pull, Storybook-MCP-Zugang, Secrets über Infisical</li>
+          <li>Installer, Graph-Pull, Storybook-Skills, Secrets über Infisical</li>
           <li>Vorlagen: <code>AGENTS.md</code> als Quelle, <code>CLAUDE.md</code>/Codex nur Verweis</li>
         </ul>
         <div class="foot"><span class="fr ok">Kit 0.2.0</span><span class="fr">Abo-Endpunkt: gebaut, noch nicht deployt</span></div>
@@ -246,7 +246,7 @@
         <ul>
           <li>Refresh-Log und Verify-Tabelle (Knoten je Repo, Abweichung zum Vorlauf)</li>
           <li>Reports: tote Aufrufe, Spec-Drift</li>
-          <li>Health der Kanäle: Graph-HTTPS, Storybook-MCP, Kit-Endpunkt</li>
+          <li>Health der Kanäle: Graph-HTTPS, Kit-Endpunkt</li>
         </ul>
         <div class="foot"><span class="fr">Stufe 3</span></div>
         <div class="links"><a href="#" aria-disabled="true">geplant</a></div>
@@ -270,7 +270,7 @@
         <tbody>
           <tr><td>Kit (Prompts, Regeln, Seiten)</td><td>Machine-Token der Test-Access-API als Bearer; <code>install.sh --subscribe</code></td><td>Infisical <code>ORISO_KIT_TOKEN</code></td></tr>
           <tr><td>Graph (JSON)</td><td>HTTPS mit Basic-Auth; <code>ua-pull --via-https</code></td><td>abgeleitet aus <code>ORISO_SB_MCP_AUTH</code></td></tr>
-          <tr><td>Storybook-MCP</td><td>Zwei MCP-Server über die Domain, User-Scope</td><td>Infisical <code>ORISO_SB_MCP_AUTH</code></td></tr>
+          <tr><td>Storybook</td><td>Skills und <code>npx storybook tools</code> im Repo, ohne Server</td><td>keins</td></tr>
           <tr><td>Hub (diese Seiten)</td><td>Passkey-Login in Dreambau</td><td>—</td></tr>
         </tbody>
       </table>

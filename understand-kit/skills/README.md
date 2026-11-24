@@ -24,7 +24,7 @@ Read-only for most people; copy one into `~/.oriso-dev-kit/local/skills/` to use
 | `work-through` | Works a whole parent issue to done: own branch, TDD, evidence, no self-merge. |
 | `dreambau-testmail-api` | Test identities and OTP mails for E2E (needs a Keychain entry). |
 | `dreambau-pr-evidence` | Attaches screenshots and videos to a PR as durable proof. |
-| `oriso-storybook-routing` | Storybook/Figma work; component props come from the repo's Storybook 11 skills; the Storybook MCP is the fallback. |
+| `oriso-storybook-routing` | Storybook/Figma work; component props come from the repo's Storybook 11 skills and `npx storybook tools`. |
 | `oriso-frontend-component-discipline` | Building or changing frontend components. |
 | `oriso-language-i18n-qa` | Checks UI texts and translations in the running app. |
 | `oriso-prune` | Repo and worktree hygiene sweep. |

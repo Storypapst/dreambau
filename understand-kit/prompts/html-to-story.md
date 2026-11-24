@@ -21,10 +21,11 @@ Komponente einzubauen.
 3. **Committe die rohe HTML-Datei nicht in den Komponenten-Ordner** — sie
    bleibt Referenz/Input außerhalb des Repos oder als dokumentierter Fixture
    mit klarer Herkunft, nie unkommentiert im Produktionscode.
-4. Führe `stories-preview` (Storybook-MCP) für die neue Story aus.
-5. Nimm die Preview-URL **wörtlich** in den Abschlussbericht auf.
+4. Führe `test-stories` für die neue Story aus und zeige sie mit
+   `npx storybook tools stories preview` (lokales `npm run storybook`).
+5. Nimm die Story-ID **wörtlich** in den Abschlussbericht auf.
 6. Nenne, welcher Ansatz (iframe vs. dangerouslySetInnerHTML) gewählt wurde
    und warum.
 
 Bei Unsicherheit über Storybook-Story-Konventionen im Repo:
-`get-storybook-story-instructions` (Storybook-MCP) zuerst abfragen.
+den Skill `write-stories` des Repos zuerst laden.

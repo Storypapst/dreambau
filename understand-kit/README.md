@@ -28,7 +28,7 @@ Frank changes a prompt / rule / template
 ```
 
 The client never merges: it replaces `~/.oriso-dev-kit/` wholesale. Repos point *into* that
-directory (skill symlink, hook, `mcp-add.sh`), so one replaced directory updates every
+directory (skill symlink, hook), so one replaced directory updates every
 checkout at once.
 
 `manifest.json` is the contract: `version`, `date`, `changelog`, and a `files` array with a
@@ -161,31 +161,33 @@ location with `ORISO_KIT_HOME`.
 Nothing may work with Claude only.
 
 - `rules/AGENTS-block.md` — the working rule "ticket → graph + ADRs → Storybook → code",
-  written tool-neutrally: files to read, MCP tools to call. This is the block that goes into
+  written tool-neutrally: files to read, commands to run. This is the block that goes into
   every ORISO repo's `AGENTS.md`.
 - `rules/templates/AGENTS.md` — the repo template: the block plus a placeholder for **this
   repository's speciality** (build commands, branch policy, its own traps).
 - `rules/templates/CLAUDE.md` — only "see AGENTS.md" plus genuine Claude Code features:
-  the `oriso-graph` skill, the `SessionStart` hook, MCP server registration — and a
+  the `oriso-graph` skill and the `SessionStart` hook — and a
   placeholder for a Claude-specific speciality *if the repo has one*.
 - `rules/templates/codex.md` — how Codex picks up `AGENTS.md` natively, and the one-time
   machine setup (token env, `ua-pull` call) in `~/.codex/`.
 
 Rule of thumb for where something belongs: if it applies to every agent (a build command, a
-branch policy, a trap), it goes in `AGENTS.md`. Only a real tool feature — a skill, a hook,
-an MCP registration — goes in `CLAUDE.md` or the Codex file.
+branch policy, a trap), it goes in `AGENTS.md`. Only a real tool feature — a skill or a hook —
+goes in `CLAUDE.md` or the Codex file.
 
 ## Sicherheitsmodell
 
 - **Nothing here is public.** Not on docs.oriso.org, not in a public repo. Access is through
   the Dreambau bundle endpoint with a revocable per-person/per-machine bearer token (the same
   mechanism as the Test-Access API) or a passkey for humans in the UI.
-- **No secrets in files.** `ORISO_SB_MCP_AUTH` and `ORISO_UA_AUTH` are read at runtime from
+- **No secrets in files.** `ORISO_SB_MCP_AUTH` (historical name; today it only unlocks the
+  `/ua` graph ingress) and `ORISO_UA_AUTH` are read at runtime from
   Infisical (self-hosted `https://secrets.dreambau.com`, project "ORISO Test Access", env
   `pre-dev`) or from the environment. The scripts reference variable *names*; no value, hash
   or token is stored anywhere in this folder. See `SECRET-SCAN.md`.
-- **MCP servers are registered with `--scope user`, never `--scope project`** — project scope
-  would write the Basic-Auth value into the repository's `.mcp.json`.
+- **No MCP servers.** Since 0.5.2 the kit registers none; Storybook 11 serves component
+  knowledge from each repository (skills and `npx storybook tools`). `install.sh` removes the
+  retired `storybook-frontend` / `storybook-admin` registrations.
 - **Never commit `.understand-anything/`.** `ua-pull` marks the files it manages
   `skip-worktree` (or adds them to `.git/info/exclude`) so a stray commit cannot leak a
   graph snapshot into a repository.
@@ -199,13 +201,11 @@ an MCP registration — goes in `CLAUDE.md` or the Codex file.
 | `README.md` | This file: purpose, subscription mechanics, setup, security model. |
 | `manifest.json` | Subscription contract — version, date, changelog, sha256 per file. |
 | `build-bundle.sh` | Regenerates the manifest and packs `dist/understand-kit-<version>.tar.gz`. `dist/` is gitignored. |
-| `install.sh` | Installs the kit to `~/.oriso-dev-kit/`, then wires plugin, MCP, `ua-pull`, skill symlink, hook and graph pull. Idempotent, with a summary table. |
+| `install.sh` | Installs the kit to `~/.oriso-dev-kit/`, then wires plugin, `ua-pull`, skill symlink, hook and graph pull. Idempotent, with a summary table. |
 | `ua-pull.sh` | Fetches `.understand-anything/{knowledge-graph,meta,fingerprints,depth,platform-graph}.json` via SSH or HTTPS; `--verify` reports freshness; `--unlock` releases `skip-worktree` before a `git pull`. Plain shell — agent-neutral. |
-| `mcp-add.sh` | The two `claude mcp add` commands for the Storybook MCP servers, runnable on their own. |
 | `kit-subscribe.sh` | The subscription check: wrapper around `install.sh --subscribe` with a wall-clock limit (`--max-seconds`). Installed as `~/.local/bin/kit-subscribe`. |
 | `kit-local.sh` | Your own layer: `kit-local adapt/apply/status/drop`. Keeps personal changes to kit files across updates. Installed as `~/.local/bin/kit-local`. |
 | `settings.hook.json` | A `SessionStart` hook snippet: first `kit-subscribe --max-seconds 10`, then `ua-pull --verify` (and pulls when stale). Merged into `<repo>/.claude/settings.json` by `install.sh`. |
-| `.mcp.json.example` | Project-scoped MCP template — env-var reference only, no secret. |
 | `rules/AGENTS-block.md` | The working rule, tool-neutral. Single source; paste into a repo's `AGENTS.md`. |
 | `rules/templates/AGENTS.md` | Repo template: rule block + "Besonderheit dieses Repos". |
 | `rules/templates/CLAUDE.md` | Repo template: pointer to `AGENTS.md` + Claude-only features. |
@@ -253,10 +253,10 @@ an MCP registration — goes in `CLAUDE.md` or the Codex file.
 also changes them upstream: `ua-pull --unlock`, then `git pull`, then `ua-pull` again to
 re-pull and re-lock.
 
-**Storybook MCP does not connect / HTTP 401**
-→ The ingress is live and answers 401 without valid credentials, so `ORISO_SB_MCP_AUTH` is
-missing or wrong: `infisical login --domain https://secrets.dreambau.com`, then re-run
-`mcp-add.sh`. The value comes from Infisical, never from a file.
+**An agent cannot find component props**
+→ Run `npx storybook tools docs list` in ORISO-Frontend or ORISO-Admin. It needs the repository's
+`node_modules` (`npm ci`), not a server or a secret. If it lists nothing, the branch predates
+the Storybook 11 upgrade — pull `dev`.
 
 **`ua-pull --via-ssh` fails**
 → Check that the SSH alias `predev` exists (`ssh -G predev`). Otherwise create the alias or

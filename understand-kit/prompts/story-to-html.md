@@ -14,7 +14,7 @@ Teilen (z. B. für Frank/Design-Review, nicht für ein anderes Claude-Fenster).
    an alle mit Zugriff auf den Dev-Server (Basic-Auth gilt weiter).
 2. **Zum Prüfen, ob die Story existiert/den Namen richtig hat:** vorher
    `docs-list` oder `docs-show-story`
-   (Storybook-MCP) abfragen — nicht raten.
+   (`npx storybook tools docs show --id <id>`) abfragen — nicht raten.
 3. **Für einen statischen Export zum Weitergeben ohne laufenden Server:**
    `npm run build-storybook` (bzw. das Repo-eigene Skript) im Frontend/Admin-
    Repo, Ergebnis liegt unter `storybook-static/`; darin liegt dieselbe
