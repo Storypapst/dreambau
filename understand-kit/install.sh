@@ -93,6 +93,35 @@ note() { SUMMARY_LINES+=("$1"); echo "$1"; }
 # Every failure is non-fatal by design — the session hook calls this and a dead
 # endpoint must never block a developer from starting work.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Retirement migration: idempotent removal of what earlier kit versions installed and
+# this one no longer ships — files in $KIT_HOME and the predev Storybook MCP
+# registrations. Runs on a full install and on every --subscribe run, because an
+# existing subscriber upgrades with its *old* installer (which knows nothing about
+# retired items) and afterwards only sees "kit current". A marker keeps the session
+# hook fast once the migration has run.
+# ---------------------------------------------------------------------------
+retire_kit_items() {
+  local marker="$KIT_HOME/.retired-storybook-mcp" item server
+  [ -d "$KIT_HOME" ] || return 0
+  for item in "${KIT_RETIRED[@]}"; do rm -rf "$KIT_HOME/$item"; done
+  [ -f "$marker" ] && return 0
+  if command -v claude >/dev/null 2>&1; then
+    for server in storybook-frontend storybook-admin; do
+      if claude mcp get "$server" >/dev/null 2>&1; then
+        if claude mcp remove "$server" --scope user >/dev/null 2>&1; then
+          echo "[kit-retire] removed retired MCP $server (Storybook 11 skills replace it)"
+        else
+          echo "[kit-retire] could not remove MCP $server — run: claude mcp remove $server --scope user"
+          return 0
+        fi
+      fi
+    done
+  fi
+  : > "$marker"
+  return 0
+}
+
 kit_subscribe() {
   local base token tmp remote_version local_version filename http_status decision
 
@@ -296,6 +325,7 @@ PYEOF
 if [ "$MODE" = "subscribe" ]; then
   kit_subscribe
   kit_status=$?
+  retire_kit_items
   # The Test-Access CLI follows the same subscription: one manifest request, a
   # download only when a newer version is served. Never blocks the session.
   if [ -f "$KIT_HOME/test-access-install.sh" ]; then
@@ -413,20 +443,8 @@ fi
 #    Storybook 11 serves component knowledge from the repository (skills and
 #    `npx storybook tools`), so the predev MCP servers are no longer registered.
 # ---------------------------------------------------------------------------
-if [ "$HAVE_CLAUDE" -eq 1 ]; then
-  for server in storybook-frontend storybook-admin; do
-    if claude mcp get "$server" >/dev/null 2>&1; then
-      if claude mcp remove "$server" --scope user >/dev/null 2>&1; then
-        note "[ok]      removed retired MCP $server (Storybook 11 skills replace it)"
-      else
-        note "[failed]  could not remove MCP $server — run: claude mcp remove $server --scope user"
-      fi
-    fi
-  done
-  note "[info]    Storybook: repo skills (component-docs, write-stories, test-stories, ui-review) and 'npx storybook tools'"
-else
-  note "[skipped] retired MCP cleanup (no claude CLI)"
-fi
+while IFS= read -r line; do note "[ok]      ${line#\[kit-retire\] }"; done < <(retire_kit_items)
+note "[info]    Storybook: repo skills (component-docs, write-stories, test-stories, ui-review) and 'npx storybook tools'"
 
 # ---------------------------------------------------------------------------
 # 4. ua-pull.sh -> ~/.local/bin/ua-pull
