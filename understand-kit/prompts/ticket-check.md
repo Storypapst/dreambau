@@ -23,11 +23,12 @@ ich Code schreibe.
    - **Governing ADRs** (über `governs`/`documents`-Kanten, mit Dateipfad)
 5. Wenn ein ADR dem widerspricht, was das Ticket verlangt: stoppe und melde
    den Konflikt, statt ihn stillschweigend zu übergehen.
-5a. **UI-Ticket (Frontend/Admin):** Finde die betroffenen Stories über den
-   Storybook-MCP — `stories-find-by-component` für jede betroffene Komponente,
-   `docs-show` für die verbindlichen Props. Nach Änderungen: `stories-changed`
-   zeigt, welche Stories dein Diff berührt; `stories-preview` liefert die URL
-   für den Bericht.
+5a. **UI-Ticket (Frontend/Admin):** Finde die betroffenen Stories lokal mit
+   `npx storybook tools stories find-by-component` für jede betroffene
+   Komponente und `npx storybook tools docs show --id <id>` für die
+   verbindlichen Props. Nach Änderungen zeigt
+   `npx storybook tools stories changed`, welche Stories dein Diff berührt;
+   nenne deren IDs im Bericht.
 6. Schließe mit einem klaren **Go / No-Go**:
    - **Go**, wenn Scope + ADRs eindeutig sind → kurze Umsetzungsskizze.
    - **No-Go**, wenn der Graph fehlt/veraltet ist, ein ADR-Konflikt offen ist,

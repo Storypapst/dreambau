@@ -30,8 +30,8 @@ kit-local status                      # your own adaptations, if you have any
 
 The kit installs `ua-pull` and `kit-local` to `~/.local/bin`, pulls `.understand-anything/*`
 for this repository plus the cross-service platform graph, links the kit skills into
-`.claude/skills/` and `~/.codex/skills/`, and (for agents that support it) registers the
-Storybook MCP servers. Secrets are never stored in files — they are read at runtime from
+`.claude/skills/` and `~/.codex/skills/`. Component knowledge comes from the repository's own
+Storybook skills and `npx storybook tools` — no MCP server. Secrets are never stored in files — they are read at runtime from
 Infisical (`https://secrets.dreambau.com`, project "ORISO Test Access", env `pre-dev`).
 
 <!-- Everything below this line is the shared working rule from
@@ -109,17 +109,33 @@ never have to guess how much verification already happened.
    not silently deviate. Platform ADRs live in `ORISO-Docs/oriso-platform/decisions/`;
    code-adjacent ADRs sit beside their repository. The numbering drifts between the two —
    link by name, not by number.
-3. **UI components only via Storybook.** Never guess props. Query the Storybook MCP server
-   (`docs-list`, `docs-show`, `docs-show-story`, `stories-find-by-component`,
-   `stories-changed`, `stories-preview`) for ORISO-Frontend and ORISO-Admin; after changing a
-   component or story, run `stories-preview` and include the preview URL in your report. HTML
-   mockups become stories via the "HTML → Story" prompt (`prompts/html-to-story.md`).
+3. **UI only from Storybook — compose, never recreate.** Never guess props and never rebuild
+   a screen from screenshots. ORISO-Frontend and ORISO-Admin run Storybook 11, which ships
+   its agent skills in the repository (`.claude/skills/` for Claude Code, `.agents/skills/`
+   for Codex and other agents) and a "Storybook" section in the repo's `AGENTS.md`:
+   `component-docs` → `write-stories` → `test-stories` → `ui-review`. Follow that section.
+   For any design task (new screen, layout, variant, add-on slot):
+   - **Load the compressed contract first, from the repository:** `npx storybook tools docs list`
+     (every component and docs page, one line each), then
+     `npx storybook tools docs show --id <id>` for each component you will use (props,
+     defaults, story snippets) and for the design-token pages (colours, radii, spacing).
+     These run locally, without a server or a secret.
+   - **Compose from what exists.** Arrange existing components; a different button, colour or
+     corner radius is a prop, a token or a new variant of the existing component — never a
+     copy with hand-written CSS, and never a lookalike built from a screenshot.
+   - **Every new screen or variant gets a story** next to its component (`write-stories`), then
+     `test-stories` and the repository's lint, type and test gates.
+   - **Show the result as the story** (`ui-review`, or `npx storybook tools stories preview`
+     with a local `npm run storybook`), not as an artifact or screenshot that re-implements
+     the UI.
+   - **If nothing fits, say so** and propose the smallest new component with its own story.
+   HTML mockups become stories via the "HTML → Story" prompt (`prompts/html-to-story.md`).
 4. **Freshness is printed, not assumed.** Run `ua-pull --verify`. It shows the graph's branch,
    commit, date (shallow structure: refreshed on demand from `dev`) and the depth date
    (concepts/flows/tour: date of the last deep run). If the shallow date is older than 24 h,
    run `ua-pull` first. Never edit or commit files under `.understand-anything/`.
 5. **Report with evidence.** Reference node IDs, endpoint names and ADR names from the graph
-   in your PR description; include Storybook preview URLs for UI work.
+   in your PR description; for UI work name the story IDs you added or changed.
 
 ## What the graph can and cannot do
 
@@ -163,7 +179,7 @@ which PRs need an approval and from whom, and let a human click.
 
 ## Agent-specific conveniences (optional, never required)
 
-These are shortcuts for the same steps above. An agent without them follows the file-and-MCP
+These are shortcuts for the same steps above. An agent without them follows the file-and-command
 path and reaches the same result.
 
 - **Claude Code:** the Understand-Anything plugin adds `/understand-chat`, `/understand-diff`

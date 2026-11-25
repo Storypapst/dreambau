@@ -1,8 +1,9 @@
 {
   "name": "oriso-understand-kit",
-  "version": "0.5.1",
-  "date": "2026-11-07",
+  "version": "0.5.2",
+  "date": "2026-11-24",
   "changelog": [
+    "0.5.2 (2026-11-24) — Storybook 11 in ORISO-Frontend and ORISO-Admin; the Storybook MCP is retired from the kit. Rule 3 of the working rule (AGENTS block, AGENTS template, oriso-graph skill, prompts) now says: load the component contract from the repository with the Storybook skills (component-docs → write-stories → test-stories → ui-review) and `npx storybook tools docs list/show` — local, no server, no secret, the same for Claude Code and Codex — compose screens from existing components and tokens instead of rebuilding them from screenshots, give every new screen or variant a story and pass test-stories plus the repo gates. mcp-add.sh and .mcp.json.example are removed; install.sh no longer registers the predev MCP servers and removes the old storybook-frontend/storybook-admin registrations. ORISO_SB_MCP_AUTH stays only as the credential of the /ua graph ingress.",
     "0.5.1 (2026-11-07) — repair the CLI installer omitted by older subscribers during their kit upgrade. An equal-version subscription downloads the verified bundle again only when its manifest advertises the missing helper. Personal files remain preserved; intact current kits and older servers do not redownload.",
     "0.5.0 (2026-09-14) — the Test-Access CLI ships through the kit. New test-access-install.sh (also copied to ~/.local/bin/test-access-install): fetches /understand/api/v1/cli/manifest with the personal token, downloads the bundle only when a newer version is served, verifies the sha256 before swapping it in with a backup, writes the test-access wrapper and installs Playwright in the manifest's version next to it. install.sh runs it at step 4a; --subscribe (and therefore the session hook) keeps it current. No more hand-delivered CLI files, no checkout needed; 'test-access --version' names the release and commit.",
     "0.4.4 (2026-09-12) — kit subscription sends its authorization header through stdin rather than process arguments. Regression coverage verifies authenticated manifest and bundle downloads, repeat subscription, and preservation of personal files.",
@@ -15,24 +16,20 @@
   ],
   "files": [
     {
-      "path": ".mcp.json.example",
-      "sha256": "9c176d8aead88d128b643e974e7eb247d03a690013cb49fa59630124f3950837"
-    },
-    {
       "path": "README.md",
-      "sha256": "f59bc5083d56039d8bf1fb83be0a87e7ef151206befb26283af83cbe97ce6ba6"
+      "sha256": "3002f96d1ae83de2f9ac6daf1432f8502a35dca27b19036a0b86a83135064594"
     },
     {
       "path": "SECRET-SCAN.md",
-      "sha256": "efa7cfc87a804634fbf7c533b58e308bb42831448055920d9101bc13158c281b"
+      "sha256": "e88c7f77be3787e80cb57758d480b2fbd77726281282adf809c92fce3ee33b4e"
     },
     {
       "path": "build-bundle.sh",
-      "sha256": "0983d216e72ae62589ce2c87a249d3c4dbb0a593a55887b58a781ba909aba9fe"
+      "sha256": "5a0645557d6898890a8677e7852c1beba4bb608312e699a5a4d75f7e6f361cd0"
     },
     {
       "path": "install.sh",
-      "sha256": "fde2b662cd26f4793df1021e89b01be8a16aca73fee920bad824d0c09a0f95e5"
+      "sha256": "e93d1fbcbac318cee09dc7bfccd741ca77b981a229ff1b75d6a5ff7891b9e51f"
     },
     {
       "path": "kit-local.sh",
@@ -47,40 +44,36 @@
       "sha256": "8b97cb52d92e39d5bc27fa69a7161004e1b14be20aa20b10fc702d2216d5720c"
     },
     {
-      "path": "mcp-add.sh",
-      "sha256": "24d51709f9b819c4e5f3dd0cf2e460f60522a43d9bdb6426ecd90365412ea566"
-    },
-    {
       "path": "pages/features/case-handover.html",
       "sha256": "54f57ed7097ec6003c7b952e2812f182a7f546bdb6b48b602337351170461af1"
     },
     {
       "path": "pages/index.html",
-      "sha256": "d6d7b96e986e254dc00a20fb6b5d360afd9c7d7051e3e77cc90cd8f94069e7c8"
+      "sha256": "5a7811fabfb14458f8172b4284ba78ed6cf45e7ec71ab1c14f8089f5eb5e06ca"
     },
     {
       "path": "prompts/component-build.md",
-      "sha256": "1bcfe87a65d7b7736a83da2ffa14a4a7f7a0eb6d8d5de1bb7b1f7c245fdf9c6e"
+      "sha256": "6e0b20ce6a3b4e70d2a73a450b137b2acb8011fd6e876dc02b0e65b2cf23fdc4"
     },
     {
       "path": "prompts/html-to-story.md",
-      "sha256": "2010c10b0b8afcfbea540ba10dccb6795419fd581c02997c16c2df0a0fef83b3"
+      "sha256": "e899b822449405afa9a765e47ba886658ddbbc24ea15a6768ad21c0b3e240534"
     },
     {
       "path": "prompts/onboarding.md",
-      "sha256": "2a1a81913070b33937d843342046686b4c1ac404d2d8f08a2bb21065e9ac6772"
+      "sha256": "08e2c2951ffd41568d7eb0b9ea1128a08a896362f82da611f820e62fb6d5aee3"
     },
     {
       "path": "prompts/story-to-html.md",
-      "sha256": "4d69e356d2db513187626a498995186372a166e2dac47e8dc72074609512a85c"
+      "sha256": "9519d698b15aab5528ca578137dedf7ed80da73e0ea4f4f80c9950f6d8eeea44"
     },
     {
       "path": "prompts/ticket-check.md",
-      "sha256": "4c42fe4f36b4a361f287c51316d118d16bd10cdcf28546741bd8844ea40a9e4c"
+      "sha256": "ed801044feb9ee5afab3b44c73c164da83dbeee90964ec79c83cea2efce24b86"
     },
     {
       "path": "rules/AGENTS-block.md",
-      "sha256": "e887f67c3ff416e8c029e12573913b7cd138c7a6451fac6b2f4d95d1e02941b9"
+      "sha256": "064eb917244e9e1f1552abd5ae5131104d215c0f2ff80a0e095637d44a4cde2c"
     },
     {
       "path": "rules/devs/Hassan9215.md",
@@ -128,11 +121,11 @@
     },
     {
       "path": "rules/templates/AGENTS.md",
-      "sha256": "2b300aa14465334cd70edfe74e86f199cf53f9b28effffd665bc3af373deab9f"
+      "sha256": "4f8a85cca442ef163ecae75ac404900583fe5d0bfebce0f72c3918eca5495dab"
     },
     {
       "path": "rules/templates/CLAUDE.md",
-      "sha256": "a1647ee1066efbf774b065c899d57bd04fadab410d3a2048a59f984370def4e6"
+      "sha256": "b4663fa1da5438a046bf8b140d28e3fa8f7141c99ed5f727f862ba7239416d28"
     },
     {
       "path": "rules/templates/codex.md",
@@ -144,7 +137,7 @@
     },
     {
       "path": "skills/README.md",
-      "sha256": "33bcc54aeae0432fd7df1bac11ffebb51fca83c6b485977ae67aa0ad9c420086"
+      "sha256": "7870130ef13dd3b46d212455a9115def0feb6918e52f2b8cf5adaffa63802335"
     },
     {
       "path": "skills/code-archaeology/SKILL.md",
@@ -184,7 +177,7 @@
     },
     {
       "path": "skills/oriso-graph/SKILL.md",
-      "sha256": "3c9a844a384a2edcd67bded18778e07473493ef9978c034b171b126ffc2317da"
+      "sha256": "91c093f448b8d2941aa1b7741a65dc7aced770c5634cbbdd73625974d9c5fdc5"
     },
     {
       "path": "skills/oriso-quality-gate/SKILL.md",
@@ -196,7 +189,7 @@
     },
     {
       "path": "ua-pull.sh",
-      "sha256": "48feb39239b3298f66ecce8a1b9072d0a1601b4130b4ad05ffc672c79af8cb94"
+      "sha256": "4bc0e392b1a5e2fe32c6b2b612acaedcc62503491a263cce5de323e54bc7a934"
     }
   ]
 }
