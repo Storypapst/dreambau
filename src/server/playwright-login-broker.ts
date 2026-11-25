@@ -461,6 +461,8 @@ async function verifyAppTotp(
     const grantBody = await accepted.json().catch(() => null);
     return grantBody?.access_token;
   });
+  // Route setup can fail before Promise.all owns these waiters.
+  void verifyAcceptance.catch(() => {});
   // Observe the app's protected user-data call after the successful grant.
   // Its bearer must be the access token issued for this exact App-TOTP code.
   const readAuthenticatedToken = page.waitForResponse(
@@ -475,6 +477,7 @@ async function verifyAppTotp(
     }
     return authorization.slice(7);
   });
+  void readAuthenticatedToken.catch(() => {});
   // The app awaits this read before navigating. Hold it until the grant body
   // is available, then release only the original request with the issued token.
   const bindReadback = async (route: Route) => {
@@ -681,6 +684,7 @@ export async function playwrightLogin(request: BrowserLoginRequest) {
 
 export async function runPlaywrightLoginBroker(accountId: string, dependencies: BrokerDependencies) {
   const writeError = dependencies.writeError ?? ((value: string) => process.stderr.write(value));
+  const cleanUpLater = dependencies.scheduleCleanup ?? scheduleCleanup;
   const secrets: string[] = [];
   const requireAppTotp = dependencies.requireAppTotp === true;
   let stateDirectory: string | undefined;
@@ -764,7 +768,7 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
       throw new AppTotpVerificationError("The browser did not verify App-TOTP");
     }
     await chmod(statePath, 0o600);
-    (dependencies.scheduleCleanup ?? scheduleCleanup)(stateDirectory, STATE_TTL_MS);
+    cleanUpLater(stateDirectory, STATE_TTL_MS);
 
     const now = dependencies.now?.() ?? new Date();
     dependencies.write(`${JSON.stringify({
@@ -776,7 +780,12 @@ export async function runPlaywrightLoginBroker(accountId: string, dependencies: 
     return 0;
   } catch (error) {
     if (requireAppTotp) {
-      if (stateDirectory) await rm(stateDirectory, { recursive: true, force: true }).catch(() => {});
+      if (stateDirectory) {
+        const failedDirectory = stateDirectory;
+        await rm(failedDirectory, { recursive: true, force: true }).catch(() => {
+          cleanUpLater(failedDirectory, STATE_TTL_MS);
+        });
+      }
       const message = error instanceof AppTotpVerificationError ? error.message : "The ORISO Dev App-TOTP login could not be verified";
       writeError(`${message}\n`);
     } else {

@@ -32,8 +32,10 @@ function positional(args: string[]) {
   const options = new Set(["--project", "--environment", "--role", "--version", "--status", "--topics", "--note", "--email", "--source"]);
   const switches = new Set(["--json", "--repair"]);
   const values: string[] = [];
+  const sources: Array<string | undefined> = [];
   for (let index = 0; index < args.length; index += 1) {
     if (options.has(args[index])) {
+      if (args[index] === "--source") sources.push(args[index + 1]);
       index += 1;
       continue;
     }
@@ -41,13 +43,12 @@ function positional(args: string[]) {
     if (args[index].startsWith("--")) throw new Error(`unknown option: ${args[index]}`);
     values.push(args[index]);
   }
-  return values;
+  return { values, sources };
 }
 
 export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
-  const [command, id, ...terms] = positional(args);
-  const sourceFlags = args.filter(argument => argument === "--source").length;
-  if (sourceFlags && (sourceFlags !== 1 || command !== "otp" || option(args, "--source") !== "totp" || terms.length)) {
+  const { values: [command, id, ...terms], sources } = positional(args);
+  if (sources.length && (sources.length !== 1 || command !== "otp" || sources[0] !== "totp" || terms.length)) {
     throw new Error("Use otp <account-id> --source totp [--json]");
   }
   if (command === "list") {
@@ -100,7 +101,7 @@ export function buildApiRequest(args: string[], _baseUrl: string): ApiRequest {
       requiresTotpSecret: true
     };
   }
-  if (command === "otp" && sourceFlags) {
+  if (command === "otp" && sources.length) {
     return { path: `/accounts/${encoded}/otp?source=totp`, output: args.includes("--json") ? "json" : "otp", verifyTotpFor: id };
   }
   const query = terms.length ? `?${new URLSearchParams({ query: terms.join(" ") })}` : "";

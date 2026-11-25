@@ -1,3 +1,4 @@
+import { EventEmitter, once } from "node:events";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { createServer, type RequestListener } from "node:http";
 import { tmpdir } from "node:os";
@@ -70,7 +71,10 @@ function fixtureLogin(scenario: Scenario, foreignUrl: string) {
         if (response.status === 400 && (await response.json()).otpType) {
           otp.disabled = false;
           otp.hidden = false;
-          if (${scenario === "foreign-challenge"}) setTimeout(() => { location.href = ${JSON.stringify(foreignUrl)}; }, 70);
+          if (${scenario === "foreign-challenge"}) {
+            await fetch('/start-foreign-navigation');
+            location.href = ${JSON.stringify(foreignUrl)};
+          }
         } else if (response.ok) {
           const { access_token } = await response.json();
           const appToken = ${scenario === "different-session-token"}
@@ -99,60 +103,75 @@ async function exercise(scenario: Scenario, assert: (result: {
   const root = await mkdtemp(join(tmpdir(), "app-totp-contract-"));
   let foreignSubmissions = 0;
   let userDataReads = 0;
-  const foreign = await serve((req, res) => {
-    if (req.method === "POST") foreignSubmissions++;
-    res.setHeader("content-type", "text/html");
-    res.end(`<form method="POST"><input autocomplete="username"><input autocomplete="current-password" type="password">
-      <input autocomplete="one-time-code"><button>Sign in</button></form>
-      <script>document.addEventListener('input', () => fetch('/observed', { method: 'POST' }));</script>`);
-  });
-  const foreignLogin = `${foreign.origin}/login`;
-  const grants: Array<{ username: string | null; otp: string | null }> = [];
-  const app = await serve(async (req, res) => {
-    if (req.url === TOKEN_PATH && req.method === "POST") {
-      const buffers: Buffer[] = [];
-      for await (const bytes of req) buffers.push(bytes);
-      const fields = new URLSearchParams(Buffer.concat(buffers).toString());
-      const username = fields.get("username");
-      const otp = fields.get("otp");
-      grants.push({ username, otp });
-      res.setHeader("content-type", "application/json");
-      if (fields.get("password") !== PASSWORD) {
-        res.writeHead(403).end("{}");
-      } else if (scenario === "legacy-storage" && username === USERNAME) {
-        res.writeHead(401).end("{}");
-      } else if (!otp && scenario !== "password-only") {
-        res.writeHead(400).end(JSON.stringify({ error: "invalid_grant", otpType: scenario === "email" ? "EMAIL" : "APP" }));
-      } else if (scenario === "rejected") {
-        res.writeHead(400).end(JSON.stringify({ error: "invalid_grant" }));
-      } else {
-        res.end(JSON.stringify({ access_token: TOKEN }));
-      }
-      return;
-    }
-    if (scenario === "foreign-login") {
-      res.writeHead(302, { Location: foreignLogin }).end();
-      return;
-    }
-    if (req.url === USER_DATA_PATH && req.method === "GET") {
-      userDataReads++;
-      const authenticatedToken = scenario === "different-session-token" ? OTHER_SESSION_TOKEN : TOKEN;
-      res.writeHead(req.headers.authorization === `Bearer ${authenticatedToken}` ? 200 : 401,
-        { "content-type": "application/json" }).end("{}");
-      return;
-    }
-    res.setHeader("content-type", "text/html");
-    if (req.url === APP_PATH) {
-      res.end(`<h1></h1><script>
-        const token = ${JSON.stringify(TOKEN)};
-        const signedIn = document.cookie.includes('keycloak=' + token) || localStorage.getItem('auth.keycloak') === token;
-        document.querySelector('h1').textContent = signedIn ? 'Counsellor' : 'Signed out';
-      </script>`);
-      return;
-    }
-    res.end(fixtureLogin(scenario, foreignLogin));
-  });
+  let foreign: Awaited<ReturnType<typeof serve>> | undefined;
+  let app: Awaited<ReturnType<typeof serve>> | undefined;
+  const foreignDocument = new EventEmitter();
+  let releaseForeignNavigation!: () => void;
+  const startForeignNavigation = new Promise<void>((resolve) => { releaseForeignNavigation = resolve; });
   try {
+    foreign = await serve((req, res) => {
+      if (req.url === "/foreign-document-ready") {
+        foreignDocument.emit("ready");
+        res.writeHead(204).end();
+        return;
+      }
+      if (req.method === "POST") foreignSubmissions++;
+      res.setHeader("content-type", "text/html");
+      res.end(`<form method="POST"><input autocomplete="username"><input autocomplete="current-password" type="password">
+        <input autocomplete="one-time-code"><button>Sign in</button></form>
+        <script>fetch('/foreign-document-ready'); document.addEventListener('input', () => fetch('/observed', { method: 'POST' }));</script>`);
+    });
+    const foreignLogin = `${foreign.origin}/login`;
+    const grants: Array<{ username: string | null; otp: string | null }> = [];
+    app = await serve(async (req, res) => {
+      if (req.url === "/start-foreign-navigation") {
+        await startForeignNavigation;
+        res.writeHead(204).end();
+        return;
+      }
+      if (req.url === TOKEN_PATH && req.method === "POST") {
+        const buffers: Buffer[] = [];
+        for await (const bytes of req) buffers.push(bytes);
+        const fields = new URLSearchParams(Buffer.concat(buffers).toString());
+        const username = fields.get("username");
+        const otp = fields.get("otp");
+        grants.push({ username, otp });
+        res.setHeader("content-type", "application/json");
+        if (fields.get("password") !== PASSWORD) {
+          res.writeHead(403).end("{}");
+        } else if (scenario === "legacy-storage" && username === USERNAME) {
+          res.writeHead(401).end("{}");
+        } else if (!otp && scenario !== "password-only") {
+          res.writeHead(400).end(JSON.stringify({ error: "invalid_grant", otpType: scenario === "email" ? "EMAIL" : "APP" }));
+        } else if (scenario === "rejected") {
+          res.writeHead(400).end(JSON.stringify({ error: "invalid_grant" }));
+        } else {
+          res.end(JSON.stringify({ access_token: TOKEN }));
+        }
+        return;
+      }
+      if (scenario === "foreign-login") {
+        res.writeHead(302, { Location: foreignLogin }).end();
+        return;
+      }
+      if (req.url === USER_DATA_PATH && req.method === "GET") {
+        userDataReads++;
+        const authenticatedToken = scenario === "different-session-token" ? OTHER_SESSION_TOKEN : TOKEN;
+        res.writeHead(req.headers.authorization === `Bearer ${authenticatedToken}` ? 200 : 401,
+          { "content-type": "application/json" }).end("{}");
+        return;
+      }
+      res.setHeader("content-type", "text/html");
+      if (req.url === APP_PATH) {
+        res.end(`<h1></h1><script>
+          const token = ${JSON.stringify(TOKEN)};
+          const signedIn = document.cookie.includes('keycloak=' + token) || localStorage.getItem('auth.keycloak') === token;
+          document.querySelector('h1').textContent = signedIn ? 'Counsellor' : 'Signed out';
+        </script>`);
+        return;
+      }
+      res.end(fixtureLogin(scenario, foreignLogin));
+    });
     const write = vi.fn<(value: string) => void>();
     const writeError = vi.fn<(value: string) => void>();
     const scheduleCleanup = vi.fn();
@@ -167,10 +186,15 @@ async function exercise(scenario: Scenario, assert: (result: {
       }
       expect(String(input)).toBe(otpUrl);
       otpFetches++;
-      if (scenario === "foreign-challenge") await new Promise((resolve) => setTimeout(resolve, 300));
+      if (scenario === "foreign-challenge") {
+        const foreignReady = once(foreignDocument, "ready", { signal: AbortSignal.timeout(10_000) });
+        releaseForeignNavigation();
+        await foreignReady;
+      }
       const code = { code: CODE, expiresAt: "2026-11-07T19:00:30.000Z" };
       return Response.json(scenario === "legacy-hub" ? code : { ...code, accountId: ACCOUNT_ID, source: "totp" });
     });
+    const appOrigin = app.origin;
     const status = await runPlaywrightLoginBroker(ACCOUNT_ID, {
       requireAppTotp: true,
       baseUrl: HUB,
@@ -178,7 +202,7 @@ async function exercise(scenario: Scenario, assert: (result: {
       readKeychainToken: () => MACHINE_TOKEN,
       stateRoot: root,
       now: () => now,
-      login: (request) => playwrightLogin({ ...request, loginUrl: `${app.origin}/login`, awaitChatUnlock: undefined }),
+      login: (request) => playwrightLogin({ ...request, loginUrl: `${appOrigin}/login`, awaitChatUnlock: undefined }),
       fetch,
       write,
       writeError,
@@ -190,9 +214,10 @@ async function exercise(scenario: Scenario, assert: (result: {
       expect(output + error).not.toContain(secret);
     }
     expect(scheduleCleanup).toHaveBeenCalledTimes(status === 0 ? 1 : 0);
-    await assert({ status, output, error, remaining: await readdir(root), grants, otpFetches, foreignSubmissions, userDataReads, appOrigin: app.origin });
+    await assert({ status, output, error, remaining: await readdir(root), grants, otpFetches, foreignSubmissions, userDataReads, appOrigin });
   } finally {
-    await Promise.all([app.close(), foreign.close(), rm(root, { recursive: true, force: true })]);
+    releaseForeignNavigation();
+    await Promise.all([app?.close(), foreign?.close(), rm(root, { recursive: true, force: true })]);
   }
 }
 

@@ -9,6 +9,15 @@ import { describe, expect, it, vi } from "vitest";
 import { buildApiRequest, runTestAccessCli, runTestAccessCommand } from "../src/server/test-access-cli.js";
 
 describe("test-access CLI", () => {
+  it("keeps a literal source option name when it is the value of a sync note", () => {
+    const body = buildApiRequest(["sync", "oriso/dev/example", "--version", "2.02", "--note", "--source"], "").body;
+    expect(body?.notes).toBe("--source");
+  });
+
+  it("rejects duplicate source options for a TOTP lookup", () => {
+    expect(() => buildApiRequest(["otp", "oriso/dev/example", "--source", "totp", "--source", "totp"], ""))
+      .toThrow("Use otp <account-id> --source totp [--json]");
+  });
   it.each([
     {
       name: "list with file provider", args: ["list", "--project", "oriso", "--environment", "dev"],
