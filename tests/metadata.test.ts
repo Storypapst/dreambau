@@ -109,6 +109,16 @@ describe("metadata database", () => {
         { action: "catalog_sync", context: { applicationVersion: "2.02", environment: "pre-dev" } }
       ]
     });
+    const email = "abe.simpson@dreambau.de";
+    const event = { accountId: "oriso/pre-dev/e2e-platform-admin-predev", email, actorId: "codex-m4-oriso", context: {} };
+    db.recordAccountAccess({ ...event, action: "mail_requested", createdAt: "2026-07-19T16:52:00.000Z" });
+    for (let i = 0; i < 10; i++) {
+      db.recordAccountAccess({ ...event, action: "doctor_checked", createdAt: "2026-07-19T17:00:00.000Z" });
+    }
+    expect(db.getAccountAccess(email)).toMatchObject({
+      latest: { action: "doctor_checked" },
+      latestUseAt: "2026-07-19T16:52:00.000Z"
+    });
     const serialized = JSON.stringify(db.getAccountAccess("abe.simpson@dreambau.de"));
     expect(serialized).not.toMatch(/password|otpValue|totpSecret|token/i);
     db.close();

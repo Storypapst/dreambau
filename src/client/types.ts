@@ -45,7 +45,7 @@ export interface OrisoProvisioningResult {
   provisioningRole: OrisoProvisioningRole; linked: LinkedTestAccount; metadata?: AccountMetadata; requiresApplicationPassword: boolean;
   requiresAccountSetup?: boolean;
 }
-export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[] }
+export interface AccountAccessSummary { latest: AccountAccessEvent | null; events: AccountAccessEvent[]; latestUseAt?: string | null }
 export type OtpResponse = ({ source: "totp"; generatedAt: string; expiresAt: string } | { source: "mail"; receivedAt: string; messageId: string; subject: string }) & { accountId: string; code: string };
 export interface Taxonomies { roles: string[]; topics: string[]; conversationTypes: string[] }
 export const teamProjects = ["oriso", "orimo", "dreambau"] as const;

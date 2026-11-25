@@ -1,0 +1,35 @@
+{
+  "example": true,
+  "topics": {
+    "ki": { "de": "KI", "en": "AI" },
+    "politik": { "de": "Politik", "en": "Politics" },
+    "handwerk": { "de": "Handwerk", "en": "Craft" }
+  },
+  "posts": { "01": "handwerk", "02": "handwerk", "03": "ki", "04": "handwerk", "05": "ki", "06": "handwerk", "07": "ki" },
+  "trees": [
+    {
+      "id": "ki-programmieren",
+      "topic": "ki",
+      "title": { "de": "Beispielbaum: Ersetzt KI das Programmieren?", "en": "Example tree: does AI replace programming?" },
+      "aspects": [
+        { "id": "a1", "stance": -0.9, "water": 2, "label": { "de": "In sechs Monaten", "en": "In six months" }, "say": { "de": "Beispiel-Aussage: Die Ankündigung, in einem halben Jahr schreibe niemand mehr Code, halte ich für Hype.", "en": "Example statement: I think the claim that nobody will write code in half a year is hype." }, "video": { "title": "Beispielvideo eins", "link": "https://videos.example.test/watch?v=beispiel-1", "start": 95, "end": 140 } },
+        { "id": "a2", "stance": -0.4, "water": 1, "label": { "de": "Ohne Prüfung", "en": "Without review" }, "say": { "de": "Beispiel-Aussage: Code ohne Gegenlesen zu übernehmen geht eher schief.", "en": "Example statement: taking code over without review tends to go wrong." }, "video": { "title": "Beispielvideo zwei", "link": "https://videos.example.test/watch?v=beispiel-2", "start": 610, "end": 655 } },
+        { "id": "a3", "stance": 0.0, "water": 3, "label": { "de": "Kommt aufs Team an", "en": "Depends on the team" }, "say": { "de": "Beispiel-Aussage: Ob es hilft, hängt davon ab, wie ein Team Aufgaben schneidet.", "en": "Example statement: whether it helps depends on how a team cuts its tasks." }, "video": { "title": "Beispielvideo drei", "link": "https://videos.example.test/watch?v=beispiel-3", "start": 30, "end": 75 } },
+        { "id": "a4", "stance": 0.45, "water": 5, "label": { "de": "Tests zuerst", "en": "Tests first" }, "say": { "de": "Beispiel-Aussage: Mit Tests als Leitplanke wird die Arbeit mit KI spürbar verlässlicher.", "en": "Example statement: with tests as a guard rail, work with AI gets noticeably more reliable." }, "video": { "title": "Beispielvideo vier", "link": "https://videos.example.test/watch?v=beispiel-4", "start": 1210, "end": 1290 } },
+        { "id": "a5", "stance": 0.75, "water": 8, "label": { "de": "Kleine Schritte", "en": "Small steps" }, "say": { "de": "Beispiel-Aussage: Kleine, einzeln prüfbare Schritte sind der beste Rat aus diesem Video.", "en": "Example statement: small steps that can be checked one by one are the best advice in this video." }, "video": { "title": "Beispielvideo vier", "link": "https://videos.example.test/watch?v=beispiel-4", "start": 300, "end": 360 } },
+        { "id": "a6", "stance": 0.95, "water": 4, "label": { "de": "Erklären lassen", "en": "Let it explain" }, "say": { "de": "Beispiel-Aussage: Sich fremden Code erklären zu lassen ist super gut und spart Tage.", "en": "Example statement: having unfamiliar code explained is great and saves days." }, "video": { "title": "Beispielvideo fünf", "link": "https://videos.example.test/watch?v=beispiel-5", "start": 48, "end": 92 } }
+      ]
+    },
+    {
+      "id": "politik-regeln",
+      "topic": "politik",
+      "title": { "de": "Beispielbaum: Soll der Staat KI regeln?", "en": "Example tree: should the state regulate AI?" },
+      "aspects": [
+        { "id": "b1", "stance": -0.8, "water": 1, "label": { "de": "Verbot hilft", "en": "A ban helps" }, "say": { "de": "Beispiel-Aussage: Dass ein pauschales Verbot Probleme löst, halte ich für unwahr.", "en": "Example statement: I think it is untrue that a blanket ban solves problems." }, "video": { "title": "Beispielvideo sechs", "link": "https://videos.example.test/watch?v=beispiel-6", "start": 15, "end": 58 } },
+        { "id": "b2", "stance": -0.2, "water": 2, "label": { "de": "Zu früh", "en": "Too early" }, "say": { "de": "Beispiel-Aussage: Vielleicht ist es für feste Regeln noch zu früh.", "en": "Example statement: maybe it is too early for fixed rules." }, "video": { "title": "Beispielvideo sieben", "link": "https://videos.example.test/watch?v=beispiel-7", "start": 400, "end": 470 } },
+        { "id": "b3", "stance": 0.3, "water": 4, "label": { "de": "Kennzeichnen", "en": "Labelling" }, "say": { "de": "Beispiel-Aussage: Eine Pflicht zur Kennzeichnung finde ich eher sinnvoll.", "en": "Example statement: I find a duty to label rather sensible." }, "video": { "title": "Beispielvideo sechs", "link": "https://videos.example.test/watch?v=beispiel-6", "start": 720, "end": 790 } },
+        { "id": "b4", "stance": 0.85, "water": 6, "label": { "de": "Offene Prüfung", "en": "Open audits" }, "say": { "de": "Beispiel-Aussage: Offene, unabhängige Prüfungen finde ich super gut.", "en": "Example statement: I think open, independent audits are great." }, "video": { "title": "Beispielvideo acht", "link": "https://videos.example.test/watch?v=beispiel-8", "start": 62, "end": 118 } }
+      ]
+    }
+  ]
+}

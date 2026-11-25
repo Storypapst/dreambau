@@ -12,7 +12,7 @@ const out=path.resolve(ROOT,a.out||'dist/lang-sheet');if(!out.startsWith(ROOT+'/
 const built=spawnSync(process.execPath,['tools/build-apex.mjs','--drafts','--out','dist/lang-sheet-build'],{cwd:ROOT,encoding:'utf8'});if(built.status!==0)throw new Error(built.stderr);
 const server=await serveBuild({dir:ROOT+'/dist/lang-sheet-build',prefix:'/homepage-assets/'}),browser=await launch(),report={generated:new Date().toISOString(),browser:browser.version(),reviewed:false,languages:[]},pages=[];
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const replace=(words,key,row)=>words[key].replace(/\{([^{}]+)\}/g,(m,k)=>({tag1:words['tag.1'],tag2:words['tag.2'],brand:'dreambau.com',code:row.short,name:row.name,count:mirror.languages.length}[k]||m));
+const replace=(words,key,row)=>{const id=key.startsWith('blind.')?key.slice(6):'',own=id&&words['claim.'+id+'.1']?[words['claim.'+id+'.1'],words['claim.'+id+'.2']]:[words['tag.1'],words['tag.2']];return words[key].replace(/\{([^{}]+)\}/g,(m,k)=>({tag1:own[0],tag2:own[1],brand:'dreambau.com',code:row.short,name:row.name,count:mirror.languages.length}[k]||m));};
 try{
  for(const row of rows){
   const file=fs.readFileSync(SITE+'/i18n/'+row.code+'.js'),words=parseLangFile(file.toString()).texts,context=await browser.newContext({viewport:{width:960,height:720},locale:'de-DE',reducedMotion:'reduce'}),page=await context.newPage();

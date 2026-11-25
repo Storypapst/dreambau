@@ -19,7 +19,9 @@ await run(async () => {
   ]), ['bad.md: host other.org', `bad.md: address someone@${'other'}.org`, 'near.md: host dreambau.com.other.org', 'near.md: host notdreambau.com', 'near.md: host www.dreambau.com']);
 
   // ---- the real folder ----
-  const files = filesBelow(ROOT, { skipFolders: ['node_modules', 'dist', 'dist-demo'] });
+  // posts/ holds real posts, and a real post names its real source (a video, an article): their hosts are checked by the
+  // post rules (sourceLink), not by this scan.
+  const files = filesBelow(ROOT, { skipFolders: ['node_modules', 'dist', 'dist-demo', 'posts'] });
   check('hygiene the scan covered the folder (more than ten files)', files.length > 10, `${files.length} files`);
   const lock = files.find((file) => file.name === 'package-lock.json');
   same('hygiene no host and no address but dreambau.com, info@dreambau.com, *.example.test and the local test addresses (the lock file aside)', foreignNames(files.filter((file) => file.name !== 'package-lock.json')), []);
