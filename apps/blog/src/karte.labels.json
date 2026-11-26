@@ -45,7 +45,8 @@
     "helpButtons": "„Springen“ und „Lesen“ stehen unten auf der Karte",
     "helpMore": "Unter der Karte stehen alle Beiträge als Liste.",
     "helpGo": "Los geht’s",
-    "helpOpen": "Hilfe: so bewegst du dich"
+    "helpOpen": "Hilfe: so bewegst du dich",
+    "page": "Ganze Beitragsseite öffnen"
   },
   "en": {
     "home": "Home",
@@ -93,7 +94,8 @@
     "helpButtons": "“Jump” and “Read” are at the bottom of the map",
     "helpMore": "Below the map, all posts stand as a list.",
     "helpGo": "Let’s go",
-    "helpOpen": "Help: how to get around"
+    "helpOpen": "Help: how to get around",
+    "page": "Open the whole post page"
   },
   "fi": {
     "home": "Etusivu",
@@ -141,7 +143,8 @@
     "helpButtons": "”Hyppää” ja ”Lue” ovat kartan alareunassa",
     "helpMore": "Kartan alla kaikki tekstit ovat listana.",
     "helpGo": "Aloitetaan",
-    "helpOpen": "Ohje: näin liikut"
+    "helpOpen": "Ohje: näin liikut",
+    "page": "Avaa koko kirjoituksen sivu"
   },
   "ar": {
     "home": "الصفحة الرئيسية",
@@ -189,6 +192,7 @@
     "helpButtons": "«اقفز» و«اقرأ» في أسفل الخريطة",
     "helpMore": "تحت الخريطة تجد كل المقالات في قائمة.",
     "helpGo": "لنبدأ",
-    "helpOpen": "مساعدة: هكذا تتحرّك"
+    "helpOpen": "مساعدة: هكذا تتحرّك",
+    "page": "افتح صفحة المقال كاملة"
   }
 }

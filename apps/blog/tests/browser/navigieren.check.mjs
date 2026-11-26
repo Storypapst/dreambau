@@ -44,11 +44,11 @@ const visibleMark = (state, box) => state.marks.find((mark) => mark.kind === 'po
 
 await run(async () => {
   // ---- KARTE-13: the files of the prototype ----
-  const labels = JSON.parse(fs.readFileSync(path.join(ROOT, 'prototypes', 'navigieren', 'labels.json'), 'utf8'));
+  const labels = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'karte.labels.json'), 'utf8'));
   const keysOf = (lang) => Object.keys(labels[lang]).sort();
   for (const lang of Object.keys(labels)) same(`KARTE-13 the labels of "${lang}" have the same keys as the German ones and none is empty`, [keysOf(lang), Object.values(labels[lang]).filter((text) => typeof text !== 'string' || text.trim() === '').length], [keysOf('de'), 0]);
   const tokens = (file) => Object.fromEntries([...fs.readFileSync(file, 'utf8').matchAll(/--(old|draft):\s*([\d,\s]+)/g)].map((match) => [match[1], match[2].replace(/\s/g, '')]));
-  same('KARTE-13 the two colours that karte.css adds are the ones of /referenzen/', tokens(path.join(ROOT, 'prototypes', 'navigieren', 'karte.css')), tokens(path.join(REPO, 'apps', 'website', 'site', 'website-assets', 'references.css')));
+  same('KARTE-13 the two colours that the map adds to tokens.css are the ones of /referenzen/', tokens(path.join(ROOT, 'src', 'tokens.css')), tokens(path.join(REPO, 'apps', 'website', 'site', 'website-assets', 'references.css')));
   same('KARTE-13 the start of a cut is a query parameter, also for an address without one', [cutLink({ link: 'https://videos.example.test/watch?v=a', start: 95 }), cutLink({ link: 'https://videos.example.test/abc', start: 95 })], ['https://videos.example.test/watch?v=a&t=95s', 'https://videos.example.test/abc?t=95s']);
   check('KARTE-13 a cut that is not an https address is refused', (() => { try { cutLink({ link: 'http://videos.example.test/a', start: 1 }); return false; } catch { return true; } })());
   await withScratch('navigieren-rules', async (scratch) => {
@@ -57,7 +57,7 @@ await run(async () => {
     const fixture = fs.readFileSync(path.join(FIXTURES, '2026', 'notiz-aus-der-werkstatt.md'), 'utf8').replace(/^example: true\n/m, '');
     fs.writeFileSync(path.join(real, '2026', 'notiz-aus-der-werkstatt.md'), fixture);
     const refused = (options) => { try { buildMap({ outDir: path.join(scratch, 'out'), ...options }); return ''; } catch (error) { return String(error.message); } };
-    check('KARTE-13 the invented trees are not built together with posts that are not the fixtures', /invented example/.test(refused({ postsDir: real })), refused({ postsDir: real }));
+    check('KARTE-13 the invented trees are not built together with posts that are neither the fixtures nor demo posts', /invented example/.test(refused({ postsDir: real })), refused({ postsDir: real }));
     const bad = path.join(scratch, 'themen.json');
     fs.writeFileSync(bad, JSON.stringify({ example: true, topics: { ki: { de: 'KI', en: 'AI' } }, posts: { '01': 'nix' }, trees: [{ id: 'x', topic: 'ki', title: { de: 'T', en: 'T' }, aspects: [{ id: 'a', stance: 2, water: -1, label: { de: 'L' }, say: { de: 'S', en: 'S' }, video: { title: 'V', link: 'http://videos.example.test/a', start: 9, end: 3 } }] }] }));
     const faults = (() => { try { readTopics(bad); return ''; } catch (error) { return String(error.message); } })();
@@ -91,7 +91,8 @@ await run(async () => {
 
   await withScratch('navigieren', async (dir) => {
     const dummy = buildMap({ outDir: path.join(dir, 'dummy') });
-    same('KARTE-14 by default the map builds the six dummy posts about the chosen videos', dummy.posts, 6);
+    same('KARTE-14 by default the map builds the posts of posts/: the first post in two languages and the six demo posts about the chosen videos', dummy.posts, 8);
+    same('KARTE-14 ... and every one of the six shows the sign "Demo"', (fs.readFileSync(path.join(dir, 'dummy', 'index.html'), 'utf8').match(/<span class="draft"[^>]*>Demo<\/span>/g) || []).length, 6);
     buildMap({ outDir: dir, postsDir: FIXTURES, topicsFile: path.join(ROOT, 'prototypes', 'navigieren', 'themen.json') });
     await withBrowser(async (browser) => {
       // ---- KARTE-1: without JavaScript ----

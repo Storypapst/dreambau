@@ -58,7 +58,7 @@ await run(async () => {
       check(`PR-5 ${name}: no raw <script> from the text, no <img, no event attribute`, !text.includes('<script>alert') && !text.includes('<img') && !tokens(text).some((token) => token.type === 'tag' && token.attrs.some(([key]) => /^on/i.test(key))));
     }
     const postScripts = tokens(bad.read('2026/boeser-text/index.html')).filter((token) => token.type === 'tag' && !token.close && token.name === 'script');
-    same('PR-5 the post page has the one script that every post page has, /blog/blog.js, and the list has none', [postScripts.map((token) => token.attrs), tokens(bad.read('index.html')).some((token) => token.type === 'tag' && token.name === 'script')], [[[['src', '/blog/blog.js'], ['defer', '']]], false]);
+    same('PR-5 the post page has the one script that every post page has, /blog/blog.js, and the list only the map, /blog/karte.js', [postScripts.map((token) => token.attrs), tokens(bad.read('index.html')).filter((token) => token.type === 'tag' && !token.close && token.name === 'script').map((token) => token.attrs)], [[[['src', '/blog/blog.js'], ['defer', '']]], [[['src', '/blog/karte.js'], ['defer', '']]]]);
 
     // ---- the visible text equals the typed text ----
     const page = bad.read('2026/boeser-text/index.html');

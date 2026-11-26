@@ -76,8 +76,8 @@ await run(async () => {
       same('V15 no image from the text, only the one script of the title effect, no event attribute', [facts.images, facts.scripts, facts.handlers], [0, ['/blog/blog.js'], []]);
       same('V15 the first paragraph is the typed text', facts.firstParagraph, PARAGRAPH);
       await page.goto(`${BLOG_ORIGIN}/blog/`, { waitUntil: 'networkidle' });
-      const listed = await page.evaluate(() => [document.querySelector('.tt a').textContent, document.querySelectorAll('img, script').length]);
-      same('V15 the list shows the typed title as the link text, with no script and no image', listed, [TITLE, 0]);
+      const listed = await page.evaluate(() => [document.querySelector('.tt a').textContent, document.querySelectorAll('img').length, [...document.querySelectorAll('script')].map((script) => script.getAttribute('src'))]);
+      same('V15 the list shows the typed title as the link text, with no image and no script but the one of the map', listed, [TITLE, 0, ['/blog/karte.js']]);
       const feed = await page.evaluate(parseInPage, await page.evaluate(() => fetch('/blog/feed.xml').then((response) => response.text())));
       same('V15 the browser parses the hostile feed without error and reads the title back as typed', [feed.failed, feed.entries.map((entry) => entry.title), feed.entries[0].summary.startsWith(`${PARAGRAPH}\n\n`)], [false, [TITLE], true]);
       await context.close();

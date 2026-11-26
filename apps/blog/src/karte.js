@@ -1,6 +1,8 @@
-/* Prototype of the map "Navigieren": the posts of the list as places on mesas in a canyon, drawn as an isometric raster
-   of characters. The list in the HTML is the content; this file adds the map, the figure and the sheet. Nothing is
-   requested, nothing is stored. KARTE_LABELS is put in front of this file by build.mjs. */
+/* The map "Navigieren": the posts of the list as places on mesas in a canyon, drawn as an isometric raster of
+   characters. The list in the HTML is the content; this file adds the map, the figure and the sheet. Nothing is
+   requested, nothing is stored. KARTE_LABELS is put in front of this file by the build (src/lib/karte.mjs mapScript).
+   It runs on the list page /blog/ (posts only; a title of the list is a plain link to the post page) and in the
+   prototype of prototypes/navigieren/ (also languages and topic trees; a title of the list walks to the post). */
 (() => {
   'use strict';
   const D = document, root = D.documentElement;
@@ -24,9 +26,8 @@
   const x = cv && cv.getContext && cv.getContext('2d');
   if (!x || !list) return;
   const readButton = $('read'), scoreEl = $('score');
-  for (const [name, el] of Object.entries({ stage, tip, panel, veil, grove, canopy, zoomEl, wood, leafbox, cloud, readButton, scoreEl, center: $('center'), jump: $('jump'), hint: $('hint'), close: $('close'), help: $('help'), helpOpen: $('help-open'), helpGo: $('help-go') })) {
-    if (!el) throw new Error(`the page has no element for "${name}"`);
-  }
+  const need = (parts) => { for (const [name, el] of Object.entries(parts)) if (!el) throw new Error(`the page has no element for "${name}"`); };
+  need({ stage, tip, panel, veil, readButton, scoreEl, center: $('center'), jump: $('jump'), hint: $('hint'), close: $('close'), help: $('help'), helpOpen: $('help-open'), helpGo: $('help-go') });
 
   /* ---- language: ?lang=de|fi|ar (the posts keep their own language) ---- */
   const wanted = new URLSearchParams(location.search).get('lang');
@@ -46,7 +47,7 @@
   const txt = (el) => { const own = el && el.querySelector(LANG === 'en' ? '.en-only' : '.de'); return own ? own.textContent : el ? el.textContent : ''; };
   const posts = [...list.querySelectorAll('li.row')].map((row, rank) => ({
     row, rank, no: row.dataset.no, date: row.dataset.date, newest: row.hasAttribute('data-newest'),
-    link: row.querySelector('.tt a'), topic: txt(row.querySelector('.mk.tp')), video: Boolean(row.querySelector('.mk.src')), title: row.querySelector('.tt a').textContent, short: row.querySelector('.ex').textContent,
+    link: row.querySelector('.tt a'), topic: txt(row.querySelector('.mk.tp')), video: Boolean(row.querySelector('.mk.src')), demo: Boolean(row.querySelector('.draft')), title: row.querySelector('.tt a').textContent, short: row.querySelector('.ex').textContent,
   }));
   if (posts.length === 0) return;
   /* the trees: a topic with many aspects; on the map a tree stands on its own island */
@@ -54,6 +55,8 @@
     tree: true, row, no: row.dataset.id, date: '', newest: false, video: false, link: row.querySelector('.tt a'), topic: txt(row.querySelector('.mk.tp')),
     title: txt(row.querySelector('.tt a')), short: row.querySelector('.mks .mk:last-child').textContent,
   }));
+  /* the topic trees need their view; a page with trees but without it is a fault (the list page has no trees) */
+  if (trees.length > 0) need({ grove, canopy, zoomEl, wood, leafbox, cloud });
   const places = [...posts, ...trees];
 
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -93,7 +96,7 @@
   const wrap = (d, m) => Math.min(mod(d, m), mod(-d, m));
   const rest = order.slice(1).sort((p, q) => (wrap(p.a - HOME.a, PA) + wrap(p.b - HOME.b, PB)) - (wrap(q.a - HOME.a, PA) + wrap(q.b - HOME.b, PB)) || p.key - q.key);
   const farther = rest.slice(trees.length).sort((p, q) => p.key - q.key);
-  const slotPost = new Map([[HOME, posts[0]], ...trees.map((tree, index) => [rest[index], tree]), ...posts.slice(1).map((post, index) => [farther[index], post])].map(([slot, place]) => [`${slot.a},${slot.b}`, place]));
+  const slotPost = new Map([ [HOME, posts[0] ], ...trees.map((tree, index) => [rest[index], tree]), ...posts.slice(1).map((post, index) => [farther[index], post])].map(([slot, place]) => [`${slot.a},${slot.b}`, place]));
 
   const mesas = new Map();
   function mesa(a, b) {
@@ -173,7 +176,7 @@
   function ground(i, j) {
     const m = slotOf(i, j);
     if (inside(m, i, j)) return m.h;
-    for (const [a, b, dir] of [[m.a, m.b, 0], [m.a - 1, m.b, 0], [m.a, m.b, 1], [m.a, m.b - 1, 1]]) {
+    for (const [a, b, dir] of [ [m.a, m.b, 0], [m.a - 1, m.b, 0], [m.a, m.b, 1], [m.a, m.b - 1, 1] ]) {
       const br = bridge(a, b, dir);
       if (!br.present) continue;
       const t = ((i - br.A.cx) * br.vx + (j - br.A.cy) * br.vy) / (br.len * br.len);
@@ -386,7 +389,7 @@
      looks at six tiles' worth of islands before it gives up. The caches hold a few searches and are emptied in draw(). */
   const REACH = Math.max(900, PA * PB * 6), CACHE = Math.max(3000, REACH * 3);
   function route(from, wants) {
-    const came = new Map([[from.k, null]]), queue = [from];
+    const came = new Map([ [from.k, null] ]), queue = [from];
     for (let n = 0; n < queue.length && n < REACH; n += 1) {
       const m = queue[n];
       if (wants(m)) { const way = []; for (let at = m; at; at = came.get(at.k)) way.unshift(at); return way; }
@@ -430,7 +433,7 @@
     const n = Math.hypot(di, dj);
     if (n === 0) return false;
     di = (di / n) * amount; dj = (dj / n) * amount;
-    for (const [mi, mj] of [[di, dj], [di * 1.4, 0], [0, dj * 1.4]]) {
+    for (const [mi, mj] of [ [di, dj], [di * 1.4, 0], [0, dj * 1.4] ]) {
       if (mi === 0 && mj === 0) continue;
       const z = ground(fig.i + mi, fig.j + mj);
       if (z !== null) { fig.i += mi; fig.j += mj; fig.z = z; return true; }
@@ -547,6 +550,7 @@
       tip.textContent = '';
       const head = D.createElement('p'); head.className = 'th'; head.dir = 'ltr';
       head.textContent = post.tree ? `${post.topic} · ${L.tree}` : `${post.topic ? `${post.topic} · ` : ''}${post.no} · ${post.date}${post.newest ? ` · ${L.newest}` : ''}`;
+      if (post.demo) { const sign = post.row.querySelector('.draft').cloneNode(true); sign.removeAttribute('title'); head.append(sign); }
       const name = D.createElement('p'); name.className = 'tn'; name.textContent = post.title; name.lang = post.link.lang; name.dir = 'ltr';
       const text = D.createElement('p'); text.className = 'tx'; text.textContent = post.short; text.lang = post.link.lang; text.dir = 'ltr';
       tip.append(head, name, text);
@@ -628,7 +632,8 @@
 
   /* ---- the list drives the map: a row walks the figure to its post and opens it ---- */
   for (const post of places) {
-    on(post.link, 'click', (event) => {
+    /* on the list page a title is a plain link to the post page; only the prototype's #b-NN titles walk the figure */
+    if ((post.link.getAttribute('href') || '').startsWith('#')) on(post.link, 'click', (event) => {
       event.preventDefault();
       stage.scrollIntoView({ block: 'nearest', behavior: RM() ? 'auto' : 'smooth' });
       back = post.link;
@@ -642,9 +647,11 @@
   /* ---- the sheet ---- */
   let back = null;
   /* While a sheet or a tree is open, the page behind it cannot be reached by keyboard or by a screen reader. */
-  const behind = [D.querySelector('.skip'), D.querySelector('header.top'), stage, D.querySelector('.logp'), $('trees'), D.querySelector('footer.site')].filter(Boolean);
+  const behind = [D.querySelector('.skip'), D.querySelector('header.top'), ...[...panel.parentElement.children].filter((el) => ![panel, veil, grove].includes(el)), D.querySelector('footer.site')].filter(Boolean);
   const setBehind = (inert) => { for (const el of behind) el.inert = inert; };
   const focusable = () => [...(opened && opened.tree ? grove : panel).querySelectorAll('a[href], button:not([disabled])')];
+  /* the full text of a post: a <template class="voll"> on the list page, a <div class="voll"> in the prototype */
+  const fullText = (row) => { const voll = row.querySelector('.voll'); return { lang: voll.lang || voll.getAttribute('lang') || '', nodes: [...(voll.content ? voll.content.cloneNode(true) : voll.cloneNode(true)).childNodes] }; };
   function openPost(post) {
     if (opened === post) return;
     if (post.tree) { openTree(post); return; }
@@ -657,9 +664,16 @@
     const marksEl = post.row.querySelector('.mks');
     if (marksEl) meta.append(marksEl.cloneNode(true));
     title.textContent = post.title; title.lang = post.link.lang; title.dir = 'ltr';
-    const full = post.row.querySelector('.voll').cloneNode(true);
+    const full = fullText(post.row);
     body.textContent = ''; body.lang = full.lang; body.dir = 'ltr';
-    body.append(...full.childNodes);
+    body.append(...full.nodes);
+    /* on the list page the title links to the post page: the sheet ends with that link */
+    const href = post.link.getAttribute('href') || '';
+    if (!href.startsWith('#')) {
+      const more = D.createElement('p'); more.className = 'pmore'; more.lang = root.lang; more.dir = root.dir;
+      const go = D.createElement('a'); go.className = 'pill'; go.href = href; go.textContent = L.page;
+      more.append(go); body.append(more);
+    }
     if (!back) back = D.activeElement === D.body ? stage : D.activeElement;
     veil.hidden = false; panel.hidden = false;
     setBehind(true);
@@ -671,7 +685,7 @@
   function closePost() {
     if (!opened) return;
     opened = null; laid = '';
-    veil.hidden = true; panel.hidden = true; grove.hidden = true;
+    veil.hidden = true; panel.hidden = true; if (grove) grove.hidden = true;
     setBehind(false);
     setHover(nearPost, !COARSE);
     const target = back; back = null;
@@ -680,7 +694,7 @@
     if (RM()) draw();
   }
   on($('close'), 'click', closePost);
-  on($('grove-close'), 'click', closePost);
+  if (trees.length > 0) on($('grove-close'), 'click', closePost);
 
   /* ---- the tree, zoomed in: aspects from "untrue / hype" on the left to "great" on the right; the more an aspect was
      watered, the bigger it is. The cloud above changes the topic. ---- */
@@ -775,6 +789,7 @@
     dirty = true;
     if (RM()) draw();
   }
+  if (trees.length > 0) {
   on($('zin'), 'click', () => setZoom(view.s * 1.5));
   on($('zout'), 'click', () => setZoom(view.s / 1.5));
   on(canopy, 'wheel', (event) => { event.preventDefault(); const box = canopy.getBoundingClientRect(); setZoom(view.s * (event.deltaY < 0 ? 1.15 : 1 / 1.15), event.clientX - box.left, event.clientY - box.top); }, { passive: false });
@@ -793,6 +808,7 @@
     }
   });
   for (const type of ['pointerup', 'pointercancel', 'pointerleave']) on(canopy, type, (event) => { fingers.delete(event.pointerId); pinch = 0; });
+  }
   on(veil, 'click', closePost);
   on(D, 'keydown', (event) => {
     root.classList.add('kb');
@@ -810,7 +826,7 @@
   root.classList.add('js');
   showHelp(false);
   new ResizeObserver(guard(resize)).observe(stage);
-  new ResizeObserver(guard(() => { if (opened && opened.tree) layoutTree(opened); })).observe(canopy);
+  if (trees.length > 0) new ResizeObserver(guard(() => { if (opened && opened.tree) layoutTree(opened); })).observe(canopy);
   /* a map that is scrolled out of sight is not drawn and the figure rests */
   new IntersectionObserver(guard((entries) => { seen = entries[entries.length - 1].isIntersecting; dirty = true; })).observe(stage);
   on(motion, 'change', () => { dirty = true; draw(); });
@@ -820,6 +836,6 @@
   const tick = guard((now) => { frame(now); requestAnimationFrame(tick); });
   requestAnimationFrame(tick);
   /* for the browser check: where things are and what is open (read-only) */
-  window.karte = { state: () => ({ lang: LANG, posts: posts.length, figure: { i: fig.i, j: fig.j, z: fig.z }, camera: { x: cam.x, y: cam.y }, opened: opened ? opened.no : null, trees: trees.length, leaves: zoomEl.querySelectorAll('.leaf').length, zoom: view.s, near: nearPost ? nearPost.no : null, jumping: jump > 0, walking: path.length > 0, score, caches: { mesas: mesas.size, bridges: bridges.size, chunks: chunks.size, limit: CACHE, emptied }, reach: REACH, dead, sharp, drawn, drawMs: drawn ? Math.round((drawTime / drawn) * 100) / 100 : 0, hover: hover ? hover.no : null, marks: marks.map((mark) => ({ kind: mark.m.post.tree ? 'tree' : 'post', no: mark.m.post.no, x: mark.x, y: mark.y })), free: tops.filter((top) => !top.m.post).map((top) => ({ x: top.x, y: top.y })), tile: [PA, PB] }) };
+  window.karte = { state: () => ({ lang: LANG, posts: posts.length, figure: { i: fig.i, j: fig.j, z: fig.z }, camera: { x: cam.x, y: cam.y }, opened: opened ? opened.no : null, trees: trees.length, leaves: zoomEl ? zoomEl.querySelectorAll('.leaf').length : 0, zoom: view.s, near: nearPost ? nearPost.no : null, jumping: jump > 0, walking: path.length > 0, score, caches: { mesas: mesas.size, bridges: bridges.size, chunks: chunks.size, limit: CACHE, emptied }, reach: REACH, dead, sharp, drawn, drawMs: drawn ? Math.round((drawTime / drawn) * 100) / 100 : 0, hover: hover ? hover.no : null, marks: marks.map((mark) => ({ kind: mark.m.post.tree ? 'tree' : 'post', no: mark.m.post.no, x: mark.x, y: mark.y })), free: tops.filter((top) => !top.m.post).map((top) => ({ x: top.x, y: top.y })), tile: [PA, PB] }) };
   })();
 })();
