@@ -1,0 +1,12 @@
+{
+  "name": "kieselalarm",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node pack.mjs",
+    "test": "node --test *.node.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.2"
+  }
+}

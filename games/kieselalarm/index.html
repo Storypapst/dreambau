@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111713">
+  <title>Kieselalarm · Rechtschreib-Arcade</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="cabinet">
+    <header class="top">
+      <div class="brand">KIESEL<span>ALARM</span></div>
+      <span class="mode" id="mode" hidden></span>
+      <button type="button" class="quiet" id="profiles-open">Profil</button>
+      <button type="button" class="quiet" id="pause" hidden>Pause</button>
+    </header>
+    <div class="arena" id="arena">
+      <canvas id="field" width="441" height="441" tabindex="0" aria-label="Spielfeld" aria-describedby="controls"></canvas>
+      <div class="hud" id="hud" hidden aria-label="Spielstand">
+        <div class="lives" id="lives"></div><div class="clock" id="clock"></div><div class="score" id="score"></div>
+      </div>
+      <div class="banner" id="banner" role="status" hidden></div>
+      <div class="preview" id="preview" role="status" hidden><span>Dein nächstes Wort</span><strong id="preview-word"></strong></div>
+      <div class="speech-hint" id="hint" role="status" hidden></div>
+      <section class="overlay home" id="menu" aria-labelledby="title">
+        <div class="hero-copy">
+          <h1 id="title">Kiesel<span>alarm</span></h1>
+          <p>Lauf, lenk und sammle die Buchstaben in der richtigen Reihenfolge.</p>
+          <button type="button" class="primary" id="start">Loslaufen <span aria-hidden="true">→</span></button>
+        </div>
+      </section>
+      <section class="overlay paused" id="pause-screen" aria-labelledby="pause-title" hidden>
+        <div class="pause-card"><h2 id="pause-title">Pause</h2><p>Deine Runde wartet.</p>
+          <button type="button" class="primary" id="resume">Weiterspielen</button>
+          <button type="button" class="secondary" id="finish">Runde beenden</button>
+        </div>
+      </section>
+    </div>
+    <div class="home-actions" id="home-actions">
+      <div><strong id="home-name"></strong><small id="home-level"></small></div>
+      <button type="button" class="secondary" id="words-open">Meine Wörter <span aria-hidden="true">→</span></button>
+    </div>
+    <div class="bonus" id="home-bonus" hidden></div>
+    <section class="console" id="console" hidden aria-label="Spielsteuerung">
+      <div class="slots" id="slots" aria-label="Gesammelte Buchstaben"></div>
+      <div class="console-row">
+        <button type="button" class="secondary" id="repeat">Langsam anhören</button>
+        <button type="button" class="quiet" id="sound" aria-label="Stimme verstärken" aria-pressed="false">Stimme +</button>
+        <button type="button" class="pulse" id="pulse" disabled><span id="charge"></span><b>Impuls</b></button>
+      </div>
+      <p id="controls"></p>
+      <div id="line-access" class="line-access" aria-label="Buchstaben der Sternenlinie" hidden></div>
+    </section>
+    <section class="panel" id="profiles" hidden aria-labelledby="profiles-title">
+      <button type="button" class="back" id="profiles-back">← Zum Start</button>
+      <h2 id="profiles-title">Spielprofil</h2>
+      <label for="profile-select">Wer spielt?</label>
+      <select id="profile-select"></select>
+      <form id="profile-form"><label for="profile-name">Neues Profil</label><div class="input-row"><input id="profile-name" maxlength="40" autocomplete="off" placeholder="Dein Name" required><button class="secondary" type="submit">Anlegen</button></div></form>
+      <p id="save-status"></p>
+      <details><summary>Profil übertragen</summary>
+        <p>Die Profildatei enthält deinen Lernstand und gegebenenfalls deinen persönlichen Serverzugang. Bewahre sie privat auf und öffne sie auf deinem anderen Gerät im Spiel.</p>
+        <div class="button-row"><button type="button" class="secondary" id="export">Datei sichern</button><label class="secondary file-button" for="import">Datei öffnen<input type="file" accept=".json,application/json" id="import"></label></div>
+        <p id="transfer-status" role="status"></p>
+      </details>
+    </section>
+    <section class="panel" id="words" hidden aria-labelledby="words-title">
+      <button type="button" class="back" id="words-back">← Zum Start</button>
+      <h2 id="words-title">Meine Wörter</h2><p id="words-summary"></p>
+      <div class="word-filters"><label>Wort suchen<input id="word-search" type="search" placeholder="Suchbegriff"></label>
+        <label>Lernstand<select id="word-filter"><option value="">Alle Wörter</option><option value="due">Jetzt wiederholen</option><option value="practice">Stolperstellen</option><option value="learning">In Übung</option><option value="secure">Sicher</option><option value="new">Neu</option></select></label></div>
+      <div class="word-list" id="word-list"></div>
+    </section>
+    <section class="panel" id="review" hidden aria-labelledby="review-title">
+      <p class="section-label" id="review-progress"></p><h2 id="review-title">Noch einmal legen</h2>
+      <p>Ziehe die Buchstaben auf ihre Plätze oder tippe sie in der richtigen Reihenfolge an.</p>
+      <button type="button" class="secondary" id="review-listen">Wort langsam anhören</button>
+      <div id="review-board"><div class="review-slots" id="review-slots" aria-label="Dein Wort"></div><div class="review-bank" id="review-bank" aria-label="Buchstaben zum Einsetzen"></div></div>
+      <p id="review-feedback" role="status"></p>
+      <button type="button" class="primary" id="review-check">Reihenfolge prüfen</button>
+      <button type="button" class="primary" id="review-next" hidden>Weiter</button>
+    </section>
+    <section class="panel" id="end" hidden aria-labelledby="end-title">
+      <p class="section-label">Ergebnis</p><h2 id="end-title">Runde vorbei</h2>
+      <p class="result-score" id="summary"></p><div class="mistakes" id="mistakes"></div>
+      <p class="bonus" id="award" hidden></p>
+      <div class="button-row"><button type="button" class="primary" id="again">Noch eine Runde</button><button type="button" class="secondary" id="end-back">Zum Start</button></div>
+    </section>
+    <p class="audio-status" id="audio-status" role="status" hidden></p>
+  </main>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>

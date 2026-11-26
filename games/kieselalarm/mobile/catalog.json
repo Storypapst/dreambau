@@ -1,0 +1,2111 @@
+[
+  {
+    "id": "de-rad",
+    "text": "Rad",
+    "speech": "Das Rad am Fahrrad. Rad.",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Bei „Räder“ hörst du das d.",
+    "traps": {
+      "2": "t"
+    }
+  },
+  {
+    "id": "de-hund",
+    "text": "Hund",
+    "speech": "Hund",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Bei „Hunde“ hörst du das d.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-zelt",
+    "text": "Zelt",
+    "speech": "Zelt",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Bei „Zelte“ hörst du das t.",
+    "traps": {
+      "3": "d"
+    }
+  },
+  {
+    "id": "de-wald",
+    "text": "Wald",
+    "speech": "Wald",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Bei „Wälder“ hörst du das d.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-bunt",
+    "text": "bunt",
+    "speech": "Bunt wie ein Regenbogen. Bunt.",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Bei „bunte Jacke“ hörst du das t.",
+    "traps": {
+      "3": "d"
+    }
+  },
+  {
+    "id": "de-wetter",
+    "text": "Wetter",
+    "speech": "Wetter",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Das e klingt kurz. In Wetter folgt danach ein tt.",
+    "traps": {
+      "2": "d",
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-kommen",
+    "text": "kommen",
+    "speech": "kommen",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "In kommen folgt auf das kurze o ein mm.",
+    "traps": {
+      "2": "n",
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-spielen",
+    "text": "spielen",
+    "speech": "spielen",
+    "tier": 2,
+    "pattern": "Langes i mit ie",
+    "hint": "Das i klingt lang. In spielen schreibst du ie.",
+    "traps": {
+      "2": "e",
+      "3": "l"
+    }
+  },
+  {
+    "id": "de-fahren",
+    "text": "fahren",
+    "speech": "fahren",
+    "tier": 2,
+    "pattern": "Dehnungs-h",
+    "hint": "In fahren schreibst du nach dem langen a ein h.",
+    "traps": {
+      "2": "r",
+      "3": "l"
+    }
+  },
+  {
+    "id": "de-abend",
+    "text": "Abend",
+    "speech": "Abend",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Bei „Abende“ hörst du das d.",
+    "traps": {
+      "4": "t"
+    }
+  },
+  {
+    "id": "de-mutig",
+    "text": "mutig",
+    "speech": "mutig",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Bei „mutige“ hörst du das g.",
+    "traps": {
+      "4": "kch"
+    }
+  },
+  {
+    "id": "de-nass",
+    "text": "nass",
+    "speech": "nass",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "Das a klingt kurz. In nass steht danach ss.",
+    "traps": {
+      "2": "ß",
+      "3": "ßz"
+    }
+  },
+  {
+    "id": "de-fahrrad",
+    "text": "Fahrrad",
+    "speech": "Fahrrad",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "„Fahr“ endet mit r. „Rad“ beginnt auch mit r.",
+    "traps": {
+      "2": "r",
+      "4": "a",
+      "6": "t"
+    }
+  },
+  {
+    "id": "de-nämlich",
+    "text": "nämlich",
+    "speech": "nämlich",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "In nämlich folgt auf das ä direkt das m.",
+    "traps": {
+      "1": "ae",
+      "2": "h",
+      "5": "s"
+    }
+  },
+  {
+    "id": "de-vielleicht",
+    "text": "vielleicht",
+    "speech": "vielleicht",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Merk dir den Anfang mit v, danach ie und ll.",
+    "traps": {
+      "0": "fw",
+      "2": "l",
+      "4": "e",
+      "9": "d"
+    }
+  },
+  {
+    "id": "de-plötzlich",
+    "text": "plötzlich",
+    "speech": "plötzlich",
+    "tier": 3,
+    "pattern": "ck und tz",
+    "hint": "Nach dem kurzen ö steht tz.",
+    "traps": {
+      "2": "o",
+      "3": "d",
+      "4": "sl"
+    }
+  },
+  {
+    "id": "de-interessant",
+    "text": "interessant",
+    "speech": "interessant",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Interessant schreibst du mit einem r und zwei s.",
+    "traps": {
+      "4": "s",
+      "7": "a",
+      "10": "d"
+    }
+  },
+  {
+    "id": "de-schlüssel",
+    "text": "Schlüssel",
+    "speech": "Schlüssel",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Auf das kurze ü folgen zwei s.",
+    "traps": {
+      "4": "u",
+      "6": "eß"
+    }
+  },
+  {
+    "id": "de-freundschaft",
+    "text": "Freundschaft",
+    "speech": "Freundschaft",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Freund und schaft ergeben Freundschaft. Bei Freunde hörst du das d.",
+    "traps": {
+      "5": "t",
+      "11": "d"
+    }
+  },
+  {
+    "id": "de-frühstück",
+    "text": "Frühstück",
+    "speech": "Frühstück",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Früh endet auf h. Stück endet auf ck.",
+    "traps": {
+      "2": "u",
+      "3": "s",
+      "6": "u",
+      "7": "k"
+    }
+  },
+  {
+    "id": "de-rhythmus",
+    "text": "Rhythmus",
+    "speech": "Rhythmus",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Am Anfang steht R-h-y-t-h.",
+    "traps": {
+      "1": "iy",
+      "2": "iu",
+      "4": "m",
+      "7": "z"
+    }
+  },
+  {
+    "id": "de-wahrscheinlich",
+    "text": "wahrscheinlich",
+    "speech": "wahrscheinlich",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Denk an wahr und scheinlich. Das h gehört zu wahr.",
+    "traps": {
+      "2": "r",
+      "6": "a",
+      "12": "s"
+    }
+  },
+  {
+    "id": "de-straße",
+    "text": "Straße",
+    "speech": "Straße",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Das a klingt lang. In Straße folgt darauf ein ß.",
+    "traps": {
+      "4": "sz"
+    }
+  },
+  {
+    "id": "de-regelmäßig",
+    "text": "regelmäßig",
+    "speech": "regelmäßig",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Mäßig schreibst du mit ä und ß. Bei mäßige hörst du das g.",
+    "traps": {
+      "6": "ae",
+      "7": "sz",
+      "9": "k"
+    }
+  },
+  {
+    "id": "de-hand",
+    "text": "Hand",
+    "speech": "Hand",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Sprich die Mehrzahl „Hände“. Jetzt hörst du das d.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-bild",
+    "text": "Bild",
+    "speech": "Bild",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Bei „Bilder“ hörst du das d vor dem e.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-berg",
+    "text": "Berg",
+    "speech": "Berg",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Mach aus einem Berg viele Berge. Dort hörst du das g.",
+    "traps": {
+      "3": "k"
+    }
+  },
+  {
+    "id": "de-dieb",
+    "text": "Dieb",
+    "speech": "Dieb",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "In der Mehrzahl „Diebe“ klingt das b deutlich.",
+    "traps": {
+      "3": "p"
+    }
+  },
+  {
+    "id": "de-weg",
+    "text": "Weg",
+    "speech": "Der Weg nach Hause. Weg.",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Sag „viele Wege“. So findest du das g am Ende.",
+    "traps": {
+      "2": "k"
+    }
+  },
+  {
+    "id": "de-tag",
+    "text": "Tag",
+    "speech": "Tag",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Häng ein e an. In „Tage“ hörst du das g.",
+    "traps": {
+      "2": "k"
+    }
+  },
+  {
+    "id": "de-gelb",
+    "text": "gelb",
+    "speech": "gelb",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Sprich „die gelbe Sonne“. Vor dem e hörst du das b.",
+    "traps": {
+      "3": "p"
+    }
+  },
+  {
+    "id": "de-wild",
+    "text": "wild",
+    "speech": "wild",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Denk an „wilde Tiere“. Im längeren Wort hörst du das d.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-brot",
+    "text": "Brot",
+    "speech": "Brot",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Bei „Brote“ kannst du das t besser hören.",
+    "traps": {
+      "3": "d"
+    }
+  },
+  {
+    "id": "de-korb",
+    "text": "Korb",
+    "speech": "Korb",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Bei „viele Körbe“ hörst du das b vor dem e.",
+    "traps": {
+      "3": "p"
+    }
+  },
+  {
+    "id": "de-kalb",
+    "text": "Kalb",
+    "speech": "Kalb",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "Denk an mehrere Kälber. Jetzt kannst du das b hören.",
+    "traps": {
+      "3": "p"
+    }
+  },
+  {
+    "id": "de-kind",
+    "text": "Kind",
+    "speech": "Kind",
+    "tier": 1,
+    "pattern": "Verlängern",
+    "hint": "In „Kinder“ hörst du das d vor dem e.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-sonne",
+    "text": "Sonne",
+    "speech": "Sonne",
+    "tier": 1,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Das o in Sonne ist kurz. Danach schreibst du zweimal n.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-ball",
+    "text": "Ball",
+    "speech": "Ball",
+    "tier": 1,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Sprich „Bälle“. Auch in der Einzahl stehen zwei l.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-bett",
+    "text": "Bett",
+    "speech": "Bett",
+    "tier": 1,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Bei „Betten“ erkennst du die beiden t auch in der Einzahl.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-kanne",
+    "text": "Kanne",
+    "speech": "Kanne",
+    "tier": 1,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Nach dem kurzen a folgen in Kanne zwei n.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-rolle",
+    "text": "Rolle",
+    "speech": "Rolle",
+    "tier": 1,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Das o klingt kurz. In Rolle folgen darauf zwei l.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-teller",
+    "text": "Teller",
+    "speech": "Teller",
+    "tier": 1,
+    "pattern": "Doppelkonsonanten",
+    "hint": "In der ersten Silbe klingt das e kurz. Schreib danach ll.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-mutter",
+    "text": "Mutter",
+    "speech": "Mutter",
+    "tier": 1,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Nach dem kurzen u schreibst du in Mutter zweimal t.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-pommes",
+    "text": "Pommes",
+    "speech": "Pommes",
+    "tier": 1,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Im Wort Pommes folgen auf das kurze o zwei m.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-wiese",
+    "text": "Wiese",
+    "speech": "Wiese",
+    "tier": 1,
+    "pattern": "Langes i mit ie",
+    "hint": "Zieh das i in die Länge. In Wiese schreibst du dafür ie.",
+    "traps": {
+      "2": "s"
+    }
+  },
+  {
+    "id": "de-biene",
+    "text": "Biene",
+    "speech": "Biene",
+    "tier": 1,
+    "pattern": "Langes i mit ie",
+    "hint": "In Biene steht hinter dem langen i ein e.",
+    "traps": {
+      "2": "n"
+    }
+  },
+  {
+    "id": "de-tier",
+    "text": "Tier",
+    "speech": "Tier",
+    "tier": 1,
+    "pattern": "Langes i mit ie",
+    "hint": "Das lange i in Tier schreibst du mit ie.",
+    "traps": {
+      "2": "r"
+    }
+  },
+  {
+    "id": "de-sieb",
+    "text": "Sieb",
+    "speech": "Sieb",
+    "tier": 1,
+    "pattern": "Langes i mit ie",
+    "hint": "Das i klingt lang. In Sieb steht dafür ie.",
+    "traps": {
+      "2": "b"
+    }
+  },
+  {
+    "id": "de-tief",
+    "text": "tief",
+    "speech": "tief",
+    "tier": 1,
+    "pattern": "Langes i mit ie",
+    "hint": "Für den langen i-Laut in tief brauchst du i und e.",
+    "traps": {
+      "2": "f"
+    }
+  },
+  {
+    "id": "de-lieb",
+    "text": "lieb",
+    "speech": "lieb",
+    "tier": 1,
+    "pattern": "Langes i mit ie",
+    "hint": "In lieb steht ie. Bei „liebe Grüße“ hörst du auch das b.",
+    "traps": {
+      "2": "b"
+    }
+  },
+  {
+    "id": "de-ziege",
+    "text": "Ziege",
+    "speech": "Ziege",
+    "tier": 1,
+    "pattern": "Langes i mit ie",
+    "hint": "Das i in Ziege klingt lang. Setz dahinter ein e.",
+    "traps": {
+      "2": "g"
+    }
+  },
+  {
+    "id": "de-hände",
+    "text": "Hände",
+    "speech": "Hände",
+    "tier": 1,
+    "pattern": "Umlaute",
+    "hint": "Denk an eine Hand. Das a wird in der Mehrzahl zu ä.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-bälle",
+    "text": "Bälle",
+    "speech": "Bälle",
+    "tier": 1,
+    "pattern": "Umlaute",
+    "hint": "Ein Ball, viele Bälle. Aus dem a wird ein ä.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-äste",
+    "text": "Äste",
+    "speech": "Äste",
+    "tier": 1,
+    "pattern": "Umlaute",
+    "hint": "Denk an einen Ast. In der Mehrzahl wird das A zu Ä.",
+    "traps": {
+      "0": "E"
+    }
+  },
+  {
+    "id": "de-gänse",
+    "text": "Gänse",
+    "speech": "Gänse",
+    "tier": 1,
+    "pattern": "Umlaute",
+    "hint": "Eine Gans, viele Gänse. Das a hilft dir beim ä.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-mäuse",
+    "text": "Mäuse",
+    "speech": "Mäuse",
+    "tier": 1,
+    "pattern": "Umlaute",
+    "hint": "Denk an eine Maus. Aus au wird in der Mehrzahl äu.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-bäume",
+    "text": "Bäume",
+    "speech": "Bäume",
+    "tier": 1,
+    "pattern": "Umlaute",
+    "hint": "Ein Baum, viele Bäume. Das au hilft dir beim äu.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-katze",
+    "text": "Katze",
+    "speech": "Katze",
+    "tier": 1,
+    "pattern": "ck und tz",
+    "hint": "Nach dem kurzen a hörst du einen z-Laut. In Katze schreibst du tz.",
+    "traps": {
+      "2": "z"
+    }
+  },
+  {
+    "id": "de-netz",
+    "text": "Netz",
+    "speech": "Netz",
+    "tier": 1,
+    "pattern": "ck und tz",
+    "hint": "Das e klingt kurz. Danach steht in Netz die Gruppe tz.",
+    "traps": {
+      "2": "z"
+    }
+  },
+  {
+    "id": "de-sitz",
+    "text": "Sitz",
+    "speech": "Sitz",
+    "tier": 1,
+    "pattern": "ck und tz",
+    "hint": "Bei „sitzen“ siehst du es auch. Nach dem kurzen i folgt tz.",
+    "traps": {
+      "2": "z"
+    }
+  },
+  {
+    "id": "de-sack",
+    "text": "Sack",
+    "speech": "Sack",
+    "tier": 1,
+    "pattern": "ck und tz",
+    "hint": "In Sack steht nach dem kurzen a ein ck.",
+    "traps": {
+      "2": "k"
+    }
+  },
+  {
+    "id": "de-ecke",
+    "text": "Ecke",
+    "speech": "Ecke",
+    "tier": 1,
+    "pattern": "ck und tz",
+    "hint": "Der erste Laut ist ein kurzes E. Danach schreibst du ck.",
+    "traps": {
+      "1": "k"
+    }
+  },
+  {
+    "id": "de-dick",
+    "text": "dick",
+    "speech": "dick",
+    "tier": 1,
+    "pattern": "ck und tz",
+    "hint": "Nach dem kurzen i brauchst du für den k-Laut die Buchstaben ck.",
+    "traps": {
+      "2": "k"
+    }
+  },
+  {
+    "id": "de-vogel",
+    "text": "Vogel",
+    "speech": "Vogel",
+    "tier": 1,
+    "pattern": "Wortanfänge",
+    "hint": "Du hörst am Anfang ein f. Vogel beginnt mit einem großen V.",
+    "traps": {
+      "0": "F"
+    }
+  },
+  {
+    "id": "de-vater",
+    "text": "Vater",
+    "speech": "Vater",
+    "tier": 1,
+    "pattern": "Wortanfänge",
+    "hint": "Vater gehört zu den Wörtern, die mit V anfangen und wie f klingen.",
+    "traps": {
+      "0": "F"
+    }
+  },
+  {
+    "id": "de-fisch",
+    "text": "Fisch",
+    "speech": "Fisch",
+    "tier": 1,
+    "pattern": "Wortanfänge",
+    "hint": "Der erste Laut in Fisch wird mit einem großen F geschrieben.",
+    "traps": {
+      "0": "V"
+    }
+  },
+  {
+    "id": "de-spur",
+    "text": "Spur",
+    "speech": "Spur",
+    "tier": 1,
+    "pattern": "Wortanfänge",
+    "hint": "Sprich Spur langsam. Den schp-Laut am Anfang schreibst du sp.",
+    "traps": {
+      "0": "Z"
+    }
+  },
+  {
+    "id": "de-stern",
+    "text": "Stern",
+    "speech": "Stern",
+    "tier": 1,
+    "pattern": "Wortanfänge",
+    "hint": "Du hörst am Anfang scht. In Stern schreibst du dafür St.",
+    "traps": {
+      "0": "Z"
+    }
+  },
+  {
+    "id": "de-stein",
+    "text": "Stein",
+    "speech": "Stein",
+    "tier": 1,
+    "pattern": "Wortanfänge",
+    "hint": "In Stein steht am Anfang St für den scht-Laut.",
+    "traps": {
+      "0": "Z"
+    }
+  },
+  {
+    "id": "de-seil",
+    "text": "Seil",
+    "speech": "Seil",
+    "tier": 1,
+    "pattern": "ei und ai",
+    "hint": "Den Laut in der Mitte von Seil schreibst du ei.",
+    "traps": {
+      "1": "a"
+    }
+  },
+  {
+    "id": "de-bein",
+    "text": "Bein",
+    "speech": "Bein",
+    "tier": 1,
+    "pattern": "ei und ai",
+    "hint": "Wenn du Bein schreibst, kommt nach dem B zuerst ein e, dann ein i.",
+    "traps": {
+      "1": "a"
+    }
+  },
+  {
+    "id": "de-mai",
+    "text": "Mai",
+    "speech": "Der Monat Mai. Mai.",
+    "tier": 1,
+    "pattern": "ei und ai",
+    "hint": "Der Monat Mai gehört zu den wenigen Wörtern mit ai.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-hai",
+    "text": "Hai",
+    "speech": "Der Hai im Meer. Hai.",
+    "tier": 1,
+    "pattern": "ei und ai",
+    "hint": "Beim Fisch Hai merkst du dir das ai.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-zwerg",
+    "text": "Zwerg",
+    "speech": "Zwerg",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Sprich die Mehrzahl „Zwerge“. So wird das g hörbar.",
+    "traps": {
+      "4": "k"
+    }
+  },
+  {
+    "id": "de-zweig",
+    "text": "Zweig",
+    "speech": "Zweig",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Sag „viele Zweige“. Vor dem e hörst du das g.",
+    "traps": {
+      "4": "k"
+    }
+  },
+  {
+    "id": "de-kleid",
+    "text": "Kleid",
+    "speech": "Kleid",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "In der Mehrzahl „Kleider“ hörst du das d.",
+    "traps": {
+      "4": "t"
+    }
+  },
+  {
+    "id": "de-stab",
+    "text": "Stab",
+    "speech": "Stab",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Bei „mehrere Stäbe“ hörst du am Anfang der zweiten Silbe das b.",
+    "traps": {
+      "3": "p"
+    }
+  },
+  {
+    "id": "de-gesund",
+    "text": "gesund",
+    "speech": "gesund",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Verlängere zu „gesunde Zähne“. Jetzt hörst du das d.",
+    "traps": {
+      "5": "t"
+    }
+  },
+  {
+    "id": "de-stark",
+    "text": "stark",
+    "speech": "stark",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "In „starke Arme“ hörst du vor dem e ein k.",
+    "traps": {
+      "4": "g"
+    }
+  },
+  {
+    "id": "de-klug",
+    "text": "klug",
+    "speech": "klug",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Sprich „ein kluger Kopf“. Vor dem e hörst du das g.",
+    "traps": {
+      "3": "k"
+    }
+  },
+  {
+    "id": "de-pferd",
+    "text": "Pferd",
+    "speech": "Pferd",
+    "tier": 2,
+    "pattern": "Verlängern",
+    "hint": "Bei „die Pferde“ hörst du das d in der zweiten Silbe.",
+    "traps": {
+      "4": "t"
+    }
+  },
+  {
+    "id": "de-hammer",
+    "text": "Hammer",
+    "speech": "Hammer",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Auf das kurze a folgen in Hammer zwei m.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-kissen",
+    "text": "Kissen",
+    "speech": "Kissen",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Das erste i klingt kurz. In Kissen schreibst du danach ss.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-treppe",
+    "text": "Treppe",
+    "speech": "Treppe",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "In Treppe folgen auf das kurze e zwei p.",
+    "traps": {
+      "4": "e"
+    }
+  },
+  {
+    "id": "de-fallen",
+    "text": "fallen",
+    "speech": "fallen",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Das kurze a und die beiden l findest du auch in „Fall“.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-rennen",
+    "text": "rennen",
+    "speech": "Wir rennen um die Wette. Rennen.",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Rennen hat ein kurzes e. Danach brauchst du zwei n.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-schwimmen",
+    "text": "schwimmen",
+    "speech": "schwimmen",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "In schwimmen kommen nach dem kurzen i zwei m.",
+    "traps": {
+      "6": "e"
+    }
+  },
+  {
+    "id": "de-knurren",
+    "text": "knurren",
+    "speech": "knurren",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Auf das kurze u folgen in knurren zwei r.",
+    "traps": {
+      "4": "e"
+    }
+  },
+  {
+    "id": "de-hütte",
+    "text": "Hütte",
+    "speech": "Hütte",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "Nach dem kurzen ü schreibst du in Hütte tt.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-zimmer",
+    "text": "Zimmer",
+    "speech": "Zimmer",
+    "tier": 2,
+    "pattern": "Doppelkonsonanten",
+    "hint": "In Zimmer folgt auf das kurze i ein doppeltes m.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-brücke",
+    "text": "Brücke",
+    "speech": "Brücke",
+    "tier": 2,
+    "pattern": "ck und tz",
+    "hint": "In Brücke klingt das ü kurz. Dahinter schreibst du ck.",
+    "traps": {
+      "3": "k"
+    }
+  },
+  {
+    "id": "de-rücken",
+    "text": "Rücken",
+    "speech": "Rücken",
+    "tier": 2,
+    "pattern": "ck und tz",
+    "hint": "Nach dem kurzen ü steht in Rücken ck.",
+    "traps": {
+      "2": "k"
+    }
+  },
+  {
+    "id": "de-backen",
+    "text": "backen",
+    "speech": "backen",
+    "tier": 2,
+    "pattern": "ck und tz",
+    "hint": "Das a klingt kurz. In backen wird der k-Laut mit ck geschrieben.",
+    "traps": {
+      "2": "k"
+    }
+  },
+  {
+    "id": "de-zucker",
+    "text": "Zucker",
+    "speech": "Zucker",
+    "tier": 2,
+    "pattern": "ck und tz",
+    "hint": "In Zucker steht nach dem kurzen u erst ein c, dann ein k.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-blitz",
+    "text": "Blitz",
+    "speech": "Blitz",
+    "tier": 2,
+    "pattern": "ck und tz",
+    "hint": "Auf das kurze i folgt in Blitz ein tz.",
+    "traps": {
+      "3": "z"
+    }
+  },
+  {
+    "id": "de-hitze",
+    "text": "Hitze",
+    "speech": "Hitze",
+    "tier": 2,
+    "pattern": "ck und tz",
+    "hint": "In Hitze steht der z-Laut nach einem kurzen i. Schreib tz.",
+    "traps": {
+      "2": "z"
+    }
+  },
+  {
+    "id": "de-pfütze",
+    "text": "Pfütze",
+    "speech": "Pfütze",
+    "tier": 2,
+    "pattern": "ck und tz",
+    "hint": "Das ü klingt kurz. Dahinter brauchst du in Pfütze ein tz.",
+    "traps": {
+      "3": "z"
+    }
+  },
+  {
+    "id": "de-schützen",
+    "text": "schützen",
+    "speech": "Wir schützen die Tiere. Schützen.",
+    "tier": 2,
+    "pattern": "ck und tz",
+    "hint": "Schützen hat wie Schutz ein tz nach dem kurzen Vokal.",
+    "traps": {
+      "4": "z"
+    }
+  },
+  {
+    "id": "de-fluss",
+    "text": "Fluss",
+    "speech": "Fluss",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "In Fluss klingt das u kurz. Den scharfen s-Laut schreibst du ss.",
+    "traps": {
+      "4": "ß"
+    }
+  },
+  {
+    "id": "de-küsse",
+    "text": "Küsse",
+    "speech": "Küsse",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "Denk an „Kuss“. Auch nach dem kurzen ü steht ss.",
+    "traps": {
+      "2": "ß"
+    }
+  },
+  {
+    "id": "de-gruß",
+    "text": "Gruß",
+    "speech": "Gruß",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "Sprich das u lang. In Gruß schreibst du den s-Laut mit ß.",
+    "traps": {
+      "3": "s"
+    }
+  },
+  {
+    "id": "de-fuß",
+    "text": "Fuß",
+    "speech": "Fuß",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "Das u klingt lang. Der scharfe s-Laut in Fuß ist ein ß.",
+    "traps": {
+      "2": "s"
+    }
+  },
+  {
+    "id": "de-heiß",
+    "text": "heiß",
+    "speech": "heiß",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "Nach dem Doppellaut ei schreibst du den scharfen s-Laut in heiß mit ß.",
+    "traps": {
+      "3": "s"
+    }
+  },
+  {
+    "id": "de-größe",
+    "text": "Größe",
+    "speech": "Größe",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "Sprich das ö lang. In Größe folgt darauf ein ß.",
+    "traps": {
+      "3": "s"
+    }
+  },
+  {
+    "id": "de-draußen",
+    "text": "draußen",
+    "speech": "draußen",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "Nach dem Doppellaut au steht in draußen ein ß.",
+    "traps": {
+      "4": "s"
+    }
+  },
+  {
+    "id": "de-beißen",
+    "text": "beißen",
+    "speech": "Hunde können beißen. Beißen.",
+    "tier": 2,
+    "pattern": "ss und ß",
+    "hint": "Nach ei folgt in beißen ein ß.",
+    "traps": {
+      "3": "s"
+    }
+  },
+  {
+    "id": "de-zahn",
+    "text": "Zahn",
+    "speech": "Zahn",
+    "tier": 2,
+    "pattern": "Dehnungs-h",
+    "hint": "Das a klingt lang. Zwischen a und n steht in Zahn ein stummes h.",
+    "traps": {
+      "2": "n"
+    }
+  },
+  {
+    "id": "de-uhr",
+    "text": "Uhr",
+    "speech": "Uhr",
+    "tier": 2,
+    "pattern": "Dehnungs-h",
+    "hint": "In Uhr steht vor dem r ein h. Du hörst es beim Sprechen kaum.",
+    "traps": {
+      "1": "r"
+    }
+  },
+  {
+    "id": "de-bohne",
+    "text": "Bohne",
+    "speech": "Bohne",
+    "tier": 2,
+    "pattern": "Dehnungs-h",
+    "hint": "Bohne hat ein langes o. Zwischen o und n steht ein h.",
+    "traps": {
+      "2": "n"
+    }
+  },
+  {
+    "id": "de-mehl",
+    "text": "Mehl",
+    "speech": "Mehl",
+    "tier": 2,
+    "pattern": "Dehnungs-h",
+    "hint": "Das e klingt lang. In Mehl schreibst du zwischen e und l ein h.",
+    "traps": {
+      "2": "l"
+    }
+  },
+  {
+    "id": "de-stuhl",
+    "text": "Stuhl",
+    "speech": "Stuhl",
+    "tier": 2,
+    "pattern": "Dehnungs-h",
+    "hint": "Das h im Wort Stuhl steht zwischen dem langen u und dem l.",
+    "traps": {
+      "3": "l"
+    }
+  },
+  {
+    "id": "de-zahlen",
+    "text": "zahlen",
+    "speech": "Wir zahlen an der Kasse. Zahlen.",
+    "tier": 2,
+    "pattern": "Dehnungs-h",
+    "hint": "Denk an Zahl. Das h bleibt auch in zahlen stehen.",
+    "traps": {
+      "2": "l"
+    }
+  },
+  {
+    "id": "de-wohnen",
+    "text": "wohnen",
+    "speech": "wohnen",
+    "tier": 2,
+    "pattern": "Dehnungs-h",
+    "hint": "Zwischen dem langen o und dem n steht in wohnen ein h.",
+    "traps": {
+      "2": "n"
+    }
+  },
+  {
+    "id": "de-fliegen",
+    "text": "fliegen",
+    "speech": "Die Vögel fliegen über das Haus. Fliegen.",
+    "tier": 2,
+    "pattern": "Langes i mit ie",
+    "hint": "Das lange i in fliegen schreibst du ie.",
+    "traps": {
+      "2": "e",
+      "3": "g"
+    }
+  },
+  {
+    "id": "de-brief",
+    "text": "Brief",
+    "speech": "Brief",
+    "tier": 2,
+    "pattern": "Langes i mit ie",
+    "hint": "Zwischen r und f brauchst du für das lange i zwei Buchstaben. Schreib ie.",
+    "traps": {
+      "2": "e",
+      "3": "f"
+    }
+  },
+  {
+    "id": "de-riese",
+    "text": "Riese",
+    "speech": "Riese",
+    "tier": 2,
+    "pattern": "Langes i mit ie",
+    "hint": "Das lange i in Riese wird mit ie geschrieben.",
+    "traps": {
+      "1": "e",
+      "2": "s"
+    }
+  },
+  {
+    "id": "de-zwiebel",
+    "text": "Zwiebel",
+    "speech": "Zwiebel",
+    "tier": 2,
+    "pattern": "Langes i mit ie",
+    "hint": "In Zwiebel folgt auf das i ein e.",
+    "traps": {
+      "3": "b"
+    }
+  },
+  {
+    "id": "de-schiene",
+    "text": "Schiene",
+    "speech": "Schiene",
+    "tier": 2,
+    "pattern": "Langes i mit ie",
+    "hint": "Den langen i-Laut nach Sch schreibst du ie.",
+    "traps": {
+      "3": "e",
+      "4": "n"
+    }
+  },
+  {
+    "id": "de-kriechen",
+    "text": "kriechen",
+    "speech": "kriechen",
+    "tier": 2,
+    "pattern": "Langes i mit ie",
+    "hint": "Zwischen r und ch steht in kriechen der lange i-Laut als ie.",
+    "traps": {
+      "2": "e",
+      "3": "c"
+    }
+  },
+  {
+    "id": "de-träume",
+    "text": "Träume",
+    "speech": "Träume",
+    "tier": 2,
+    "pattern": "Umlaute",
+    "hint": "Ein Traum, viele Träume. Das au wird zu äu.",
+    "traps": {
+      "2": "e"
+    }
+  },
+  {
+    "id": "de-kräfte",
+    "text": "Kräfte",
+    "speech": "Kräfte",
+    "tier": 2,
+    "pattern": "Umlaute",
+    "hint": "In Kraft steht a. Die Mehrzahl braucht deshalb ein ä.",
+    "traps": {
+      "2": "e"
+    }
+  },
+  {
+    "id": "de-häuser",
+    "text": "Häuser",
+    "speech": "Häuser",
+    "tier": 2,
+    "pattern": "Umlaute",
+    "hint": "Denk an Haus. Das au wird in der Mehrzahl zu äu.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-länger",
+    "text": "länger",
+    "speech": "länger",
+    "tier": 2,
+    "pattern": "Umlaute",
+    "hint": "Vergleiche lang und länger. Aus dem a wird ein ä.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-kälter",
+    "text": "kälter",
+    "speech": "kälter",
+    "tier": 2,
+    "pattern": "Umlaute",
+    "hint": "Denk an kalt. In der Steigerung wird a zu ä.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-glänzen",
+    "text": "glänzen",
+    "speech": "glänzen",
+    "tier": 2,
+    "pattern": "Umlaute",
+    "hint": "Das verwandte Wort Glanz hilft dir beim ä.",
+    "traps": {
+      "2": "e"
+    }
+  },
+  {
+    "id": "de-qualle",
+    "text": "Qualle",
+    "speech": "Qualle",
+    "tier": 2,
+    "pattern": "Wortanfänge",
+    "hint": "Am Anfang von Qualle hörst du kw und schreibst Qu.",
+    "traps": {
+      "0": "K",
+      "1": "w"
+    }
+  },
+  {
+    "id": "de-quark",
+    "text": "Quark",
+    "speech": "Quark",
+    "tier": 2,
+    "pattern": "Wortanfänge",
+    "hint": "Für den kw-Laut am Anfang von Quark schreibst du Qu.",
+    "traps": {
+      "0": "K",
+      "1": "w"
+    }
+  },
+  {
+    "id": "de-pfad",
+    "text": "Pfad",
+    "speech": "Pfad",
+    "tier": 2,
+    "pattern": "Wortanfänge",
+    "hint": "Am Anfang von Pfad stehen P und f direkt hintereinander.",
+    "traps": {
+      "0": "F"
+    }
+  },
+  {
+    "id": "de-pfeil",
+    "text": "Pfeil",
+    "speech": "Pfeil",
+    "tier": 2,
+    "pattern": "Wortanfänge",
+    "hint": "Der Anfang klingt wie pf. Schreib beide Buchstaben.",
+    "traps": {
+      "0": "F"
+    }
+  },
+  {
+    "id": "de-spinne",
+    "text": "Spinne",
+    "speech": "Spinne",
+    "tier": 2,
+    "pattern": "Wortanfänge",
+    "hint": "Am Wortanfang schreibst du den schp-Laut mit Sp.",
+    "traps": {
+      "0": "Z"
+    }
+  },
+  {
+    "id": "de-strumpf",
+    "text": "Strumpf",
+    "speech": "Strumpf",
+    "tier": 2,
+    "pattern": "Wortanfänge",
+    "hint": "Strumpf beginnt mit St für den scht-Laut.",
+    "traps": {
+      "0": "Z"
+    }
+  },
+  {
+    "id": "de-schifffahrt",
+    "text": "Schifffahrt",
+    "speech": "Schifffahrt",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Schiff endet mit zwei f. Fahrt beginnt mit einem f. Alle drei bleiben.",
+    "traps": {
+      "6": "a"
+    }
+  },
+  {
+    "id": "de-brennnessel",
+    "text": "Brennnessel",
+    "speech": "Brennnessel",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Brenn endet mit nn. Nessel beginnt mit n. So treffen drei n aufeinander.",
+    "traps": {
+      "5": "e"
+    }
+  },
+  {
+    "id": "de-betttuch",
+    "text": "Betttuch",
+    "speech": "Betttuch",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Bett endet mit zwei t, Tuch beginnt mit t. Schreib alle drei.",
+    "traps": {
+      "4": "u"
+    }
+  },
+  {
+    "id": "de-pappplatte",
+    "text": "Pappplatte",
+    "speech": "Pappplatte",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "An der Grenze zwischen Papp und Platte treffen drei p aufeinander.",
+    "traps": {
+      "4": "l"
+    }
+  },
+  {
+    "id": "de-handschuh",
+    "text": "Handschuh",
+    "speech": "Handschuh",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Denk an Hand und Hände. Das d bleibt vor Schuh erhalten.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-waldrand",
+    "text": "Waldrand",
+    "speech": "Waldrand",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Wald endet mit d. Das d bleibt vor dem Baustein Rand erhalten.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-entdeckung",
+    "text": "Entdeckung",
+    "speech": "Entdeckung",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Vorne steht ent. Der zweite Baustein steckt in decken und beginnt mit d.",
+    "traps": {
+      "3": "t"
+    }
+  },
+  {
+    "id": "de-entscheidung",
+    "text": "Entscheidung",
+    "speech": "Entscheidung",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Das Wort beginnt mit der Vorsilbe ent. Danach folgt scheid wie in scheiden.",
+    "traps": {
+      "2": "d"
+    }
+  },
+  {
+    "id": "de-verraten",
+    "text": "verraten",
+    "speech": "verraten",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Ver endet mit r und raten beginnt mit r. Schreib beide.",
+    "traps": {
+      "3": "a"
+    }
+  },
+  {
+    "id": "de-enttäuschung",
+    "text": "Enttäuschung",
+    "speech": "Enttäuschung",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Setz ent und Täuschung zusammen. An der Grenze stehen zwei t.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-auffallen",
+    "text": "auffallen",
+    "speech": "auffallen",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Auf endet mit f. Fallen beginnt mit f. Schreib beide f.",
+    "traps": {
+      "3": "a"
+    }
+  },
+  {
+    "id": "de-geburtstag",
+    "text": "Geburtstag",
+    "speech": "Geburtstag",
+    "tier": 3,
+    "pattern": "Wortbausteine",
+    "hint": "Zwischen Geburt und Tag hörst du ein verbindendes s.",
+    "traps": {
+      "6": "z"
+    }
+  },
+  {
+    "id": "de-verkehr",
+    "text": "Verkehr",
+    "speech": "Verkehr",
+    "tier": 3,
+    "pattern": "Dehnungs-h",
+    "hint": "In Verkehr steht zwischen dem langen e und dem r ein h.",
+    "traps": {
+      "5": "r"
+    }
+  },
+  {
+    "id": "de-ungefähr",
+    "text": "ungefähr",
+    "speech": "ungefähr",
+    "tier": 3,
+    "pattern": "Dehnungs-h",
+    "hint": "In ungefähr steht nach dem f ein ä. Zwischen ä und r steht ein h.",
+    "traps": {
+      "4": "v",
+      "6": "r"
+    }
+  },
+  {
+    "id": "de-erzählung",
+    "text": "Erzählung",
+    "speech": "Erzählung",
+    "tier": 3,
+    "pattern": "Dehnungs-h",
+    "hint": "Denk an erzählen. Das h zwischen ä und l bleibt in Erzählung erhalten.",
+    "traps": {
+      "4": "l"
+    }
+  },
+  {
+    "id": "de-gefährlich",
+    "text": "gefährlich",
+    "speech": "gefährlich",
+    "tier": 3,
+    "pattern": "Dehnungs-h",
+    "hint": "Im Wort Gefahr steht ein h. Du findest es auch in gefährlich.",
+    "traps": {
+      "2": "v",
+      "4": "r"
+    }
+  },
+  {
+    "id": "de-gewöhnen",
+    "text": "gewöhnen",
+    "speech": "gewöhnen",
+    "tier": 3,
+    "pattern": "Dehnungs-h",
+    "hint": "Zwischen dem langen ö und dem n steht in gewöhnen ein h.",
+    "traps": {
+      "2": "v",
+      "4": "n"
+    }
+  },
+  {
+    "id": "de-wahrheit",
+    "text": "Wahrheit",
+    "speech": "Wahrheit",
+    "tier": 3,
+    "pattern": "Dehnungs-h",
+    "hint": "Wahr endet mit hr. Häng die Endung heit daran.",
+    "traps": {
+      "2": "r"
+    }
+  },
+  {
+    "id": "de-fährte",
+    "text": "Fährte",
+    "speech": "Fährte",
+    "tier": 3,
+    "pattern": "Dehnungs-h",
+    "hint": "Zwischen ä und r steht in Fährte ein h.",
+    "traps": {
+      "2": "r"
+    }
+  },
+  {
+    "id": "de-schließen",
+    "text": "schließen",
+    "speech": "schließen",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Nach dem langen ie steht in schließen ein ß.",
+    "traps": {
+      "6": "s"
+    }
+  },
+  {
+    "id": "de-genießen",
+    "text": "genießen",
+    "speech": "genießen",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Das ie klingt lang. Danach schreibst du in genießen ein ß.",
+    "traps": {
+      "5": "s"
+    }
+  },
+  {
+    "id": "de-fleißig",
+    "text": "fleißig",
+    "speech": "fleißig",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Denk an Fleiß. Das ß bleibt vor der Endung ig erhalten.",
+    "traps": {
+      "4": "s"
+    }
+  },
+  {
+    "id": "de-vermissen",
+    "text": "vermissen",
+    "speech": "vermissen",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Das i klingt kurz. In vermissen folgen darauf zwei s.",
+    "traps": {
+      "5": "ß"
+    }
+  },
+  {
+    "id": "de-hindernisse",
+    "text": "Hindernisse",
+    "speech": "Hindernisse",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Ein Hindernis endet auf ein s. In der Mehrzahl folgen vor dem e zwei s.",
+    "traps": {
+      "8": "ß",
+      "9": "e"
+    }
+  },
+  {
+    "id": "de-erlebnisse",
+    "text": "Erlebnisse",
+    "speech": "Erlebnisse",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "In der Mehrzahl von Erlebnis schreibst du vor dem e zwei s.",
+    "traps": {
+      "7": "ß",
+      "8": "e"
+    }
+  },
+  {
+    "id": "de-außerdem",
+    "text": "außerdem",
+    "speech": "außerdem",
+    "tier": 3,
+    "pattern": "ss und ß",
+    "hint": "Das ß aus außer bleibt auch in außerdem stehen.",
+    "traps": {
+      "2": "s"
+    }
+  },
+  {
+    "id": "de-geräusch",
+    "text": "Geräusch",
+    "speech": "Geräusch",
+    "tier": 3,
+    "pattern": "Umlaute",
+    "hint": "Denk an rauschen. Das au hilft dir, Geräusch mit äu zu schreiben.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-gebäude",
+    "text": "Gebäude",
+    "speech": "Gebäude",
+    "tier": 3,
+    "pattern": "Umlaute",
+    "hint": "Gebäude gehört zu bauen. Aus dem au wird hier äu.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-verkäuferin",
+    "text": "Verkäuferin",
+    "speech": "Verkäuferin",
+    "tier": 3,
+    "pattern": "Umlaute",
+    "hint": "Denk an kaufen. Das au wird in Verkäuferin zu äu.",
+    "traps": {
+      "4": "e"
+    }
+  },
+  {
+    "id": "de-räumlich",
+    "text": "räumlich",
+    "speech": "räumlich",
+    "tier": 3,
+    "pattern": "Umlaute",
+    "hint": "Räumlich gehört zu Raum. Deshalb schreibst du äu.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-schädlich",
+    "text": "schädlich",
+    "speech": "schädlich",
+    "tier": 3,
+    "pattern": "Umlaute",
+    "hint": "Schädlich gehört zu Schaden. Das a hilft dir beim ä.",
+    "traps": {
+      "3": "e"
+    }
+  },
+  {
+    "id": "de-täglich",
+    "text": "täglich",
+    "speech": "täglich",
+    "tier": 3,
+    "pattern": "Umlaute",
+    "hint": "Täglich gehört zu Tag. Aus dem a wird hier ein ä.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-bibliothek",
+    "text": "Bibliothek",
+    "speech": "Bibliothek",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Sprich langsam Bi-bli-o-thek. In der zweiten Silbe steht bl vor i.",
+    "traps": {
+      "3": "i"
+    }
+  },
+  {
+    "id": "de-theater",
+    "text": "Theater",
+    "speech": "Theater",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Im Wort Theater steht nach dem großen T ein h.",
+    "traps": {
+      "1": "e"
+    }
+  },
+  {
+    "id": "de-apotheke",
+    "text": "Apotheke",
+    "speech": "Apotheke",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Sprich A-po-the-ke. In der dritten Silbe schreibst du th.",
+    "traps": {
+      "4": "e"
+    }
+  },
+  {
+    "id": "de-pyramide",
+    "text": "Pyramide",
+    "speech": "Pyramide",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "In der ersten Silbe von Pyramide steht ein y.",
+    "traps": {
+      "1": "i"
+    }
+  },
+  {
+    "id": "de-symbol",
+    "text": "Symbol",
+    "speech": "Symbol",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "In Symbol steht ein y zwischen S und m.",
+    "traps": {
+      "1": "i"
+    }
+  },
+  {
+    "id": "de-museum",
+    "text": "Museum",
+    "speech": "Museum",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Sprich Mu-se-um. Zwischen s und u steht ein e.",
+    "traps": {
+      "3": "i"
+    }
+  },
+  {
+    "id": "de-lexikon",
+    "text": "Lexikon",
+    "speech": "Lexikon",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "In Lexikon schreibst du für den ks-Laut ein x.",
+    "traps": {
+      "2": "k"
+    }
+  },
+  {
+    "id": "de-orange",
+    "text": "Orange",
+    "speech": "Die Orange wächst am Baum. Orange.",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Die Frucht Orange schreibst du mit g vor dem letzten e.",
+    "traps": {
+      "4": "sch"
+    }
+  },
+  {
+    "id": "de-station",
+    "text": "Station",
+    "speech": "Station",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "In Station hörst du am Ende zion. Dafür schreibst du tion.",
+    "traps": {
+      "3": "d"
+    }
+  },
+  {
+    "id": "de-experiment",
+    "text": "Experiment",
+    "speech": "Experiment",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Sprich Ex-pe-ri-ment. Die dritte Silbe hat ein i.",
+    "traps": {
+      "5": "e"
+    }
+  },
+  {
+    "id": "de-maschine",
+    "text": "Maschine",
+    "speech": "Maschine",
+    "tier": 3,
+    "pattern": "Merkwörter",
+    "hint": "Sprich Ma-schi-ne. Das lange i in Maschine steht allein.",
+    "traps": {
+      "6": "e"
+    }
+  },
+  {
+    "id": "de-werkzeug",
+    "text": "Werkzeug",
+    "speech": "Werkzeug",
+    "tier": 3,
+    "pattern": "ck und tz",
+    "hint": "Das Wort besteht aus Werk und Zeug. Zeug beginnt mit einem einzigen z.",
+    "traps": {
+      "4": "t"
+    }
+  },
+  {
+    "id": "de-entzückend",
+    "text": "entzückend",
+    "speech": "entzückend",
+    "tier": 3,
+    "pattern": "ck und tz",
+    "hint": "In entzückend folgt auf das kurze ü ein ck.",
+    "traps": {
+      "5": "k"
+    }
+  },
+  {
+    "id": "de-plätzchen",
+    "text": "Plätzchen",
+    "speech": "Plätzchen",
+    "tier": 3,
+    "pattern": "ck und tz",
+    "hint": "Denk an Platz. Auch in Plätzchen stehen t und z vor der Endung chen.",
+    "traps": {
+      "3": "z"
+    }
+  },
+  {
+    "id": "de-verletzen",
+    "text": "verletzen",
+    "speech": "verletzen",
+    "tier": 3,
+    "pattern": "ck und tz",
+    "hint": "Das zweite e klingt kurz. In verletzen folgt darauf tz.",
+    "traps": {
+      "5": "z"
+    }
+  },
+  {
+    "id": "de-stricken",
+    "text": "stricken",
+    "speech": "stricken",
+    "tier": 3,
+    "pattern": "ck und tz",
+    "hint": "Nach dem kurzen i steht in stricken ein ck.",
+    "traps": {
+      "3": "e",
+      "4": "k"
+    }
+  },
+  {
+    "id": "de-augenblick",
+    "text": "Augenblick",
+    "speech": "Augenblick",
+    "tier": 3,
+    "pattern": "ck und tz",
+    "hint": "Der zweite Baustein ist Blick. Er endet nach dem kurzen i auf ck.",
+    "traps": {
+      "8": "k"
+    }
+  },
+  {
+    "id": "de-ewigkeit",
+    "text": "Ewigkeit",
+    "speech": "Ewigkeit",
+    "tier": 3,
+    "pattern": "Wortendungen",
+    "hint": "Denk an ewig. Das g bleibt erhalten, wenn du keit anhängst.",
+    "traps": {
+      "3": "k"
+    }
+  },
+  {
+    "id": "de-höflichkeit",
+    "text": "Höflichkeit",
+    "speech": "Höflichkeit",
+    "tier": 3,
+    "pattern": "Wortendungen",
+    "hint": "Höflich endet mit ch. Häng an höflich die Endung keit.",
+    "traps": {
+      "6": "k"
+    }
+  },
+  {
+    "id": "de-gesundheit",
+    "text": "Gesundheit",
+    "speech": "Gesundheit",
+    "tier": 3,
+    "pattern": "Wortendungen",
+    "hint": "Du kennst gesund. Häng die Endung heit mit h an.",
+    "traps": {
+      "6": "k"
+    }
+  },
+  {
+    "id": "de-bewegung",
+    "text": "Bewegung",
+    "speech": "Bewegung",
+    "tier": 3,
+    "pattern": "Wortendungen",
+    "hint": "Aus bewegen wird Bewegung. Die Endung ung endet auf g.",
+    "traps": {
+      "7": "k"
+    }
+  },
+  {
+    "id": "de-hoffnung",
+    "text": "Hoffnung",
+    "speech": "Hoffnung",
+    "tier": 3,
+    "pattern": "Wortendungen",
+    "hint": "Aus hoffen wird Hoffnung. Die Endung ung schreibst du mit g.",
+    "traps": {
+      "7": "k"
+    }
+  },
+  {
+    "id": "de-kindheit",
+    "text": "Kindheit",
+    "speech": "Kindheit",
+    "tier": 3,
+    "pattern": "Wortendungen",
+    "hint": "Kind bleibt als Baustein stehen. Danach folgt die Endung heit.",
+    "traps": {
+      "4": "k"
+    }
+  },
+  {
+    "id": "de-fröhlichkeit",
+    "text": "Fröhlichkeit",
+    "speech": "Fröhlichkeit",
+    "tier": 3,
+    "pattern": "Wortendungen",
+    "hint": "Fröhlich endet mit ch. Danach beginnt die Endung keit mit k.",
+    "traps": {
+      "7": "k"
+    }
+  },
+  {
+    "id": "de-freundlichkeit",
+    "text": "Freundlichkeit",
+    "speech": "Freundlichkeit",
+    "tier": 3,
+    "pattern": "Wortendungen",
+    "hint": "An freundlich hängst du keit an. So steht ch direkt vor k.",
+    "traps": {
+      "9": "k"
+    }
+  }
+]

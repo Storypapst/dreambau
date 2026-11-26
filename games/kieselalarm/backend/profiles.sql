@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS profiles (
-    id TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY NOT NULL,
     token_hash BLOB NOT NULL,
     revision INTEGER NOT NULL DEFAULT 0,
     progress TEXT NOT NULL DEFAULT '{}'

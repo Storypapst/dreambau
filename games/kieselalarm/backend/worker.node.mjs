@@ -3,11 +3,9 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, test } from 'node:test';
 
-const { handleProfileRequest } = await import('./worker.mjs').catch(error => {
-  if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error;
-  return {};
-});
-const migration = new URL('./profiles.sql', import.meta.url);
+import { handleProfileRequest } from './worker.mjs';
+
+const migration = new URL('./drizzle/0000_profiles.sql', import.meta.url);
 let sqlite;
 let db;
 
@@ -29,7 +27,6 @@ function connection(database) {
 }
 
 beforeEach(() => {
-  assert.equal(typeof handleProfileRequest, 'function', 'missing Worker API entry point');
   sqlite = new DatabaseSync(':memory:');
   sqlite.exec(readFileSync(migration, 'utf8'));
   db = connection(sqlite);

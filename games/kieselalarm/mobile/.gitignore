@@ -1,0 +1,6 @@
+.godot/
+build/
+xcuserdata/
+DerivedData/
+*.xcuserstate
+export_credentials.cfg

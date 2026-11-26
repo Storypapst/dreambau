@@ -1,0 +1,26 @@
+config_version=5
+
+[application]
+config/name="Kieselalarm"
+config/version="0.1.0"
+run/main_scene="res://arena.tscn"
+config/features=PackedStringArray("4.6", "GL Compatibility")
+config/use_custom_user_dir=false
+
+[display]
+window/size/viewport_width=420
+window/size/viewport_height=800
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=1
+
+[audio]
+general/text_to_speech=true
+
+[input_devices]
+pointing/emulate_mouse_from_touch=true
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="mobile"
+environment/defaults/default_clear_color=Color(0.047,0.098,0.09,1)

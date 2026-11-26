@@ -1,0 +1,9 @@
+node_modules/
+dist/
+__pycache__/
+*.sqlite*
+.godot/
+build/
+.gradle/
+DerivedData/
+xcuserdata/

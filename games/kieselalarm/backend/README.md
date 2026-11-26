@@ -2,7 +2,7 @@
 
 Spiel und Fortschritts-API laufen unter derselben Adresse. Für den lokalen Betrieb reichen Python 3.9 oder neuer und die mitgelieferte SQLite-Bibliothek.
 
-Im Verzeichnis `kieselalarm` starten:
+Der Startbefehl wird im Verzeichnis `kieselalarm` ausgeführt.
 
 ```sh
 python3 backend/server.py
@@ -23,7 +23,7 @@ Alle Antworten der API verwenden JSON. Anfragen mit einem Rumpf senden `Content-
 
 Für GET und PUT auf den Fortschritt ist der Header `Authorization: Bearer <token>` erforderlich. Ein fehlendes oder ungültiges Token ergibt 401. Jede Installation braucht das passende Paar aus ID und Token, um ein bestimmtes Profil zu öffnen. Ein neu angelegtes Profil startet leer. Native Clients können das Token im iOS-Schlüsselbund oder mithilfe des Android Keystore ablegen.
 
-Das Feld `progress` enthält ein JSON-Objekt. Version 1 des Spiels verwendet `{"version":1,"events":{…}}`. Jeder Schlüssel in `events` ist die dauerhaft vergebene ID eines einzelnen Ereignisses. Die API speichert das vollständige Objekt und bewahrt weitere Felder, die ein Client darin mitsendet. Für die Interpretation der Aufgaben, Antworten und Übungen ist der Lerncode im Spiel zuständig. Ein vereinfachtes Beispiel für einen Schreibzugriff auf Revision 0 lautet:
+Das Feld `progress` enthält ein JSON-Objekt. Version 1 des Spiels verwendet `{"version":1,"events":{…}}`. Jeder Schlüssel in `events` ist die dauerhaft vergebene ID eines einzelnen Ereignisses. Die API speichert das vollständige Objekt und bewahrt weitere Felder, die ein Client darin mitsendet. Für die Interpretation der Aufgaben, Antworten und Übungen ist der Lerncode im Spiel zuständig. Dieses Beispiel schreibt eine Antwort auf Basis der Revision 0.
 
 ```json
 {
@@ -54,4 +54,16 @@ Die Integrationstests verwenden für jeden Fall eine eigene temporäre Datenbank
 
 ```sh
 python3 -B -m unittest discover -s backend -v
+```
+
+## Sites mit Cloudflare D1
+
+Der gehostete Worker kann Anfragen unter `/api/v1/` an `handleProfileRequest(request, env.DB)` aus `worker.mjs` übergeben. Der Endpunkt für den Gesundheitsstatus prüft, ob die Profiltabelle in der gebundenen Datenbank erreichbar ist. Sites legt das Schema beim Einspielen der Migration an.
+
+Das Sites-Manifest verwendet `"d1": "DB"`. Die aus `schema.cjs` generierte Drizzle-Migration und ihr Journal liegen hier im Ordner `drizzle/`. Im Sites-Quellprojekt liegen sie unter `drizzle/` auf oberster Ebene. Der Build übernimmt diesen Ordner vollständig nach `dist/.openai/drizzle/` und das Manifest nach `dist/.openai/hosting.json`. Die Python-Variante initialisiert ihre lokale Datenbank aus `profiles.sql`.
+
+Die Worker-Tests verwenden Fetch-Anfragen und eine SQLite-Datenbank mit genau der gehosteten Migration. Im Projektverzeichnis können sie mit Node.js 24 ausgeführt werden.
+
+```sh
+node backend/worker.node.mjs
 ```
