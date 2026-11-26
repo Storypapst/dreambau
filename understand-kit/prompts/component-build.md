@@ -13,7 +13,8 @@ bzw. ändern. Gehe streng in dieser Reihenfolge vor:
 2. **Storybook:** Hole den Vertrag aus dem zentralen Dev-Storybook:
    `oriso-sb <frontend|admin> list` (alle Komponenten, eine Zeile je Eintrag),
    dann `oriso-sb <frontend|admin> show <id>` für jede Komponente, die du
-   verwendest, und für die Design-Token-Seiten (Farben, Radien, Abstände).
+   verwendest, und `oriso-sb <frontend|admin> tokens` für die Design-Tokens
+   (Farben, Radien, Abstände — aus den Token-Dateien auf `dev`).
    Nur für eine Komponente aus einem noch nicht gemergten Branch:
    `npx storybook tools docs show --id <id>` im Checkout.
    Baue aus vorhandenen Komponenten und Tokens zusammen — nie aus Screenshots

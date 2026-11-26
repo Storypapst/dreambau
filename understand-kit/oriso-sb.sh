@@ -11,6 +11,8 @@
 #   oriso-sb <frontend|admin> list [filter]     one line per component: id — name
 #   oriso-sb <frontend|admin> show <id>          import line, props (type, required, default,
 #                                                description) and every story snippet
+#   oriso-sb <frontend|admin> tokens             design tokens (colours, radii, spacing) from the
+#                                                token source files on the dev branch
 #   oriso-sb <frontend|admin> story <story-id>   URL of the isolated story render
 #   oriso-sb <frontend|admin> freshness          when the deployed build was generated (UTC)
 #
@@ -54,12 +56,20 @@ PY
   show)
     id="${1:?oriso-sb show needs a component id (see: oriso-sb $app list)}"
     fetch "services/core/docgen/$id.json" "$tmp/d.json" || { echo "oriso-sb: no component '$id' on $base (see: oriso-sb $app list)" >&2; exit 1; }
-    fetch "services/core/story-docs/$id.json" "$tmp/s.json" || echo '{}' > "$tmp/s.json"
-    CID="$id" python3 - "$tmp/d.json" "$tmp/s.json" <<'PY'
+    incomplete=0
+    fetch "services/core/story-docs/$id.json" "$tmp/s.json" || { echo '{}' > "$tmp/s.json"; incomplete=1; }
+    CID="$id" python3 - "$tmp/d.json" "$tmp/s.json" <<'PY' || exit $?
 import json, os, signal, sys
 signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 cid = os.environ["CID"]
 g = json.load(open(sys.argv[1]))["components"][cid]
+if g.get("error"):
+    err = g["error"]
+    msg = (err.get("message") if isinstance(err, dict) else str(err)) or ""
+    msg = msg.strip().splitlines()[0][:160] if msg.strip() else "unknown error"
+    sys.stderr.write("oriso-sb: Storybook has no component contract for '%s' (%s). "
+                     "If this is a docs or token page, use: oriso-sb <app> tokens\n" % (cid, msg))
+    sys.exit(3)
 meta = g.get("reactComponentMeta") or {}
 s = (json.load(open(sys.argv[2])).get("components") or {}).get(cid, {})
 print("# " + g.get("name", cid) + "  (" + cid + ")")
@@ -80,6 +90,27 @@ if props:
 for sid, st in (s.get("stories") or {}).items():
     print("\n## " + st.get("name", sid) + "  (" + sid + ")\n```tsx\n" + st.get("snippet", "").strip() + "\n```")
 PY
+    if [ "$incomplete" -eq 1 ]; then
+      echo "oriso-sb: INCOMPLETE — the story docs for '$id' could not be loaded (no import line, no snippets). Retry: oriso-sb $app show $id" >&2
+      exit 4
+    fi
+    ;;
+  tokens)
+    # Token values live in code, not in a Storybook manifest: read them from the dev
+    # branch, which is what the Dev Storybook is built from.
+    raw="${ORISO_SB_RAW_BASE:-https://raw.githubusercontent.com/OpenResilienceInitiative}"
+    if [ "$app" = frontend ]; then
+      files="ORISO-Frontend/dev/src/resources/styles/settings.scss ORISO-Frontend/dev/src/resources/styles/mui-variables-mapping.scss"
+    else
+      files="ORISO-Admin/dev/src/theme/antdM3Theme.ts"
+    fi
+    for f in $files; do
+      echo "## ${f#*/dev/}  (dev)"
+      curl -fsS --max-time 30 "$raw/$f" -o "$tmp/t" || { echo "oriso-sb: could not load $raw/$f" >&2; exit 1; }
+      echo '```'
+      cat "$tmp/t"
+      echo '```'
+    done
     ;;
   story)
     echo "$base/iframe.html?id=${1:?oriso-sb story needs a story id}&viewMode=story"

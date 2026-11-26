@@ -120,7 +120,8 @@ never have to guess how much verification already happened.
      and are the one current reference for the whole team — no local copies to keep in sync.
      `oriso-sb frontend list [filter]` (every component, one line each), then
      `oriso-sb frontend show <id>` for each component you will use (import, props with types
-     and defaults, story snippets) and for the design-token pages (colours, radii, spacing);
+     and defaults, story snippets), and `oriso-sb frontend tokens` for the design tokens
+     (colours, radii, spacing — read from the token source files on `dev`);
      `admin` instead of `frontend` for ORISO-Admin. `oriso-sb <app> freshness` prints when the
      deployed build was made. Only for a component you are changing in an unmerged branch,
      which is not on Dev yet, use `npx storybook tools docs show --id <id>` in your checkout.
