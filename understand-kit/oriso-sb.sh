@@ -11,8 +11,10 @@
 #   oriso-sb <frontend|admin> list [filter]     one line per component: id — name
 #   oriso-sb <frontend|admin> show <id>          import line, props (type, required, default,
 #                                                description) and every story snippet
-#   oriso-sb <frontend|admin> tokens             design tokens (colours, radii, spacing) from the
-#                                                token source files on the dev branch
+#   oriso-sb <frontend|admin> tokens             token sources on the dev branch: spacing and radii
+#                                                as values; colours as --m3-* tokens that the
+#                                                palette generator computes per tenant from seed
+#                                                colours (use the token names, never raw hex)
 #   oriso-sb <frontend|admin> story <story-id>   URL of the isolated story render
 #   oriso-sb <frontend|admin> freshness          when the deployed build was generated (UTC)
 #
@@ -100,10 +102,16 @@ PY
     # branch, which is what the Dev Storybook is built from.
     raw="${ORISO_SB_RAW_BASE:-https://raw.githubusercontent.com/OpenResilienceInitiative}"
     if [ "$app" = frontend ]; then
-      files="ORISO-Frontend/dev/src/resources/styles/settings.scss ORISO-Frontend/dev/src/resources/styles/mui-variables-mapping.scss"
+      files="ORISO-Frontend/dev/src/resources/styles/settings.scss ORISO-Frontend/dev/src/resources/styles/mui-variables-mapping.scss ORISO-Frontend/dev/src/utils/theme/orisoScheme.ts"
     else
-      files="ORISO-Admin/dev/src/theme/antdM3Theme.ts"
+      files="ORISO-Admin/dev/src/styles/variables/_spacings.less ORISO-Admin/dev/src/styles/_muiSpacing.scss ORISO-Admin/dev/src/theme/antdM3Theme.ts ORISO-Admin/dev/src/utils/theme/orisoScheme.ts"
     fi
+    echo "# Design tokens — $app (dev)"
+    echo
+    echo "Spacing and radii below are values. Colours are --m3-* tokens computed per tenant from"
+    echo "seed colours by orisoScheme.ts: reference the token names (e.g. var(--m3-primary)), never"
+    echo "hard-code a hex value. Fixed colour variables in the SCSS/LESS files are legacy fallbacks."
+    echo
     for f in $files; do
       echo "## ${f#*/dev/}  (dev)"
       curl -fsS --max-time 30 "$raw/$f" -o "$tmp/t" || { echo "oriso-sb: could not load $raw/$f" >&2; exit 1; }

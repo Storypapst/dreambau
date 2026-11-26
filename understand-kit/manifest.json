@@ -3,7 +3,7 @@
   "version": "0.5.3",
   "date": "2026-11-26",
   "changelog": [
-    "0.5.3 (2026-11-26) — the central Dev Storybook is the component source. New oriso-sb (installed to ~/.local/bin, kept current on every subscription): `oriso-sb <frontend|admin> list|show <id>|tokens|story <id>|freshness` reads the public Dev Storybook manifests (manifests/components.json, docgen and story docs that Storybook 11 publishes with each build) and prints compact context (tokens from the token source files on dev, since token values are computed at render time and are not in the manifest) — the whole Frontend catalogue is ~21 KB, one component ~2 KB, about a second each, no local Storybook, no npm ci, no secret. Rule 3 (AGENTS block, AGENTS template, oriso-graph, component-build prompt) now points there first; `npx storybook tools` only for components in an unmerged branch.",
+    "0.5.3 (2026-11-26) — the central Dev Storybook is the component source. New oriso-sb (installed to ~/.local/bin, kept current on every subscription): `oriso-sb <frontend|admin> list|show <id>|tokens|story <id>|freshness` reads the public Dev Storybook manifests (manifests/components.json, docgen and story docs that Storybook 11 publishes with each build) and prints compact context (tokens from the source files on dev: spacing and radii as values, colours as --m3-* tokens computed per tenant from seed colours by orisoScheme.ts — agents use the token names, never raw hex) — the whole Frontend catalogue is ~21 KB, one component ~2 KB, about a second each, no local Storybook, no npm ci, no secret. Rule 3 (AGENTS block, AGENTS template, oriso-graph, component-build prompt) now points there first; `npx storybook tools` only for components in an unmerged branch.",
     "0.5.2 (2026-11-24) — Storybook 11 in ORISO-Frontend and ORISO-Admin; the Storybook MCP is retired from the kit. Rule 3 of the working rule (AGENTS block, AGENTS template, oriso-graph skill, prompts) now says: load the component contract from the repository with the Storybook skills (component-docs → write-stories → test-stories → ui-review) and `npx storybook tools docs list/show` — local, no server, no secret, the same for Claude Code and Codex — compose screens from existing components and tokens instead of rebuilding them from screenshots, give every new screen or variant a story and pass test-stories plus the repo gates. mcp-add.sh and .mcp.json.example are removed; install.sh no longer registers the predev MCP servers and removes the old storybook-frontend/storybook-admin registrations. ORISO_SB_MCP_AUTH stays only as the credential of the /ua graph ingress.",
     "0.5.1 (2026-11-07) — repair the CLI installer omitted by older subscribers during their kit upgrade. An equal-version subscription downloads the verified bundle again only when its manifest advertises the missing helper. Personal files remain preserved; intact current kits and older servers do not redownload.",
     "0.5.0 (2026-09-14) — the Test-Access CLI ships through the kit. New test-access-install.sh (also copied to ~/.local/bin/test-access-install): fetches /understand/api/v1/cli/manifest with the personal token, downloads the bundle only when a newer version is served, verifies the sha256 before swapping it in with a backup, writes the test-access wrapper and installs Playwright in the manifest's version next to it. install.sh runs it at step 4a; --subscribe (and therefore the session hook) keeps it current. No more hand-delivered CLI files, no checkout needed; 'test-access --version' names the release and commit.",
@@ -46,7 +46,7 @@
     },
     {
       "path": "oriso-sb.sh",
-      "sha256": "a2e465cf55369842253768e314eb8d422ac5a1d3ffbbae76fd6c632a755a205b"
+      "sha256": "5266ea3141eed5c2ec71dd4a31ae2fbcf7dc8618b42daeeddb76545d6ccabcf1"
     },
     {
       "path": "pages/features/case-handover.html",
@@ -58,7 +58,7 @@
     },
     {
       "path": "prompts/component-build.md",
-      "sha256": "904433d20c381c8ad98c2707a5b0514c5695f850131af7d817dceae0bc916055"
+      "sha256": "9887d46182577ef99f50cc66b9ace385d9eb25f09935310cfbfe0df841a36854"
     },
     {
       "path": "prompts/html-to-story.md",
@@ -78,7 +78,7 @@
     },
     {
       "path": "rules/AGENTS-block.md",
-      "sha256": "6be73d60ac7caf4c5b95af2a21db059a58d0cd650897c4b75a959816081e8af3"
+      "sha256": "f34343df3b22cfa6bb360e377dce5fd0789458206f371ae69041292e49079e11"
     },
     {
       "path": "rules/devs/Hassan9215.md",
@@ -126,7 +126,7 @@
     },
     {
       "path": "rules/templates/AGENTS.md",
-      "sha256": "440bcb947698679caa8668110d43d001f7b95df4d0a8493cc26947175b502a9a"
+      "sha256": "7cba8ebecdc6484888b6d9a21a6457b82fde8a50b98704a4421a5a25b08a488a"
     },
     {
       "path": "rules/templates/CLAUDE.md",
