@@ -18,7 +18,8 @@ Classification: generalizable method (any coding agent); the slash-command form 
    repo (numbering drifts between the two — link by name, not number).
 3. **UI only via Storybook.** Props come from Storybook, never from guessing: first the
    repo's Storybook 11 skills (`component-docs`, `write-stories`, `test-stories`, `ui-review`)
-   or `npx storybook tools docs show --id <id>`, both local; compose screens from existing
+   or the central Dev Storybook via `oriso-sb <frontend|admin> show <id>` (`npx storybook tools`
+   only for unmerged components); compose screens from existing
    components and tokens, never from screenshots (rule 3 in `rules/AGENTS-block.md`). Rules and hosts: `skills/storybook-routing/SKILL.md`
    and `skills/oriso-frontend-component-discipline/SKILL.md`.
 4. **Freshness is printed, not assumed.** Run `ua-pull --verify` (Dev-Kit). Shallow structure

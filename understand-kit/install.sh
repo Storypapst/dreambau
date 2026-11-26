@@ -18,7 +18,7 @@
 #   3.  Remove the retired Storybook MCP registrations (storybook-frontend,
 #       storybook-admin) from Claude Code's user scope. Storybook 11 serves component
 #       knowledge from the repository itself (skills + `npx storybook tools`).
-#   4.  Copy ua-pull.sh, kit-subscribe.sh and kit-local.sh to ~/.local/bin/. Agent-neutral:
+#   4.  Copy ua-pull.sh, oriso-sb.sh, kit-subscribe.sh and kit-local.sh to ~/.local/bin/. Agent-neutral:
 #       plain shell scripts, used identically by Claude Code, Codex and a human shell.
 #   5.  Link every kit skill and every local skill into <repo>/.claude/skills/ (Claude Code)
 #       and ~/.codex/skills/ (Codex). Symlinks, so a kit update reaches every repository
@@ -48,7 +48,7 @@ KIT_HOME="${ORISO_KIT_HOME:-$HOME/.oriso-dev-kit}"
 
 # The kit payload: what a bundle ships and what an update replaces. Kept in sync
 # with build-bundle.sh's PAYLOAD. dist/ is a build artefact and never installed.
-KIT_PAYLOAD=(install.sh ua-pull.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh \
+KIT_PAYLOAD=(install.sh ua-pull.sh oriso-sb.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh \
              test-access-install.sh settings.hook.json manifest.json README.md \
              SECRET-SCAN.md rules skills prompts pages)
 
@@ -347,6 +347,11 @@ if [ "$MODE" = "subscribe" ]; then
   retire_kit_items
   kit_subscribe
   kit_status=$?
+  # Keep the oriso-sb command current for subscribers too (a full install copies it
+  # once; a subscription only replaces ~/.oriso-dev-kit). Cheap, local, idempotent.
+  if [ -f "$KIT_HOME/oriso-sb.sh" ]; then
+    mkdir -p "$HOME/.local/bin" && cp "$KIT_HOME/oriso-sb.sh" "$HOME/.local/bin/oriso-sb" && chmod +x "$HOME/.local/bin/oriso-sb" || true
+  fi
   # The Test-Access CLI follows the same subscription: one manifest request, a
   # download only when a newer version is served. Never blocks the session.
   if [ -f "$KIT_HOME/test-access-install.sh" ]; then
@@ -489,6 +494,12 @@ if [ -f "$KIT_DIR/test-access-install.sh" ]; then
   else
     note "[warn]    test-access CLI not installed — see the [test-access-install] lines above; run 'test-access-install' again once the token is in place"
   fi
+fi
+
+if [ -f "$KIT_DIR/oriso-sb.sh" ]; then
+  cp "$KIT_DIR/oriso-sb.sh" "$BIN_DIR/oriso-sb"
+  chmod +x "$BIN_DIR/oriso-sb"
+  note "[ok]      copied oriso-sb.sh -> $BIN_DIR/oriso-sb (component contract from the Dev Storybook)"
 fi
 
 if [ -f "$KIT_DIR/kit-subscribe.sh" ]; then

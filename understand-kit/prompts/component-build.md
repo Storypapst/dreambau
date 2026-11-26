@@ -10,10 +10,12 @@ bzw. ändern. Gehe streng in dieser Reihenfolge vor:
 1. **Graph:** Suche in `.understand-anything/knowledge-graph.json` nach
    `<Name>` — bestehende Datei, Props, Verwendungsstellen (`imports`-Kanten).
    Sag, ob die Komponente schon existiert oder neu ist.
-2. **Storybook:** Hole den Vertrag lokal aus dem Repo:
-   `npx storybook tools docs list` (alle Komponenten, eine Zeile je Eintrag),
-   dann `npx storybook tools docs show --id <id>` für jede Komponente, die du
+2. **Storybook:** Hole den Vertrag aus dem zentralen Dev-Storybook:
+   `oriso-sb <frontend|admin> list` (alle Komponenten, eine Zeile je Eintrag),
+   dann `oriso-sb <frontend|admin> show <id>` für jede Komponente, die du
    verwendest, und für die Design-Token-Seiten (Farben, Radien, Abstände).
+   Nur für eine Komponente aus einem noch nicht gemergten Branch:
+   `npx storybook tools docs show --id <id>` im Checkout.
    Baue aus vorhandenen Komponenten und Tokens zusammen — nie aus Screenshots
    nachbauen. Rate niemals Props — wenn nichts passt, sag das explizit und
    schlag die kleinste neue Komponente mit eigener Story vor.

@@ -115,11 +115,15 @@ never have to guess how much verification already happened.
    for Codex and other agents) and a "Storybook" section in the repo's `AGENTS.md`:
    `component-docs` → `write-stories` → `test-stories` → `ui-review`. Follow that section.
    For any design task (new screen, layout, variant, add-on slot):
-   - **Load the compressed contract first, from the repository:** `npx storybook tools docs list`
-     (every component and docs page, one line each), then
-     `npx storybook tools docs show --id <id>` for each component you will use (props,
-     defaults, story snippets) and for the design-token pages (colours, radii, spacing).
-     These run locally, without a server or a secret.
+   - **Load the contract from the central Dev Storybook first.** The Dev Storybooks
+     (`https://dev.oriso.org/storybook-frontend/`, `/storybook-admin/`) are public on purpose
+     and are the one current reference for the whole team — no local copies to keep in sync.
+     `oriso-sb frontend list [filter]` (every component, one line each), then
+     `oriso-sb frontend show <id>` for each component you will use (import, props with types
+     and defaults, story snippets) and for the design-token pages (colours, radii, spacing);
+     `admin` instead of `frontend` for ORISO-Admin. `oriso-sb <app> freshness` prints when the
+     deployed build was made. Only for a component you are changing in an unmerged branch,
+     which is not on Dev yet, use `npx storybook tools docs show --id <id>` in your checkout.
    - **Compose from what exists.** Arrange existing components; a different button, colour or
      corner radius is a prop, a token or a new variant of the existing component — never a
      copy with hand-written CSS, and never a lookalike built from a screenshot.
