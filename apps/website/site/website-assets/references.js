@@ -18,7 +18,7 @@ const D = document, R = D.documentElement;
 const $ = (s, r = D) => r.querySelector(s), $$ = (s, r = D) => Array.from(r.querySelectorAll(s));
 const Q = new URLSearchParams(location.search);
 const E = JSON.parse(document.querySelector('#reference-data').content.textContent);
-const LABELS = {"de":{"title":"Referenzen","sub":"Was gebaut wurde und für wen.","back":"Startseite","cur":"Aktuelle Projekte","old":"Ältere Referenzen","search":"Suchen","searchPh":"Name, Jahr oder Stichwort","clear":"Suche leeren","filter":"Filter","filterTitle":"Filter","secTitle":"Bereich","secAll":"Alle","secCur":"Aktuell","secOld":"Älter","reset":"Filter zurücksetzen","show1":"1 Eintrag anzeigen","showN":"{n} Einträge anzeigen","showNone":"Keine Treffer","count":"{n} von {m} Einträgen","none":"Keine Treffer","noneHelp":"Suchbegriff kürzen oder den Filter zurücksetzen.","open":"Öffnen","close":"Schließen","closeView":"Projektansicht schließen","view":"Projektansicht","year":"Jahr","client":"Projekt / Auftraggeber","scope":"Umfang","short":"Kurztext","lang":"Sprache","now":"jetzt","entries":"Einträge","draft":"Entwurf, von Frank freizugeben","pending":"Kurztext folgt","linkPending":"Link folgt","st_live":"Online","st_soon":"Bald geht's los","st_unk":"Status folgt","enTitle":"Text auf Englisch","same":"siehe Aktuelle Projekte","what":"Was","role":"Rolle","tasks":"Aufgaben","status":"Status","links":"Links","imageSlot":"Bild oder Video (Platzhalter)","video":"Video (nicht eingebettet)","enlarge":"Bild groß öffnen","prev":"Vorheriges Bild","next":"Nächstes Bild","pics":"Bilder","slides":"Folien","impressum":"Impressum","datenschutz":"Datenschutz","teamwork":"Teamwork","axis":"Zeitstrahl","axisBreak":"Skala gekürzt","hint":"Einen Punkt anwählen, um die Projektansicht zu öffnen.","legend":"Legende","tag":{"website":"Website","plattform":"Plattform","redesign":"Redesign","prozess":"Prozess-Software","opensource":"Open Source","bildung":"Bildung","designsystem":"Design-System"}},"fi":{"title":"Referenssit","sub":"Mitä on rakennettu ja kenelle.","back":"Takaisin etusivulle","cur":"Ajankohtaiset projektit","old":"Aiemmat referenssit","search":"Hae","searchPh":"Nimi, vuosi tai hakusana","clear":"Tyhjennä haku","filter":"Suodata","filterTitle":"Suodattimet","secTitle":"Osio","secAll":"Kaikki","secCur":"Ajankohtaiset","secOld":"Aiemmat","reset":"Palauta suodattimet","show1":"Näytä 1 kohde","showN":"Näytä {n} kohdetta","showNone":"Ei hakutuloksia","count":"{n} / {m} kohteesta","none":"Ei hakutuloksia","noneHelp":"Lyhennä hakusanaa tai palauta suodattimet.","open":"Avaa","close":"Sulje","closeView":"Sulje projektinäkymä","view":"Projektinäkymä","year":"Vuosi","client":"Projekti / toimeksiantaja","scope":"Laajuus","short":"Lyhyt kuvaus","lang":"Kieli","now":"nyt","entries":"kohdetta","draft":"Luonnos, Frankin hyväksyttävänä","pending":"Lyhyt kuvaus tulossa","linkPending":"Linkki tulossa","st_live":"Verkossa","st_soon":"Pian käynnistyy","st_unk":"Tila selviää myöhemmin","enTitle":"Teksti englanniksi","same":"katso Ajankohtaiset projektit","what":"Mitä","role":"Rooli","tasks":"Tehtävät","status":"Tila","links":"Linkit","imageSlot":"Kuva tai video (paikkamerkki)","video":"Video (ei upotettu)","enlarge":"Avaa kuva suurena","prev":"Edellinen kuva","next":"Seuraava kuva","pics":"Kuvat","slides":"Kuvat","impressum":"Julkaisijatiedot","datenschutz":"Tietosuoja","teamwork":"Teamwork","axis":"Aikajana","axisBreak":"Asteikkoa lyhennetty","hint":"Valitse piste avataksesi projektinäkymän.","legend":"Selite","tag":{"website":"Verkkosivusto","plattform":"Alusta","redesign":"Uudistus","prozess":"Prosessiohjelmisto","opensource":"Avoin lähdekoodi","bildung":"Koulutus","designsystem":"Suunnittelujärjestelmä"}},"ar":{"title":"المراجع","sub":"ما تم بناؤه ولمن.","back":"الصفحة الرئيسية","cur":"المشاريع الحالية","old":"المراجع السابقة","search":"بحث","searchPh":"الاسم أو السنة أو كلمة مفتاحية","clear":"مسح البحث","filter":"تصفية","filterTitle":"التصفية","secTitle":"القسم","secAll":"الكل","secCur":"الحالية","secOld":"السابقة","reset":"إعادة ضبط التصفية","show1":"عرض إدخال واحد","showN":"عرض {n} من الإدخالات","showNone":"لا توجد نتائج","count":"{n} من {m} إدخالات","none":"لا توجد نتائج","noneHelp":"اختصر كلمة البحث أو أعد ضبط التصفية.","open":"فتح","close":"إغلاق","closeView":"إغلاق عرض المشروع","view":"عرض المشروع","year":"السنة","client":"المشروع / العميل","scope":"النطاق","short":"نص قصير","lang":"اللغة","now":"الآن","entries":"إدخالات","draft":"مسودة، بانتظار موافقة فرانك","pending":"النص القصير لاحقًا","linkPending":"الرابط لاحقًا","st_live":"متاح على الإنترنت","st_soon":"يبدأ قريبًا","st_unk":"الحالة لاحقًا","enTitle":"النص بالإنجليزية","same":"انظر المشاريع الحالية","what":"ماذا","role":"الدور","tasks":"المهام","status":"الحالة","links":"الروابط","imageSlot":"صورة أو فيديو (عنصر نائب)","video":"فيديو (غير مضمّن)","enlarge":"فتح الصورة بالحجم الكامل","prev":"الصورة السابقة","next":"الصورة التالية","pics":"الصور","slides":"الشرائح","impressum":"بيانات النشر","datenschutz":"حماية البيانات","teamwork":"Teamwork","axis":"الخط الزمني","axisBreak":"المقياس مختصر","hint":"اختر نقطة لفتح عرض المشروع.","legend":"المفتاح","tag":{"website":"موقع إلكتروني","plattform":"منصة","redesign":"إعادة تصميم","prozess":"برنامج العمليات","opensource":"مفتوح المصدر","bildung":"تعليم","designsystem":"نظام تصميم"}}};
+const LABELS = {"de":{"title":"Referenzen","sub":"Was gebaut wurde und für wen.","back":"Startseite","cur":"Aktuelle Projekte","old":"Ältere Referenzen","search":"Suchen","searchPh":"Name, Jahr oder Stichwort","clear":"Suche leeren","filter":"Filter","filterTitle":"Filter","secTitle":"Bereich","secAll":"Alle","secCur":"Aktuell","secOld":"Älter","reset":"Filter zurücksetzen","show1":"1 Eintrag anzeigen","showN":"{n} Einträge anzeigen","showNone":"Keine Treffer","count":"{n} von {m} Einträgen","none":"Keine Treffer","noneHelp":"Suchbegriff kürzen oder den Filter zurücksetzen.","open":"Öffnen","close":"Schließen","closeView":"Projektansicht schließen","view":"Projektansicht","year":"Jahr","client":"Projekt / Auftraggeber","scope":"Umfang","short":"Kurztext","lang":"Sprache","now":"jetzt","entries":"Einträge","draft":"Entwurf, von Frank freizugeben","pending":"Kurztext folgt","linkPending":"Link folgt","st_live":"Online","st_soon":"Bald geht's los","st_unk":"Status folgt","enTitle":"Text auf Englisch","same":"siehe Aktuelle Projekte","what":"Was","role":"Rolle","tasks":"Aufgaben","status":"Status","links":"Links","imageSlot":"Bild oder Video (Platzhalter)","video":"Video (nicht eingebettet)","enlarge":"Bild groß öffnen","prev":"Vorheriges Bild","next":"Nächstes Bild","pics":"Bilder","slides":"Folien","impressum":"Impressum","datenschutz":"Datenschutz","teamwork":"Teamwork","axis":"Zeitstrahl","axisBreak":"Skala gekürzt","hint":"Einen Punkt anwählen, um die Projektansicht zu öffnen.","legend":"Legende","tag":{"website":"Website","plattform":"Plattform","redesign":"Redesign","prozess":"Prozess-Software","opensource":"Open Source","bildung":"Bildung","designsystem":"Design-System"},"featured":"Ausgewählte Arbeiten","imgView":"Projektansicht","imgZoom":"Originalgröße","imgFit":"Einpassen"},"fi":{"title":"Referenssit","sub":"Mitä on rakennettu ja kenelle.","back":"Takaisin etusivulle","cur":"Ajankohtaiset projektit","old":"Aiemmat referenssit","search":"Hae","searchPh":"Nimi, vuosi tai hakusana","clear":"Tyhjennä haku","filter":"Suodata","filterTitle":"Suodattimet","secTitle":"Osio","secAll":"Kaikki","secCur":"Ajankohtaiset","secOld":"Aiemmat","reset":"Palauta suodattimet","show1":"Näytä 1 kohde","showN":"Näytä {n} kohdetta","showNone":"Ei hakutuloksia","count":"{n} / {m} kohteesta","none":"Ei hakutuloksia","noneHelp":"Lyhennä hakusanaa tai palauta suodattimet.","open":"Avaa","close":"Sulje","closeView":"Sulje projektinäkymä","view":"Projektinäkymä","year":"Vuosi","client":"Projekti / toimeksiantaja","scope":"Laajuus","short":"Lyhyt kuvaus","lang":"Kieli","now":"nyt","entries":"kohdetta","draft":"Luonnos, Frankin hyväksyttävänä","pending":"Lyhyt kuvaus tulossa","linkPending":"Linkki tulossa","st_live":"Verkossa","st_soon":"Pian käynnistyy","st_unk":"Tila selviää myöhemmin","enTitle":"Teksti englanniksi","same":"katso Ajankohtaiset projektit","what":"Mitä","role":"Rooli","tasks":"Tehtävät","status":"Tila","links":"Linkit","imageSlot":"Kuva tai video (paikkamerkki)","video":"Video (ei upotettu)","enlarge":"Avaa kuva suurena","prev":"Edellinen kuva","next":"Seuraava kuva","pics":"Kuvat","slides":"Kuvat","impressum":"Julkaisijatiedot","datenschutz":"Tietosuoja","teamwork":"Teamwork","axis":"Aikajana","axisBreak":"Asteikkoa lyhennetty","hint":"Valitse piste avataksesi projektinäkymän.","legend":"Selite","tag":{"website":"Verkkosivusto","plattform":"Alusta","redesign":"Uudistus","prozess":"Prosessiohjelmisto","opensource":"Avoin lähdekoodi","bildung":"Koulutus","designsystem":"Suunnittelujärjestelmä"},"featured":"Valitut työt","imgView":"Projektinäkymä","imgZoom":"Alkuperäinen koko","imgFit":"Sovita näytölle"},"ar":{"title":"المراجع","sub":"ما تم بناؤه ولمن.","back":"الصفحة الرئيسية","cur":"المشاريع الحالية","old":"المراجع السابقة","search":"بحث","searchPh":"الاسم أو السنة أو كلمة مفتاحية","clear":"مسح البحث","filter":"تصفية","filterTitle":"التصفية","secTitle":"القسم","secAll":"الكل","secCur":"الحالية","secOld":"السابقة","reset":"إعادة ضبط التصفية","show1":"عرض إدخال واحد","showN":"عرض {n} من الإدخالات","showNone":"لا توجد نتائج","count":"{n} من {m} إدخالات","none":"لا توجد نتائج","noneHelp":"اختصر كلمة البحث أو أعد ضبط التصفية.","open":"فتح","close":"إغلاق","closeView":"إغلاق عرض المشروع","view":"عرض المشروع","year":"السنة","client":"المشروع / العميل","scope":"النطاق","short":"نص قصير","lang":"اللغة","now":"الآن","entries":"إدخالات","draft":"مسودة، بانتظار موافقة فرانك","pending":"النص القصير لاحقًا","linkPending":"الرابط لاحقًا","st_live":"متاح على الإنترنت","st_soon":"يبدأ قريبًا","st_unk":"الحالة لاحقًا","enTitle":"النص بالإنجليزية","same":"انظر المشاريع الحالية","what":"ماذا","role":"الدور","tasks":"المهام","status":"الحالة","links":"الروابط","imageSlot":"صورة أو فيديو (عنصر نائب)","video":"فيديو (غير مضمّن)","enlarge":"فتح الصورة بالحجم الكامل","prev":"الصورة السابقة","next":"الصورة التالية","pics":"الصور","slides":"الشرائح","impressum":"بيانات النشر","datenschutz":"حماية البيانات","teamwork":"Teamwork","axis":"الخط الزمني","axisBreak":"المقياس مختصر","hint":"اختر نقطة لفتح عرض المشروع.","legend":"المفتاح","tag":{"website":"موقع إلكتروني","plattform":"منصة","redesign":"إعادة تصميم","prozess":"برنامج العمليات","opensource":"مفتوح المصدر","bildung":"تعليم","designsystem":"نظام تصميم"},"featured":"أعمال مختارة","imgView":"عرض المشروع","imgZoom":"الحجم الأصلي","imgFit":"ملاءمة الشاشة"},"en":{"title":"References","sub":"What was built, and for whom.","back":"Home","cur":"Current projects","old":"Earlier work","search":"Search","searchPh":"Name, year or keyword","clear":"Clear search","filter":"Filter","filterTitle":"Filter","secTitle":"Section","secAll":"All","secCur":"Current","secOld":"Earlier","reset":"Reset filters","show1":"Show 1 entry","showN":"Show {n} entries","showNone":"No results","count":"{n} of {m} entries","none":"No results","noneHelp":"Shorten the search term or reset the filter.","open":"Open","close":"Close","closeView":"Close project view","view":"Project view","year":"Year","client":"Project / client","scope":"Scope","short":"Summary","lang":"Language","now":"now","entries":"entries","draft":"Draft, awaiting Frank's approval","pending":"Summary to follow","linkPending":"Link to follow","st_live":"Online","st_soon":"Starting soon","st_unk":"Status to follow","enTitle":"Text in English","same":"see Current projects","what":"What","role":"Role","tasks":"Tasks","status":"Status","links":"Links","imageSlot":"Image or video (placeholder)","video":"Video (not embedded)","enlarge":"Open image full size","prev":"Previous image","next":"Next image","pics":"Images","slides":"Slides","impressum":"Legal notice","datenschutz":"Privacy","teamwork":"Teamwork","axis":"Timeline","axisBreak":"Scale shortened","hint":"Select a point to open the project view.","legend":"Legend","tag":{"website":"Website","plattform":"Platform","redesign":"Redesign","prozess":"Process software","opensource":"Open source","bildung":"Education","designsystem":"Design system"},"featured":"Selected work","imgView":"Project view","imgZoom":"Original size","imgFit":"Fit to screen"}};
 const LANG = LABELS[Q.get('lang')] ? Q.get('lang') : 'de', DIR = LANG === 'ar' ? 'rtl' : 'ltr';
 R.lang = LANG; R.dir = DIR;
 const L = (k, v) => { let s = LABELS[LANG][k]; if (s == null) s = LABELS.de[k]; return v ? s.replace(/\{(\w+)\}/g, (_, n) => v[n]) : s; };
@@ -184,6 +184,7 @@ function stripSync(s) {
   b[0].setAttribute('aria-disabled', String(at < 2)); b[1].setAttribute('aria-disabled', String(at > max - 2));
 }
 function viewHTML(e, o = {}) {
+  if (e.story) return e.story; // German project story, rendered once at build time for both paths
   const cur = e.sec === 'cur', rgb = cur ? COL.cur : COL.old, H = o.h || 2;
   const links = linksHTML(e);
   if (e.view) {
@@ -207,7 +208,7 @@ ${links}<details class="pv-sec"><summary class="pill">Originaltext · EN</summar
 <section class="pv-sec" data-css="--zc:${rgb}"><h${H + 1}>${esc(L('scope'))}</h${H + 1}>${EN(e.scope.trim(), 'p')}</section>${links}</article>`;
   const sec = s => `<section class="pv-sec" data-css="--zc:${rgb}"><h${H + 1}>${esc(s.label)}</h${H + 1}>${s.text ? `<p lang="de" dir="ltr">${esc(s.text)}</p>` : ''}${stripHTML(e.title, s.images, s.label, 'de')}</section>`;
   const extra = (e.more || []).map(sec).join('') + (e.groups || []).map(sec).join('') + (e.after || []).map(sec).join('');
-  const sent = e.sent ? `<p class="pv-sent" lang="de" dir="ltr">${esc(e.sent)}</p><span class="draft">${esc(L('draft'))}</span>` : `<p class="pv-sent pending">${esc(L('pending'))}</p>`;
+  const sent = e.sent ? `<p class="pv-sent" lang="de" dir="ltr">${esc(e.sent)}</p>` : `<p class="pv-sent pending">${esc(L('pending'))}</p>`;
   return `<article class="pv cur" aria-labelledby="pvt-${e.id}">
 <header class="pv-hd" data-css="--zc:${rgb}">${artHTML('pv-art', e.id + ':hd', e.motif, rgb, 13)}<div class="pv-tt"><h${H} class="pv-title" id="pvt-${e.id}">${esc(e.title)}</h${H}>${stChip(e)}</div></header>
 <div class="pv-body">${sent}${tagsHTML(e)}${links}</div>
@@ -244,6 +245,7 @@ function syncFilterUI() {
 function refresh() {
   S.vis = E.filter(matches).map(e => e.id); S.visSet = new Set(S.vis);
   syncFilterUI();
+  const featured = $('.featured-work'); if (featured) featured.hidden = !!active();
   V.render(); layoutAll();
   if (S.open && !S.visSet.has(S.open) && !V.docked) closeEntry();
 }
@@ -356,9 +358,50 @@ function tick(ts) {
 }
 function loop() { if (!raf && !RM() && nowT() < RM_T) raf = requestAnimationFrame(tick); }
 
+/* "Ausgewählte Arbeiten": the four build-time cards move from the readable list above the Zeitstrahl */
+function featuredInto(content) {
+  const src = $('.nojs .featured-work'); if (!src) return;
+  const f = src.cloneNode(true);
+  $('h2', f).textContent = L('featured');
+  if (LANG === 'en') $$('[data-en]', f).forEach(n => { n.textContent = n.dataset.en; if (n.lang) n.lang = 'en'; });
+  f.hidden = !!active();
+  content.before(f);
+}
+
+/* one native dialog for every picture: fitted first, "Original size" shows the real pixels with scrolling */
+let imageDialog = null, imageOpener = null;
+function imageDialogEl() {
+  if (imageDialog) return imageDialog;
+  const d = imageDialog = D.createElement('dialog');
+  d.id = 'reference-image'; d.className = 'image-viewer'; d.setAttribute('aria-labelledby', 'reference-image-caption');
+  d.innerHTML = `<header class="image-viewer-head"><p>${esc(L('imgView'))}</p><button type="button" class="pill" data-image-zoom aria-pressed="false">${esc(L('imgZoom'))}</button><button type="button" class="pill" data-image-close>${esc(L('close'))}</button></header><div class="image-viewer-scroll"><img alt=""></div><p id="reference-image-caption"></p>`;
+  D.body.appendChild(d);
+  d.addEventListener('close', () => { $('img', d).removeAttribute('src'); if (imageOpener && imageOpener.isConnected) imageOpener.focus({ preventScroll: true }); });
+  d.addEventListener('click', e => {
+    if (e.target.closest('[data-image-close]')) { d.close(); return; }
+    const zoom = e.target.closest('[data-image-zoom]');
+    if (zoom) { const on = d.classList.toggle('zoomed'); zoom.setAttribute('aria-pressed', String(on)); zoom.textContent = L(on ? 'imgFit' : 'imgZoom'); return; }
+    if (e.target === d) { const r = d.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close(); }
+  });
+  return d;
+}
+function openImage(a) {
+  const d = imageDialogEl(); if (typeof d.showModal !== 'function') return false;
+  imageOpener = a; d.classList.remove('zoomed');
+  const zoom = $('[data-image-zoom]', d); zoom.setAttribute('aria-pressed', 'false'); zoom.textContent = L('imgZoom');
+  const img = $('img', d), from = $('img', a), fig = a.closest('figure'), cap = fig && $('figcaption', fig);
+  img.src = a.href; img.alt = from ? from.alt : '';
+  const capEl = $('#reference-image-caption', d);
+  capEl.textContent = cap ? cap.textContent.replace(/^\s*\d+\/\d+\s*/, '') : img.alt;
+  if (cap && cap.lang) { capEl.lang = cap.lang; capEl.dir = cap.dir || 'ltr'; } else { capEl.lang = ''; capEl.dir = ''; }
+  d.showModal(); $('[data-image-close]', d).focus();
+  return true;
+}
+
 function wire() {
   D.addEventListener('click', e => {
     const t = e.target; let b;
+    if ((b = t.closest('a.pv-zoom')) && e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) { if (openImage(b)) e.preventDefault(); return; }
     if ((b = t.closest('[data-strip]'))) { if (b.getAttribute('aria-disabled') !== 'true') stripGo($('.pv-strip', b.closest('.pv-strip-w')), +b.dataset.strip); return; }
     if ((b = t.closest('[data-act="reset"]'))) { resetFilter(); const q = $('#q'); if (q && !isPhone()) q.focus(); return; }
     if ((b = t.closest('[data-sec]'))) { S.sec = b.dataset.sec; refresh(); return; }
@@ -370,6 +413,7 @@ function wire() {
   });
   D.addEventListener('input', e => { if (e.target.id === 'q') { S.q = e.target.value; refresh(); } });
   D.addEventListener('keydown', e => {
+    if (imageDialog && imageDialog.open) return; // the native dialog owns Tab and Escape above a project sheet
     if(e.key==='Tab' && Mo.cur){const f=[...Mo.cur.querySelectorAll('a[href]:not([tabindex="-1"]),button,input,[tabindex="0"]')].filter(n=>!n.disabled&&n.getClientRects().length);if(f.length){if(e.shiftKey&&D.activeElement===f[0]){f.at(-1).focus();e.preventDefault();}else if(!e.shiftKey&&D.activeElement===f.at(-1)){f[0].focus();e.preventDefault();}}}
     const strip = e.target.classList && e.target.classList.contains('pv-strip') && !e.metaKey && !e.ctrlKey && !e.altKey ? e.target : null;
     if (strip) {
@@ -393,9 +437,9 @@ function wire() {
 function skeleton() {
   D.body.insertAdjacentHTML('afterbegin', `<div id="stage" class="enhancing" inert><div id="frame"><div id="app" data-v="${V.id}">
 <canvas id="field" aria-hidden="true"></canvas>
-<header class="top"><a class="pill back" href="/">${svg(ICO.back, 16).replace('<svg ', '<svg class="flip" ')}<span>${esc(L('back'))}</span></a><h1 class="ttl"><span id="ttl">${esc(L('title'))}</span><i class="caret" aria-hidden="true"></i></h1><p class="kicker">${esc(L('sub'))}</p><p class="meta" id="meta" aria-hidden="true"></p></header>
+<header class="top"><a class="pill back" href="${LANG === 'de' ? '/' : '/?lang=' + encodeURIComponent(LANG)}">${svg(ICO.back, 16).replace('<svg ', '<svg class="flip" ')}<span>${esc(L('back'))}</span></a><h1 class="ttl"><span id="ttl">${esc(L('title'))}</span><i class="caret" aria-hidden="true"></i></h1><p class="kicker">${esc(L('sub'))}</p><p class="meta" id="meta" aria-hidden="true"></p></header>
 <section class="filter" role="search" aria-label="${esc(L('filter'))}">${filterHTML()}</section>
-<div class="scroll" id="scroll"><main id="content"></main><footer class="foot" aria-label="${esc(L('impressum'))}"><a href="/homepage-assets/impressum.html">Impressum</a><i aria-hidden="true">·</i><a href="/homepage-assets/datenschutz.html">Datenschutz</a><i aria-hidden="true">·</i><a href="/teamwork/">${esc(L('teamwork'))}</a><i aria-hidden="true">·</i><a href="/glossar/">Glossar</a><i aria-hidden="true">·</i><a href="mailto:info@dreambau.com">Kontakt</a></footer></div>
+<div class="scroll" id="scroll"><main id="content"></main><footer class="foot" aria-label="${esc(L('impressum'))}"><a href="/homepage-assets/impressum.html">Impressum</a><i aria-hidden="true">·</i><a href="/homepage-assets/datenschutz.html">Datenschutz</a><i aria-hidden="true">·</i><a href="/teamwork/">${esc(L('teamwork'))}</a><i aria-hidden="true">·</i><a href="${LANG === 'de' ? '/glossar/' : '/glossar/?lang=' + encodeURIComponent(LANG)}">Glossar</a><i aria-hidden="true">·</i><a href="mailto:info@dreambau.com">Kontakt</a></footer></div>
 <div class="modal fs" id="fsheet" role="dialog" aria-modal="true" aria-labelledby="fs-t" aria-hidden="true" inert><div class="mbk"></div><section class="msheet" id="fs-sheet" tabindex="-1"><button type="button" class="grab" aria-label="${esc(L('close'))}"></button><header class="mh"><h2 id="fs-t">${esc(L('filterTitle'))}</h2><button type="button" class="pill" data-close data-autofocus>${esc(L('close'))}</button></header><div class="mb" id="fsbody"></div><footer class="mf"><button type="button" class="pill" id="fsreset">${esc(L('reset'))}</button><button type="button" class="pill pri" id="fsshow"></button></footer></section></div>
 </div></div></div><p class="sr" id="live" role="status" aria-live="polite"></p>`);
   app = $('#app');
@@ -423,6 +467,7 @@ function start(Vv) {
   wire();
   loop();
   if (!RM()) decode($('#ttl'), L('title'), { dur: 600 });
+  featuredInto($('#content'));
   document.querySelector('.nojs').remove();
   $('#stage').classList.remove('enhancing'); $('#stage').inert = false;
  } catch (error) {
@@ -464,8 +509,8 @@ function nodeHTML(e) {
   const q = S.q.trim(), cur = e.sec === 'cur';
   const name = cur ? hl(e.title, q) : `<span lang="en" dir="ltr">${hl(vt(e.client), q)}</span>`;
   const ds = cur
-    ? (e.sent ? `<span class="tx" lang="de" dir="ltr">${hl(e.sent, q)}</span><span class="draft">${esc(L('draft'))}</span>` : `<span class="pending">${hl(L('pending'), q)}</span>`)
-    : `<span class="tx"><span class="y">${hl(e.year, q)}</span> · ${eh(e.scope.trim(), q)}</span>${e.same ? `<span class="ptr">→ ${esc(L('same'))}</span>` : ''}`;
+    ? (e.sent ? `<span class="tx" lang="de" dir="ltr">${hl(e.sent, q)}</span>` : `<span class="pending">${hl(L('pending'), q)}</span>`)
+    : `<span class="tx"><span class="y">${hl(e.year, q)}</span> · ${e.lang === 'en' ? eh(e.scope.trim(), q) : `<span lang="de" dir="ltr">${hl(e.scope, q)}</span>`}</span>${e.same ? `<span class="ptr">→ ${esc(L('same'))}</span>` : ''}`;
   const inner = `<span class="orb"><canvas class="oc" aria-hidden="true"></canvas></span><span class="lb"><span class="nm">${name}</span><span class="mk">${cur ? stChip(e) : enChip(e)}</span><span class="ds">${ds}</span></span>`;
   return `<li class="node ${e.sec}${e.same ? ' row' : ''}" data-id="${esc(e.id)}"><a class="nd" href="#${esc(e.same || e.id)}" data-id="${esc(e.id)}"${e.same ? ` data-open="${esc(e.same)}" title="${esc(L('same'))}"` : ''}>${inner}</a></li>`;
 }

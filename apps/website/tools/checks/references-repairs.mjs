@@ -15,6 +15,7 @@ export async function run({browser,base,artifact,ok}) {
   const page=await failed.newPage();
   await page.goto(base+'/referenzen/');
   ok('155: failed enhancement preserves all twelve readable projects',await page.locator('.nojs article').count()===12&&await page.locator('.nojs').isVisible());
+  await page.locator('.nojs #eeloy').getByText('Originaltext · EN',{exact:true}).click();
   ok('155: failed enhancement leaves the original English text and navigation usable',(await page.locator('.nojs #eeloy').innerText()).includes('Redesign the 8 Years old Direct Mailing solution')&&await page.locator('.nojs a[href="/"]').first().isVisible());
   ok('155: partial enhancement does not obscure the readable fallback',await page.locator('#stage').count()===0&&await page.evaluate(()=>!!document.elementFromPoint(30,35)?.closest('.nojs')));
   await page.screenshot({path:path.join(artifact,'references-failed-enhancement-phone.png')});
@@ -95,8 +96,8 @@ export async function run({browser,base,artifact,ok}) {
  try {
   const page=await plain.newPage();await page.goto(base+'/referenzen/');
   ok('155: without JavaScript all twelve original entries remain readable',await page.locator('.nojs article').count()===12);
-  await page.locator('#eeloy summary').click();
-  await page.locator('#eeloy img').evaluate(image=>image.decode());
-  ok('155: no-JavaScript visitors can open the original portfolio image',await page.locator('#eeloy img').isVisible()&&await page.locator('#eeloy img').evaluate(image=>image.naturalWidth>0));
+  await page.locator('#eeloy').getByText('Originalansicht aus dem Portfolio',{exact:true}).click();
+  await page.locator('#eeloy .case-original img').evaluate(image=>image.decode());
+  ok('155: no-JavaScript visitors can open the original portfolio image',await page.locator('#eeloy .case-original img').isVisible()&&await page.locator('#eeloy .case-original img').evaluate(image=>image.naturalWidth>0));
  } finally {await plain.close();}
 }
