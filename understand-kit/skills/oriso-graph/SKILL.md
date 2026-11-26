@@ -16,8 +16,11 @@ Classification: generalizable method (any coding agent); the slash-command form 
    Follow it or stop and raise the conflict in the ticket — never deviate silently.
    Platform ADRs: `ORISO-Docs/oriso-platform/decisions/`; code-adjacent ADRs sit beside their
    repo (numbering drifts between the two — link by name, not number).
-3. **UI only via Storybook.** Props come from the Storybook MCP (`docs-show`,
-   `stories-preview`), never from guessing. Rules and hosts: `skills/storybook-routing/SKILL.md`
+3. **UI only via Storybook.** Props come from Storybook, never from guessing: first the
+   central Dev Storybook via `oriso-sb <frontend|admin> show <id>` and `oriso-sb <app> tokens`;
+   `npx storybook tools` only for unmerged components. Then the repo's Storybook 11 skills
+   (`component-docs`, `write-stories`, `test-stories`, `ui-review`). Compose screens from existing
+   components and tokens, never from screenshots (rule 3 in `rules/AGENTS-block.md`). Rules and hosts: `skills/storybook-routing/SKILL.md`
    and `skills/oriso-frontend-component-discipline/SKILL.md`.
 4. **Freshness is printed, not assumed.** Run `ua-pull --verify` (Dev-Kit). Shallow structure
    is refreshed on demand from `dev`; the depth (concepts, flows, tour) carries its own date.

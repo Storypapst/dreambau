@@ -80,13 +80,13 @@ await run(async () => {
     same('V14 55 posts: well-formed, valid', problems(text), []);
     same('V14 55 posts: exactly the 50 newest, from beitrag-55 down to beitrag-06', [entries.length, child(entries[0], 'id').text(), child(entries[49], 'id').text()], [50, 'https://dreambau.com/blog/2026/beitrag-55/', 'https://dreambau.com/blog/2026/beitrag-06/']);
     same('V14 55 posts: xml:lang="en" on the English entry only', entries.map((entry, index) => [index, entry.attrs.get('xml:lang')]).filter(([, lang]) => lang !== undefined), [[0, 'en']]);
-    same('V14 55 posts: the list page still has all 55 rows (only the feed is limited)', (fs.readFileSync(path.join(dir, 'out', 'public', 'index.html'), 'utf8').match(/<li class="row">/g) || []).length, 55);
+    same('V14 55 posts: the list page still has all 55 rows (only the feed is limited)', (fs.readFileSync(path.join(dir, 'out', 'public', 'index.html'), 'utf8').match(/<li class="row"[ >]/g) || []).length, 55);
     same('V14 55 posts: updated of the feed is that of the newest entry', child(parseXml(text).root, 'updated').text(), '2026-02-27T00:00:00Z');
   });
 
   // ---- the build keeps its promises about files ----
   withScratch('feed-files', (dir) => {
     buildInto(dir, [{ year: '2026', slug: 'eins-beitrag', title: 'Eins Beitrag', date: '2026-08-01' }]);
-    same('AD-1 the output of one post: the page, the list, the 404 page, the feed, the stylesheet, the script', digestTree(path.join(dir, 'out', 'public')).map((file) => file.path), ['2026/eins-beitrag/index.html', '404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html']);
+    same('AD-1 the output of one post: the page, the list, the 404 page, the feed, the stylesheet, the two scripts', digestTree(path.join(dir, 'out', 'public')).map((file) => file.path), ['2026/eins-beitrag/index.html', '404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html', 'karte.js']);
   });
 });

@@ -46,13 +46,20 @@ export function checkPostText(input, { file, publish = false, now = new Date(), 
   if ('quote' in fields && !('quoteSource' in fields)) add([{ rule: 'PF-9', what: 'a quote needs quoteSource, the source named as text' }], line('quote'));
   if ('quoteSource' in fields && !('quote' in fields)) add([{ rule: 'PF-9', what: 'quoteSource is only allowed together with a quote' }], line('quoteSource'));
 
-  for (const key of ['example', 'imageRights']) {
+  for (const key of ['example', 'demo', 'imageRights']) {
     if (key in fields && (fields[key].quoted || !['true', 'false'].includes(fields[key].value))) add([{ rule: 'PF-3', what: `${key} must be the plain word true or false` }], line(key));
   }
   if ('example' in fields && !findings.some((item) => item.where === at(file, line('example')))) {
     if (value('example') !== 'true') add([{ rule: 'PF-14', what: 'example is only ever true (leave the key out otherwise)' }], line('example'));
     else if (publish) add([{ rule: 'PF-14', what: 'a publish build refuses example: true (invented text never goes live)' }], line('example'));
     else if (!fixture) add([{ rule: 'PF-14', what: 'example: true is only allowed under tests/fixtures/' }], line('example'));
+  }
+
+  // demo: true marks a real file in posts/ whose text is a demo, shown with the label "Demo" and kept out of search engines
+  // (every page gets noindex while one exists). Unlike example: true it may stand in posts/; a publish build refuses it.
+  if ('demo' in fields && !findings.some((item) => item.where === at(file, line('demo')))) {
+    if (value('demo') !== 'true') add([{ rule: 'PF-14', what: 'demo is only ever true (leave the key out otherwise)' }], line('demo'));
+    else if (publish) add([{ rule: 'PF-14', what: 'a publish build refuses demo: true (a demo post never goes live as a real post)' }], line('demo'));
   }
 
   let imageInfo;
@@ -92,7 +99,7 @@ export function checkPostText(input, { file, publish = false, now = new Date(), 
   const post = { title: value('title'), date: value('date'), lang: value('lang') || 'de', paragraphs, year: address.year, slug: address.slug, address: `${address.year}/${address.slug}`, file };
   for (const key of ['sourceLink', 'sourceTitle', 'quote', 'quoteSource', 'image', 'imageAlt']) if (key in fields) post[key] = value(key);
   if (imageInfo) post.imageInfo = imageInfo;
-  for (const key of ['imageRights', 'example']) if (key in fields) post[key] = value(key) === 'true';
+  for (const key of ['imageRights', 'example', 'demo']) if (key in fields) post[key] = value(key) === 'true';
   return { post, findings };
 }
 

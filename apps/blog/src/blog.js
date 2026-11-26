@@ -10,6 +10,8 @@
   const glyphs = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&*+<>=';
   const duration = 520;
   let began = null;
+  let locked = 0;   // the height of the title before the effect; no frame is taller or shorter
+  let shown = text; // the last text that fit into that height
   const finish = () => {
     node.data = text;
     title.removeAttribute('aria-label');
@@ -20,11 +22,15 @@
     if (began === null) {
       began = now;
       title.setAttribute('aria-label', text);
-      title.style.minHeight = `${title.offsetHeight}px`;
+      locked = title.offsetHeight;
+      title.style.minHeight = `${locked}px`;
     }
     const progress = (now - began) / duration;
     if (progress >= 1) return finish();
     node.data = letters.map((letter, index) => (letter === ' ' || progress > (index / letters.length) * 0.55 + 0.45 ? letter : glyphs[Math.floor(Math.random() * glyphs.length)])).join('');
+    // The signs are wider than the letters they stand for. A mix that would need one more line is not shown: this frame
+    // keeps the last text that fit, so the title never grows (min-height keeps it from shrinking).
+    if (title.offsetHeight > locked) node.data = shown; else shown = node.data;
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

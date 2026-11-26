@@ -10,8 +10,11 @@ React-Story in **<ORISO-Frontend|ORISO-Admin>**, ohne das rohe HTML in die
 Komponente einzubauen.
 
 1. Lies das Mockup und entscheide:
-   - **Volle visuelle Treue nötig** (z. B. E-Mail-Template, statisches
-     Layout) → Wrapper-Komponente, die das HTML per `<iframe srcDoc={html}>`
+   - **Screen-Layout oder Variante** (der Normalfall) → Story aus vorhandenen
+     Komponenten und Tokens bauen (`npx storybook tools docs show --id <id>`).
+     Kein roh eingebettetes HTML, keine nachgebauten Styles — Regel 3 in
+     `rules/AGENTS-block.md`.
+   - **Volle visuelle Treue nötig** (z. B. E-Mail-Template) → Wrapper-Komponente, die das HTML per `<iframe srcDoc={html}>`
      rendert. Das HTML bleibt als eigene Datei/Konstante, nicht inline im JSX.
    - **Einfaches Snippet, soll ins Komponenten-Tooling** →
      `dangerouslySetInnerHTML` in einer kleinen Wrapper-Komponente, mit
@@ -21,10 +24,11 @@ Komponente einzubauen.
 3. **Committe die rohe HTML-Datei nicht in den Komponenten-Ordner** — sie
    bleibt Referenz/Input außerhalb des Repos oder als dokumentierter Fixture
    mit klarer Herkunft, nie unkommentiert im Produktionscode.
-4. Führe `stories-preview` (Storybook-MCP) für die neue Story aus.
-5. Nimm die Preview-URL **wörtlich** in den Abschlussbericht auf.
+4. Führe `test-stories` für die neue Story aus und zeige sie mit
+   `npx storybook tools stories preview` (lokales `npm run storybook`).
+5. Nimm die Story-ID **wörtlich** in den Abschlussbericht auf.
 6. Nenne, welcher Ansatz (iframe vs. dangerouslySetInnerHTML) gewählt wurde
    und warum.
 
 Bei Unsicherheit über Storybook-Story-Konventionen im Repo:
-`get-storybook-story-instructions` (Storybook-MCP) zuerst abfragen.
+den Skill `write-stories` des Repos zuerst laden.

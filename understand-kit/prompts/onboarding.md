@@ -20,7 +20,7 @@ Understand-Anything.
      (höchstes `depends_on`-Gewicht) und wofür
    - Die wichtigsten ADRs, die für dieses Repo gelten (Name + Pfad, keine
      Nummern raten — die Nummerierung driftet zwischen Repos)
-   - Wo die UI-Komponenten herkommen (Storybook-MCP, nicht raten)
+   - Wo die UI-Komponenten herkommen (Storybook-Skills und `npx storybook tools`, nicht raten)
 5. Verweise am Ende auf `skills/oriso-graph/SKILL.md` (falls im Repo
    vorhanden) für die volle Arbeitsregel.
 

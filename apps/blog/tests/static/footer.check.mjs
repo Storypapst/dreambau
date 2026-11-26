@@ -29,8 +29,8 @@ const footNav = (html) => /<nav\b[^>]*class="foot"[^>]*>([\s\S]*?)<\/nav>/.exec(
 await run(async () => {
   // ---- the file ----
   const file = JSON.parse(fs.readFileSync(path.join(ROOT, 'footer.json'), 'utf8'));
-  same('NV-2 footer.json has the two items impressum and datenschutz, both null', file, { impressum: null, datenschutz: null });
-  same('NV-2 loadFooter() reads it and pendingKeys() lists both, in this order', [loadFooter(), pendingKeys(file)], [file, ['impressum', 'datenschutz']]);
+  same('NV-2 footer.json links the two published pages (the legal pages of the start page)', file, { impressum: '/homepage-assets/impressum.html', datenschutz: '/homepage-assets/datenschutz.html' });
+  same('NV-2 loadFooter() reads it and pendingKeys() lists nothing', [loadFooter(), pendingKeys(file)], [file, []]);
   same('NV-2 a real address in one item leaves only the other pending', pendingKeys({ impressum: '/impressum.html', datenschutz: null }), ['datenschutz']);
   same('NV-2 two real addresses leave nothing pending', pendingKeys({ impressum: '/impressum.html', datenschutz: '/datenschutz.html' }), []);
   same('NV-2 the good shapes pass', [lines({ impressum: null, datenschutz: null }), lines({ impressum: '/impressum.html', datenschutz: '/datenschutz/' })], [[], []]);
@@ -45,20 +45,20 @@ await run(async () => {
 
   // ---- the live footer of /referenzen/ ----
   const live = itemsOf(footNav(fs.readFileSync(path.join(REPO, 'apps', 'website', 'site', 'referenzen', 'index.html'), 'utf8')));
-  same('NV-1 the live footer has these items (read from the page): two spans, a separator, four links', live, [
-    { span: 'Impressum · Angaben noch offen' }, { sep: '·' }, { span: 'Datenschutz · Freigabe noch offen' },
+  same('NV-1 the live footer has these items (read from the page): the two legal links, a separator, four links', live, [
+    { a: 'Impressum', href: '/homepage-assets/impressum.html' }, { sep: '·' }, { a: 'Datenschutz', href: '/homepage-assets/datenschutz.html' },
     { a: 'Startseite', href: '/' }, { a: 'Teamwork', href: '/teamwork/' }, { a: 'Glossar', href: '/glossar/' }, { a: 'Kontakt', href: 'mailto:info@dreambau.com' }]);
   const expected = [...live.slice(0, 4), { a: 'Referenzen', href: '/referenzen/' }, ...live.slice(4)];
 
   // ---- the rendering, from the real footer.json ----
   withScratch('footer', (dir) => {
     const manifest = buildBlog({ postsDir: FIXTURES, outDir: path.join(dir, 'out'), mode: 'preview' });
-    same('NV-2 blog.json lists the two pending items in footerPending', manifest.footerPending, ['impressum', 'datenschutz']);
+    same('NV-2 blog.json lists no pending item in footerPending', manifest.footerPending, []);
     for (const name of ['index.html', `${manifest.posts[0].address}/index.html`]) {
       const html = fs.readFileSync(path.join(dir, 'out', 'public', name), 'utf8');
       same(`NV-1 ${name}: the footer items are the live ones with Referenzen after Startseite, in this order`, itemsOf(footNav(html)), expected);
       check(`NV-1 ${name}: a footer landmark holds a nav named Website (blog.nav.label)`, /<footer\b[^>]*>\s*<nav\b[^>]*class="foot"[^>]*aria-label="Website"/.test(html));
-      check(`LG-7 ${name}: the pending spans carry lang de and dir ltr as on /referenzen/`, /<span class="pending" lang="de" dir="ltr">Impressum · Angaben noch offen<\/span>/.test(html));
+      check(`LG-7 ${name}: no pending span is left in the footer once both pages exist`, !/<span class="pending"/.test(footNav(html)));
     }
   });
 

@@ -1,0 +1,51 @@
+# Every 5 minutes: is ghcr.io/storypapst/dreambau-testmails:main newer than what runs?
+# Run once now:  kubectl create job --from=cronjob/testmails-autodeploy autodeploy-now -n wcr
+# Pause:         kubectl patch cronjob testmails-autodeploy -n wcr -p '{"spec":{"suspend":true}}'
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: testmails-autodeploy
+  labels: { app.kubernetes.io/name: testmails-autodeploy }
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 900
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: { app.kubernetes.io/name: testmails-autodeploy }
+        spec:
+          serviceAccountName: testmails-autodeploy
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: autodeploy
+              image: node:20-bookworm-slim
+              command: [node, /opt/autodeploy/autodeploy.mjs]
+              env:
+                - { name: NODE_EXTRA_CA_CERTS, value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt }
+                - { name: IMAGE_REPOSITORY, value: ghcr.io/storypapst/dreambau-testmails }
+                - { name: IMAGE_TAG, value: main }
+                - { name: HEALTH_URL, value: https://dreambau.com/testmails/health/ready }
+                - { name: ROLLOUT_TIMEOUT_SECONDS, value: "300" }
+              volumeMounts:
+                - { name: script, mountPath: /opt/autodeploy, readOnly: true }
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { cpu: 200m, memory: 128Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+          volumes:
+            - name: script
+              configMap: { name: testmails-autodeploy }

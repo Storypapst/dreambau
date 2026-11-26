@@ -21,11 +21,11 @@ await run(async () => {
   withScratch('build', (out) => {
     const manifest = buildBlog({ postsDir: FIXTURES, outDir: out, mode: 'preview' });
     const files = digestTree(out);
-    same('AD-1 the output holds the manifest, the list, the 404 page, the feed, the stylesheet, the script, a page for each of the seven posts and the one image, and nothing else',
+    same('AD-1 the output holds the manifest, the list, the 404 page, the feed, the stylesheet, the two scripts (title effect, map), a page for each of the seven posts and the one image, and nothing else',
       files.map((file) => file.path), [
         'blog.json', 'public/2026/ein-film-der-in-eine-mail-passt/index.html', 'public/2026/ein-werkzeug-das-zeichen-zaehlt/index.html', 'public/2026/kurzer-film-lange-nachgedacht/index.html',
         'public/2026/notiz-aus-der-werkstatt/index.html', 'public/2026/small-is-a-habit/index.html', 'public/2026/warum-bei-uns-der-text-zuerst-kommt/image.png',
-        'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/feed.xml', 'public/index.html']);
+        'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/feed.xml', 'public/index.html', 'public/karte.js']);
 
     const list = fs.readFileSync(path.join(out, 'public', 'index.html'), 'utf8');
     const page = fs.readFileSync(path.join(out, 'public', ADDRESS, 'index.html'), 'utf8');
@@ -33,12 +33,14 @@ await run(async () => {
       check(`AD-1 ${name} is a complete German HTML document`, /^<!doctype html>\n<html lang="de" dir="ltr">/.test(html) && /<meta charset="utf-8">/.test(html) && /<meta name="viewport"/.test(html) && /<title>[^<]+<\/title>/.test(html) && /<\/html>\n$/.test(html));
       check(`AD-1 ${name} loads one stylesheet of its own and no font, no inline style and no frame`, [...html.matchAll(/<link rel="stylesheet" href="([^"]*)"/g)].map((match) => match[1]).join() === '/blog/blog.css' && !/<style|@font-face|<iframe/.test(html));
     }
-    same('AD-1 the list has no script and the post page has the one script /blog/blog.js', [(list.match(/<script/g) || []).length, [...page.matchAll(/<script[^>]*>/g)].map((match) => match[0])], [0, ['<script src="/blog/blog.js" defer>']]);
+    same('AD-1 the list has the one script of the map /blog/karte.js and the post page the one script /blog/blog.js', [[...list.matchAll(/<script[^>]*>/g)].map((match) => match[0]), [...page.matchAll(/<script[^>]*>/g)].map((match) => match[0])], [['<script src="/blog/karte.js" defer>'], ['<script src="/blog/blog.js" defer>']]);
     const absolute = (html) => [...html.matchAll(/(?:src|href)="(https?:[^"]*)"/g)].map((match) => match[1]).sort();
-    same('AD-1 the list has no absolute address but its canonical link', absolute(list), ['https://dreambau.com/blog/']);
+    const sheets = [...list.matchAll(/<template class="voll"[^>]*>[\s\S]*?<\/template>/g)].map((match) => match[0]);
+    same('AD-1 the list has no absolute address but its canonical link (the full texts for the map aside)', absolute(list.replace(/<template class="voll"[^>]*>[\s\S]*?<\/template>/g, '')), ['https://dreambau.com/blog/']);
+    same('AD-1 the full texts for the map hold one for each post and no absolute address but the safe source links of the posts', [sheets.length, absolute(sheets.join(''))], [7, ['https://artikel.example.test/text-zuerst', 'https://essays.example.test/small-is-a-habit', 'https://filme.example.test/kurzer-film', 'https://videos.example.test/klein-bauen', 'https://werkzeug.example.test/zeichenzaehler']]);
     same('AD-1 the post page has no absolute address but its canonical link and its safe source link', absolute(page), ['https://dreambau.com/blog/' + ADDRESS + '/', 'https://videos.example.test/klein-bauen']);
 
-    same('AD-1 the list has seven rows (the legend adds four <li> of its own, two in each of its two forms)', [count(list, /<li class="row">/g), count(list, /<li\b(?! class="row")/g)], [7, 4]);
+    same('AD-1 the list has seven rows (the legend adds four <li> of its own, two in each of its two forms; the help over the map eight, five for a desktop and three for a phone)', [count(list, /<li class="row"[ >]/g), count(list, /<li\b(?! class="row")/g)], [7, 12]);
     check('AD-1 the first row shows the title as a link to the post address', list.includes(`<a href="/blog/${ADDRESS}/">Ein Film, der in eine Mail passt</a>`));
     check('AD-1 the first row shows the date and the number 07', textOf(list).includes('2026-10-02') && /\b07\b/.test(textOf(list)));
 
@@ -49,7 +51,7 @@ await run(async () => {
 
     const json = JSON.parse(fs.readFileSync(path.join(out, 'blog.json'), 'utf8'));
     same('BD-2 blog.json has the fields schema, mode, footerPending, posts, files, in this order', Object.keys(json), ['schema', 'mode', 'footerPending', 'posts', 'files']);
-    same('BD-2 blog.json: schema 1, mode preview, both footer items pending, the seven posts numbered from the oldest', [json.schema, json.mode, json.footerPending, json.posts], [1, 'preview', ['impressum', 'datenschutz'], [
+    same('BD-2 blog.json: schema 1, mode preview, no footer item pending, the seven posts numbered from the oldest', [json.schema, json.mode, json.footerPending, json.posts], [1, 'preview', [], [
       { address: '2026/warum-hier-niemand-mitzaehlt', number: 1 }, { address: '2026/kurzer-film-lange-nachgedacht', number: 2 }, { address: '2026/small-is-a-habit', number: 3 },
       { address: '2026/notiz-aus-der-werkstatt', number: 4 }, { address: '2026/ein-werkzeug-das-zeichen-zaehlt', number: 5 }, { address: '2026/warum-bei-uns-der-text-zuerst-kommt', number: 6 },
       { address: ADDRESS, number: 7 }]]);
@@ -87,13 +89,13 @@ await run(async () => {
     fs.rmSync(path.join(posts, '2026', 'zwei.md'));
     buildBlog({ postsDir: posts, outDir: out, mode: 'preview' });
     same('BD-11 a rebuild keeps the very directory public/ (same inode): a container that mounts it keeps seeing it', fs.statSync(path.join(out, 'public')).ino, before);
-    same('BD-11 a rebuild removes the page of a post that is gone', digestTree(out).map((file) => file.path), ['blog.json', 'public/2026/eins/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/feed.xml', 'public/index.html']);
+    same('BD-11 a rebuild removes the page of a post that is gone', digestTree(out).map((file) => file.path), ['blog.json', 'public/2026/eins/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/feed.xml', 'public/index.html', 'public/karte.js']);
   });
 
   // ---- no posts at all: a valid, empty list ----
   withScratch('empty', (dir) => {
     const manifest = buildBlog({ postsDir: path.join(dir, 'does-not-exist'), outDir: path.join(dir, 'out'), mode: 'preview' });
-    same('BD-3 a folder without posts gives an empty manifest', [manifest.posts, manifest.files.map((file) => file.path)], [[], ['404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html']]);
+    same('BD-3 a folder without posts gives an empty manifest', [manifest.posts, manifest.files.map((file) => file.path)], [[], ['404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html', 'karte.js']]);
     check('BD-3 the empty list is still a page, with no row', count(fs.readFileSync(path.join(dir, 'out', 'public', 'index.html'), 'utf8'), /<li\b/g) === 0);
   });
 
@@ -104,8 +106,8 @@ await run(async () => {
     writePost(posts, '2026/boese.md', `---\ntitle: ${JSON.stringify(hostile)}\ndate: 2026-09-01\nquote: ${JSON.stringify(hostile)}\nquoteSource: ${JSON.stringify(hostile)}\nsourceLink: ${JSON.stringify('https://x.example.test/a?b=1&c="><i>')}\nsourceTitle: ${JSON.stringify(hostile)}\n---\n\n${hostile}\n\n${BODY}\n`);
     buildBlog({ postsDir: posts, outDir: path.join(dir, 'out'), mode: 'preview' });
     for (const file of ['index.html', '2026/boese/index.html']) {
-      const html = fs.readFileSync(path.join(dir, 'out', 'public', file), 'utf8').replace('<script src="/blog/blog.js" defer></script>', '');
-      check(`PR-5 ${file}: the hostile text creates no script (beyond the script tag of the title effect), no image and no event attribute`, !/<script|<img|onerror=1>/.test(html) && html.includes('&lt;script&gt;'));
+      const html = fs.readFileSync(path.join(dir, 'out', 'public', file), 'utf8').replace('<script src="/blog/blog.js" defer></script>', '').replace('<script src="/blog/karte.js" defer></script>', '');
+      check(`PR-5 ${file}: the hostile text creates no script (beyond the script tags of the title effect and the map), no image and no event attribute`, !/<script|<img|onerror=1>/.test(html) && html.includes('&lt;script&gt;'));
     }
     check('PR-5 the source link keeps its query as text: the ampersand and the quote are escaped in the attribute',
       fs.readFileSync(path.join(dir, 'out', 'public', '2026/boese/index.html'), 'utf8').includes('href="https://x.example.test/a?b=1&amp;c=&quot;&gt;&lt;i&gt;"'));

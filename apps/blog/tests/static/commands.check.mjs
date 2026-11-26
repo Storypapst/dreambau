@@ -19,10 +19,10 @@ await run(async () => {
     same('BD-2 npm run build:demo exits 0 in the second copy', npm(appB, 'build:demo').status, 0);
     const treeA = digestTree(path.join(appA, 'dist-demo'));
     const treeB = digestTree(path.join(appB, 'dist-demo'));
-    same('BD-2 the build wrote blog.json, the list, the 404 page, blog.css, blog.js, feed.xml, seven post pages and the one image', treeA.map((file) => file.path), [
+    same('BD-2 the build wrote blog.json, the list, the 404 page, blog.css, blog.js, feed.xml, karte.js, seven post pages and the one image', treeA.map((file) => file.path), [
       'blog.json', 'public/2026/ein-film-der-in-eine-mail-passt/index.html', 'public/2026/ein-werkzeug-das-zeichen-zaehlt/index.html', 'public/2026/kurzer-film-lange-nachgedacht/index.html',
       'public/2026/notiz-aus-der-werkstatt/index.html', 'public/2026/small-is-a-habit/index.html', 'public/2026/warum-bei-uns-der-text-zuerst-kommt/image.png',
-      'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/feed.xml', 'public/index.html']);
+      'public/2026/warum-bei-uns-der-text-zuerst-kommt/index.html', 'public/2026/warum-hier-niemand-mitzaehlt/index.html', 'public/404.html', 'public/blog.css', 'public/blog.js', 'public/feed.xml', 'public/index.html', 'public/karte.js']);
     same('BD-2 two builds in two scratch copies (other paths) give the same sha256 for every file, blog.json included', treeB, treeA);
     npm(appA, 'build:demo');
     same('BD-2 a second build in the same copy changes nothing', digestTree(path.join(appA, 'dist-demo')), treeA);
@@ -49,7 +49,10 @@ await run(async () => {
     same('BD-3 npm run build (preview, the default) exits 0', npm(app, 'build').status, 0);
     same('BD-3 it writes dist/, and not dist-demo/', [fs.existsSync(path.join(app, 'dist', 'blog.json')), fs.existsSync(path.join(app, 'dist-demo'))], [true, false]);
     const manifest = JSON.parse(fs.readFileSync(path.join(app, 'dist', 'blog.json'), 'utf8'));
-    same('BD-3 no post exists in posts/ yet, so the preview is an empty list in preview mode', [manifest.mode, manifest.posts], ['preview', []]);
+    same('BD-3 the preview builds the posts of posts/ (the German and English first post, then the six demo posts about the owner\'s chosen videos), in preview mode', [manifest.mode, manifest.posts.map((post) => post.address)], ['preview', ['2026/duenner-rahmen-dicke-skills', '2026/thin-harness-fat-skills',
+      '2026/kleine-entscheidungen-in-rag-systemen-an-ein-eigenes-modell', '2026/harari-ki-als-geborene-buerokratin', '2026/matt-pocock-ueber-den-engpass-beim-pull-request',
+      '2026/fuenfzehn-neuerungen-in-claude-code-die-man-leicht', '2026/ein-dorf-fuer-ki-agenten-gebaut-in-dreieinhalb-stunden', '2026/welche-burggraeben-einer-saas-firma-heute-noch-halten']]);
+    same('BD-3 the six video posts are marked demo in the manifest, the two first posts are not', manifest.posts.map((post) => post.demo === true), [false, false, true, true, true, true, true, true]);
     const wrong = npm(app, 'build', '--', '--publish');
     check('BD-3 an unknown option exits 2 and names the usage', wrong.status === 2 && /Usage/.test(wrong.stderr), `${wrong.status} ${wrong.stderr}`);
   });
