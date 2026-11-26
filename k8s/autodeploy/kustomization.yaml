@@ -1,0 +1,15 @@
+# One-time bootstrap on the server (from a checkout of main):
+#   kubectl apply -k k8s/autodeploy
+# Re-apply only when a file in this directory changes. See README.md here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: wcr
+resources:
+  - rbac.yaml
+  - cronjob.yaml
+configMapGenerator:
+  - name: testmails-autodeploy
+    files:
+      - autodeploy.mjs
+generatorOptions:
+  labels: { app.kubernetes.io/name: testmails-autodeploy }

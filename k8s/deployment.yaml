@@ -22,8 +22,10 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: testmails
-          image: dreambau-testmails:0.10.4-fixed-creds-6fc95bf
-          imagePullPolicy: Never
+          # The testmails-autodeploy CronJob pins this to the digest of :main
+          # (k8s/autodeploy/README.md). Applying this file pulls :main directly.
+          image: ghcr.io/storypapst/dreambau-testmails:main
+          imagePullPolicy: Always
           ports:
             - { name: http, containerPort: 3000 }
           env:
