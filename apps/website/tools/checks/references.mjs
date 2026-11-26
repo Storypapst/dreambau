@@ -1,6 +1,8 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import {run as runRepairs} from './references-repairs.mjs';
+import {run as runStories} from './reference-stories.mjs';
+import {run as runLanguage} from './reference-language.mjs';
 export async function run({browser,base,artifact,ok,root}) {
  const context=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'}), page=await context.newPage(); const errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
@@ -25,13 +27,13 @@ export async function run({browser,base,artifact,ok,root}) {
  await page.screenshot({path:path.join(artifact,'references-desktop-selected.png')});
  ok('A01: the wide selected panel has the approved 440 px width',Math.abs((await page.locator('.c-side').boundingBox()).width-440)<1);
  await page.reload();await page.waitForTimeout(150);
- ok('A02: reloading a shared address keeps the selected project',await page.locator('.c-side .pv-title').textContent()==='SF Care');
+ ok('A02: reloading a shared address keeps the selected project',await page.locator('.c-side .pv-title').textContent()==='Sunflower Care e.V.');
  await page.keyboard.press('Escape');await page.waitForTimeout(150);
  ok('A02: closing returns focus to the selected entry',await page.locator('.nd[data-id="sf-care"]').evaluate(n=>n===document.activeElement));
  await page.locator('.nd[data-id="sf-care"]').click(); await page.waitForTimeout(150);
  ok('Tidy: the next button moves a picture strip by one picture and the previous button is off at the start',await page.evaluate(async()=>{const s=document.querySelector('.c-side .pv-strip'),[prev,next]=s.closest('.pv-strip-w').querySelectorAll('[data-strip]');const off=prev.getAttribute('aria-disabled')==='true';next.click();await new Promise(r=>setTimeout(r,250));return off&&s.scrollLeft>100&&prev.getAttribute('aria-disabled')==='false';}));
  ok('Tidy: arrow keys walk a focused strip to its last picture and back, End and Home jump',await page.evaluate(async()=>{const s=document.querySelector('.c-side .pv-strip'),max=s.scrollWidth-s.clientWidth,key=k=>s.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true})),wait=()=>new Promise(r=>setTimeout(r,60));s.focus();for(let n=0;n<8;n++){key('ArrowRight');await wait();}const end=Math.abs(s.scrollLeft-max)<=2&&s.closest('.pv-strip-w').querySelectorAll('[data-strip]')[1].getAttribute('aria-disabled')==='true';for(let n=0;n<8;n++){key('ArrowLeft');await wait();}const start=s.scrollLeft<=2;key('End');await wait();const jumped=Math.abs(s.scrollLeft-max)<=2;key('Home');await wait();return end&&start&&jumped&&s.scrollLeft<=2;}));
- ok('Tidy: the pictures are not tab stops of their own; the strip is one stop',await page.locator('.c-side .pv-zoom:not([tabindex="-1"])').count()===0&&await page.locator('.c-side .pv-strip[tabindex="0"]').count()===2);
+ ok('Tidy: the pictures are not tab stops of their own; each strip is one stop',await page.locator('.c-side .pv-zoom:not([tabindex="-1"])').count()===0&&await page.locator('.c-side .pv-strip[tabindex="0"]').count()===3);
  await page.locator('.nd[data-id="we-care-remote"]').click(); await page.waitForTimeout(150);
  ok('Tidy: the 2024 pointer opens the current project it stands for',await page.locator('.c-side .pv-title').textContent()==='WeCareRemote'&&new URL(page.url()).hash==='#wecareremote');
  await page.keyboard.press('Escape');await page.waitForTimeout(150);
@@ -57,7 +59,7 @@ export async function run({browser,base,artifact,ok,root}) {
  ok('A03: below 900 px the timeline uses continuous vertical year groups',await page.locator('.sh').count()===6 && !await page.locator('.c-band').isVisible());
  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);
  await page.screenshot({path:path.join(artifact,'references-phone-default.png')});
- ok('Tidy: phone rows mark the unreleased short texts as drafts and name the 2024 pointer',await page.locator('.node.cur .ds .draft').count()===4&&(await page.locator('.node[data-id="we-care-remote"] .ptr').innerText()).includes('siehe Aktuelle Projekte'));
+ ok('Tidy: phone rows show the short texts without a draft badge and name the 2024 pointer',await page.locator('.draft').count()===0&&await page.locator('.node.cur .ds .tx').count()===5&&(await page.locator('.node[data-id="we-care-remote"] .ptr').innerText()).includes('siehe Aktuelle Projekte'));
  ok('A03: phone labels are 16 px and orbs are 40 px',await page.locator('.node.cur .nm').first().evaluate(n=>getComputedStyle(n).fontSize==='16px')&&(await page.locator('.orb').first().boundingBox()).width===40);
  const dock=await page.locator('.filter').boundingBox();ok('A05: phone search and filters sit in the lower dock',dock.y+dock.height>=843);
  await page.locator('#fbtn').click();await page.waitForTimeout(150);await page.locator('#fsheet [data-sec="old"]').click();
@@ -78,12 +80,12 @@ export async function run({browser,base,artifact,ok,root}) {
  ok('A11: reduced motion disables every animated element',await page.evaluate(()=>[...document.querySelectorAll('*')].every(n=>getComputedStyle(n).animationName==='none')));
  ok('A11: the real nginx browser path has no runtime or CSP errors',errors.length===0);
  for(const [device,width,height] of [['desktop',1440,900],['tablet',820,1180],['phone',390,844]]){await page.setViewportSize({width,height});await page.goto(base+'/referenzen/#getme');await page.waitForTimeout(200);await page.screenshot({path:path.join(artifact,'references-'+device+'-getme.png')});}
- await page.goto(base+'/referenzen/?lang=ar#getme');await page.waitForTimeout(200);ok('A11: RTL surroundings keep the English original in its own direction',await page.locator('.pv-title').last().evaluate(n=>n.dir==='ltr'&&document.documentElement.dir==='rtl'));
+ await page.goto(base+'/referenzen/?lang=ar#getme');await page.waitForTimeout(200);ok('A11: RTL chrome keeps German stories and English sources left to right',await page.locator('.case-study').last().evaluate(n=>n.lang==='de'&&n.dir==='ltr'&&document.documentElement.dir==='rtl')&&await page.locator('.case-study .original').last().evaluate(n=>n.lang==='en'&&n.dir==='ltr'));
  await page.screenshot({path:path.join(artifact,'references-phone-rtl.png')});
  } finally {await context.close();}
  const fast=await browser.newContext({viewport:{width:820,height:1180},reducedMotion:'reduce'}), burst=await fast.newPage();
  try{
-  await burst.goto(base+'/');await burst.locator('#site-menu summary').click();await burst.locator('#site-menu a[href="/referenzen/"]').click();await burst.locator('.nd[data-id="oriso"]').click();
+  await burst.goto(base+'/?lang=de');await burst.locator('#site-menu summary').click();await burst.locator('#site-menu a[href="/referenzen/"]').click();await burst.locator('.nd[data-id="oriso"]').click();
   // Several keyboard close events arrive before asynchronous history traversal completes.
   await burst.evaluate(()=>{for(let n=0;n<8;n++)document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));});await burst.waitForTimeout(350);
   ok('A05: rapid keyboard closes traverse history once and keep the references page',new URL(burst.url()).pathname==='/referenzen/'&&new URL(burst.url()).hash==='');
@@ -108,8 +110,10 @@ export async function run({browser,base,artifact,ok,root}) {
  try {await fallback.goto(base+'/referenzen/');
  const catalogue=JSON.parse(fs.readFileSync(path.join(root,'content.json'),'utf8')).references;
  for(const project of [...catalogue.current_projects,...catalogue.older_references]){const labels=project.links?.map(l=>l.label)||project.displayed_original_addresses;const article=fallback.locator('article[id="'+project.id+'"]');for(const label of labels)ok('A04: no-JS reference retains offered address '+label,(await article.innerText()).includes(label));for(const link of project.links||[])ok('A04: no-JS unverified addresses stay inert: '+link.label,link.reachability_verified||(await article.getByRole('link',{name:link.label,exact:true}).count())===0);}
- ok('Tidy: without JavaScript the unreleased short texts carry the draft mark',await fallback.locator('article .draft').count()===4);
+ ok('Tidy: without JavaScript no short text carries a draft badge',await fallback.locator('.draft').count()===0&&(await fallback.locator('body').innerText()).indexOf('von Frank freizugeben')===-1);
  ok('A22: the no-JS footer links the published legal pages too',await fallback.locator('.foot a[href="/homepage-assets/impressum.html"]').count()===1 && await fallback.locator('.foot a[href="/homepage-assets/datenschutz.html"]').count()===1);
  ok('A01: without JavaScript every genuine entry remains readable',await fallback.locator('article').count()===12);ok('A02: English original content remains readable without JavaScript',(await fallback.locator('article#eeloy').textContent()).includes('Redesign the 8 Years old Direct Mailing solution'));}finally{await nojs.close();}
  await runRepairs({browser,base,artifact,ok});
+ await runStories({browser,base,artifact,ok});
+ await runLanguage({browser,base,artifact,ok});
 }

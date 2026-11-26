@@ -73,7 +73,8 @@ function apply(){
  const tag=document.querySelector('#tag'),[a,b]=shown(reg[S.lang]);if(tag&&a&&b){tag.dataset.lines=[a,b,'dreambau.com'].join('|');tag.querySelectorAll('span').forEach((el,i)=>{el.textContent=[a,b,'dreambau.com'][i]||'';});}
  const code=document.querySelector('#lang .code');if(code)code.textContent=(row(S.lang)||{s:'DE'}).s;
  const sw=document.querySelector('.sw');if(sw)sw.hidden=I.available().length<2;
- for(const el of document.querySelectorAll('[data-i18n-keep]')){const url=new URL(el.getAttribute('href'),location.href);if(url.origin===location.origin&&S.langSource==='url'){url.searchParams.set('lang',S.lang);el.href=url.href;}}
+ // menu links to our own pages carry the visible language (German stays the plain address), so References and Glossary open in it
+ for(const el of document.querySelectorAll('[data-i18n-keep]')){const url=new URL(el.getAttribute('href'),location.href);if(url.origin===location.origin&&/^https?:$/.test(location.protocol)){if(S.lang==='de')url.searchParams.delete('lang');else url.searchParams.set('lang',S.lang);el.setAttribute('href',url.pathname+url.search+url.hash);}}
  const snd=document.querySelector('#snd');if(snd){const hint=D.t(S.muted?'snd.hint_on':'snd.hint_off');if(hint)snd.title=hint;}
 }
 I.apply=apply;
