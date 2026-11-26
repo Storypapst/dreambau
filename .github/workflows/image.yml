@@ -51,11 +51,18 @@ jobs:
         run: |
           sha="$(git rev-parse HEAD)"
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
-          docker buildx build --platform "linux/$ARCH" --target runtime --provenance=false \
-            --build-arg GIT_SHA="${sha:0:12}" \
-            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
-            --label org.opencontainers.image.revision="$sha" \
-            --tag "$IMAGE:sha-$sha-$ARCH" --push .
+          # GHCR answers "unknown blob" when the parallel architecture builds push shared
+          # layers at the same moment. The second attempt reuses the local build cache.
+          for attempt in 1 2 3; do
+            docker buildx build --platform "linux/$ARCH" --target runtime --provenance=false \
+              --build-arg GIT_SHA="${sha:0:12}" \
+              --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+              --label org.opencontainers.image.revision="$sha" \
+              --tag "$IMAGE:sha-$sha-$ARCH" --push . && exit 0
+            echo "::warning::push attempt $attempt failed; retrying in $((attempt * 15)) s"
+            sleep $((attempt * 15))
+          done
+          exit 1
 
   publish:
     name: Publish :main
