@@ -472,6 +472,7 @@ export function createApp(options: AppOptions = {}) {
   api.use("/v1", createTestAccessRouter({
     identities: machineIdentitySource,
     fixtureObserver,
+    headlessDevApprovalsFile: config.headlessDevApprovalsFile,
     registryProvider,
     registryWriter,
     databasePath: options.loadAccounts ? ":memory:" : config.databasePath,

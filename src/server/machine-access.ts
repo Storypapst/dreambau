@@ -11,6 +11,7 @@ export const machineActions = [
   "sessions:open",
   "runs:read",
   "fixtures:plan",
+  "fixtures:headless-register",
   "runs:create",
   "runs:execute",
   "runs:cleanup",

@@ -23,7 +23,7 @@ MAX_REGISTRY_BYTES = 16 * 1024 * 1024
 PROJECTS = {'oriso', 'orimo', 'dreambau'}
 ENVIRONMENTS = {'local', 'pre-dev', 'dev', 'production-test'}
 ACTIONS = {'accounts:read', 'accounts:sync', 'accounts:totp:write', 'sessions:open',
-           'runs:read', 'fixtures:plan', 'runs:create', 'runs:execute', 'runs:cleanup',
+           'runs:read', 'fixtures:plan', 'fixtures:headless-register', 'runs:create', 'runs:execute', 'runs:cleanup',
            'evidence:upload', 'evidence:publish', 'evidence:read', 'evidence:archive'}
 
 

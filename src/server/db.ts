@@ -17,6 +17,7 @@ import { topicKeys } from "./catalog.js";
 import { TestResourceStore } from "./test-resource-store.js";
 import { TestFixturePlanStore } from "./test-fixture-plan-store.js";
 import { TestRunStore } from "./test-run-store.js";
+import { HeadlessRegistrationStore } from "./headless-registration-store.js";
 import { WorkspaceAccountLinks } from "./workspace-account-links.js";
 import { WorkspaceReferenceStore } from "./workspace-reference-store.js";
 import { WorkspaceGithubStore } from "./workspace-github-store.js";
@@ -45,6 +46,7 @@ export interface RegistryDatabase {
   testRuns: TestRunStore;
   fixturePlans: TestFixturePlanStore;
   testResources: TestResourceStore;
+  headlessRegistrations: HeadlessRegistrationStore;
   releaseLists: ReleaseListStore;
   tableNames(): string[]; getMetadata(email: string): AccountMetadata; getAllMetadata(): AccountMetadata[];
   upsertMetadata(email: string, patch: MetadataPatch): AccountMetadata; bulkStatus(emails: string[], status: string): number;
@@ -347,13 +349,16 @@ export function createDatabase(path: string): RegistryDatabase {
       .run(accountId, environment, email, actorId, at, state);
   };
   const testResources = new TestResourceStore(sqlite);
+  const testRuns = new TestRunStore(sqlite, testResources);
+  const fixturePlans = new TestFixturePlanStore(sqlite);
   const api: RegistryDatabase = {
     workspaceAccountLinks: new WorkspaceAccountLinks(sqlite),
     workspaceReferences: new WorkspaceReferenceStore(sqlite),
     workspaceGithub: new WorkspaceGithubStore(sqlite),
-    testRuns: new TestRunStore(sqlite, testResources),
-    fixturePlans: new TestFixturePlanStore(sqlite),
+    testRuns,
+    fixturePlans,
     testResources,
+    headlessRegistrations: new HeadlessRegistrationStore(sqlite, testRuns, fixturePlans, testResources),
     releaseLists: new ReleaseListStore(sqlite),
     tableNames: () => (sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as any[]).map((row) => row.name),
     getMetadata(email) { const row = sqlite.prepare("SELECT * FROM account_metadata WHERE email=?").get(email); return row ? rowToMetadata(row) : emptyMetadata(email); },

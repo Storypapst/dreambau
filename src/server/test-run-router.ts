@@ -1,4 +1,6 @@
 import { createTestFixturePlanRouter } from "./test-fixture-plan-router.js";
+import { createHeadlessRegistrationRouter } from "./headless-registration-router.js";
+import { isHeadlessDevRun } from "./headless-registration-model.js";
 import type { OrisoIdentityObserver } from "./oriso-identity-observation.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
@@ -27,11 +29,13 @@ const finishRunSchema = z.object({
 export function createTestRunRouter(options: {
   registryProvider: RegistryProvider;
   fixtureObserver?: OrisoIdentityObserver;
+  headlessDevApprovalsFile?: string | null;
   database: RegistryDatabase;
   now?: () => Date;
   createRunId?: () => string;
 }) {
   const router = express.Router();
+  router.use("/:runId/headless-registration", createHeadlessRegistrationRouter(options));
   router.use("/:runId/fixture-plans", createTestFixturePlanRouter({ ...options, observer: options.fixtureObserver }));
 
   const identityCanSeeRun = (identity: MachineIdentity, run: NonNullable<ReturnType<RegistryDatabase["testRuns"]["get"]>>) =>
@@ -120,6 +124,9 @@ export function createTestRunRouter(options: {
     const runId = String(req.params.runId);
     const run = options.database.testRuns.get(runId);
     if (!run || !identityCanSeeRun(identity, run)) return res.status(404).json({ error: "run_not_found" });
+    if (isHeadlessDevRun(run) && (run.initiatedBy.type !== "machine" || run.initiatedBy.id !== identity.id)) {
+      return res.status(404).json({ error: "run_not_found" });
+    }
     try {
       operation(runId, identity, (options.now?.() ?? new Date()).toISOString());
       return res.json(options.database.testRuns.get(runId));
