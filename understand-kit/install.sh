@@ -52,6 +52,10 @@ KIT_PAYLOAD=(install.sh ua-pull.sh oriso-sb.sh kit-subscribe.sh kit-local.sh kit
              test-access-install.sh settings.hook.json manifest.json README.md \
              SECRET-SCAN.md rules skills prompts pages)
 
+# Helpers a release added after subscribers already existed. An older installer leaves
+# them out of its own update; the equal-version repair in kit_subscribe restores them.
+KIT_REPAIRABLE=(test-access-install.sh oriso-sb.sh)
+
 # Files earlier kit versions shipped and this one no longer does. Removed from an existing
 # install on every copy, so a subscriber does not keep a stale script that still works.
 KIT_RETIRED=(mcp-add.sh .mcp.json.example)
@@ -242,9 +246,11 @@ kit_subscribe() {
     local_version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' "$KIT_HOME/manifest.json" 2>/dev/null)"
   fi
 
-  # Older subscribers copy their own payload allowlist when upgrading themselves.
-  # Repair the new CLI helper they omitted, but only when this same release ships it.
-  decision="$(python3 - "$remote_version" "$local_version" "$tmp/manifest.json" "$KIT_HOME/test-access-install.sh" <<'PYEOF'
+  # Older subscribers copy their own payload allowlist when upgrading themselves, so a
+  # file that a release adds is left behind and later runs see "kit current". Repair
+  # every such helper the served release advertises but this install lacks. The repair
+  # runs with this (new) installer, whose payload list includes the helper.
+  decision="$(python3 - "$remote_version" "$local_version" "$tmp/manifest.json" "$KIT_HOME" "${KIT_REPAIRABLE[@]}" <<'PYEOF'
 import json, os, sys
 
 
@@ -256,12 +262,12 @@ def key(value):
     return tuple(parts + [0] * (4 - len(parts)))
 
 
-remote, local, manifest_path, helper = sys.argv[1:]
-advertises_helper = any(entry.get("path") == "test-access-install.sh"
-                        for entry in json.load(open(manifest_path)).get("files", []))
+remote, local, manifest_path, kit_home, *helpers = sys.argv[1:]
+advertised = {entry.get("path") for entry in json.load(open(manifest_path)).get("files", [])}
+missing = [h for h in helpers if h in advertised and not os.path.isfile(os.path.join(kit_home, h))]
 if not local or key(remote) > key(local):
     print("update")
-elif remote == local and advertises_helper and not os.path.isfile(helper):
+elif remote == local and missing:
     print("repair")
 else:
     print("current")
@@ -327,11 +333,14 @@ PYEOF
   for item in "${KIT_RETIRED[@]}"; do rm -rf "${KIT_HOME:?}/$item"; done
   chmod +x "$KIT_HOME"/*.sh 2>/dev/null || true
   if [ "$decision" = "repair" ]; then
-    [ -f "$KIT_HOME/test-access-install.sh" ] || {
-      echo "[kit-subscribe] failed — CLI installer is still missing after repair"
-      return 1
-    }
-    echo "[kit-subscribe] repaired missing CLI installer (version $remote_version)"
+    for helper in "${KIT_REPAIRABLE[@]}"; do
+      grep -q "\"path\": \"$helper\"" "$tmp/manifest.json" || continue
+      [ -f "$KIT_HOME/$helper" ] || {
+        echo "[kit-subscribe] failed — $helper is still missing after repair"
+        return 1
+      }
+    done
+    echo "[kit-subscribe] repaired missing helpers (version $remote_version)"
   else
     echo "[kit-subscribe] updated ${local_version:-none} -> $remote_version in $KIT_HOME"
   fi

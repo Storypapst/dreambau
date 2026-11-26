@@ -30,7 +30,7 @@
     },
     {
       "path": "install.sh",
-      "sha256": "d1125be9089720a387727935a482cea561805d69bbc8632f4310801136ea1c2b"
+      "sha256": "dd16c2bf0e26276692ddcdbac1da5d7c60af9408a23ede39dd57220486a3b27d"
     },
     {
       "path": "kit-local.sh",
