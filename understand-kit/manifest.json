@@ -1,8 +1,9 @@
 {
   "name": "oriso-understand-kit",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "date": "2026-11-26",
   "changelog": [
+    "0.5.4 (2026-11-26) — rules/devs/Storypapst.md: how Frank wants a task finished (end to end incl. merge, deploy and live verification with screenshots in his own repositories; blockers named before the work; pull-based, least-privilege automation instead of handing him steps). ORISO review rules unchanged.",
     "0.5.3 (2026-11-26) — the central Dev Storybook is the component source. New oriso-sb (installed to ~/.local/bin, kept current on every subscription): `oriso-sb <frontend|admin> list|show <id>|tokens|story <id>|freshness` reads the public Dev Storybook manifests (manifests/components.json, docgen and story docs that Storybook 11 publishes with each build) and prints compact context (tokens from the source files on dev: spacing and radii as values, colours as --m3-* tokens computed per tenant from seed colours by orisoScheme.ts — agents use the token names, never raw hex) — the whole Frontend catalogue is ~21 KB, one component ~2 KB, about a second each, no local Storybook, no npm ci, no secret. Rule 3 (AGENTS block, AGENTS template, oriso-graph, component-build prompt) now points there first; `npx storybook tools` only for components in an unmerged branch.",
     "0.5.2 (2026-11-24) — Storybook 11 in ORISO-Frontend and ORISO-Admin; the Storybook MCP is retired from the kit. Rule 3 of the working rule (AGENTS block, AGENTS template, oriso-graph skill, prompts) now says: load the component contract from the repository with the Storybook skills (component-docs → write-stories → test-stories → ui-review) and `npx storybook tools docs list/show` — local, no server, no secret, the same for Claude Code and Codex — compose screens from existing components and tokens instead of rebuilding them from screenshots, give every new screen or variant a story and pass test-stories plus the repo gates. mcp-add.sh and .mcp.json.example are removed; install.sh no longer registers the predev MCP servers and removes the old storybook-frontend/storybook-admin registrations. ORISO_SB_MCP_AUTH stays only as the credential of the /ua graph ingress.",
     "0.5.1 (2026-11-07) — repair the CLI installer omitted by older subscribers during their kit upgrade. An equal-version subscription downloads the verified bundle again only when its manifest advertises the missing helper. Personal files remain preserved; intact current kits and older servers do not redownload.",
@@ -94,7 +95,7 @@
     },
     {
       "path": "rules/devs/Storypapst.md",
-      "sha256": "f64c46137e1fd7d6fd106e5e7c80f6bb7e08f5b75f76da65cf4d1a250a35bca9"
+      "sha256": "048229d646a8315c9b22f97aefcfb0df511f3a7326278a86fef3508aad28cd00"
     },
     {
       "path": "rules/devs/nikunjdecyb.md",
