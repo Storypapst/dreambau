@@ -19,6 +19,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { ROOT, SITE, parseArgs } from './lib.mjs';
 import { parseManifest, publishedManifest } from './lib-languages.mjs';
 import { checkLanguages } from './check-languages.mjs';
@@ -116,6 +117,15 @@ for (const id of productions) {
 const website=path.resolve(ROOT,'../website/dist'), websiteManifest=website+'.json';
 if(!fs.existsSync(websiteManifest)) fail('run npm run build in apps/website before this build');
 for(const file of JSON.parse(fs.readFileSync(websiteManifest,'utf8')).files){if(files.has(file.path))fail('website file collides with a landing file: '+file.path);const buf=fs.readFileSync(path.join(website,file.path));if(sha(buf)!==file.sha256)fail('website manifest mismatch: '+file.path);files.set(file.path,buf);}
+// Include the blog (apps/blog, preview of posts/) under blog/, so the start page publisher ships it too; nginx serves /blog/ from there.
+// The generator is plain Node without dependencies, so the build runs it itself: every caller (npm script, tests, e2e) gets the same blog.
+// A copy of apps/landing without a sibling apps/blog (a test fixture) builds without the blog.
+const blogApp=path.resolve(ROOT,'../blog'), blogDir=blogApp+'/dist', blogManifest=blogDir+'/blog.json';
+if(fs.existsSync(path.join(blogApp,'src/cli.mjs'))){
+  const b=spawnSync(process.execPath,['src/cli.mjs'],{cwd:blogApp,encoding:'utf8'});
+  if(b.status!==0) fail('the blog build failed: '+(b.stderr||b.stdout).trim());
+  for(const file of JSON.parse(fs.readFileSync(blogManifest,'utf8')).files){const rel='blog/'+file.path;if(files.has(rel))fail('blog file collides with a landing file: '+rel);const buf=fs.readFileSync(path.join(blogDir,'public',file.path));if(sha(buf)!==file.sha256)fail('blog manifest mismatch: '+file.path);files.set(rel,buf);}
+}
 const initialFiles=Object.fromEntries([...files].filter(([name])=>name==='style.css'||name==='navigation.css'||name==='index.html'||name==='shell.js'||name==='navigation.js'||name==='i18n.js'||name.startsWith('i18n/')||/^p\/[^/]+\.js$/.test(name)&&!name.endsWith('.src.js')).map(([name,text])=>[name,Buffer.byteLength(text)]));
 files.set('source-facts.js','window.Dream.sourceFacts='+JSON.stringify({runtimeBytes:Buffer.byteLength(shell),files:initialFiles})+';\n');
 fs.rmSync(out, { recursive: true, force: true });
