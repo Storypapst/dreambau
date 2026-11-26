@@ -13,14 +13,15 @@ import { FOOTER_FILE, loadFooter, pendingKeys } from './lib/footer.mjs';
 import { LABELS_FILE, loadLabels } from './lib/labels.mjs';
 import { numberPosts } from './lib/numbering.mjs';
 import { checkOutput } from './lib/output-check.mjs';
-import { errorPage, listPage, postPage } from './lib/pages.mjs';
+import { loadMapLabels, mapScript } from './lib/karte.mjs';
+import { errorPage, hasDemo, listPage, postPage } from './lib/pages.mjs';
 import { checkPostText } from './lib/post-file.mjs';
 import { MARKER } from './lib/post-rules.mjs';
 import { checkForBuild, isFixtureTree, loadTreeFromDir, safeImageReader } from './lib/tree.mjs';
 
 const MODES = ['preview']; // `publish` comes with slice S8
 const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
-export const ASSETS_DIR = path.dirname(fileURLToPath(import.meta.url)); // src/: tokens.css, blog.css, blog.js
+export const ASSETS_DIR = path.dirname(fileURLToPath(import.meta.url)); // src/: tokens.css, blog.css, karte.css, blog.js, karte.js
 export const LIST_LIMIT = 128 * 1024; // LI-8
 
 // The posts of a folder were refused by the rules of the spec (PF-*, AD-7): `findings` holds every FAIL and WARN, the
@@ -48,19 +49,21 @@ function readPosts(postsDir, { displayDir, publish, now }) {
   return numberPosts(posts);
 }
 
-// The two files of the look, shipped as they are (the only stylesheet is tokens.css followed by blog.css, so that the
-// page loads one file, LI-1) and checked at build time: PF-12 holds for them too (no run of two opening or closing
-// square brackets, no marker text).
-function readAssets(assetsDir) {
+// The files of the look, shipped as they are (the only stylesheet is tokens.css, blog.css and the map's karte.css in one
+// file, so that the page loads one file, LI-1; blog.js is the title effect of a post page, karte.js the map of the list
+// page with its German labels in front) and checked at build time: PF-12 holds for them too (no run of two opening or
+// closing square brackets, no marker text).
+function readAssets(assetsDir, mapLabels) {
   const read = (name) => fs.readFileSync(path.join(assetsDir, name), 'utf8');
-  const css = `${read('tokens.css').replace(/\n$/, '')}\n${read('blog.css')}`;
+  const css = `${read('tokens.css').replace(/\n$/, '')}\n${read('blog.css')}${fs.existsSync(path.join(assetsDir, 'karte.css')) ? read('karte.css') : ''}`;
   const js = read('blog.js');
+  const map = mapScript({ de: mapLabels });
   const findings = [];
-  for (const [name, text] of [['blog.css', css], ['blog.js', js]]) {
+  for (const [name, text] of [['blog.css', css], ['blog.js', js], ['karte.js', map]]) {
     if (/\[\[|\]\]/.test(text) || text.includes(MARKER)) findings.push(fail('PF-12', name, 'the shipped file holds a run of two square brackets or the marker text of LE-1'));
   }
   if (findings.length > 0) throw new BuildRefused(findings);
-  return { css: Buffer.from(css, 'utf8'), js: Buffer.from(js, 'utf8') };
+  return { css: Buffer.from(css, 'utf8'), js: Buffer.from(js, 'utf8'), map: Buffer.from(map, 'utf8') };
 }
 
 // Builds the posts of postsDir into outDir and returns the manifest that it wrote to <outDir>/blog.json. A tree that the
@@ -72,21 +75,23 @@ export function buildBlog({ postsDir, outDir, mode = 'preview', displayDir = pos
   const posts = readPosts(postsDir, { displayDir, publish: mode === 'publish', now });
   const labels = loadLabels(labelsFile);
   const footer = loadFooter(footerFile);
-  const assets = readAssets(assetsDir);
+  const mapLabels = loadMapLabels().de;
+  const assets = readAssets(assetsDir, mapLabels);
   const context = { labels, footer };
+  const noindex = hasDemo(posts); // a demo post keeps every page out of search engines
 
-  const list = Buffer.from(listPage({ ...context, posts }), 'utf8');
+  const list = Buffer.from(listPage({ ...context, posts, mapLabels }), 'utf8');
   if (list.length > listLimit) {
     throw new BuildRefused([fail('LI-8', 'index.html', `the list page is ${list.length} bytes, over the limit of ${listLimit} bytes (128 KiB); the list is never cut silently, the way out is pagination: see open point OP-11`)]);
   }
-  const pages = new Map([['index.html', list], ['404.html', Buffer.from(errorPage(context), 'utf8')], ['blog.css', assets.css], ['blog.js', assets.js]]);
+  const pages = new Map([['index.html', list], ['404.html', Buffer.from(errorPage(context), 'utf8')], ['blog.css', assets.css], ['blog.js', assets.js], ['karte.js', assets.map]]);
   // FD-1: the feed is generated with the pages and checked as XML (the offline validator) before anything is written.
   const feed = feedXml({ labels, posts });
   const feedProblems = checkFeed(feed, { labels });
   if (hasFailure(feedProblems)) throw new BuildRefused(feedProblems);
   pages.set('feed.xml', Buffer.from(feed, 'utf8'));
   for (const post of posts) {
-    const html = postPage({ ...context, post, older: posts[post.number - 2], newer: posts[post.number] });
+    const html = postPage({ ...context, post, older: posts[post.number - 2], newer: posts[post.number], noindex });
     pages.set(`${post.address}/index.html`, Buffer.from(html, 'utf8'));
     if (post.imageInfo) pages.set(`${post.address}/image.${post.imageInfo.format}`, fs.readFileSync(path.join(postsDir, post.year, post.image)));
   }
@@ -99,7 +104,7 @@ export function buildBlog({ postsDir, outDir, mode = 'preview', displayDir = pos
     const buffer = pages.get(name);
     return { path: name, bytes: buffer.length, sha256: crypto.createHash('sha256').update(buffer).digest('hex') };
   });
-  const manifest = { schema: 1, mode, footerPending: pendingKeys(footer), posts: posts.map((post) => ({ address: post.address, number: post.number })), files };
+  const manifest = { schema: 1, mode, footerPending: pendingKeys(footer), posts: posts.map((post) => ({ address: post.address, number: post.number, ...(post.demo ? { demo: true } : {}) })), files };
 
   // Only these two entries of outDir belong to the build; everything else in it stays as it is. public/ is emptied but
   // never removed: a directory that is removed and created again just before `docker run` can show up empty in the

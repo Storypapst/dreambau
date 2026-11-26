@@ -11,10 +11,10 @@ import { ORIGIN } from './pages.mjs';
 import { parseXml } from './xml.mjs';
 
 const SITE_HOST = new URL(ORIGIN).host;
-const FIXED = ['index.html', '404.html', 'feed.xml', 'blog.css', 'blog.js'];
-const REQUIRED = ['blog.css', 'blog.js', 'feed.xml', 'index.html']; // 404.html is the slice of the real 404
+const FIXED = ['index.html', '404.html', 'feed.xml', 'blog.css', 'blog.js', 'karte.js']; // karte.js: the map of the list page
+const REQUIRED = ['blog.css', 'blog.js', 'feed.xml', 'index.html', 'karte.js']; // 404.html is the slice of the real 404
 const POST_FILE = /^(\d{4})\/([a-z0-9]+(?:-[a-z0-9]+)*)\/(index\.html|image\.(?:webp|png))$/;
-const SHAPES = 'not a file of the shapes of spec 7.2 (index.html, 404.html, feed.xml, blog.css, blog.js, <year>/<slug>/index.html, <year>/<slug>/image.webp or image.png)';
+const SHAPES = 'not a file of the shapes of spec 7.2 (index.html, 404.html, feed.xml, blog.css, blog.js, karte.js, <year>/<slug>/index.html, <year>/<slug>/image.webp or image.png)';
 const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 // Every file below dir as { name, bytes }, names relative with "/", sorted; a symbolic link or another kind of entry has

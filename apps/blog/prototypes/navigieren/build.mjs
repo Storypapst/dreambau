@@ -1,9 +1,9 @@
-// Prototype of the map "Navigieren": the posts of one folder as places on mesas in a canyon. A prototype, not a slice of
-// the spec: it writes to dist-proto/navigieren/ and is not part of the output of `npm run build` (the output check of the
-// spec stays as it is). The posts go through the same rules as in the real build, so the map can show nothing that the
-// list could not.
+// Prototype of the map "Navigieren": the posts of one folder as places on mesas in a canyon. The map itself (src/karte.js,
+// src/karte.css, src/lib/karte.mjs) is part of the list page /blog/ of `npm run build`; this prototype writes to
+// dist-proto/navigieren/ and adds what is not live yet: four languages, topics and topic trees. The posts go through the
+// same rules as in the real build, so the map can show nothing that the list could not.
 //
-//   node prototypes/navigieren/build.mjs [--posts <dir>] [--out <dir>]
+//   node prototypes/navigieren/build.mjs [--posts <dir>] [--topics <file>] [--out <dir>]
 //
 // The page is readable without JavaScript: every post stands in the HTML with its short and its full text. karte.js
 // only adds the map and moves the full text into a sheet.
@@ -15,8 +15,10 @@ import { hasFailure, format } from '../../src/lib/findings.mjs';
 import { fill, loadLabels } from '../../src/lib/labels.mjs';
 import { displayHost, httpsLink } from '../../src/lib/links.mjs';
 import { formatNumber, newestFirst, numberPosts } from '../../src/lib/numbering.mjs';
+import { CHROME } from '../../src/lib/pages.mjs';
 import { checkPostText } from '../../src/lib/post-file.mjs';
 import { previewOf } from '../../src/lib/preview.mjs';
+import { loadMapLabels, mapScript, mapSheet, mapStage, KARTE_DIR } from '../../src/lib/karte.mjs';
 import { checkForBuild, isFixtureTree, loadTreeFromDir, safeImageReader } from '../../src/lib/tree.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -99,7 +101,7 @@ function row(L, M, post, newest, T) {
   const no = formatNumber(post.number);
   const lang = ` lang="${esc(post.lang)}" dir="ltr"`;
   const topic = T.posts[formatNumber(post.number)];
-  const marks = `${topic ? `<span class="mk tp">${two(T.topics[topic])}</span>` : ''}${newest ? `<span class="mk now">${esc(M.newest)}</span>` : ''}${post.sourceLink === undefined ? '' : `<span class="mk src">${esc(L['blog.source'])}</span>`}${post.lang === 'en' ? '<span class="en">EN</span>' : ''}`;
+  const marks = `${post.demo ? `<span class="draft" lang="de" title="${esc(CHROME.demoTitle)}">${esc(CHROME.demo)}</span>` : ''}${topic ? `<span class="mk tp">${two(T.topics[topic])}</span>` : ''}${newest ? `<span class="mk now">${esc(M.newest)}</span>` : ''}${post.sourceLink === undefined ? '' : `<span class="mk src">${esc(L['blog.source'])}</span>`}${post.lang === 'en' ? '<span class="en">EN</span>' : ''}`;
   const quote = post.quote === undefined ? '' : `<blockquote class="qt"><p>${esc(post.quote)}</p><footer>${esc(post.quoteSource)}</footer></blockquote>\n`;
   const source = post.sourceLink === undefined ? '' : `<p class="srcbox"><a class="sk" href="${esc(httpsLink(post.sourceLink, 'sourceLink'))}" rel="noopener noreferrer">${esc(post.sourceTitle || displayHost(post.sourceLink))}</a><span class="sn" lang="de">${esc(fill(L['blog.source.leads'], { site: displayHost(post.sourceLink) }))}</span></p>\n`;
   return `<li class="row" id="b-${no}" data-no="${no}" data-topic="${esc(topic || '')}" data-date="${esc(post.date)}"${newest ? ' data-newest' : ''}>
@@ -136,15 +138,7 @@ function page(L, M, posts, T) {
 <p class="kicker"><span data-l="sub">${esc(M.sub)}</span>${invented ? ` <span class="draft" data-l="proto">${esc(M.proto)}</span>` : ''}</p>
 </header>
 <main id="main">
-<div class="stage" id="stage" tabindex="0" role="group" aria-label="${esc(M.stage)}" data-l-aria="stage">
-<canvas id="map" aria-hidden="true"></canvas>
-<button class="pill center" id="center" type="button" data-l="center">${esc(M.center)}</button>
-<div class="hud" aria-hidden="true"><p class="keys" data-l="keys">${esc(M.keys)}</p><p class="score" id="score" hidden></p></div>
-<div class="acts"><button class="pill pri" id="read" type="button" data-l="read" hidden>${esc(M.read)}</button><button class="pill jump" id="jump" type="button" data-l="jump">${esc(M.jump)}</button></div>
-<p class="hint" id="hint" data-l="hint">${esc(M.hint)}</p>
-<div class="tip" id="tip" hidden></div>
-</div>
-<p class="sr" data-l="blind">${esc(M.blind)}</p>
+${mapStage(M)}<p class="sr" data-l="blind">${esc(M.blind)}</p>
 <div class="logp">
 <p class="logtop" aria-hidden="true">~/blog/navigieren/</p>
 <ol class="log" id="posts" reversed role="list" aria-label="${esc(L['blog.list.label'])}">
@@ -156,7 +150,6 @@ ${newestFirst(posts).map((post, index) => row(L, M, post, index === 0, T)).join(
 <p class="axis"><span data-l="axisL">${esc(M.axisL)}</span><span aria-hidden="true">←→</span><span data-l="axisR">${esc(M.axisR)}</span></p>
 ${T.trees.map((item) => tree(M, T, item)).join('\n')}
 </section>
-<div class="veil" id="veil" hidden></div>
 <section class="grove" id="grove" role="dialog" aria-modal="true" aria-labelledby="grove-title" hidden>
 <div class="phead"><nav class="cloud" id="cloud" aria-label="${esc(M.cloud)}" data-l-aria="cloud"></nav><button class="pill" id="grove-close" type="button"><span data-l="close">${esc(M.close)}</span><kbd class="esc" aria-hidden="true">Esc</kbd></button></div>
 <h2 class="ptitle" id="grove-title" tabindex="-1"></h2>
@@ -165,12 +158,7 @@ ${T.trees.map((item) => tree(M, T, item)).join('\n')}
 <p class="axis ax"><span data-l="axisL">${esc(M.axisL)}</span><span data-l="axisR">${esc(M.axisR)}</span></p></div>
 <div class="leafbox" id="leafbox" aria-live="polite"></div>
 </section>
-<section class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="panel-title" hidden>
-<div class="phead"><p class="pmeta" id="panel-meta"></p><button class="pill" id="close" type="button"><span data-l="close">${esc(M.close)}</span><kbd class="esc" aria-hidden="true">Esc</kbd></button></div>
-<h2 class="ptitle" id="panel-title" tabindex="-1"></h2>
-<div class="pbody" id="panel-body"></div>
-</section>
-</main>
+${mapSheet(M)}</main>
 <footer class="site">
 <nav class="foot" aria-label="${esc(L['blog.nav.label'])}"><a href="/homepage-assets/impressum.html">Impressum</a><i aria-hidden="true">·</i><a href="/homepage-assets/datenschutz.html">Datenschutz</a><a href="/">Startseite</a><a href="/referenzen/">Referenzen</a><a href="/teamwork/">Teamwork</a><a href="/glossar/">Glossar</a><a href="mailto:info@dreambau.com">Kontakt</a></nav>
 </footer>
@@ -179,27 +167,33 @@ ${T.trees.map((item) => tree(M, T, item)).join('\n')}
 `;
 }
 
-export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDir = path.join(APP, 'dist-proto', 'navigieren'), topicsFile = path.join(HERE, 'themen.json') } = {}) {
+// What the map shows by default: the posts of posts/ (the six about the owner's chosen videos are demo posts, demo: true)
+// with the dummy topics and trees of dummy/themen.json ("example": true). The checks pass the invented examples of
+// tests/fixtures/ and themen.json themselves, so they do not depend on the videos.
+export const DEFAULT_POSTS = path.join(APP, 'posts');
+export const DUMMY_TOPICS = path.join(HERE, 'dummy', 'themen.json');
+export function buildMap({ postsDir = DEFAULT_POSTS, outDir = path.join(APP, 'dist-proto', 'navigieren'), topicsFile = DUMMY_TOPICS } = {}) {
   const posts = readPosts(postsDir);
   const L = loadLabels();
-  const all = JSON.parse(fs.readFileSync(path.join(HERE, 'labels.json'), 'utf8'));
+  const all = loadMapLabels();
   const read = (file) => fs.readFileSync(file, 'utf8');
-  const css = `${read(path.join(APP, 'src', 'tokens.css')).replace(/\n$/, '')}\n${read(path.join(APP, 'src', 'blog.css'))}${read(path.join(HERE, 'karte.css'))}`;
-  const js = `const KARTE_LABELS = ${JSON.stringify(all)};\n${read(path.join(HERE, 'karte.js'))}`;
+  const css = `${read(path.join(APP, 'src', 'tokens.css')).replace(/\n$/, '')}\n${read(path.join(APP, 'src', 'blog.css'))}${read(path.join(KARTE_DIR, 'karte.css'))}${read(path.join(HERE, 'karte.css'))}`;
   fs.mkdirSync(outDir, { recursive: true });
   const T = readTopics(topicsFile);
-  // The invented trees and topics belong to the invented posts (PF-14 keeps those under tests/fixtures/). With real posts
-  // they would stand in the page as if they were Frank's, so the build refuses the mix.
-  if (T.example && !isFixtureTree(postsDir)) throw new Error('themen.json is the invented example ("example": true); it is only built together with the posts under tests/fixtures/');
+  // Invented trees and topics belong to invented or demo posts: with the fixtures of tests/fixtures/, or with posts that
+  // are all marked demo: true. On a real post they would stand in the page as if they were Frank's, so the build refuses.
+  const byNumber = new Map(posts.map((post) => [formatNumber(post.number), post]));
+  const real = Object.keys(T.posts).filter((number) => !(byNumber.get(number) || {}).demo);
+  if (T.example && !isFixtureTree(postsDir) && real.length > 0) throw new Error(`themen.json is the invented example ("example": true); it is only built together with the posts under tests/fixtures/ or with demo posts, but it names ${real.join(', ')}`);
   fs.writeFileSync(path.join(outDir, 'index.html'), page(L, all.de, posts, T));
   fs.writeFileSync(path.join(outDir, 'karte.css'), css);
-  fs.writeFileSync(path.join(outDir, 'karte.js'), js);
+  fs.writeFileSync(path.join(outDir, 'karte.js'), mapScript(all));
   return { outDir, posts: posts.length };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   const option = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-  const result = buildMap({ postsDir: option('--posts'), outDir: option('--out') });
+  const result = buildMap({ postsDir: option('--posts'), outDir: option('--out'), topicsFile: option('--topics') });
   console.log(`${result.posts} posts -> ${path.relative(process.cwd(), result.outDir)}/index.html`);
 }

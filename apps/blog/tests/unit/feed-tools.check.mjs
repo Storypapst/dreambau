@@ -52,7 +52,7 @@ await run(async () => {
     fs.writeFileSync(path.join(publicDir, '2026', 'notiz-aus-der-werkstatt', 'index.html'), fs.readFileSync(path.join(publicDir, '2026', 'notiz-aus-der-werkstatt', 'index.html'), 'utf8').replace('href="https://dreambau.com/blog/2026/notiz-aus-der-werkstatt/"', `href="https://${['www', 'dreambau', 'com'].join('.')}/blog/2026/notiz-aus-der-werkstatt/"`));
     const bad = tool('check-output.mjs', [publicDir]);
     same('V16 a dot file and a www canonical link: the exact lines, exit 1', [bad.lines, bad.status], [[
-      'FAIL AD-1 .DS_Store: not a file of the shapes of spec 7.2 (index.html, 404.html, feed.xml, blog.css, blog.js, <year>/<slug>/index.html, <year>/<slug>/image.webp or image.png)',
+      'FAIL AD-1 .DS_Store: not a file of the shapes of spec 7.2 (index.html, 404.html, feed.xml, blog.css, blog.js, karte.js, <year>/<slug>/index.html, <year>/<slug>/image.webp or image.png)',
       'FAIL DL-4 .DS_Store: a name below public/ must not begin with a dot',
       `FAIL AD-3 2026/notiz-aus-der-werkstatt/index.html:9: the address https://${['www', 'dreambau', 'com'].join('.')}/blog/2026/notiz-aus-der-werkstatt/ must use the host dreambau.com, not ${['www', 'dreambau', 'com'].join('.')}`], 1]);
     const missing = tool('check-output.mjs', [path.join(dir, 'nowhere')]);

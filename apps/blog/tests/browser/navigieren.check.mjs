@@ -44,11 +44,11 @@ const visibleMark = (state, box) => state.marks.find((mark) => mark.kind === 'po
 
 await run(async () => {
   // ---- KARTE-13: the files of the prototype ----
-  const labels = JSON.parse(fs.readFileSync(path.join(ROOT, 'prototypes', 'navigieren', 'labels.json'), 'utf8'));
+  const labels = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'karte.labels.json'), 'utf8'));
   const keysOf = (lang) => Object.keys(labels[lang]).sort();
   for (const lang of Object.keys(labels)) same(`KARTE-13 the labels of "${lang}" have the same keys as the German ones and none is empty`, [keysOf(lang), Object.values(labels[lang]).filter((text) => typeof text !== 'string' || text.trim() === '').length], [keysOf('de'), 0]);
   const tokens = (file) => Object.fromEntries([...fs.readFileSync(file, 'utf8').matchAll(/--(old|draft):\s*([\d,\s]+)/g)].map((match) => [match[1], match[2].replace(/\s/g, '')]));
-  same('KARTE-13 the two colours that karte.css adds are the ones of /referenzen/', tokens(path.join(ROOT, 'prototypes', 'navigieren', 'karte.css')), tokens(path.join(REPO, 'apps', 'website', 'site', 'website-assets', 'references.css')));
+  same('KARTE-13 the two colours that the map adds to tokens.css are the ones of /referenzen/', tokens(path.join(ROOT, 'src', 'tokens.css')), tokens(path.join(REPO, 'apps', 'website', 'site', 'website-assets', 'references.css')));
   same('KARTE-13 the start of a cut is a query parameter, also for an address without one', [cutLink({ link: 'https://videos.example.test/watch?v=a', start: 95 }), cutLink({ link: 'https://videos.example.test/abc', start: 95 })], ['https://videos.example.test/watch?v=a&t=95s', 'https://videos.example.test/abc?t=95s']);
   check('KARTE-13 a cut that is not an https address is refused', (() => { try { cutLink({ link: 'http://videos.example.test/a', start: 1 }); return false; } catch { return true; } })());
   await withScratch('navigieren-rules', async (scratch) => {
@@ -57,7 +57,7 @@ await run(async () => {
     const fixture = fs.readFileSync(path.join(FIXTURES, '2026', 'notiz-aus-der-werkstatt.md'), 'utf8').replace(/^example: true\n/m, '');
     fs.writeFileSync(path.join(real, '2026', 'notiz-aus-der-werkstatt.md'), fixture);
     const refused = (options) => { try { buildMap({ outDir: path.join(scratch, 'out'), ...options }); return ''; } catch (error) { return String(error.message); } };
-    check('KARTE-13 the invented trees are not built together with posts that are not the fixtures', /invented example/.test(refused({ postsDir: real })), refused({ postsDir: real }));
+    check('KARTE-13 the invented trees are not built together with posts that are neither the fixtures nor demo posts', /invented example/.test(refused({ postsDir: real })), refused({ postsDir: real }));
     const bad = path.join(scratch, 'themen.json');
     fs.writeFileSync(bad, JSON.stringify({ example: true, topics: { ki: { de: 'KI', en: 'AI' } }, posts: { '01': 'nix' }, trees: [{ id: 'x', topic: 'ki', title: { de: 'T', en: 'T' }, aspects: [{ id: 'a', stance: 2, water: -1, label: { de: 'L' }, say: { de: 'S', en: 'S' }, video: { title: 'V', link: 'http://videos.example.test/a', start: 9, end: 3 } }] }] }));
     const faults = (() => { try { readTopics(bad); return ''; } catch (error) { return String(error.message); } })();
@@ -90,7 +90,10 @@ await run(async () => {
   });
 
   await withScratch('navigieren', async (dir) => {
-    buildMap({ outDir: dir });
+    const dummy = buildMap({ outDir: path.join(dir, 'dummy') });
+    same('KARTE-14 by default the map builds the posts of posts/: the first post in two languages and the six demo posts about the chosen videos', dummy.posts, 8);
+    same('KARTE-14 ... and every one of the six shows the sign "Demo"', (fs.readFileSync(path.join(dir, 'dummy', 'index.html'), 'utf8').match(/<span class="draft"[^>]*>Demo<\/span>/g) || []).length, 6);
+    buildMap({ outDir: dir, postsDir: FIXTURES, topicsFile: path.join(ROOT, 'prototypes', 'navigieren', 'themen.json') });
     await withBrowser(async (browser) => {
       // ---- KARTE-1: without JavaScript ----
       {
@@ -113,6 +116,19 @@ await run(async () => {
         const box = await page.locator('#map').boundingBox();
         const mark = visibleMark(first, box);
         check('KARTE-3 a post is in view at the start', Boolean(mark));
+        // ---- KARTE-14: the help over the map (desktop) ----
+        check('KARTE-14 the help lies over the map at the start, with the keyboard and mouse pictures', await page.locator('#help').isVisible() && await page.locator('#help .hdesk').isVisible() && await page.locator('#help .htouch').isHidden());
+        check('KARTE-14 while the help is open, no box of a post shows through it', await page.evaluate(() => getComputedStyle(document.getElementById('tip')).visibility === 'hidden' || document.getElementById('tip').hidden));
+        await page.locator('#help-go').click();
+        check('KARTE-14 "Los geht’s" closes the help and the map has the keyboard', await page.locator('#help').isHidden() && await page.evaluate(() => document.activeElement.id === 'stage'));
+        await page.locator('#help-open').click();
+        check('KARTE-14 "?" brings the help back', await page.locator('#help').isVisible() && await page.locator('#help-open').getAttribute('aria-expanded') === 'true');
+        await page.keyboard.press('Escape');
+        check('KARTE-14 Esc closes the help', await page.locator('#help').isHidden() && await page.locator('#help-open').getAttribute('aria-expanded') === 'false');
+        await page.locator('#help-open').click();
+        await page.locator('a.home').focus();
+        await page.keyboard.press('Escape');
+        check('KARTE-14 Esc closes the help also when the focus is outside the map', await page.locator('#help').isHidden());
         await page.mouse.move(box.x + mark.x, box.y + mark.y);
         await page.locator('#tip').waitFor({ state: 'visible' });
         const demo = DEMO.find((post) => post.n === mark.no);
@@ -249,6 +265,11 @@ await run(async () => {
         const box = await page.locator('#map').boundingBox();
         const mark = visibleMark(await state(), box);
         check('KARTE-9 a post is in view on the phone', Boolean(mark));
+        check('KARTE-14 on the phone the help shows the finger pictures, not the keyboard', await page.locator('#help').isVisible() && await page.locator('#help .htouch').isVisible() && await page.locator('#help .hdesk').isHidden());
+        await page.locator('#help-go').click();
+        await page.locator('#help-open').click();
+        await page.locator('#help-go').click();
+        check('KARTE-14 on the phone "?" and "Los geht’s" work by touch', await page.locator('#help').isHidden());
         await page.touchscreen.tap(box.x + mark.x, box.y + mark.y);
         await page.locator('#panel').waitFor({ state: 'visible' });
         const sheet = await page.locator('#panel').boundingBox();

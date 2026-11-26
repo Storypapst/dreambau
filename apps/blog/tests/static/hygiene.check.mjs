@@ -20,11 +20,18 @@ await run(async () => {
 
   // ---- the real folder ----
   // posts/ holds real posts, and a real post names its real source (a video, an article): their hosts are checked by the
-  // post rules (sourceLink), not by this scan.
-  const files = filesBelow(ROOT, { skipFolders: ['node_modules', 'dist', 'dist-demo', 'posts'] });
+  // post rules (sourceLink), not by this scan. That is intended also for the six demo posts (demo: true) whose sources
+  // are the YouTube videos the owner chose. dist-proto/ is the built map prototype (not in Git).
+  const files = filesBelow(ROOT, { skipFolders: ['node_modules', 'dist', 'dist-demo', 'dist-proto', 'posts'] });
   check('hygiene the scan covered the folder (more than ten files)', files.length > 10, `${files.length} files`);
   const lock = files.find((file) => file.name === 'package-lock.json');
-  same('hygiene no host and no address but dreambau.com, info@dreambau.com, *.example.test and the local test addresses (the lock file aside)', foreignNames(files.filter((file) => file.name !== 'package-lock.json')), []);
+  // One exception, asked for by the owner: the dummy topic trees of the map prototype cut six real videos that he chose,
+  // so the files of prototypes/navigieren/dummy/ may name www.youtube.com, and nothing else besides the allowed names.
+  const DUMMY = 'prototypes/navigieren/dummy/';
+  const dummyVideo = (finding) => finding.startsWith(DUMMY) && finding.endsWith(': host www.youtube.com');
+  const found = foreignNames(files.filter((file) => file.name !== 'package-lock.json'));
+  same('hygiene no host and no address but dreambau.com, info@dreambau.com, *.example.test and the local test addresses (the lock file aside; the videos of the map\'s dummy trees aside)', found.filter((finding) => !dummyVideo(finding)), []);
+  check('hygiene the dummy trees of the map name www.youtube.com and no other foreign host', found.some(dummyVideo) && found.filter((finding) => finding.startsWith(DUMMY)).every(dummyVideo), JSON.stringify(found.filter((finding) => finding.startsWith(DUMMY)).slice(0, 3)));
   same('hygiene the lock file names the npm registry and no other host', [...new Set(hostsOf(lock.text))], ['registry.npmjs.org']);
 
   // ---- the fixture ----
