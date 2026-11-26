@@ -203,6 +203,7 @@ goes in `CLAUDE.md` or the Codex file.
 | `build-bundle.sh` | Regenerates the manifest and packs `dist/understand-kit-<version>.tar.gz`. `dist/` is gitignored. |
 | `install.sh` | Installs the kit to `~/.oriso-dev-kit/`, then wires plugin, `ua-pull`, skill symlink, hook and graph pull. Idempotent, with a summary table. |
 | `ua-pull.sh` | Fetches `.understand-anything/{knowledge-graph,meta,fingerprints,depth,platform-graph}.json` via SSH or HTTPS; `--verify` reports freshness; `--unlock` releases `skip-worktree` before a `git pull`. Plain shell — agent-neutral. |
+| `oriso-sb.sh` | Reads the component contract from the central Dev Storybook (`list`, `show <id>`, `tokens`, `story <id>`, `freshness`) — public, always the deployed state, no local Storybook. Installed as `~/.local/bin/oriso-sb`. |
 | `kit-subscribe.sh` | The subscription check: wrapper around `install.sh --subscribe` with a wall-clock limit (`--max-seconds`). Installed as `~/.local/bin/kit-subscribe`. |
 | `kit-local.sh` | Your own layer: `kit-local adapt/apply/status/drop`. Keeps personal changes to kit files across updates. Installed as `~/.local/bin/kit-local`. |
 | `settings.hook.json` | A `SessionStart` hook snippet: first `kit-subscribe --max-seconds 10`, then `ua-pull --verify` (and pulls when stale). Merged into `<repo>/.claude/settings.json` by `install.sh`. |
@@ -254,9 +255,10 @@ also changes them upstream: `ua-pull --unlock`, then `git pull`, then `ua-pull` 
 re-pull and re-lock.
 
 **An agent cannot find component props**
-→ Run `npx storybook tools docs list` in ORISO-Frontend or ORISO-Admin. It needs the repository's
-`node_modules` (`npm ci`), not a server or a secret. If it lists nothing, the branch predates
-the Storybook 11 upgrade — pull `dev`.
+→ Run `oriso-sb frontend list` (or `admin`). It reads the public Dev Storybook and needs only
+`curl` and `python3`. If a component is missing, it is not on Dev yet: check
+`oriso-sb frontend freshness`, or for an unmerged branch use `npx storybook tools docs show --id <id>`
+in the checkout.
 
 **`ua-pull --via-ssh` fails**
 → Check that the SSH alias `predev` exists (`ssh -G predev`). Otherwise create the alias or
