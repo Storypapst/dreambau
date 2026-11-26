@@ -18,6 +18,7 @@ import { TestResourceStore } from "./test-resource-store.js";
 import { TestFixturePlanStore } from "./test-fixture-plan-store.js";
 import { TestRunStore } from "./test-run-store.js";
 import { HeadlessRegistrationStore } from "./headless-registration-store.js";
+import { WorkspaceAccountLinks } from "./workspace-account-links.js";
 import { WorkspaceReferenceStore } from "./workspace-reference-store.js";
 import { WorkspaceGithubStore } from "./workspace-github-store.js";
 import { ReleaseListStore } from "./release-list-store.js";
@@ -39,6 +40,7 @@ const seeds = {
 };
 
 export interface RegistryDatabase {
+  workspaceAccountLinks: WorkspaceAccountLinks;
   workspaceGithub: WorkspaceGithubStore;
   workspaceReferences: WorkspaceReferenceStore;
   testRuns: TestRunStore;
@@ -350,6 +352,7 @@ export function createDatabase(path: string): RegistryDatabase {
   const testRuns = new TestRunStore(sqlite, testResources);
   const fixturePlans = new TestFixturePlanStore(sqlite);
   const api: RegistryDatabase = {
+    workspaceAccountLinks: new WorkspaceAccountLinks(sqlite),
     workspaceReferences: new WorkspaceReferenceStore(sqlite),
     workspaceGithub: new WorkspaceGithubStore(sqlite),
     testRuns,

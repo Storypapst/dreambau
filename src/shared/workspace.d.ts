@@ -31,5 +31,11 @@ export type WorkspaceReferenceInput =
   | { kind: "document"; evidenceRunId: string; fileId: string };
 export interface WorkspaceRunDetail extends WorkspaceRunSummary {
   events: WorkspaceEvent[]; files: WorkspaceFile[]; references: WorkspaceReference[]; evidenceStatus: WorkspaceEvidenceStatus;
+  accounts?: WorkspaceAccountSummary[];
+}
+export interface WorkspaceAccountSummary {
+  accountId: string | null; email: string; displayName: string | null; roles: string[];
+  agencies: string[]; carrier: string | null; postalCode: string | null;
+  resolved: boolean; source: "reserved" | "explicit";
 }
 export interface WorkspacePage<T> { items: T[]; nextCursor: string | null; evidenceStatus: WorkspaceEvidenceStatus }

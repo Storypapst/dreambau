@@ -2,10 +2,17 @@ import { canonicalRole, labelRole, labelTopic, type Locale } from "@/i18n";
 import type { AccountView } from "@/types";
 
 export function accountRoleLabels(account: AccountView, locale: Locale) {
+  return accountPrimaryRoles(account, locale).labels;
+}
+
+export function accountPrimaryRoles(account: AccountView, locale: Locale): { labels: string[]; source: "linked" | "documented" | "none" } {
   const linked = (account.linkedAccess ?? []).filter((link) => !link.deleted && !link.deletionPending);
-  const roles = new Set([...(account.metadata.roles ?? []), ...linked.flatMap((link) => link.roles ?? [])].map(canonicalRole));
+  const linkedRoles = linked.flatMap((link) => link.roles ?? []);
+  const documented = account.metadata.documentedRoles?.length ? account.metadata.documentedRoles : account.metadata.roles ?? [];
+  const roles = new Set((linkedRoles.length ? linkedRoles : documented).map(canonicalRole));
   if (["platform-admin", "tenant-admin", "agency-admin"].some((role) => roles.has(role))) roles.delete("Admin");
-  return [...new Set([...roles].map((role) => labelRole(locale, role)))];
+  return { labels: [...new Set([...roles].map((role) => labelRole(locale, role)))],
+    source: linkedRoles.length ? "linked" : documented.length ? "documented" : "none" };
 }
 
 export function accountTopicLabels(account: AccountView, locale: Locale) {

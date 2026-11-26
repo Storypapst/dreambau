@@ -10,7 +10,7 @@ import { beforeForSource, decodeWorkspaceCursor, encodeWorkspaceCursor, workspac
 import { WorkspaceEvidenceUnavailable, type EvidenceReadQuery, type WorkspaceEvidenceClient, type WorkspaceGatewayFile, type WorkspaceGatewayRun } from "./workspace-evidence-client.js";
 import { safeWorkspaceUrl as safeHttp } from "./workspace-url.js";
 import { unconfiguredGithub, type WorkspaceGithubClient } from "./workspace-github.js";
-import type { WorkspaceDocument, WorkspaceEvent, WorkspaceFile, WorkspacePage, WorkspaceReference, WorkspaceReferenceInput, WorkspaceResult, WorkspaceRunDetail, WorkspaceRunSummary, WorkspaceSource } from "../shared/workspace.js";
+import type { WorkspaceAccountSummary, WorkspaceDocument, WorkspaceEvent, WorkspaceFile, WorkspacePage, WorkspaceReference, WorkspaceReferenceInput, WorkspaceResult, WorkspaceRunDetail, WorkspaceRunSummary, WorkspaceSource } from "../shared/workspace.js";
 
 const sourceSchema = z.enum(["test-run", "evidence-run"]);
 const referenceSchema = z.union([
@@ -52,7 +52,11 @@ function evidenceSummary(run: WorkspaceGatewayRun): WorkspaceRunSummary {
     pullRequestUrl: run.pullRequestNumber ? `https://github.com/${run.repository}/pull/${run.pullRequestNumber}` : null, filesCount: run.filesCount ?? run.files.length, owner: run.source };
 }
 
-export function createWorkspaceRouter(options: { database: RegistryDatabase; grantsFor(user: HumanUser): HumanProjectGrant[]; evidence: WorkspaceEvidenceClient | null; github?: WorkspaceGithubClient | null; now?: () => Date }) {
+interface CatalogAccount { email: string; displayName: string; project: "oriso" | "orimo" | "dreambau";
+  roles: string[]; agencies: string[]; carrier?: string; postalCode?: string;
+  linkedEnvironments: Array<"local" | "pre-dev" | "dev" | "production-test"> }
+export function createWorkspaceRouter(options: { database: RegistryDatabase; grantsFor(user: HumanUser): HumanProjectGrant[];
+  accountsFor(user: HumanUser): CatalogAccount[]; evidence: WorkspaceEvidenceClient | null; github?: WorkspaceGithubClient | null; now?: () => Date }) {
   const router = express.Router();
   router.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   const scopesFor = (user: HumanUser) => options.grantsFor(user).filter(grant => user.projects.includes(grant.project));
@@ -68,6 +72,15 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
     if (!run || !canSee(user, run.project, run.environment)) throw new NotFound();
     return run;
   };
+  const catalogAccount = (user: HumanUser, email: string, project: string) => options.accountsFor(user)
+    .find(account => account.project === project && account.email.trim().toLowerCase() === email.trim().toLowerCase());
+  const accountSummary = (account: CatalogAccount | undefined, email: string, accountId: string | null,
+    roles: string[], source: WorkspaceAccountSummary["source"]): WorkspaceAccountSummary => ({
+    accountId, email: email.trim().toLowerCase(), displayName: account?.displayName ?? null,
+    roles: roles.length ? roles : account?.roles ?? [], agencies: account?.agencies ?? [],
+    carrier: account?.carrier ?? null, postalCode: account?.postalCode ?? null,
+    resolved: Boolean(account), source
+  });
   const fileView = (file: WorkspaceGatewayFile, run: WorkspaceGatewayRun, user: HumanUser): WorkspaceFile => {
     const allowed = file.runId === run.id && file.processingState === "ready" && !["quarantined", "archived"].includes(run.state);
     const content = `/testmails/api/workspace/evidence/${encodeURIComponent(run.id)}/files/${encodeURIComponent(file.id)}/content?viewer=${encodeURIComponent(user.id)}`;
@@ -104,9 +117,19 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
   };
 
   const detail = async (source: WorkspaceSource, id: string, user: HumanUser): Promise<WorkspaceRunDetail> => {
-    let summary: WorkspaceRunSummary; let events: WorkspaceEvent[]; let files: WorkspaceFile[] = []; const references: WorkspaceReference[] = [];
+    let summary: WorkspaceRunSummary; let events: WorkspaceEvent[]; let files: WorkspaceFile[] = [];
+    let accounts: WorkspaceAccountSummary[] = []; const references: WorkspaceReference[] = [];
     if (source === "test-run") {
       const run = visibleLedger(user, id); const raw = options.database.testRuns.events(id);
+      accounts = run.accounts.map(item => {
+        const candidate = item.email ? catalogAccount(user, item.email, run.project) : undefined;
+        const exact = candidate && (item.accountId.startsWith("mailbox:")
+          ? item.accountId.slice("mailbox:".length).toLowerCase() === candidate.email.toLowerCase()
+          : options.database.getTestAccessLinks(candidate.email).some(link => link.recordId === item.accountId
+            && link.project === run.project && link.environment === run.poolEnvironment));
+        return accountSummary(exact ? candidate : undefined, item.email ?? "", item.accountId,
+          item.roles.length ? item.roles : [item.requestedRole], "reserved");
+      });
       const outcome = raw.find(event => event.type === "run_passed" || event.type === "run_failed");
       summary = ledgerSummary(run, outcome);
       events = raw.filter(event => ["run_reserved", "run_running", "run_passed", "run_failed", "run_released"].includes(event.type)).map(event => ({ type: event.type, actor: event.actor.id, createdAt: event.createdAt, payload: measuredPayload(event.payload) }));
@@ -115,6 +138,9 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
       }
     } else {
       const run = await visibleEvidence(user, id); summary = evidenceSummary(run);
+      accounts = options.database.workspaceAccountLinks.forRun(id)
+        .filter(link => link.project === run.project && link.environment === run.environment)
+        .map(link => accountSummary(catalogAccount(user, link.email, run.project), link.email, null, [], "explicit"));
       events = run.events.map(event => ({ type: event.eventType, actor: event.actorId, createdAt: event.createdAt, payload: {} }));
       files = run.files.map(file => fileView(file, run, user));
       if (summary.pullRequestUrl) references.push({ id: "recorded-pr", kind: "pull-request", label: `${run.repository}#${run.pullRequestNumber}`, url: summary.pullRequestUrl });
@@ -128,7 +154,7 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
     }
     events.push(...options.database.workspaceReferences.events(source, id)); events.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     files = [...new Map(files.map(file => [`${file.runId}:${file.id}`, file])).values()];
-    return { ...summary, events, files, references, evidenceStatus };
+    return { ...summary, events, files, references, accounts, evidenceStatus };
   };
   const fail = (error: unknown, res: express.Response, next: express.NextFunction) => {
     if (error instanceof NotFound) return res.status(404).json({ error: "run_not_found" });
@@ -216,6 +242,57 @@ export function createWorkspaceRouter(options: { database: RegistryDatabase; gra
   router.get("/runs/:source/:id", async (req, res, next) => {
     try { return res.json(await detail(sourceSchema.parse(req.params.source), String(req.params.id), res.locals.humanUser)); }
     catch (error) { fail(error, res, next); }
+  });
+  router.get("/accounts/:email/runs", async (req, res, next) => {
+    try {
+      const user = res.locals.humanUser as HumanUser;
+      const email = z.string().email().parse(String(req.params.email)).toLowerCase();
+      const account = options.accountsFor(user).find(item => item.email.toLowerCase() === email);
+      if (!account) throw new NotFound();
+      const reserved = options.database.testRuns.runsForEmail(email).flatMap(run => {
+        try {
+          visibleLedger(user, run.id);
+          const outcome = options.database.testRuns.events(run.id).find(event => event.type === "run_passed" || event.type === "run_failed");
+          return [ledgerSummary(run, outcome)];
+        } catch { return []; }
+      });
+      const explicit: WorkspaceRunSummary[] = [];
+      for (const link of options.database.workspaceAccountLinks.forEmail(email)) {
+        if (link.project !== account.project) continue;
+        try {
+          const run = await visibleEvidence(user, link.runId);
+          if (run.project === link.project && run.environment === link.environment) explicit.push(evidenceSummary(run));
+        } catch (error) {
+          if (error instanceof WorkspaceEvidenceUnavailable) break;
+          if (!(error instanceof NotFound)) throw error;
+        }
+      }
+      return res.json({ runs: [...reserved, ...explicit].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) });
+    } catch (error) { fail(error, res, next); }
+  });
+  router.post("/runs/evidence-run/:id/accounts", async (req, res, next) => {
+    if (req.get("Origin") && req.get("Origin") !== `${req.protocol}://${req.get("host")}` && req.get("Origin") !== "https://dreambau.com") return res.status(403).json({ error: "origin_denied" });
+    try {
+      const user = res.locals.humanUser as HumanUser;
+      const run = await visibleEvidence(user, String(req.params.id));
+      const email = z.object({ email: z.string().email() }).strict().parse(req.body).email.trim().toLowerCase();
+      const account = catalogAccount(user, email, run.project);
+      if (!account || (account.linkedEnvironments.length > 0 && !account.linkedEnvironments.includes(run.environment))) throw new NotFound();
+      options.database.workspaceAccountLinks.attach(run.id, run.project, run.environment, email, user.id, (options.now?.() ?? new Date()).toISOString());
+      return res.status(201).json(await detail("evidence-run", run.id, user));
+    } catch (error) { fail(error, res, next); }
+  });
+  router.delete("/runs/evidence-run/:id/accounts/:email", async (req, res, next) => {
+    if (req.get("Origin") && req.get("Origin") !== `${req.protocol}://${req.get("host")}` && req.get("Origin") !== "https://dreambau.com") return res.status(403).json({ error: "origin_denied" });
+    try {
+      const user = res.locals.humanUser as HumanUser;
+      const run = await visibleEvidence(user, String(req.params.id));
+      const email = z.string().email().parse(String(req.params.email)).trim().toLowerCase();
+      const link = options.database.workspaceAccountLinks.forRun(run.id).find(item => item.email === email);
+      if (!link || link.project !== run.project || link.environment !== run.environment) throw new NotFound();
+      options.database.workspaceAccountLinks.detach(run.id, email, user.id, (options.now?.() ?? new Date()).toISOString());
+      return res.json(await detail("evidence-run", run.id, user));
+    } catch (error) { fail(error, res, next); }
   });
   router.post("/runs/:source/:id/references", async (req, res, next) => {
     if (req.get("Origin") && req.get("Origin") !== `${req.protocol}://${req.get("host")}` && req.get("Origin") !== "https://dreambau.com") return res.status(403).json({ error: "origin_denied" });
