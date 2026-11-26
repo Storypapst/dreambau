@@ -101,3 +101,24 @@ html:lang(en) .de{display:none}
 .pill[disabled]{opacity:.5}
 @media (prefers-reduced-motion:reduce){.zoom{transition:none}}
 @media (min-width:900px){.grove{inset:4vh 6vw;border:1px solid rgba(var(--fg),.26);border-radius:16px;padding:18px 22px 22px}}
+/* The help over the map: karte.js shows it when the map starts and hides it at the first move; "?" brings it back. The map
+   stays visible through it. Desktop and phone each see their own gestures. */
+.help{position:absolute;inset:0;z-index:4;display:grid;place-items:center;padding:60px 12px;pointer-events:none}
+.help[hidden]{display:none}
+.help::before{content:'';position:absolute;inset:0;background:var(--bg);opacity:.58}
+.hcard{position:relative;isolation:isolate;pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:14px;width:min(640px,100%);max-height:100%;overflow:auto;padding:16px 18px;border:1px solid rgba(var(--fg),.26);border-radius:14px}
+.hcard::before{content:'';position:absolute;inset:0;z-index:-1;border-radius:inherit;background:var(--bg);opacity:.62}
+.htitle{margin:0;font:800 18px/1.2 var(--sans);color:rgb(var(--cream));text-align:center}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:14px 12px;width:100%;margin:0;padding:0;list-style:none}
+.hgrid li{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;font:500 12px/1.4 var(--mono);color:rgba(var(--fg),.9)}
+.hg{flex:none;overflow:visible}
+.hg .ln{fill:none;stroke:rgba(var(--fg),.9);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.hg .fl{fill:var(--bg)}
+.hg .ac{fill:none;stroke:rgb(var(--cur));stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.hg .dim{opacity:.45}
+.hg .dot{stroke-dasharray:2 4}
+.hmore{margin:0;font-size:13px;line-height:1.45;color:rgba(var(--fg),.78);text-align:center}
+.htouch{display:none}
+.helpbtn{position:absolute;inset-inline-start:10px;top:62px;font:700 16px/1 var(--sans)}
+.stage.helping .tip{visibility:hidden}
+@media (hover:none){.hdesk{display:none}.htouch{display:grid}.help{padding:56px 10px 124px}.helpbtn{top:10px;inset-inline-start:auto;inset-inline-end:10px}}

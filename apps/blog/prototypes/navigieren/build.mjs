@@ -3,7 +3,7 @@
 // spec stays as it is). The posts go through the same rules as in the real build, so the map can show nothing that the
 // list could not.
 //
-//   node prototypes/navigieren/build.mjs [--posts <dir>] [--out <dir>]
+//   node prototypes/navigieren/build.mjs [--posts <dir>] [--topics <file>] [--out <dir>]
 //
 // The page is readable without JavaScript: every post stands in the HTML with its short and its full text. karte.js
 // only adds the map and moves the full text into a sheet.
@@ -95,6 +95,36 @@ ${aspects.map((a) => `<li data-id="${esc(a.id)}" data-stance="${esc(a.stance)}" 
 </article>`;
 }
 
+// The help over the map: how to get around, drawn as small pictures. Desktop and phone see their own gestures (karte.css
+// picks by "hover"). karte.js shows it when the map starts and hides it at the first move; "?" brings it back.
+const G = (body) => `<svg class="hg" viewBox="0 0 72 48" width="72" height="48" aria-hidden="true" focusable="false">${body}</svg>`;
+const KEY = (x, y, d) => `<rect class="ln" x="${x}" y="${y}" width="20" height="18" rx="4"/><path class="ac" d="${d}"/>`;
+const CURSOR = (x, y) => `<path class="ln fl" d="M${x} ${y}l0 16 4.5-4 3 7 3-1.4-3-6.8 6-.3z"/>`;
+const HELP_DESK = [
+  ['helpWalk', G(KEY(26, 3, 'M36 8v8M32 12l4-4 4 4') + KEY(3, 26, 'M17 35H9M13 31l-4 4 4 4') + KEY(26, 26, 'M36 30v8M32 34l4 4 4-4') + KEY(49, 26, 'M55 35h8M59 31l4 4-4 4'))],
+  ['helpSpace', G('<rect class="ln" x="4" y="28" width="64" height="16" rx="4"/><path class="ac" d="M22 22q14-20 28 0M46 18l4 4 2-6"/>')],
+  ['helpPoint', G('<rect class="ac" x="30" y="4" width="38" height="18" rx="4"/><path class="ac" d="M36 10h26M36 16h18"/>' + CURSOR(14, 20))],
+  ['helpClick', G('<circle class="ac" cx="24" cy="22" r="7"/><circle class="ac dim" cx="24" cy="22" r="13"/>' + CURSOR(24, 22))],
+  ['helpDrag', G('<path class="ac" d="M8 12h56M8 12l6-5M8 12l6 5M64 12l-6-5M64 12l-6 5"/>' + CURSOR(30, 22))],
+];
+const FINGER = (x, y) => `<path class="ln fl" d="M${x} ${y}c0-3 4-3 4 0v12l2-1c3-1 5 1 4 4l-3 9h-12l-4-9c-1-3 2-4 4-2l1 1z"/>`;
+const HELP_TOUCH = [
+  ['helpTap', G('<circle class="ac" cx="38" cy="12" r="6"/><circle class="ac dim" cx="38" cy="12" r="11"/>' + FINGER(35, 14))],
+  ['helpHold', G('<path class="ac dot" d="M14 40q10-30 40-30"/><circle class="ac" cx="58" cy="10" r="4"/>' + FINGER(9, 16))],
+  ['helpButtons', G('<rect class="ln" x="2" y="16" width="32" height="16" rx="8"/><rect class="ac" x="38" y="16" width="32" height="16" rx="8"/><path class="ln" d="M10 24h16M46 24h16"/>')],
+];
+const helpItems = (M, items) => items.map(([key, svg]) => `<li>${svg}<span data-l="${key}">${esc(M[key])}</span></li>`).join('');
+const helpOverlay = (M) => `<div class="help" id="help" role="dialog" aria-modal="false" aria-labelledby="help-title" hidden>
+<div class="hcard">
+<h2 class="htitle" id="help-title" data-l="helpTitle">${esc(M.helpTitle)}</h2>
+<ul class="hgrid hdesk">${helpItems(M, HELP_DESK)}</ul>
+<ul class="hgrid htouch">${helpItems(M, HELP_TOUCH)}</ul>
+<p class="hmore" data-l="helpMore">${esc(M.helpMore)}</p>
+<button class="pill pri" id="help-go" type="button" data-l="helpGo">${esc(M.helpGo)}</button>
+</div>
+</div>
+<button class="pill helpbtn" id="help-open" type="button" aria-label="${esc(M.helpOpen)}" data-l-aria="helpOpen" aria-controls="help" aria-expanded="false">?</button>`;
+
 function row(L, M, post, newest, T) {
   const no = formatNumber(post.number);
   const lang = ` lang="${esc(post.lang)}" dir="ltr"`;
@@ -143,6 +173,7 @@ function page(L, M, posts, T) {
 <div class="acts"><button class="pill pri" id="read" type="button" data-l="read" hidden>${esc(M.read)}</button><button class="pill jump" id="jump" type="button" data-l="jump">${esc(M.jump)}</button></div>
 <p class="hint" id="hint" data-l="hint">${esc(M.hint)}</p>
 <div class="tip" id="tip" hidden></div>
+${helpOverlay(M)}
 </div>
 <p class="sr" data-l="blind">${esc(M.blind)}</p>
 <div class="logp">
@@ -179,7 +210,12 @@ ${T.trees.map((item) => tree(M, T, item)).join('\n')}
 `;
 }
 
-export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDir = path.join(APP, 'dist-proto', 'navigieren'), topicsFile = path.join(HERE, 'themen.json') } = {}) {
+// What the map shows by default: six dummy posts about real videos and their trees (dummy/, "example": true, under a
+// folder tests/fixtures so the build accepts them). The checks pass the invented examples of tests/fixtures/ and
+// themen.json themselves, so they do not depend on the videos.
+export const DUMMY_POSTS = path.join(HERE, 'dummy', 'tests', 'fixtures');
+export const DUMMY_TOPICS = path.join(HERE, 'dummy', 'themen.json');
+export function buildMap({ postsDir = DUMMY_POSTS, outDir = path.join(APP, 'dist-proto', 'navigieren'), topicsFile = DUMMY_TOPICS } = {}) {
   const posts = readPosts(postsDir);
   const L = loadLabels();
   const all = JSON.parse(fs.readFileSync(path.join(HERE, 'labels.json'), 'utf8'));
@@ -200,6 +236,6 @@ export function buildMap({ postsDir = path.join(APP, 'tests', 'fixtures'), outDi
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   const option = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-  const result = buildMap({ postsDir: option('--posts'), outDir: option('--out') });
+  const result = buildMap({ postsDir: option('--posts'), outDir: option('--out'), topicsFile: option('--topics') });
   console.log(`${result.posts} posts -> ${path.relative(process.cwd(), result.outDir)}/index.html`);
 }
