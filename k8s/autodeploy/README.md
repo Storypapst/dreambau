@@ -41,5 +41,6 @@ kubectl patch cronjob testmails-autodeploy -n wcr -p '{"spec":{"suspend":false}}
 
 The deployment's annotations show the state: `autodeploy-pending-digest` (patched, not
 yet verified — the next run resumes the check if a job was interrupted),
-`autodeploy-previous-image` and `autodeploy-previous-pull-policy` (the last verified
-image, the revert target), `autodeploy-deployed-at`, `autodeploy-failed-digest`.
+`autodeploy-previous-image` and `autodeploy-previous-pull-policy` (the revert target),
+`autodeploy-verified-image` (the last digest that passed; the revert target when the
+deployment was set to the moving `:main` tag), `autodeploy-deployed-at`, `autodeploy-failed-digest`.

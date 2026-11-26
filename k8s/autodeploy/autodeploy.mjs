@@ -19,6 +19,7 @@ export const ANNOTATION_PREVIOUS = "dreambau.com/autodeploy-previous-image";
 export const ANNOTATION_DEPLOYED_AT = "dreambau.com/autodeploy-deployed-at";
 export const ANNOTATION_PENDING = "dreambau.com/autodeploy-pending-digest";
 export const ANNOTATION_PREVIOUS_PULL = "dreambau.com/autodeploy-previous-pull-policy";
+export const ANNOTATION_VERIFIED = "dreambau.com/autodeploy-verified-image";
 
 const MANIFEST_ACCEPT = [
   "application/vnd.oci.image.index.v1+json",
@@ -159,9 +160,22 @@ export async function run({ env = process.env, fetchImpl = fetch, log = console.
       log(`autodeploy: skipped — ${digest} failed its rollout before; waiting for a newer build on ${cfg.tag}`);
       return "skipped-failed";
     }
-    // While a rollout is unverified, the image to fall back to stays the last verified one.
-    previous = pending ? annotations[ANNOTATION_PREVIOUS] : current;
-    previousPull = pending ? (annotations[ANNOTATION_PREVIOUS_PULL] ?? "IfNotPresent") : currentPullPolicy;
+    // The fallback must name an image that cannot change under us:
+    // - while a rollout is unverified, keep the fallback recorded for it;
+    // - a tag of our own repository (e.g. :main after `kubectl apply -f k8s/deployment.yaml`)
+    //   already points at the build being deployed, so fall back to the last verified digest;
+    // - anything else (a digest, or a locally imported tag) is what ran, so keep it as is.
+    if (pending) {
+      previous = annotations[ANNOTATION_PREVIOUS];
+      previousPull = annotations[ANNOTATION_PREVIOUS_PULL] ?? "IfNotPresent";
+    } else if (current.startsWith(`${cfg.repo}:`)) {
+      previous = annotations[ANNOTATION_VERIFIED];
+      previousPull = "IfNotPresent";
+      if (!previous) log(`autodeploy: note — ${current} is a moving tag and no verified digest is recorded; a failed rollout cannot be reverted`);
+    } else {
+      previous = current;
+      previousPull = currentPullPolicy;
+    }
     startedAt = now();
     log(`autodeploy: rolling out ${target} (was ${current})`);
     await api.patch(
@@ -179,7 +193,7 @@ export async function run({ env = process.env, fetchImpl = fetch, log = console.
   const rolled = await waitForRollout(cfg, api, wait, now, startedAt + cfg.rolloutTimeoutMs);
   const ok = rolled && (await healthy(cfg, fetchImpl));
   if (ok) {
-    await api.patch({ metadata: { annotations: { [ANNOTATION_PENDING]: null } } });
+    await api.patch({ metadata: { annotations: { [ANNOTATION_PENDING]: null, [ANNOTATION_VERIFIED]: target } } });
     log(`autodeploy: deployed — ${target} is available and ${cfg.healthUrl} answers`);
     return "deployed";
   }

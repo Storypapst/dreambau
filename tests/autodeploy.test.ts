@@ -4,7 +4,8 @@ import {
   rolloutDone,
   ANNOTATION_FAILED,
   ANNOTATION_PENDING,
-  ANNOTATION_PREVIOUS
+  ANNOTATION_PREVIOUS,
+  ANNOTATION_VERIFIED
 } from "../k8s/autodeploy/autodeploy.mjs";
 
 const DIGEST = "sha256:" + "a".repeat(64);
@@ -180,6 +181,25 @@ describe("autodeploy", () => {
     });
     expect(await run(c.deps)).toBe("reverted");
     expect(c.dep.spec.template.spec.containers[0].image).toBe("old:1");
+  });
+
+  it("reverts a moving :main tag to the last verified digest, not to the tag", async () => {
+    const verified = `${REPO}@sha256:${"c".repeat(64)}`;
+    const c = cluster({ image: `${REPO}:main`, pullPolicy: "Always", annotations: { [ANNOTATION_VERIFIED]: verified }, rollout: "stuck" });
+    expect(await run(c.deps)).toBe("reverted");
+    expect(c.dep.spec.template.spec.containers[0]).toMatchObject({ image: verified, imagePullPolicy: "IfNotPresent" });
+  });
+
+  it("records the verified digest after a successful rollout", async () => {
+    const c = cluster({ image: "old:1" });
+    expect(await run(c.deps)).toBe("deployed");
+    expect(c.dep.metadata.annotations[ANNOTATION_VERIFIED]).toBe(`${REPO}@${DIGEST}`);
+  });
+
+  it("does not pretend to revert a moving tag when no verified digest exists", async () => {
+    const c = cluster({ image: `${REPO}:main`, pullPolicy: "Always", rollout: "stuck" });
+    expect(await run(c.deps)).toBe("failed");
+    expect(c.dep.metadata.annotations[ANNOTATION_FAILED]).toBe(DIGEST);
   });
 
   it("counts a rollout as done only when every replica is updated and available", () => {
