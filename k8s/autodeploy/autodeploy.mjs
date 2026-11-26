@@ -17,6 +17,8 @@ import { pathToFileURL } from "node:url";
 export const ANNOTATION_FAILED = "dreambau.com/autodeploy-failed-digest";
 export const ANNOTATION_PREVIOUS = "dreambau.com/autodeploy-previous-image";
 export const ANNOTATION_DEPLOYED_AT = "dreambau.com/autodeploy-deployed-at";
+export const ANNOTATION_PENDING = "dreambau.com/autodeploy-pending-digest";
+export const ANNOTATION_PREVIOUS_PULL = "dreambau.com/autodeploy-previous-pull-policy";
 
 const MANIFEST_ACCEPT = [
   "application/vnd.oci.image.index.v1+json",
@@ -104,8 +106,7 @@ export function rolloutDone(dep) {
   );
 }
 
-async function waitForRollout(cfg, api, sleep, now) {
-  const deadline = now() + cfg.rolloutTimeoutMs;
+async function waitForRollout(cfg, api, sleep, now, deadline) {
   for (;;) {
     const dep = await api.get();
     if (rolloutDone(dep)) return true;
@@ -126,7 +127,9 @@ async function healthy(cfg, fetchImpl) {
   }
 }
 
-// One reconciliation pass. Returns a short status word; throws only on lookup errors.
+// One reconciliation pass. Returns a short status word. An error (registry, API) leaves
+// the pending annotation in place, so the next run resumes the verification instead of
+// mistaking an unverified rollout for the current state.
 export async function run({ env = process.env, fetchImpl = fetch, log = console.log, sleep, now = Date.now, readToken } = {}) {
   const cfg = configFromEnv(env);
   const wait = sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
@@ -138,46 +141,72 @@ export async function run({ env = process.env, fetchImpl = fetch, log = console.
   const dep = await api.get();
   const { image: current, imagePullPolicy: currentPullPolicy = "IfNotPresent" } = containerOf(dep, cfg.container);
   const annotations = dep.metadata?.annotations ?? {};
+  const pending = annotations[ANNOTATION_PENDING];
 
+  let previous, previousPull, startedAt;
   if (current === target) {
-    log(`autodeploy: current — ${cfg.namespace}/${cfg.deployment} runs ${target}`);
-    return "current";
-  }
-  if (annotations[ANNOTATION_FAILED] === digest) {
-    log(`autodeploy: skipped — ${digest} failed its rollout before; waiting for a newer build on ${cfg.tag}`);
-    return "skipped-failed";
+    if (pending !== digest) {
+      log(`autodeploy: current — ${cfg.namespace}/${cfg.deployment} runs ${target}`);
+      return "current";
+    }
+    // An earlier run patched the image but did not finish verifying it.
+    previous = annotations[ANNOTATION_PREVIOUS];
+    previousPull = annotations[ANNOTATION_PREVIOUS_PULL] ?? "IfNotPresent";
+    startedAt = Date.parse(annotations[ANNOTATION_DEPLOYED_AT] ?? "") || now();
+    log(`autodeploy: resuming verification of ${target} (started ${new Date(startedAt).toISOString()})`);
+  } else {
+    if (annotations[ANNOTATION_FAILED] === digest) {
+      log(`autodeploy: skipped — ${digest} failed its rollout before; waiting for a newer build on ${cfg.tag}`);
+      return "skipped-failed";
+    }
+    // While a rollout is unverified, the image to fall back to stays the last verified one.
+    previous = pending ? annotations[ANNOTATION_PREVIOUS] : current;
+    previousPull = pending ? (annotations[ANNOTATION_PREVIOUS_PULL] ?? "IfNotPresent") : currentPullPolicy;
+    startedAt = now();
+    log(`autodeploy: rolling out ${target} (was ${current})`);
+    await api.patch(
+      // A digest is immutable: pull it once.
+      imagePatch(cfg, target, "IfNotPresent", {
+        [ANNOTATION_PENDING]: digest,
+        [ANNOTATION_PREVIOUS]: previous ?? null,
+        [ANNOTATION_PREVIOUS_PULL]: previousPull,
+        [ANNOTATION_DEPLOYED_AT]: new Date(startedAt).toISOString(),
+        [ANNOTATION_FAILED]: null
+      })
+    );
   }
 
-  log(`autodeploy: rolling out ${target} (was ${current})`);
-  await api.patch(
-    // A digest is immutable: pull it once.
-    imagePatch(cfg, target, "IfNotPresent", {
-      [ANNOTATION_PREVIOUS]: current,
-      [ANNOTATION_DEPLOYED_AT]: new Date(now()).toISOString(),
-      [ANNOTATION_FAILED]: null
-    })
-  );
-
-  const rolled = await waitForRollout(cfg, api, wait, now);
+  const rolled = await waitForRollout(cfg, api, wait, now, startedAt + cfg.rolloutTimeoutMs);
   const ok = rolled && (await healthy(cfg, fetchImpl));
   if (ok) {
+    await api.patch({ metadata: { annotations: { [ANNOTATION_PENDING]: null } } });
     log(`autodeploy: deployed — ${target} is available and ${cfg.healthUrl} answers`);
     return "deployed";
   }
 
-  log(`autodeploy: FAILED — ${rolled ? "health check failed" : "rollout timed out"}; reverting to ${current}`);
+  const reason = rolled ? "health check failed" : "rollout timed out";
+  if (!previous) {
+    await api.patch({ metadata: { annotations: { [ANNOTATION_FAILED]: digest, [ANNOTATION_PENDING]: null } } });
+    log(`autodeploy: FAILED — ${reason}; no earlier image recorded, nothing to revert to`);
+    return "failed";
+  }
+  log(`autodeploy: FAILED — ${reason}; reverting to ${previous}`);
   // Restore exactly what ran before, including its pull policy (a locally imported image
   // runs with Never).
   await api.patch(
-    imagePatch(cfg, current, currentPullPolicy, { [ANNOTATION_FAILED]: digest, [ANNOTATION_DEPLOYED_AT]: null })
+    imagePatch(cfg, previous, previousPull, {
+      [ANNOTATION_FAILED]: digest,
+      [ANNOTATION_PENDING]: null,
+      [ANNOTATION_DEPLOYED_AT]: null
+    })
   );
-  await waitForRollout(cfg, api, wait, now);
+  await waitForRollout(cfg, api, wait, now, now() + cfg.rolloutTimeoutMs);
   return "reverted";
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   run().then(
-    (status) => process.exit(status === "reverted" ? 1 : 0),
+    (status) => process.exit(status === "reverted" || status === "failed" ? 1 : 0),
     (err) => {
       console.error(`autodeploy: error — ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
