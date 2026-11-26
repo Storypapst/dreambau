@@ -10,7 +10,7 @@
     "verify": "node tools/verify.mjs",
     "serve": "node tools/serve.mjs",
     "bundle": "node tools/bundle.mjs",
-    "build:apex": "npm run build --prefix ../website && node tools/build-apex.mjs",
+    "build:apex": "npm run build --prefix ../website && npm run build --prefix ../blog && node tools/build-apex.mjs",
     "check:apex": "node tools/apex-check.mjs",
     "e2e": "node tools/e2e.mjs all",
     "e2e:lang": "node tools/e2e-lang.mjs",

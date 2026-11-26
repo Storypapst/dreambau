@@ -116,6 +116,10 @@ for (const id of productions) {
 const website=path.resolve(ROOT,'../website/dist'), websiteManifest=website+'.json';
 if(!fs.existsSync(websiteManifest)) fail('run npm run build in apps/website before this build');
 for(const file of JSON.parse(fs.readFileSync(websiteManifest,'utf8')).files){if(files.has(file.path))fail('website file collides with a landing file: '+file.path);const buf=fs.readFileSync(path.join(website,file.path));if(sha(buf)!==file.sha256)fail('website manifest mismatch: '+file.path);files.set(file.path,buf);}
+// Include the blog (apps/blog, preview of posts/) under blog/, so the start page publisher ships it too; nginx serves /blog/ from there.
+const blogDir=path.resolve(ROOT,'../blog/dist'), blogManifest=blogDir+'/blog.json';
+if(!fs.existsSync(blogManifest)) fail('run npm run build in apps/blog before this build');
+for(const file of JSON.parse(fs.readFileSync(blogManifest,'utf8')).files){const rel='blog/'+file.path;if(files.has(rel))fail('blog file collides with a landing file: '+rel);const buf=fs.readFileSync(path.join(blogDir,'public',file.path));if(sha(buf)!==file.sha256)fail('blog manifest mismatch: '+file.path);files.set(rel,buf);}
 const initialFiles=Object.fromEntries([...files].filter(([name])=>name==='style.css'||name==='navigation.css'||name==='index.html'||name==='shell.js'||name==='navigation.js'||name==='i18n.js'||name.startsWith('i18n/')||/^p\/[^/]+\.js$/.test(name)&&!name.endsWith('.src.js')).map(([name,text])=>[name,Buffer.byteLength(text)]));
 files.set('source-facts.js','window.Dream.sourceFacts='+JSON.stringify({runtimeBytes:Buffer.byteLength(shell),files:initialFiles})+';\n');
 fs.rmSync(out, { recursive: true, force: true });
