@@ -80,6 +80,45 @@ await run(async () => {
         await context.close();
       }
 
+      // ---- a mix that is too wide ----
+      // The random signs are wider than the letters they stand for, so a mix can need one more line than the title; by
+      // chance that is rare (about one frame in 4000 with a wide font). Here every second frame draws nothing but "W",
+      // the widest sign, so the case happens in every run. No such frame may be shown: the height stays the same.
+      {
+        const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
+        await context.addInitScript(recorder);
+        const signs = (/const glyphs = '([^']+)';/.exec(source) || [])[1] || '';
+        check('V32 PO-8 the signs of blog.js are found and "W" is one of them', signs.includes('W'), signs);
+        await context.addInitScript((signs) => {
+          // the value of Math.random that picks "W" from the signs of blog.js; the switch flips once per frame, before the
+          // frame of the effect runs (it was registered first), so the frames alternate whatever the frame rate is
+          const random = Math.random, wide = (signs.indexOf('W') + 0.5) / signs.length;
+          let wideFrame = false;
+          const flip = () => { wideFrame = !wideFrame; requestAnimationFrame(flip); };
+          requestAnimationFrame(flip);
+          Math.random = () => (wideFrame ? wide : random());
+        }, signs);
+        const page = await context.newPage();
+        await page.goto(url, { waitUntil: 'load' });
+        await page.waitForTimeout(1800);
+        const samples = await page.evaluate(() => window.__samples);
+        // the control: on this machine the title with every letter as "W" does need more room than the real title
+        const control = await page.evaluate(() => {
+          const h1 = document.querySelector('h1'), node = h1.firstChild, text = node.data, real = h1.offsetHeight;
+          node.data = text.replace(/\S/g, 'W');
+          const wide = h1.offsetHeight;
+          node.data = text;
+          return { real, wide };
+        });
+        check('V32 PO-8 the control: a title of nothing but "W" needs more lines than the real title', control.wide > control.real, JSON.stringify(control));
+        const heights = [...new Set(samples.map((sample) => sample.height))];
+        same('V32 PO-8 a mix that would need one more line is never shown: one height in every frame', heights.length, 1);
+        const scrambled = samples.filter((sample) => sample.text !== POST.title);
+        check('V32 PO-8 the mixes that fit are still shown', scrambled.length >= 3, `${scrambled.length} frames`);
+        same('V32 PO-8 after a too wide mix the title ends as the real title, without aria-label or style', [samples.at(-1).text, samples.at(-1).label, samples.at(-1).style], [POST.title, null, null]);
+        await context.close();
+      }
+
       // ---- reduced motion ----
       {
         const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });

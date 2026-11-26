@@ -7,7 +7,7 @@
 // tags, comments and multi-line values are refused.
 import { at, fail } from './findings.mjs';
 
-export const KEYS = ['title', 'date', 'lang', 'sourceLink', 'sourceTitle', 'quote', 'quoteSource', 'image', 'imageAlt', 'imageRights', 'example'];
+export const KEYS = ['title', 'date', 'lang', 'sourceLink', 'sourceTitle', 'quote', 'quoteSource', 'image', 'imageAlt', 'imageRights', 'example', 'demo'];
 export const REQUIRED_KEYS = ['title', 'date'];
 
 const DOUBLE = /^"((?:[^"\\]|\\.)*)"$/;

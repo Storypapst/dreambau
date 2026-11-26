@@ -1,15 +1,15 @@
 name: Landing checks
 on:
   pull_request:
-    paths: ['apps/landing/**', 'apps/website/**', '.github/workflows/landing-checks.yml', 'apps/AGENTS.md']
+    paths: ['apps/landing/**', 'apps/website/**', 'apps/blog/**', '.github/workflows/landing-checks.yml', 'apps/AGENTS.md']
   push:
     branches: [main]
-    paths: ['apps/landing/**', 'apps/website/**', '.github/workflows/landing-checks.yml', 'apps/AGENTS.md']
+    paths: ['apps/landing/**', 'apps/website/**', 'apps/blog/**', '.github/workflows/landing-checks.yml', 'apps/AGENTS.md']
 permissions:
   contents: read
 jobs:
   landing:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.56 has no Chromium for ubuntu-latest (26.04) yet
     defaults:
       run:
         working-directory: apps/landing

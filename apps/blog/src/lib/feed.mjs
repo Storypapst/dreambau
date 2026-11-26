@@ -5,7 +5,7 @@
 import { escapeXml } from './escape.mjs';
 import { httpsLink } from './links.mjs';
 import { newestFirst, numberPosts } from './numbering.mjs';
-import { ORIGIN } from './pages.mjs';
+import { CHROME, ORIGIN } from './pages.mjs';
 import { LIMITS } from './post-rules.mjs';
 
 // The namespace name of Atom 1.0 (RFC 4287). It is a name, not an address anyone requests; it is assembled from parts so
@@ -17,6 +17,7 @@ export const FEED_URL = `${ORIGIN}/blog/feed.xml`;
 const x = escapeXml;
 const stamp = (post) => `${post.date}T00:00:00Z`; // FD-3: the time is a placeholder
 
+// A demo post (demo: true) says so in its title, as it does with its sign on the pages.
 function entry(post) {
   const address = `${ORIGIN}/blog/${post.address}/`;
   const related = post.sourceLink === undefined
@@ -24,7 +25,7 @@ function entry(post) {
     : `<link rel="related" href="${x(httpsLink(post.sourceLink, post.file))}"${post.sourceTitle === undefined ? '' : ` title="${x(post.sourceTitle)}"`}/>\n`; // PR-6
   return `<entry${post.lang === 'de' ? '' : ` xml:lang="${x(post.lang)}"`}>
 <id>${x(address)}</id>
-<title>${x(post.title)}</title>
+<title>${x(post.demo ? `${CHROME.demo}: ${post.title}` : post.title)}</title>
 <link rel="alternate" type="text/html" href="${x(address)}"/>
 ${related}<published>${stamp(post)}</published>
 <updated>${stamp(post)}</updated>

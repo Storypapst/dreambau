@@ -1,4 +1,5 @@
-// The list page in a real Chromium behind the real nginx (spec 5.5, V26, V27, V28): no script and two requests, the rows
+// The list page in a real Chromium behind the real nginx (spec 5.5, V26, V27, V28): with scripts blocked two requests and
+// no map, with scripts the one script of the map (tests/browser/karte.check.mjs checks the map itself), the rows
 // newest first with their numbers, previews, marks and one link per row, the legend (open at 1440, a closed <details> at
 // 390), and the empty list. The expected values are typed from the seven fixture files (tests/lib/demo.mjs), not read
 // from the page.
@@ -42,17 +43,19 @@ await run(async () => {
         same('V26 the list answers 200', response.status(), 200);
         same('V26 with scripts blocked the network log shows two requests: the HTML and the CSS', requests, ['GET /blog/', 'GET /blog/blog.css']);
         const facts = await page.evaluate(() => ({
-          scripts: document.querySelectorAll('script').length,
+          scripts: [...document.querySelectorAll('script')].map((script) => script.getAttribute('src')),
+          map: document.querySelector('.karte') && getComputedStyle(document.querySelector('.karte')).display,
           eventAttributes: [...document.querySelectorAll('*')].flatMap((el) => [...el.attributes].filter((attr) => /^on/i.test(attr.name)).map((attr) => `${el.localName}[${attr.name}]`)),
           rows: document.querySelectorAll('ol > li').length,
           links: [...document.querySelectorAll('ol a')].map((a) => a.getAttribute('href')),
           lang: document.documentElement.getAttribute('lang'), dir: document.documentElement.getAttribute('dir'),
           stylesheets: [...document.querySelectorAll('link[rel~="stylesheet"]')].map((link) => link.getAttribute('href')),
           icon: [...document.querySelectorAll('link[rel~="icon"]')].map((link) => link.getAttribute('href')),
-          externalFiles: [...document.querySelectorAll('[src], link[href]')].map((el) => el.getAttribute('src') || el.getAttribute('href')).filter((value) => !/^(\/blog\/blog\.css|data:,)$/.test(value)),
+          externalFiles: [...document.querySelectorAll('[src], link[href]')].map((el) => el.getAttribute('src') || el.getAttribute('href')).filter((value) => !/^(\/blog\/blog\.css|\/blog\/karte\.js|data:,)$/.test(value)),
           reversed: document.querySelector('ol').hasAttribute('reversed'), role: document.querySelector('ol').getAttribute('role'), label: document.querySelector('ol').getAttribute('aria-label'),
         }));
-        same('V26 LI-1 no <script> element and no on* attribute', [facts.scripts, facts.eventAttributes], [0, []]);
+        same('V26 LI-1 the one <script> is the map\'s file, and no on* attribute', [facts.scripts, facts.eventAttributes], [['/blog/karte.js'], []]);
+        same('V26 with scripts blocked the map is not shown: the list is the page', facts.map, 'none');
         same('V26 LI-2 all seven rows and links are present, newest first, root-relative', facts.links, DEMO.map((post) => `/blog/2026/${post.slug}/`));
         same('LI-1 LG-1 <html lang="de" dir="ltr">', [facts.lang, facts.dir], ['de', 'ltr']);
         same('LI-1 exactly one other file is loaded: /blog/blog.css; the icon is data:,', [facts.stylesheets, facts.icon, facts.externalFiles.filter((value) => value !== '/blog/feed.xml' && value !== 'https://dreambau.com/blog/' && value !== '/')], [['/blog/blog.css'], ['data:,'], []]);
@@ -65,7 +68,7 @@ await run(async () => {
         const requests = [];
         page.on('request', (request) => { if (!request.url().startsWith('data:')) requests.push(`${request.method()} ${urlOf(request).pathname}`); });
         await page.goto(url, { waitUntil: 'networkidle' });
-        same('LI-9 with scripts on, the list still makes two requests (no image, no script)', requests, ['GET /blog/', 'GET /blog/blog.css']);
+        same('LI-9 with scripts on, the list makes three requests: the HTML, the CSS and the map (no image)', [...requests].sort(), ['GET /blog/', 'GET /blog/blog.css', 'GET /blog/karte.js']);
         await context.close();
       }
 

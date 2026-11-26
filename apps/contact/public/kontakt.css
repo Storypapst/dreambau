@@ -1,0 +1,39 @@
+/* Contact form: same palette and focus ring as the start page; no animation, no fixed or sticky elements (spec 5.2, 5.3). */
+:root { color-scheme: dark; --fg: 233, 237, 245; --warm: 255, 238, 210; background: #06080d; color: rgb(var(--fg)); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { display: flex; flex-direction: column; justify-content: flex-end; min-height: 100vh; min-height: 100dvh; width: min(560px, 100%); margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); gap: 12px; }
+a { color: inherit; text-underline-offset: .18em; }
+a, button, input, textarea { overflow-wrap: anywhere; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.brand { display: inline-flex; align-items: center; min-height: 44px; color: rgba(var(--fg), .78); text-decoration: none; }
+h1 { margin: 4px 0 8px; font-size: clamp(30px, 7vw, 48px); line-height: 1.15; color: rgb(var(--warm)); }
+.lead { margin: 0; color: rgba(var(--fg), .9); }
+form { display: flex; flex-direction: column; gap: 6px; }
+label { margin-top: 8px; font-weight: 600; color: rgb(var(--warm)); }
+input, textarea { width: 100%; min-height: 48px; padding: 11px 14px; border: 1px solid rgba(var(--fg), .45); border-radius: 12px; background: #0c1119; color: rgb(var(--fg)); font: inherit; font-size: 16px; }
+textarea { min-height: 120px; resize: vertical; }
+/* phones: a little less height so the form fits without scrolling even with taller system fonts (Linux CI, P7) */
+@media (max-width: 600px) { textarea { height: 120px; min-height: 96px; } main { gap: 8px; } }
+input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: rgb(255, 160, 140); }
+.fielderr { margin: 2px 0 0; color: rgb(255, 196, 180); font-size: 15px; }
+.notice { margin: 0 0 8px; padding: 10px 12px; border-inline-start: 3px solid rgb(255, 190, 100); border-radius: 8px; background: rgba(255, 190, 100, .1); color: rgb(255, 224, 180); }
+.note { margin: 4px 0 0; font-size: 15px; color: rgba(var(--fg), .8); }
+.note a { display: inline-flex; align-items: center; min-height: 44px; vertical-align: middle; }
+button, .pill { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; margin-top: 8px; padding: 0 24px; border: 1px solid rgba(var(--fg), .45); border-radius: 26px; background: rgba(var(--fg), .08); color: rgb(var(--fg)); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+button { align-self: stretch; }
+.hp { position: absolute; inset-inline-start: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.foot { font-size: 15px; color: rgba(var(--fg), .8); border-top: 1px solid rgba(var(--fg), .14); padding-top: 8px; }
+.foot p { margin: 0; display: inline; }
+.foot .legal { margin-inline-start: 12px; }
+.foot a { display: inline-flex; align-items: center; min-height: 44px; }
+.foot .legal i { font-style: normal; margin: 0 8px; opacity: .6; }
+@media (prefers-reduced-motion: no-preference) { input, textarea, button, .pill { transition: border-color .15s, background-color .15s; } }
+button:hover, .pill:hover { background: rgba(var(--fg), .14); }
+@media (min-width: 900px) {
+  main { width: min(1000px, calc(100% - 64px)); display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; column-gap: 64px; align-content: start; padding-top: 8vh; }
+  .intro { grid-column: 1; grid-row: 1; }
+  .formcol { grid-column: 2; grid-row: 1 / span 2; }
+  .foot { grid-column: 1; grid-row: 2; align-self: end; }
+  button { align-self: flex-start; }
+}

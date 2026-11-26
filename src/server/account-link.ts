@@ -53,6 +53,7 @@ export type AccountAccessEvent = AccountAccessEventInput & { id: number };
 export interface AccountAccessSummary {
   latest: AccountAccessEvent | null;
   events: AccountAccessEvent[];
+  latestUseAt: string | null;
 }
 
 export interface LinkedTestAccount {

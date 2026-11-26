@@ -326,7 +326,8 @@ INFISICAL_ENV="${INFISICAL_ENV:-pre-dev}"
 if [ "$MODE" = "via-ssh" ] && [ -z "$HTTPS_BASE" ] && [ -n "${ORISO_UA_BASE:-}" ] && ! ssh -G predev >/dev/null 2>&1; then
   MODE="via-https"; HTTPS_BASE="$ORISO_UA_BASE"
 fi
-# The /ua ingress on predev reuses the Storybook-MCP basic-auth secret: derive user:pass from
+# The /ua ingress on predev uses the basic-auth secret still named ORISO_SB_MCP_AUTH (it
+# originally protected the retired Storybook MCP servers): derive user:pass from
 # ORISO_SB_MCP_AUTH (base64 of user:pass) when ORISO_UA_AUTH is not set.
 if [ "$MODE" = "via-https" ] && [ -z "${ORISO_UA_AUTH:-}" ]; then
   if [ -z "${ORISO_SB_MCP_AUTH:-}" ] && command -v infisical >/dev/null 2>&1; then

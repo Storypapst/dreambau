@@ -1,0 +1,527 @@
+{
+  "example": true,
+  "topics": {
+    "agenten": {
+      "de": "KI-Werkzeuge und Agenten",
+      "en": "AI tools and agents"
+    },
+    "team": {
+      "de": "Mit KI im Team arbeiten",
+      "en": "Working with AI in teams"
+    },
+    "gesellschaft": {
+      "de": "KI und Gesellschaft",
+      "en": "AI and society"
+    },
+    "geschaeft": {
+      "de": "Geschäft mit Software",
+      "en": "The software business"
+    }
+  },
+  "posts": {
+    "03": "agenten",
+    "04": "gesellschaft",
+    "05": "team",
+    "06": "agenten",
+    "07": "agenten",
+    "08": "geschaeft"
+  },
+  "trees": [
+    {
+      "id": "agenten-alltag",
+      "topic": "agenten",
+      "title": {
+        "de": "Was taugen KI-Agenten im Alltag?",
+        "en": "What are AI agents worth day to day?"
+      },
+      "aspects": [
+        {
+          "id": "a1",
+          "stance": -0.7,
+          "water": 3,
+          "label": {
+            "de": "Fertige Skill-Pakete",
+            "en": "Ready-made skill packs"
+          },
+          "say": {
+            "de": "Dummy: In einem Test schnitten sieben von neun beliebten Skill-Paketen schlechter ab als eine leere Platzhalterdatei.",
+            "en": "Dummy: In a test, seven of nine popular skill packs lost against a blank dummy file."
+          },
+          "video": {
+            "title": "Simon Scrapes: Claude Changed Completely",
+            "link": "https://www.youtube.com/watch?v=YAuWBqZ_gjs",
+            "start": 27,
+            "end": 142
+          }
+        },
+        {
+          "id": "a2",
+          "stance": -0.9,
+          "water": 2,
+          "label": {
+            "de": "Ohne Bremsen",
+            "en": "No brakes"
+          },
+          "say": {
+            "de": "Dummy: Wer Agenten ständig neue Arbeit anstoßen lässt, ohne zu bremsen, bekommt mehr schlechte Pull Requests, als jemand lesen kann.",
+            "en": "Dummy: If agents keep starting new work with no brakes, you get more poor pull requests than anyone can read."
+          },
+          "video": {
+            "title": "AI Engineer: Fixing the PR Bottleneck",
+            "link": "https://www.youtube.com/watch?v=LlgiOCmFG_w",
+            "start": 140,
+            "end": 170
+          }
+        },
+        {
+          "id": "a3",
+          "stance": 0.3,
+          "water": 4,
+          "label": {
+            "de": "Kleines Modell entscheidet",
+            "en": "A small model decides"
+          },
+          "say": {
+            "de": "Dummy: Für die vielen kleinen Entscheidungen eines RAG-Agenten ist ein großes Sprachmodell zu langsam und zu teuer, das Video setzt dafür Jev ein.",
+            "en": "Dummy: For the many small decisions of a RAG agent a large language model is too slow and too expensive, so the video uses Jev for them."
+          },
+          "video": {
+            "title": "The AI Automators: RAG decisions with Jev",
+            "link": "https://www.youtube.com/watch?v=olIve0D8pJQ",
+            "start": 0,
+            "end": 278
+          }
+        },
+        {
+          "id": "a4",
+          "stance": 0.55,
+          "water": 3,
+          "label": {
+            "de": "Steuerbares Umsortieren",
+            "en": "Steerable reranking"
+          },
+          "say": {
+            "de": "Dummy: Gefundene Textstellen werden nach einer Vorgabe neu sortiert, bevor der Agent antwortet.",
+            "en": "Dummy: Retrieved passages are reranked by an instruction before the agent answers."
+          },
+          "video": {
+            "title": "The AI Automators: RAG decisions with Jev",
+            "link": "https://www.youtube.com/watch?v=olIve0D8pJQ",
+            "start": 648,
+            "end": 812
+          }
+        },
+        {
+          "id": "a5",
+          "stance": 0.7,
+          "water": 5,
+          "label": {
+            "de": "Erst eine Aufgabe",
+            "en": "One job first"
+          },
+          "say": {
+            "de": "Dummy: Jeder Direktor bekommt zum Start einen Connector und eine Aufgabe, danach eine To-do-Liste vom Stabschef.",
+            "en": "Dummy: Each director starts with one connector and one job, then gets a to-do list from the chief of staff."
+          },
+          "video": {
+            "title": "Tristen O'Brien: AI Agent Village",
+            "link": "https://www.youtube.com/watch?v=-mb6buCbv8E",
+            "start": 645,
+            "end": 738
+          }
+        },
+        {
+          "id": "a6",
+          "stance": 0.9,
+          "water": 8,
+          "label": {
+            "de": "Der Mensch gibt frei",
+            "en": "The human signs off"
+          },
+          "say": {
+            "de": "Dummy: Jede Anstellung braucht seine Zustimmung, E-Mails bleiben Entwürfe, und ohne sein Ja wird nichts ausgegeben oder gepostet.",
+            "en": "Dummy: Every hire needs his approval, emails stay drafts, and nothing is spent or posted without his yes."
+          },
+          "video": {
+            "title": "Tristen O'Brien: AI Agent Village",
+            "link": "https://www.youtube.com/watch?v=-mb6buCbv8E",
+            "start": 776,
+            "end": 824
+          }
+        }
+      ]
+    },
+    {
+      "id": "team-review",
+      "topic": "team",
+      "title": {
+        "de": "Wie bleibt Code-Review mit Agenten machbar?",
+        "en": "How does code review stay manageable with agents?"
+      },
+      "aspects": [
+        {
+          "id": "b1",
+          "stance": -0.75,
+          "water": 2,
+          "label": {
+            "de": "Tests, die abschreiben",
+            "en": "Tests that copy"
+          },
+          "say": {
+            "de": "Dummy: Ein tautologischer Test wiederholt nur die Implementierung, etwa eine Zeichengrenze von 280, und prüft kein Verhalten.",
+            "en": "Dummy: A tautological test only restates the implementation, such as a character limit of 280, and checks no behaviour."
+          },
+          "video": {
+            "title": "AI Engineer: Fixing the PR Bottleneck",
+            "link": "https://www.youtube.com/watch?v=LlgiOCmFG_w",
+            "start": 323,
+            "end": 382
+          }
+        },
+        {
+          "id": "b2",
+          "stance": -0.3,
+          "water": 1,
+          "label": {
+            "de": "Review einkaufen",
+            "en": "Buying review"
+          },
+          "say": {
+            "de": "Dummy: Fremde Review-Dienste sind entweder zu allgemein oder zu speziell, besser baut man einen eigenen Reviewer mit eigenen Regeln.",
+            "en": "Dummy: Third-party review services are either too general or too specific; better build your own reviewer with your own standards."
+          },
+          "video": {
+            "title": "AI Engineer: Fixing the PR Bottleneck",
+            "link": "https://www.youtube.com/watch?v=LlgiOCmFG_w",
+            "start": 862,
+            "end": 921
+          }
+        },
+        {
+          "id": "b3",
+          "stance": 0.1,
+          "water": 3,
+          "label": {
+            "de": "Hooks als Prüfer",
+            "en": "Hooks as checkers"
+          },
+          "say": {
+            "de": "Dummy: Hooks können prüfen, ob die Arbeit wirklich erledigt ist.",
+            "en": "Dummy: Hooks can check whether the work is actually done."
+          },
+          "video": {
+            "title": "Simon Scrapes: Claude Changed Completely",
+            "link": "https://www.youtube.com/watch?v=YAuWBqZ_gjs",
+            "start": 886,
+            "end": 974
+          }
+        },
+        {
+          "id": "b4",
+          "stance": 0.45,
+          "water": 4,
+          "label": {
+            "de": "Regeln getrennt prüfen",
+            "en": "Standards reviewed apart"
+          },
+          "say": {
+            "de": "Dummy: Programmierregeln gehören nicht zum Agenten, der den Code schreibt, sondern in einen eigenen Review-Durchgang.",
+            "en": "Dummy: Coding standards do not belong in the agent that writes the code but in a separate review pass."
+          },
+          "video": {
+            "title": "AI Engineer: Fixing the PR Bottleneck",
+            "link": "https://www.youtube.com/watch?v=LlgiOCmFG_w",
+            "start": 690,
+            "end": 739
+          }
+        },
+        {
+          "id": "b5",
+          "stance": 0.7,
+          "water": 6,
+          "label": {
+            "de": "Einweg- oder Zweiwegtür",
+            "en": "One-way or two-way"
+          },
+          "say": {
+            "de": "Dummy: Ein Pull Request sollte sagen, ob sich die Änderung zurücknehmen lässt und wie groß der Schaden im Fehlerfall wäre.",
+            "en": "Dummy: A pull request should say whether the change can be reverted and how far the damage would reach if it goes wrong."
+          },
+          "video": {
+            "title": "AI Engineer: Fixing the PR Bottleneck",
+            "link": "https://www.youtube.com/watch?v=LlgiOCmFG_w",
+            "start": 1034,
+            "end": 1124
+          }
+        },
+        {
+          "id": "b6",
+          "stance": 0.95,
+          "water": 7,
+          "label": {
+            "de": "Aus Reviews lernen",
+            "en": "Learning from reviews"
+          },
+          "say": {
+            "de": "Dummy: Eine Retrospektive über die Reviews schlägt neue Prüfungen und Programmierregeln vor, damit derselbe Kommentar nicht zweimal nötig ist.",
+            "en": "Dummy: A retrospective over the reviews suggests new checks and coding standards so the same comment is never needed twice."
+          },
+          "video": {
+            "title": "AI Engineer: Fixing the PR Bottleneck",
+            "link": "https://www.youtube.com/watch?v=LlgiOCmFG_w",
+            "start": 1214,
+            "end": 1274
+          }
+        }
+      ]
+    },
+    {
+      "id": "gesellschaft-entscheiden",
+      "topic": "gesellschaft",
+      "title": {
+        "de": "Welche Entscheidungen überlassen wir der KI?",
+        "en": "Which decisions do we leave to AI?"
+      },
+      "aspects": [
+        {
+          "id": "c1",
+          "stance": -0.6,
+          "water": 2,
+          "label": {
+            "de": "Kredite und Urteile",
+            "en": "Loans and sentences"
+          },
+          "say": {
+            "de": "Dummy: Wird KI Teil der Bürokratie, entscheidet sie zunehmend über Kredite und Urteile.",
+            "en": "Dummy: Once AI is part of bureaucracy, it increasingly decides on loans and legal judgements."
+          },
+          "video": {
+            "title": "Yuval Noah Harari: AI has hacked the code",
+            "link": "https://www.youtube.com/watch?v=hBtVGwuJzpk",
+            "start": 1030,
+            "end": 1099
+          }
+        },
+        {
+          "id": "c2",
+          "stance": -0.25,
+          "water": 1,
+          "label": {
+            "de": "KI als Einwanderer",
+            "en": "AI as immigrants"
+          },
+          "say": {
+            "de": "Dummy: Harari erwartet eine Welle von KI-Einwanderern, die etwa im Gesundheitswesen und in der Bildung arbeiten, ohne eine Grenze zu überqueren.",
+            "en": "Dummy: Harari expects a wave of AI immigrants working in fields such as health care and education without crossing a border."
+          },
+          "video": {
+            "title": "Yuval Noah Harari: AI has hacked the code",
+            "link": "https://www.youtube.com/watch?v=hBtVGwuJzpk",
+            "start": 2466,
+            "end": 2542
+          }
+        },
+        {
+          "id": "c3",
+          "stance": 0.0,
+          "water": 3,
+          "label": {
+            "de": "Agenten als Belegschaft",
+            "en": "Agents as a workforce"
+          },
+          "say": {
+            "de": "Dummy: Ein Stabschef und mehrere Direktoren mit eigenen Arbeitern erledigen die Aufgaben, die man ihnen eintippt.",
+            "en": "Dummy: A chief of staff and several directors with their own workers take care of the tasks you type in."
+          },
+          "video": {
+            "title": "Tristen O'Brien: AI Agent Village",
+            "link": "https://www.youtube.com/watch?v=-mb6buCbv8E",
+            "start": 0,
+            "end": 52
+          }
+        },
+        {
+          "id": "c4",
+          "stance": 0.4,
+          "water": 5,
+          "label": {
+            "de": "Akteur statt Werkzeug",
+            "en": "Agent, not tool"
+          },
+          "say": {
+            "de": "Dummy: KI ist kein Werkzeug wie eine Kaffeemaschine, sondern ein Akteur, der selbst entscheidet und Neues erfindet.",
+            "en": "Dummy: AI is not a tool like a coffee machine but an agent that decides for itself and invents new things."
+          },
+          "video": {
+            "title": "Yuval Noah Harari: AI has hacked the code",
+            "link": "https://www.youtube.com/watch?v=hBtVGwuJzpk",
+            "start": 44,
+            "end": 149
+          }
+        },
+        {
+          "id": "c5",
+          "stance": 0.75,
+          "water": 6,
+          "label": {
+            "de": "Algorithmen als Redaktion",
+            "en": "Algorithms as editors"
+          },
+          "say": {
+            "de": "Dummy: Die Algorithmen sozialer Medien sind frühe, einfache KIs, die auf Aufmerksamkeit optimieren und so die öffentliche Debatte prägen.",
+            "en": "Dummy: Social media algorithms are early, primitive AIs that optimise for engagement and so shape public debate."
+          },
+          "video": {
+            "title": "Yuval Noah Harari: AI has hacked the code",
+            "link": "https://www.youtube.com/watch?v=hBtVGwuJzpk",
+            "start": 1099,
+            "end": 1323
+          }
+        },
+        {
+          "id": "c6",
+          "stance": 0.9,
+          "water": 4,
+          "label": {
+            "de": "Vertrauen unter Fremden",
+            "en": "Trust among strangers"
+          },
+          "say": {
+            "de": "Dummy: Menschen kooperieren in großer Zahl mit Fremden, weil Bürokratie Vertrauen schafft.",
+            "en": "Dummy: Humans cooperate in large numbers with strangers because bureaucracy builds trust."
+          },
+          "video": {
+            "title": "Yuval Noah Harari: AI has hacked the code",
+            "link": "https://www.youtube.com/watch?v=hBtVGwuJzpk",
+            "start": 619,
+            "end": 689
+          }
+        }
+      ]
+    },
+    {
+      "id": "geschaeft-burggraben",
+      "topic": "geschaeft",
+      "title": {
+        "de": "Was schützt ein Softwaregeschäft noch?",
+        "en": "What still protects a software business?"
+      },
+      "aspects": [
+        {
+          "id": "d1",
+          "stance": -0.85,
+          "water": 1,
+          "label": {
+            "de": "Funktionen allein",
+            "en": "Features alone"
+          },
+          "say": {
+            "de": "Dummy: Neue Wettbewerber holen beim Funktionsumfang schnell auf, Funktionen allein schützen kaum noch.",
+            "en": "Dummy: New competitors quickly reach feature parity, so features alone hardly protect anymore."
+          },
+          "video": {
+            "title": "Rob Walling: The Only SaaS Moats Left",
+            "link": "https://www.youtube.com/watch?v=KpILHX2D-AA",
+            "start": 255,
+            "end": 306
+          }
+        },
+        {
+          "id": "d2",
+          "stance": -0.4,
+          "water": 3,
+          "label": {
+            "de": "Kunden bauen selbst",
+            "en": "Customers build it"
+          },
+          "say": {
+            "de": "Dummy: Kunden bauen sich mit KI-Werkzeugen selbst, was sie brauchen, statt ein Produkt zu kaufen.",
+            "en": "Dummy: Customers build what they need themselves with AI tools instead of buying a product."
+          },
+          "video": {
+            "title": "Rob Walling: The Only SaaS Moats Left",
+            "link": "https://www.youtube.com/watch?v=KpILHX2D-AA",
+            "start": 161,
+            "end": 223
+          }
+        },
+        {
+          "id": "d3",
+          "stance": 0.0,
+          "water": 2,
+          "label": {
+            "de": "Bauen kostet wenig",
+            "en": "Building is cheap"
+          },
+          "say": {
+            "de": "Dummy: Das ganze Agentendorf hat laut Video etwa 47 Dollar und dreieinhalb Stunden gekostet.",
+            "en": "Dummy: According to the video, the whole agent village cost about 47 dollars and three and a half hours."
+          },
+          "video": {
+            "title": "Tristen O'Brien: AI Agent Village",
+            "link": "https://www.youtube.com/watch?v=-mb6buCbv8E",
+            "start": 824,
+            "end": 853
+          }
+        },
+        {
+          "id": "d4",
+          "stance": 0.35,
+          "water": 4,
+          "label": {
+            "de": "Behördliche Zulassung",
+            "en": "Regulatory approval"
+          },
+          "say": {
+            "de": "Dummy: Zertifikate und Zulassungen von Behörden halten Nachahmer auf, weil sie sich nicht einfach kopieren lassen.",
+            "en": "Dummy: Certifications and regulatory approvals hold off copycats because they cannot simply be copied."
+          },
+          "video": {
+            "title": "Rob Walling: The Only SaaS Moats Left",
+            "link": "https://www.youtube.com/watch?v=KpILHX2D-AA",
+            "start": 1599,
+            "end": 1651
+          }
+        },
+        {
+          "id": "d5",
+          "stance": 0.6,
+          "water": 5,
+          "label": {
+            "de": "Netzwerk der Nutzer",
+            "en": "Network of users"
+          },
+          "say": {
+            "de": "Dummy: Je mehr Menschen ein Werkzeug wie Slack gemeinsam nutzen, desto schwerer fällt der Wechsel.",
+            "en": "Dummy: The more people use a tool like Slack together, the harder it is to switch away."
+          },
+          "video": {
+            "title": "Rob Walling: The Only SaaS Moats Left",
+            "link": "https://www.youtube.com/watch?v=KpILHX2D-AA",
+            "start": 1793,
+            "end": 1859
+          }
+        },
+        {
+          "id": "d6",
+          "stance": 0.85,
+          "water": 7,
+          "label": {
+            "de": "Lernende Produkte",
+            "en": "Learning loops"
+          },
+          "say": {
+            "de": "Dummy: Jede Kundeninteraktion macht das Produkt klüger, wie bei der Betrugserkennung Stripe Radar.",
+            "en": "Dummy: Every customer interaction makes the product smarter, as with the fraud detection of Stripe Radar."
+          },
+          "video": {
+            "title": "Rob Walling: The Only SaaS Moats Left",
+            "link": "https://www.youtube.com/watch?v=KpILHX2D-AA",
+            "start": 1877,
+            "end": 1950
+          }
+        }
+      ]
+    }
+  ]
+}

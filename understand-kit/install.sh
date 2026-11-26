@@ -15,10 +15,10 @@
 #       through to a guess. An existing file is never modified.
 #   1.  Check `claude` CLI is on PATH.
 #   2.  Install the Understand-Anything Claude Code plugin (marketplace + plugin).
-#   3.  Register the two Storybook MCP servers (user scope — project scope would write the
-#       secret into <repo>/.mcp.json) — only if ORISO_SB_MCP_AUTH is set or readable from
-#       Infisical.
-#   4.  Copy ua-pull.sh, kit-subscribe.sh and kit-local.sh to ~/.local/bin/. Agent-neutral:
+#   3.  Remove the retired Storybook MCP registrations (storybook-frontend,
+#       storybook-admin) from Claude Code's user scope. Storybook 11 serves component
+#       knowledge from the repository itself (skills + `npx storybook tools`).
+#   4.  Copy ua-pull.sh, oriso-sb.sh, kit-subscribe.sh and kit-local.sh to ~/.local/bin/. Agent-neutral:
 #       plain shell scripts, used identically by Claude Code, Codex and a human shell.
 #   5.  Link every kit skill and every local skill into <repo>/.claude/skills/ (Claude Code)
 #       and ~/.codex/skills/ (Codex). Symlinks, so a kit update reaches every repository
@@ -36,7 +36,7 @@
 #                           for the manifest, compare its version with the installed
 #                           ~/.oriso-dev-kit/manifest.json, and download + verify +
 #                           unpack the bundle only when the served version is newer.
-#                           Prints one line and never installs plugins, MCP servers or
+#                           Prints one line and never installs plugins or
 #                           hooks. kit-subscribe.sh is a thin wrapper around this mode.
 #
 # Nothing here touches servers, installs system packages, or runs `curl | bash`.
@@ -48,16 +48,24 @@ KIT_HOME="${ORISO_KIT_HOME:-$HOME/.oriso-dev-kit}"
 
 # The kit payload: what a bundle ships and what an update replaces. Kept in sync
 # with build-bundle.sh's PAYLOAD. dist/ is a build artefact and never installed.
-KIT_PAYLOAD=(install.sh ua-pull.sh mcp-add.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh \
-             test-access-install.sh settings.hook.json .mcp.json.example manifest.json README.md \
+KIT_PAYLOAD=(install.sh ua-pull.sh oriso-sb.sh kit-subscribe.sh kit-local.sh kit-publish.sh build-bundle.sh \
+             test-access-install.sh settings.hook.json manifest.json README.md \
              SECRET-SCAN.md rules skills prompts pages)
+
+# Helpers a release added after subscribers already existed. An older installer leaves
+# them out of its own update; the equal-version repair in kit_subscribe restores them.
+KIT_REPAIRABLE=(test-access-install.sh oriso-sb.sh)
+
+# Files earlier kit versions shipped and this one no longer does. Removed from an existing
+# install on every copy, so a subscriber does not keep a stale script that still works.
+KIT_RETIRED=(mcp-add.sh .mcp.json.example)
 
 # Everything personal lives here and is deliberately NOT in KIT_PAYLOAD: an update
 # replaces the payload item by item and never sees this directory.
 LOCAL_DIR="$KIT_HOME/local"
 
-# Infisical is the credential source for both ORISO_SB_MCP_AUTH (step 3) and
-# ORISO_KIT_TOKEN (subscription). Self-hosted; never the Infisical cloud.
+# Infisical is the credential source for ORISO_SB_MCP_AUTH (the /ua graph ingress, see
+# ua-pull.sh; the name is historical) and ORISO_KIT_TOKEN (subscription). Self-hosted; never the Infisical cloud.
 INFISICAL_PROJECT_ID="2808af88-2c60-4023-8754-98665192cfdf"
 INFISICAL_ENV="pre-dev"
 INFISICAL_DOMAIN="${INFISICAL_DOMAIN:-https://secrets.dreambau.com}"
@@ -89,6 +97,54 @@ note() { SUMMARY_LINES+=("$1"); echo "$1"; }
 # Every failure is non-fatal by design — the session hook calls this and a dead
 # endpoint must never block a developer from starting work.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Retirement migration: idempotent removal of what earlier kit versions installed and
+# this one no longer ships — files in $KIT_HOME and the predev Storybook MCP
+# registrations. Runs on a full install and on every --subscribe run, because an
+# existing subscriber upgrades with its *old* installer (which knows nothing about
+# retired items) and afterwards only sees "kit current". A marker keeps the session
+# hook fast once the migration has run.
+# ---------------------------------------------------------------------------
+retire_kit_items() {
+  local marker="$KIT_HOME/.retired-storybook-mcp" item server
+  [ -d "$KIT_HOME" ] || return 0
+  for item in "${KIT_RETIRED[@]}"; do rm -rf "${KIT_HOME:?}/$item"; done
+  [ -f "$marker" ] && return 0
+  # Without the claude CLI (a Codex session, a hook with a narrow PATH) nothing can be
+  # removed: leave the marker unwritten so a later run with Claude does the cleanup.
+  command -v claude >/dev/null 2>&1 || return 0
+  # Read the user-scope registrations straight from Claude Code's config instead of
+  # `claude mcp get/list`: no health check, no network, and a read error is told apart
+  # from "not registered" (exit 2 = unreadable -> no marker, retry next run).
+  local found
+  found="$(python3 - "$HOME/.claude.json" <<'PYEOF' 2>/dev/null
+import json, os, sys
+path = sys.argv[1]
+if not os.path.exists(path):
+    sys.exit(0)
+try:
+    servers = (json.load(open(path)).get("mcpServers") or {})
+except Exception:
+    sys.exit(2)
+for name in ("storybook-frontend", "storybook-admin"):
+    if name in servers:
+        print(name)
+PYEOF
+)" || return 0
+  local limit=""
+  command -v timeout >/dev/null 2>&1 && limit="timeout 5"
+  for server in $found; do
+    if $limit claude mcp remove "$server" --scope user >/dev/null 2>&1; then
+      echo "[kit-retire] removed retired MCP $server (Storybook 11 skills replace it)"
+    else
+      echo "[kit-retire] could not remove MCP $server — run: claude mcp remove $server --scope user"
+      return 0
+    fi
+  done
+  : > "$marker"
+  return 0
+}
+
 kit_subscribe() {
   local base token tmp remote_version local_version filename http_status decision
 
@@ -190,9 +246,11 @@ kit_subscribe() {
     local_version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("version",""))' "$KIT_HOME/manifest.json" 2>/dev/null)"
   fi
 
-  # Older subscribers copy their own payload allowlist when upgrading themselves.
-  # Repair the new CLI helper they omitted, but only when this same release ships it.
-  decision="$(python3 - "$remote_version" "$local_version" "$tmp/manifest.json" "$KIT_HOME/test-access-install.sh" <<'PYEOF'
+  # Older subscribers copy their own payload allowlist when upgrading themselves, so a
+  # file that a release adds is left behind and later runs see "kit current". Repair
+  # every such helper the served release advertises but this install lacks. The repair
+  # runs with this (new) installer, whose payload list includes the helper.
+  decision="$(python3 - "$remote_version" "$local_version" "$tmp/manifest.json" "$KIT_HOME" "${KIT_REPAIRABLE[@]}" <<'PYEOF'
 import json, os, sys
 
 
@@ -204,12 +262,12 @@ def key(value):
     return tuple(parts + [0] * (4 - len(parts)))
 
 
-remote, local, manifest_path, helper = sys.argv[1:]
-advertises_helper = any(entry.get("path") == "test-access-install.sh"
-                        for entry in json.load(open(manifest_path)).get("files", []))
+remote, local, manifest_path, kit_home, *helpers = sys.argv[1:]
+advertised = {entry.get("path") for entry in json.load(open(manifest_path)).get("files", [])}
+missing = [h for h in helpers if h in advertised and not os.path.isfile(os.path.join(kit_home, h))]
 if not local or key(remote) > key(local):
     print("update")
-elif remote == local and advertises_helper and not os.path.isfile(helper):
+elif remote == local and missing:
     print("repair")
 else:
     print("current")
@@ -269,16 +327,20 @@ PYEOF
   mkdir -p "$KIT_HOME"
   for item in "${KIT_PAYLOAD[@]}"; do
     [ -e "$tmp/unpacked/$item" ] || continue
-    rm -rf "$KIT_HOME/$item"
+    rm -rf "${KIT_HOME:?}/$item"
     cp -R "$tmp/unpacked/$item" "$KIT_HOME/$item"
   done
+  for item in "${KIT_RETIRED[@]}"; do rm -rf "${KIT_HOME:?}/$item"; done
   chmod +x "$KIT_HOME"/*.sh 2>/dev/null || true
   if [ "$decision" = "repair" ]; then
-    [ -f "$KIT_HOME/test-access-install.sh" ] || {
-      echo "[kit-subscribe] failed — CLI installer is still missing after repair"
-      return 1
-    }
-    echo "[kit-subscribe] repaired missing CLI installer (version $remote_version)"
+    for helper in "${KIT_REPAIRABLE[@]}"; do
+      grep -q "\"path\": \"$helper\"" "$tmp/manifest.json" || continue
+      [ -f "$KIT_HOME/$helper" ] || {
+        echo "[kit-subscribe] failed — $helper is still missing after repair"
+        return 1
+      }
+    done
+    echo "[kit-subscribe] repaired missing helpers (version $remote_version)"
   else
     echo "[kit-subscribe] updated ${local_version:-none} -> $remote_version in $KIT_HOME"
   fi
@@ -289,8 +351,16 @@ PYEOF
 }
 
 if [ "$MODE" = "subscribe" ]; then
+  # Local and fast, so it runs before the network step and is not cut off by the
+  # session hook's time limit.
+  retire_kit_items
   kit_subscribe
   kit_status=$?
+  # Keep the oriso-sb command current for subscribers too (a full install copies it
+  # once; a subscription only replaces ~/.oriso-dev-kit). Cheap, local, idempotent.
+  if [ -f "$KIT_HOME/oriso-sb.sh" ]; then
+    mkdir -p "$HOME/.local/bin" && cp "$KIT_HOME/oriso-sb.sh" "$HOME/.local/bin/oriso-sb" && chmod +x "$HOME/.local/bin/oriso-sb" || true
+  fi
   # The Test-Access CLI follows the same subscription: one manifest request, a
   # download only when a newer version is served. Never blocks the session.
   if [ -f "$KIT_HOME/test-access-install.sh" ]; then
@@ -301,7 +371,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # 0. Install the kit to ~/.oriso-dev-kit/
-#    The installed copy is the thing repos point at (skill symlink, hook, mcp-add.sh),
+#    The installed copy is the thing repos point at (skill symlink, hook),
 #    so replacing this one directory updates every repo at once.
 # ---------------------------------------------------------------------------
 if [ "$SRC_DIR" = "$KIT_HOME" ]; then
@@ -311,9 +381,10 @@ else
   # Copy the kit payload, not build output. dist/ is a build artefact, never installed.
   for item in "${KIT_PAYLOAD[@]}"; do
     [ -e "$SRC_DIR/$item" ] || continue
-    rm -rf "$KIT_HOME/$item"
+    rm -rf "${KIT_HOME:?}/$item"
     cp -R "$SRC_DIR/$item" "$KIT_HOME/$item"
   done
+  for item in "${KIT_RETIRED[@]}"; do rm -rf "${KIT_HOME:?}/$item"; done
   chmod +x "$KIT_HOME"/*.sh 2>/dev/null || true
   note "[ok]      kit installed to $KIT_HOME (source: $SRC_DIR)"
 fi
@@ -403,49 +474,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Storybook MCP registration
-#    Secret source: environment → Infisical (project "ORISO Test Access", env pre-dev) → ask Frank.
+# 3. Remove the retired Storybook MCP registrations
+#    Storybook 11 serves component knowledge from the repository (skills and
+#    `npx storybook tools`), so the predev MCP servers are no longer registered.
 # ---------------------------------------------------------------------------
-if [ -z "${ORISO_SB_MCP_AUTH:-}" ] && command -v infisical >/dev/null 2>&1; then
-  ORISO_SB_MCP_AUTH="$(infisical secrets get ORISO_SB_MCP_AUTH --domain "$INFISICAL_DOMAIN" --projectId "$INFISICAL_PROJECT_ID" --env "$INFISICAL_ENV" --plain 2>/dev/null || true)"
-  [ -n "$ORISO_SB_MCP_AUTH" ] && note "[ok]      ORISO_SB_MCP_AUTH loaded from Infisical ($INFISICAL_ENV)"
-fi
-if [ "$HAVE_CLAUDE" -eq 1 ] && [ -n "${ORISO_SB_MCP_AUTH:-}" ]; then
-  if claude mcp add --transport http storybook-frontend \
-      https://predev.oriso.org/storybook-frontend-mcp/mcp \
-      --header "Authorization: Basic $ORISO_SB_MCP_AUTH" \
-      --scope user >/tmp/sb-fe.$$ 2>&1; then
-    note "[ok]      registered MCP storybook-frontend"
-  else
-    if grep -qi "already" /tmp/sb-fe.$$ 2>/dev/null; then
-      note "[ok]      MCP storybook-frontend already registered"
-    else
-      note "[failed]  MCP storybook-frontend — see /tmp/sb-fe.$$"
-    fi
-  fi
-  rm -f /tmp/sb-fe.$$
-
-  if claude mcp add --transport http storybook-admin \
-      https://predev.oriso.org/storybook-admin-mcp/mcp \
-      --header "Authorization: Basic $ORISO_SB_MCP_AUTH" \
-      --scope user >/tmp/sb-admin.$$ 2>&1; then
-    note "[ok]      registered MCP storybook-admin"
-  else
-    if grep -qi "already" /tmp/sb-admin.$$ 2>/dev/null; then
-      note "[ok]      MCP storybook-admin already registered"
-    else
-      note "[failed]  MCP storybook-admin — see /tmp/sb-admin.$$"
-    fi
-  fi
-  rm -f /tmp/sb-admin.$$
-  note "[info]    Storybook MCP tools (10.6): docs-list, docs-show, docs-show-story, stories-preview, stories-find-by-component, stories-changed, test-run"
-else
-  note "[skipped] Storybook MCP registration — ORISO_SB_MCP_AUTH not set and not readable from Infisical."
-  note "          Either 'infisical login --domain $INFISICAL_DOMAIN' (project 'ORISO Test Access', env $INFISICAL_ENV) and re-run, or:"
-  note "            export ORISO_SB_MCP_AUTH='<base64 of user:password, from Frank>'"
-  note "            bash '$KIT_DIR/install.sh'"
-  note "          or run '$KIT_DIR/mcp-add.sh' by hand once the variable is set."
-fi
+while IFS= read -r line; do note "[ok]      ${line#\[kit-retire\] }"; done < <(retire_kit_items)
+note "[info]    Storybook: repo skills (component-docs, write-stories, test-stories, ui-review) and 'npx storybook tools'"
 
 # ---------------------------------------------------------------------------
 # 4. ua-pull.sh -> ~/.local/bin/ua-pull
@@ -469,6 +503,12 @@ if [ -f "$KIT_DIR/test-access-install.sh" ]; then
   else
     note "[warn]    test-access CLI not installed — see the [test-access-install] lines above; run 'test-access-install' again once the token is in place"
   fi
+fi
+
+if [ -f "$KIT_DIR/oriso-sb.sh" ]; then
+  cp "$KIT_DIR/oriso-sb.sh" "$BIN_DIR/oriso-sb"
+  chmod +x "$BIN_DIR/oriso-sb"
+  note "[ok]      copied oriso-sb.sh -> $BIN_DIR/oriso-sb (component contract from the Dev Storybook)"
 fi
 
 if [ -f "$KIT_DIR/kit-subscribe.sh" ]; then

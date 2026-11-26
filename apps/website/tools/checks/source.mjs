@@ -14,8 +14,8 @@ export async function run({browser,base,artifact,ok,dist}) {
  await page.getByRole('button',{name:'Kopieren',exact:true}).click();ok(name+' clipboard copies exact shipped bytes',await page.evaluate(()=>navigator.clipboard.readText())===sourceText);
  if(name==='desktop'){
  await page.getByRole('button',{name:'Maßstab',exact:true}).click();ok('Desktop scale tab visibly replaces picture',await page.locator('#cv-scale-pane').isVisible()&&!await page.locator('#cv-picture-pane').isVisible());
- ok('All three measured animations have descriptions',await page.locator('.cv-animation').count()===3&&await page.locator('.cv-animation p').allTextContents().then(v=>v.every(s=>s.length>20)));
- await page.getByLabel('Alle drei Animationen').uncheck();ok('Scale selection changes from three to running animation',await page.locator('.cv-animation').count()===1);await page.getByLabel('Alle drei Animationen').check();
+ ok('Every pool animation has a measured description',await page.locator('.cv-animation').count()===await page.evaluate(()=>Dream.ids.length)&&await page.locator('.cv-animation p').allTextContents().then(v=>v.every(s=>s.length>20)));
+ await page.getByLabel('Alle Animationen').uncheck();ok('Scale selection changes from all to running animation',await page.locator('.cv-animation').count()===1);await page.getByLabel('Alle Animationen').check();
  await page.screenshot({path:path.join(artifact,name+'-source-scale.png')});await page.getByRole('button',{name:'Bild dazu',exact:true}).click();
  }else{
  ok(name+' four lower actions within reach',await page.locator('.cv-actions button').count()===4&&await page.locator('.cv-actions button').evaluateAll(els=>els.every(e=>e.getBoundingClientRect().height>=44)));

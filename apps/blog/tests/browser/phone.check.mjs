@@ -85,7 +85,7 @@ await run(async () => {
               return { text: el.textContent.trim().slice(0, 20), visible: r.top >= 0 && r.bottom <= innerHeight, overlap };
             }));
           }
-          check('V39 PH-3 at 390x844: the Tab walk visits every link of the page (skip, pill, feed, source, 2 more, back, 5 footer links)', hits.length === 12, String(hits.length));
+          check('V39 PH-3 at 390x844: the Tab walk visits every link of the page (skip, pill, feed, source, 2 more, back, 7 footer links)', hits.length === 14, String(hits.length));
           check('V39 PH-3 at 390x844: every focused link scrolls into view and is never behind the dock', hits.every((hit) => hit.visible && !hit.overlap), JSON.stringify(hits.filter((hit) => !hit.visible || hit.overlap)));
         } else {
           const rect = await page.evaluate(() => { const r = document.querySelector('.dock').getBoundingClientRect(); return { top: r.top + scrollY, bottom: r.bottom + scrollY, content: document.querySelector('footer.site').getBoundingClientRect().top + scrollY }; });
@@ -122,7 +122,7 @@ await run(async () => {
         same(`V41 NV-3 ${label}: the header holds no nav; its links are the pill Startseite and the feed link`, [facts.headerNav, facts.headerLinks], [0, ['/', '/blog/feed.xml']]);
         if (!real) {
           const spans = await page.evaluate(() => [...document.querySelectorAll('nav.foot > :nth-child(-n+3)')].map((el) => [el.localName, el.getAttribute('href'), el.getAttribute('lang'), el.getAttribute('dir')]));
-          same(`V41 NV-2 ${label}: with null items the first two are spans (not links), as on /referenzen/`, [spans[0], spans[2]], [['span', null, 'de', 'ltr'], ['span', null, 'de', 'ltr']]);
+          same(`V41 NV-2 ${label}: footer.json as it is: the first two are links to the published legal pages, as on /referenzen/`, [spans[0], spans[2]], [['a', '/homepage-assets/impressum.html', null, null], ['a', '/homepage-assets/datenschutz.html', null, null]]);
         } else {
           const styles = await page.evaluate((measure) => {
             const out = {};

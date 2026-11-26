@@ -31,14 +31,14 @@ grep -rhoE "https?://[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]+" . | sort -u
 | **B — IP addresses** | **None.** Not one IPv4 literal anywhere in the kit. |
 | **C — base64 blocks** | 15 hits, all ordinary long identifiers: CamelCase function names in the feature page (`apiGetCaseHandoverCandidates`, `useCaseHandoverReasonPolicies`, …), `OpenResilienceInitiative`, `SessionStart/PostToolUse`, path fragments. **No encoded credential.** |
 | **D — ssh / user@host** | `ssh predev` and `ssh -G predev` (the SSH *alias*, explicitly permitted — no host, no user, no key), `git@github.com` inside a documented example origin URL, `understand-anything@understand-anything` (a plugin identifier), `wght@400` (a Google-Fonts parameter). **No real ssh host or credential.** |
-| **E — URLs** | 10 distinct, all credential-free: `https://predev.oriso.org/{ua,storybook-frontend-mcp/mcp,storybook-admin-mcp/mcp}`, `https://secrets.dreambau.com`, `https://understand.oriso.org`, `https://github.com/OpenResilienceInitiative/ORISO-Frontend.git`, `https://claude.com/claude-code`, and two Google-Fonts URLs in the feature page. **No basic-auth credentials embedded in any URL** (no `https://user:pass@host` form). |
+| **E — URLs** | 10 distinct, all credential-free: `https://predev.oriso.org/ua` (the two Storybook MCP URLs were removed in 0.5.2), `https://secrets.dreambau.com`, `https://understand.oriso.org`, `https://github.com/OpenResilienceInitiative/ORISO-Frontend.git`, `https://claude.com/claude-code`, and two Google-Fonts URLs in the feature page. **No basic-auth credentials embedded in any URL** (no `https://user:pass@host` form). |
 
 **Verdict: clean.** No credential value, no hash, no token, no key material, no IP address and
 no Basic-Auth value is present in this folder.
 
 ## Deliberately present, and why it is not a secret
 
-- `INFISICAL_PROJECT_ID=2808af88-2c60-4023-8754-98665192cfdf` (`install.sh`, `mcp-add.sh`,
+- `INFISICAL_PROJECT_ID=2808af88-2c60-4023-8754-98665192cfdf` (`install.sh`,
   `ua-pull.sh`) — the *identifier* of the Infisical project "ORISO Test Access". It addresses
   a project; it grants nothing. Reading a secret from it still requires an authenticated
   `infisical login`. Carried over unchanged from the source kit.
@@ -51,10 +51,10 @@ no Basic-Auth value is present in this folder.
 
 ## How the kit stays clean
 
-All three scripts read `ORISO_SB_MCP_AUTH` / `ORISO_UA_AUTH` at runtime, in this order:
+Both scripts read `ORISO_SB_MCP_AUTH` / `ORISO_UA_AUTH` at runtime (since 0.5.2 only for the
+`/ua` graph ingress; `mcp-add.sh` and `.mcp.json.example` were removed), in this order:
 environment → Infisical (authenticated CLI) → tell the user to ask Frank. Nothing is ever
-written to a file. MCP servers are registered with `--scope user`, never `--scope project`,
-so the Basic-Auth value cannot land in a repository's `.mcp.json`. `build-bundle.sh` packs
+written to a file, and the kit registers no MCP server. `build-bundle.sh` packs
 only the files listed above, so a future bundle cannot pick up a stray local secret.
 
 Re-run the five commands above after any change to this folder, and update this file.

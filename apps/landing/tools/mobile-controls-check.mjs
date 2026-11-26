@@ -38,7 +38,7 @@ try{
  const first=await page.getByRole('link',{name:'Startseite',exact:true}).evaluate(el=>{const r=document.createRange();r.selectNodeContents(el);return {x:r.getBoundingClientRect().x};});assert(first.x>=64,'153 B2 text has 32px row inset');
  console.log('PASS153 approved B2 sheet geometry');
  await capture(page,'phone-menu-390x844');
- await page.locator('.menu-links .pending').last().scrollIntoViewIfNeeded();
+ await page.locator('.menu-links > :last-child').scrollIntoViewIfNeeded();
  const reach=await page.locator('#site-menu nav').evaluate(nav=>{const last=nav.querySelector('.menu-links').lastElementChild.getBoundingClientRect(),list=nav.querySelector('.menu-links').getBoundingClientRect(),footer=nav.querySelector('.menu-close').getBoundingClientRect();return {last:{top:last.top,bottom:last.bottom},list:{top:list.top,bottom:list.bottom},footer:{top:footer.top,bottom:footer.bottom}};});
  assert(reach.last.top>=reach.list.top&&reach.last.bottom<=reach.list.bottom&&reach.last.bottom<reach.footer.top,'153 last menu row scrolls fully above the close footer');
  if(output)fs.writeFileSync(path.join(output,'last-row-reachability.json'),JSON.stringify(reach,null,2)+'\n');

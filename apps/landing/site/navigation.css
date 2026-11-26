@@ -3,39 +3,6 @@
 .site-menu summary,.site-pill{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border:1px solid rgba(var(--fg),.34);border-radius:24px;background:rgba(6,8,13,.55);color:rgba(var(--fg),.9);cursor:pointer;list-style:none;font:inherit}
 .site-menu summary::-webkit-details-marker{display:none}.site-menu summary:focus-visible{outline:3px solid #fff;outline-offset:3px}
 
-.home-feature {
-  position: fixed;
-  z-index: 4;
-  top: max(68px, calc(env(safe-area-inset-top) + 56px));
-  left: max(12px, env(safe-area-inset-left));
-  width: fit-content;
-  max-width: calc(100% - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right)));
-  font-size: 13px;
-}
-.home-feature .site-pill {
-  gap: 10px;
-  background: rgba(6,8,13,.94);
-  text-decoration: none;
-}
-.home-feature .site-pill:hover { border-color: rgba(var(--fg),.65); }
-.home-feature .site-pill:focus-visible { outline: 3px solid #fff; outline-offset: 3px; border-radius: 24px; }
-.home-feature-count { color: rgba(var(--fg),.78); font-size: 12px; }
-.home-credit {
-  width: fit-content;
-  margin: 5px 0 0;
-  padding: 3px 8px;
-  border-radius: 8px;
-  background: rgba(6,8,13,.94);
-  color: rgba(var(--fg),.9);
-  font-size: 12px;
-}
-@media(max-width:600px),(pointer:coarse) and (max-height:520px) {
-  .home-feature {
-    top: max(16px, env(safe-area-inset-top));
-    left: max(16px, env(safe-area-inset-left));
-  }
-}
-
 .site-menu nav{position:absolute;top:52px;left:0;width:min(340px,calc(100vw - 24px));max-height:calc(100dvh - 90px);overflow:auto;padding:16px;border:1px solid rgba(var(--fg),.34);border-radius:24px;background:#06080d}
 .site-menu nav a,.site-menu nav button,.site-menu nav .pending{display:flex;align-items:center;min-height:44px;width:100%;padding:10px 4px;border-bottom:1px solid rgba(var(--fg),.1);text-decoration:none;color:rgba(var(--fg),.9);text-align:start;font:inherit;white-space:normal}
 .site-menu nav .pending{color:rgba(var(--fg),.62);font-size:12px}.site-menu nav a:hover,.site-menu nav button:hover{color:rgb(var(--fg));background:rgba(var(--fg),.06)}
@@ -77,3 +44,19 @@
 @media(max-width:360px){.home-controls #source-entry b{display:none}.home-controls .site-menu summary{width:70px}.home-controls #snd{flex-basis:48px;min-width:48px}}
 
 .site-menu [hidden]{display:none!important}
+
+/* Legal footer: Impressum and Datenschutz, visible from the first second, also in the static and no-script views.
+   14 px at 80 % opacity on the page background (legal draft, dreambau-docs content/legal/impressum-draft.md, "Wo der Link stehen muss").
+   Desktop: centred under the closing line, which moves up by one row. Phone: no footer; Kontakt, Impressum and Datenschutz sit in the menu (Frank, 2026-11-13), so the closing line and skip button keep their original places. */
+#legal{position:fixed;z-index:3;left:50%;transform:translateX(-50%);bottom:max(4px,env(safe-area-inset-bottom));display:flex;align-items:center;margin:0;font-size:14px;line-height:1;color:rgba(var(--fg),.8);white-space:nowrap;text-shadow:0 1px 10px rgba(0,0,0,.7),0 0 2px rgba(0,0,0,.5)}
+#legal a{display:inline-flex;align-items:center;min-height:44px;padding:0 8px;color:inherit;text-decoration:underline;text-decoration-color:rgba(var(--fg),.35);text-underline-offset:.2em}
+#legal a:hover{color:rgb(var(--fg));text-decoration-color:rgba(var(--fg),.8)}
+#legal a:focus-visible{outline:3px solid #fff;outline-offset:2px;border-radius:4px}
+#legal i{font-style:normal;opacity:.6}
+#cta{bottom:max(48px,calc(env(safe-area-inset-bottom) + 44px))}
+#skip{bottom:max(48px,calc(env(safe-area-inset-bottom) + 44px))}
+@media(max-width:600px),(pointer:coarse) and (max-height:520px){
+ #legal{display:none}
+ #cta{bottom:max(88px,calc(env(safe-area-inset-bottom) + 72px))}
+ #skip,html.still #play{bottom:max(132px,calc(env(safe-area-inset-bottom) + 116px))}
+}

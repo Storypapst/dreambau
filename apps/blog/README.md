@@ -1,6 +1,6 @@
 # Blog
 
-Das Blog (Logbuch) von dreambau.com unter `/blog/`: kurze Beiträge als Dateien, gebaut mit einem kleinen Generator in reinem Node, ohne Laufzeit-Abhängigkeit. Dieser Stand zeichnet die Liste und die Beitragsseite im Look "Logbuch" (Desktop und Handy, nur Deutsch) und zeigt sieben erfundene Beispiel-Beiträge. Er prüft Beitragsdateien nach den Regeln der Spezifikation (Abschnitt 5.2): jeder Fehler mit genauer Zeile, die Nummer eines Beitrags aus (Datum, Adresse). Der Bau schreibt außerdem den Atom-Feed `feed.xml` (die 50 neuesten Beiträge mit dem vollen Text von "Warum lesenswert") und prüft ihn und den Ausgabebaum, bevor er etwas schreibt. Es wird nichts veröffentlicht.
+Das Blog (Logbuch) von dreambau.com unter `/blog/`: kurze Beiträge als Dateien, gebaut mit einem kleinen Generator in reinem Node, ohne Laufzeit-Abhängigkeit. Dieser Stand zeichnet die Liste und die Beitragsseite im Look "Logbuch" (Desktop und Handy, nur Deutsch). `/blog/` beginnt mit der Karte „Navigieren“ (siehe unten), darunter steht dieselbe Liste („Logbuch“); ohne JavaScript steht nur die Liste da. `npm run build:demo` zeigt sieben erfundene Beispiel-Beiträge. Er prüft Beitragsdateien nach den Regeln der Spezifikation (Abschnitt 5.2): jeder Fehler mit genauer Zeile, die Nummer eines Beitrags aus (Datum, Adresse). Der Bau schreibt außerdem den Atom-Feed `feed.xml` (die 50 neuesten Beiträge mit dem vollen Text von "Warum lesenswert") und prüft ihn und den Ausgabebaum, bevor er etwas schreibt. Es wird nichts veröffentlicht.
 
 Voraussetzungen: Node 20 (siehe `.nvmrc` im Wurzelordner) und Docker. Die Browser-Prüfungen brauchen Chromium: `npx playwright install chromium` (oder `CHROMIUM_EXECUTABLE=/Pfad/zu/chromium`, wie bei `apps/landing`).
 
@@ -20,7 +20,9 @@ npm run check
 
 Für den Betreiber: `ops/nginx-blog.additions.conf` ist der Text aus Abschnitt 7.4 für den echten nginx (eine Zeile in der `map`, dazu die Regeln im Server-Block); `ops/nginx-blog-test.conf` ist der Test-Text von Teamwork plus genau diese Zeilen und dient nur den Tests und `npm run serve`. Die Prüfung `static/nginx-text` (Teil von `npm run check`) stellt sicher, dass beide Blöcke Zeichen für Zeichen gleich sind.
 
-Wo was liegt: `labels.de.json` (die 29 Texte `blog.*`, die einzige Quelle der Beschriftungen), `footer.json` (Impressum und Datenschutz, `null` solange die Seite fehlt), `src/tokens.css`, `src/blog.css` (ausgeliefert als eine Datei `blog.css`: Tokens zuerst), `src/blog.js` (nur der Titel-Effekt auf Beitragsseiten), `src/lib/pages.mjs` (die Markup-Bausteine).
+Demo-Beiträge: Ein Beitrag in `posts/` mit `demo: true` ist eine Demo. Er trägt überall das gelbe Schild „Demo“ (Liste, Beitragsseite, Karte, im Feed „Demo:“ vor dem Titel), und solange es einen gibt, trägt jede Seite `<meta name="robots" content="noindex">`. Ein Veröffentlichungs-Build (`--publish`) lehnt `demo: true` ab. Zurzeit sind die sechs Beiträge zu den Videos, die Frank ausgesucht hat, Demos.
+
+Wo was liegt: `labels.de.json` (die 29 Texte `blog.*`, die einzige Quelle der Beschriftungen), `footer.json` (Impressum und Datenschutz, `null` solange die Seite fehlt), `src/tokens.css`, `src/blog.css` (ausgeliefert als eine Datei `blog.css`: Tokens zuerst), `src/blog.js` (nur der Titel-Effekt auf Beitragsseiten), `src/lib/pages.mjs` (die Markup-Bausteine), `src/karte.js`, `src/karte.css`, `src/karte.labels.json` und `src/lib/karte.mjs` (die Karte; ausgeliefert als `karte.js` mit den deutschen Beschriftungen davor, die Stile hängen an `blog.css`).
 
 Beitragsdateien prüfen (alle Fehler in einem Lauf, Ausgabe `FAIL <Regel> <Datei>:<Zeile>: <was>`, Ausgabe leer und Exit 0 bei einer guten Datei, Exit 1 bei einem Fehler, Exit 2 bei falschem Aufruf):
 
@@ -42,3 +44,25 @@ node tools/check-output.mjs dist-demo/public           # nur die Dateiformen aus
 ```
 
 Der Feed-Prüfer ist der Fallback aus der Spezifikation (Anhang D): ein eigener strenger XML-Leser (`src/lib/xml.mjs`) plus die Regeln FD-1 bis FD-5, weil ein fertiger Feed-Prüfer ohne Netz und ohne Abhängigkeit (BD-1) nicht zu haben ist. Im Browser liest `tests/browser/feed.check.mjs` den Feed zusätzlich mit dem XML-Parser von Chromium.
+
+## Karte „Navigieren“ und ihr Prototyp (`prototypes/navigieren/`)
+
+Die Karte steht seit dem 26.11.2026 oben auf `/blog/` (Entscheidung von Frank) und zeigt die Beiträge aus `posts/`; ein Klick auf einen Titel der Liste führt dort zur Beitragsseite, „Lesen“ auf der Karte öffnet den vollen Text in einem Blatt mit Quelle und Link zur Beitragsseite. Was die Live-Seite noch nicht hat (Sprachen, Themen, Themenbäume), zeigt weiter der Prototyp: zum Ansehen und Entscheiden, kein Teil der Spezifikation und nicht in der Ausgabe von `npm run build`. Er zeigt die Beiträge als nummerierte Orte auf Felsplateaus in einem Canyon aus Zeichen, verbunden durch Hängebrücken; eine Figur läuft dorthin. Zeigen auf einen Ort nennt den Kurztext, ein Klick (oder Hinlaufen mit den Pfeiltasten) öffnet den vollen Text. Die Liste darunter ist derselbe Inhalt und bleibt ohne JavaScript lesbar. Ohne Angabe zeigt der Prototyp die Beiträge aus `posts/` mit den Dummy-Themen und -Bäumen aus `prototypes/navigieren/dummy/themen.json`; die Prüfungen nehmen die sieben erfundenen Beispiele aus `tests/fixtures/`.
+
+Für Entwickler — bauen und prüfen:
+
+```sh
+node prototypes/navigieren/build.mjs        # schreibt dist-proto/navigieren/ (nicht im Git)
+npm run check -- browser/navigieren         # Chromium, mit der Richtlinie der Live-Seite; braucht kein Docker
+npm run check -- browser/karte              # die Karte auf /blog/ aus posts/, ebenfalls ohne Docker
+```
+
+`?lang=fi` und `?lang=ar` schalten die Beschriftung um (Arabisch von rechts nach links); die Übersetzungen in `src/karte.labels.json` sind Entwürfe und nicht gegengelesen. Die Live-Seite nimmt nur die deutschen.
+
+Was die Karte zeigt: die Beiträge aus `posts/`, darunter sechs Demo-Beiträge zu echten YouTube-Videos (`demo: true`, weil die Texte unsere Entwürfe sind und keine freigegebenen Beiträge), und im Prototyp ihre Themen und Bäume in `prototypes/navigieren/dummy/themen.json`; die Aussagen darin beginnen mit „Dummy:“, die Ausschnitte zeigen auf die echten Videos. Die Prüfungen bauen weiter mit den sieben erfundenen Beiträgen aus `tests/fixtures/` und `prototypes/navigieren/themen.json`, damit sie nicht von Videos abhängen.
+
+Hilfe über der Karte: Beim Start liegt eine halbtransparente Hilfe über der Karte, die mit kleinen Bildern zeigt, wie man sich bewegt (am Rechner Pfeiltasten, Leertaste, Zeigen, Klicken, Ziehen; am Handy Tippen, Finger halten und ziehen, die Knöpfe „Springen“ und „Lesen“). Die erste Bewegung auf der Karte, „Los geht’s“ oder Esc schließen sie, „?“ holt sie zurück. Gespeichert wird nichts, sie erscheint also bei jedem Besuch wieder. Belegt in `browser/navigieren` (Zeilen `KARTE-14`).
+
+Themen und Bäume der Prüf-Beispiele stehen in `prototypes/navigieren/themen.json` (alles erfunden, `"example": true`): das Thema je Beitrag, und je Baum die Aspekte mit Einordnung (`stance` von −1 „unwahr / Hype“ bis 1 „super gut“), Grundwasser (`water`), einer kurzen Aussage in Deutsch und Englisch und einem Video-Ausschnitt (`start` und `end` in Sekunden). Wässern zählt im Prototyp nur bis zum Neuladen; dauerhaft zählen kann erst der Dienst auf dem Server.
+
+Was die Karte bei einem Fehler tut: Ein Fehler im Skript schaltet die Karte einmal ab. Die Seite zeigt dann wieder die Liste mit allen Texten, in der Konsole steht genau eine Zeile (`karte.js: the map was switched off …`), und nichts läuft weiter. Ohne diesen Schutz würde sich ein Fehler beim Zeichnen sechzigmal pro Sekunde wiederholen. Die Karte merkt sich nur eine begrenzte Zahl von Inseln, zeichnet höchstens etwa dreißig Bilder pro Sekunde und ruht, solange sie aus dem Bild gescrollt ist. Die Prüfung `browser/navigieren` belegt das (Zeilen `KARTE-12`).
