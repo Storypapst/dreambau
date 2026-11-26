@@ -1,0 +1,94 @@
+name: Image
+
+# Builds the Dreambau app image after CI passed on main and publishes it as
+# ghcr.io/storypapst/dreambau-testmails:main (+ :sha-<commit>). The server pulls it:
+# the testmails-autodeploy CronJob (k8s/autodeploy/) notices the new digest and rolls
+# it out. Nothing here reaches into the server, and no pull request can trigger it.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-main
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/storypapst/dreambau-testmails
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    strategy:
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Build and push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          docker buildx build --platform "linux/$ARCH" --target runtime --provenance=false \
+            --build-arg GIT_SHA="${sha:0:12}" \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.revision="$sha" \
+            --tag "$IMAGE:sha-$sha-$ARCH" --push .
+
+  publish:
+    name: Publish :main
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Combine architectures and move :main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+          tags=(--tag "$IMAGE:sha-$SHA")
+          # A slow run for an older commit must not move :main backwards.
+          head="$(gh api "repos/$REPO/commits/main" --jq .sha)"
+          if [ "$head" = "$SHA" ]; then tags+=(--tag "$IMAGE:main"); else
+            echo "::notice::$SHA is no longer the head of main ($head); published :sha-$SHA only"; fi
+          docker buildx imagetools create "${tags[@]}" "$IMAGE:sha-$SHA-amd64" "$IMAGE:sha-$SHA-arm64"
+          docker buildx imagetools inspect "$IMAGE:sha-$SHA"
+
+      # The server pulls anonymously. If GHCR created the package as private, say so loudly.
+      - name: Check anonymous pull
+        run: |
+          token="$(curl -sS "https://ghcr.io/token?scope=repository:${IMAGE#ghcr.io/}:pull&service=ghcr.io" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("token",""))' || true)"
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -I -H "Authorization: Bearer $token" \
+            -H 'Accept: application/vnd.oci.image.index.v1+json' "https://ghcr.io/v2/${IMAGE#ghcr.io/}/manifests/sha-${{ github.event.workflow_run.head_sha || github.sha }}")"
+          if [ "$code" != 200 ]; then
+            echo "::error::Anonymous pull returned HTTP $code. Make the package public once: github.com/users/Storypapst/packages/container/dreambau-testmails/settings"
+            exit 1
+          fi
+          echo "anonymous pull OK"

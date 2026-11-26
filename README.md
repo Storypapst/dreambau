@@ -643,12 +643,24 @@ ssh m4dreambau "kubectl exec -n wcr $pod -- sh -c 'cat /data/testmails.sqlite'" 
 
 Backup geschützt ablegen und nach der Wiederherstellung auf Besitzer `1000:1000` sowie Modus `0600` achten.
 
+## Deployment
+
+Ein Merge nach `main` ist das Deployment: CI → Image auf GHCR → der CronJob
+`testmails-autodeploy` rollt es innerhalb von 5 Minuten aus, prüft die Readiness und
+setzt bei Fehlern automatisch zurück. Details und einmaliges Bootstrap:
+[`k8s/autodeploy/README.md`](k8s/autodeploy/README.md).
+
 ## Rollback
 
+Erst den CronJob anhalten, sonst rollt er `:main` nach spätestens 5 Minuten wieder aus:
+
 ```bash
+ssh m4dreambau 'kubectl patch cronjob testmails-autodeploy -n wcr -p "{\"spec\":{\"suspend\":true}}"'
 ssh m4dreambau 'kubectl rollout undo deployment/testmails -n wcr'
 ssh m4dreambau 'kubectl rollout status deployment/testmails -n wcr --timeout=180s'
 ```
+
+Mit dem nächsten reparierten Merge den CronJob wieder mit `"suspend":false` aktivieren.
 
 Falls nur die öffentliche Route entfernt werden soll, ausschließlich `wcr/ingress/testmails` löschen. PVC, Secrets und `matrix/matrix-well-known-root` bleiben bestehen.
 
