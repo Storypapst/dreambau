@@ -1,10 +1,10 @@
 ---
 title: Matt Pocock über den Engpass beim Pull Request
-date: 2026-10-17
+date: 2026-11-24
 lang: de
 sourceLink: https://www.youtube.com/watch?v=LlgiOCmFG_w
 sourceTitle: "AI Engineer: Fixing the PR Bottleneck — Matt Pocock, AIHero"
-example: true
+demo: true
 ---
 
 Agenten machen es leicht, einen Pull Request zu öffnen, aber kaum leichter, einen zu öffnen, der das Lesen lohnt. In seinem Vortrag auf der AI Engineer Paris 2026 beschreibt Matt Pocock drei Bremsen: automatische Prüfungen, ein automatisches Review durch einen Agenten und zuletzt das Review durch Menschen.

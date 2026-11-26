@@ -1,10 +1,10 @@
 ---
 title: Ein Dorf für KI-Agenten, gebaut in dreieinhalb Stunden
-date: 2026-11-12
+date: 2026-11-26
 lang: de
 sourceLink: https://www.youtube.com/watch?v=-mb6buCbv8E
 sourceTitle: "Tristen O'Brien: Claude Built a Working AI AGENT Village. (Steal My Prompts)."
-example: true
+demo: true
 ---
 
 Tristen O'Brien hat sich eine Spielwelt gebaut, in der seine KI-Agenten wohnen und arbeiten. Ein Stabschef folgt ihm überallhin, darunter gibt es Direktoren für einzelne Lebensbereiche, jeder mit eigenen Arbeitern. Eine neue Aufgabe tippt er ein, der Stabschef ruft den passenden Direktor an, und der gibt sie weiter.

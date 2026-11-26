@@ -1,10 +1,10 @@
 ---
 title: "Harari: KI als geborene Bürokratin"
-date: 2026-10-10
+date: 2026-11-23
 lang: de
 sourceLink: https://www.youtube.com/watch?v=hBtVGwuJzpk
 sourceTitle: "Yuval Noah Harari: AI has hacked the code of human civilization"
-example: true
+demo: true
 ---
 
 In seiner Tanner Lecture 2026 in Oxford geht Yuval Noah Harari von einer Beobachtung aus: Menschen arbeiten in großer Zahl mit Fremden zusammen, und getragen wird das von Bürokratie, also von Gesetzen, Finanzen und Religion, die Vertrauen schaffen.

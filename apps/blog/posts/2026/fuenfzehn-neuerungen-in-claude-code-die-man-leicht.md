@@ -1,10 +1,10 @@
 ---
 title: Fünfzehn Neuerungen in Claude Code, die man leicht übersieht
-date: 2026-10-24
+date: 2026-11-25
 lang: de
 sourceLink: https://www.youtube.com/watch?v=YAuWBqZ_gjs
 sourceTitle: "Simon Scrapes: Claude Changed Completely - Every NEW Concept Explained"
-example: true
+demo: true
 ---
 
 Simon Scrapes geht in knapp zwanzig Minuten fünfzehn Änderungen an Claude Code durch, die sich in den letzten zehn Monaten angesammelt haben. Seine These: Viele Gewohnheiten aus der Anfangszeit kosten heute Tokens, Zeit und Qualität. Das meiste gilt nach seinen Worten auch für Codex, Cursor und die Desktop-Apps.

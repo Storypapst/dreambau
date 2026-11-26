@@ -1,10 +1,10 @@
 ---
 title: Welche Burggräben einer SaaS-Firma heute noch halten
-date: 2026-11-02
+date: 2026-11-26
 lang: de
 sourceLink: https://www.youtube.com/watch?v=KpILHX2D-AA
 sourceTitle: "Rob Walling: The Only SaaS Moats Left in 2026"
-example: true
+demo: true
 ---
 
 In einem Vortrag auf der MicroConf zählt Rob Walling zehn Richtungen auf, aus denen KI ein Softwaregeschäft angreifen kann: von Kunden, die sich das Produkt selbst zusammenbauen, bis zu Kunden, deren eigenes Geschäft verschwindet.

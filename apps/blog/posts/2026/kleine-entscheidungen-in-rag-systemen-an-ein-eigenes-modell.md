@@ -1,10 +1,10 @@
 ---
 title: Kleine Entscheidungen in RAG-Systemen an ein eigenes Modell geben
-date: 2026-10-03
+date: 2026-11-22
 lang: de
 sourceLink: https://www.youtube.com/watch?v=olIve0D8pJQ
 sourceTitle: "The AI Automators: Why I switched my RAG decisions to Jev..."
-example: true
+demo: true
 ---
 
 Ein RAG-Agent trifft viele kleine Entscheidungen, bevor er eine Antwort gibt. Wer dafür jedes Mal ein großes Sprachmodell fragt, wartet länger und zahlt mehr. Im Video zeigt The AI Automators, wie sie in ihrer agentischen RAG-App für diese Aufrufe Jev von TypeSafe einsetzen, ein sogenanntes System-One-Entscheidungsmodell.
