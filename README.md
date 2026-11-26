@@ -32,6 +32,7 @@ Lokal:
 
 ```bash
 npm ci
+npx playwright install chromium
 npm run lint
 npm test
 npm run build
@@ -465,6 +466,26 @@ Eingabe auffordern. Für `local` und `pre-dev` darf der Broker lokal nicht
 vertrauenswürdige TLS-Zertifikate akzeptieren; `dev` und `production-test`
 bleiben strikt.
 
+Für den Nachweis einer Anmeldung mit Authenticator-App gibt es bei der
+ORISO-Beratungs-App auf `https://dev.oriso.org` einen expliziten Modus.
+
+```bash
+test-access session open <oriso-dev-account-id> --require-app-totp
+```
+
+Der Broker bestätigt die App-TOTP-Abfrage, die Annahme des kontogebundenen
+Codes und die dazugehörige Browser-Sitzung. Erst dann liefert er den
+privaten Sitzungspfad mit `secondFactor: "app-totp"`. Dafür muss der Hub
+den angeforderten TOTP-Quellnachweis unterstützen. Der Modus braucht einen
+privaten Runner ohne Browser- oder Netzwerk-Debugausgaben.
+
+Ein privater Runner kann den kontogebundenen App-TOTP-Code auch direkt
+abrufen. Die CLI prüft Konto, Quelle und Zeitstempel der Antwort.
+
+```bash
+test-access otp <oriso-dev-account-id> --source totp --json
+```
+
 Standardmäßig verwendet der Client den macOS-Keychain. Ein fehlender Eintrag
 ermöglicht den vorhandenen Datei-Fallback. Eine verweigerte oder abgelaufene
 Keychain-Abfrage wird als Fehler gemeldet.
@@ -622,12 +643,24 @@ ssh m4dreambau "kubectl exec -n wcr $pod -- sh -c 'cat /data/testmails.sqlite'" 
 
 Backup geschützt ablegen und nach der Wiederherstellung auf Besitzer `1000:1000` sowie Modus `0600` achten.
 
+## Deployment
+
+Ein Merge nach `main` ist das Deployment: CI → Image auf GHCR → der CronJob
+`testmails-autodeploy` rollt es innerhalb von 5 Minuten aus, prüft die Readiness und
+setzt bei Fehlern automatisch zurück. Details und einmaliges Bootstrap:
+[`k8s/autodeploy/README.md`](k8s/autodeploy/README.md).
+
 ## Rollback
 
+Erst den CronJob anhalten, sonst rollt er `:main` nach spätestens 5 Minuten wieder aus:
+
 ```bash
+ssh m4dreambau 'kubectl patch cronjob testmails-autodeploy -n wcr -p "{\"spec\":{\"suspend\":true}}"'
 ssh m4dreambau 'kubectl rollout undo deployment/testmails -n wcr'
 ssh m4dreambau 'kubectl rollout status deployment/testmails -n wcr --timeout=180s'
 ```
+
+Mit dem nächsten reparierten Merge den CronJob wieder mit `"suspend":false` aktivieren.
 
 Falls nur die öffentliche Route entfernt werden soll, ausschließlich `wcr/ingress/testmails` löschen. PVC, Secrets und `matrix/matrix-well-known-root` bleiben bestehen.
 

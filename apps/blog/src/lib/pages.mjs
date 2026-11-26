@@ -5,6 +5,7 @@ import { esc } from './escape.mjs';
 import { fill } from './labels.mjs';
 import { displayHost, httpsLink } from './links.mjs';
 import { formatNumber, newestFirst } from './numbering.mjs';
+import { mapSheet, mapStage } from './karte.mjs';
 import { descriptionOf, previewOf } from './preview.mjs';
 
 export const ORIGIN = 'https://dreambau.com'; // AD-3: absolute addresses use this host; www has no Blog
@@ -17,7 +18,14 @@ export const CHROME = Object.freeze({
   impressum: 'Impressum', impressumPending: 'Impressum · Angaben noch offen',
   datenschutz: 'Datenschutz', datenschutzPending: 'Datenschutz · Freigabe noch offen',
   home: 'Startseite', referenzen: 'Referenzen', teamwork: 'Teamwork', glossar: 'Glossar', kontakt: 'Kontakt',
+  // the map on the list page and the label of a demo post (demo: true); the map's own texts are in src/karte.labels.json
+  map: 'Navigieren', log: 'Logbuch',
+  demo: 'Demo', demoTitle: 'Demo-Beitrag: zum Ausprobieren, nicht freigegeben',
 });
+
+// While one post is a demo (demo: true), no page of the Blog may land in a search index.
+export const NOINDEX = '<meta name="robots" content="noindex">\n';
+export const hasDemo = (posts) => posts.some((post) => post.demo);
 
 const CHEVRON = '<svg class="ic" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const RSS = '<svg class="ic" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M3 3.5a9.5 9.5 0 0 1 9.5 9.5M3 7.5a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="3.8" cy="12.2" r="1.3" fill="currentColor"/></svg>';
@@ -27,7 +35,7 @@ const addressOf = (post) => `/blog/${post.address}/`;
 
 // ---- the parts every page shares ----
 
-function head({ title, extra = '', script = false }) {
+function head({ title, extra = '', script = false, map = false }) {
   return `<!doctype html>
 <html lang="de" dir="ltr">
 <head>
@@ -37,7 +45,7 @@ function head({ title, extra = '', script = false }) {
 <title>${esc(title)}</title>
 ${extra}<link rel="icon" href="data:,">
 <link rel="stylesheet" href="/blog/blog.css">
-${script ? '<script src="/blog/blog.js" defer></script>\n' : ''}</head>
+${script ? '<script src="/blog/blog.js" defer></script>\n' : ''}${map ? '<script src="/blog/karte.js" defer></script>\n' : ''}</head>
 <body>
 <a class="skip" href="#main">${esc(CHROME.skip)}</a>
 `;
@@ -73,20 +81,38 @@ function footer(L, footerItems) {
 // LI-5: marks are words, never colour alone. The "Quelle" mark has a title; "EN" has a title and the same words as hidden text.
 const sourceMark = (L) => `<span class="mk src" title="${esc(L['blog.source.mark.title'])}">${esc(L['blog.source'])}</span>`;
 const englishMark = (L, { described = true } = {}) => `<span class="en"${described ? ` title="${esc(L['blog.lang.en.title'])}"` : ''}><span aria-hidden="true">EN</span>${described ? `<span class="sr">${esc(L['blog.lang.en.title'])}</span>` : ''}</span>`;
-const marksOf = (L, post) => `${post.sourceLink === undefined ? '' : sourceMark(L)}${post.lang === 'en' ? englishMark(L) : ''}`;
+// A demo post says so in a yellow sign (the --draft style of apps/AGENTS.md), with words, wherever its title is shown.
+const demoMark = (post) => (post.demo ? `<span class="draft" lang="de" title="${esc(CHROME.demoTitle)}">${esc(CHROME.demo)}</span>` : '');
+const marksOf = (L, post) => `${demoMark(post)}${post.sourceLink === undefined ? '' : sourceMark(L)}${post.lang === 'en' ? englishMark(L) : ''}`;
 
 // FD-6: the list and every post page announce the feed in their head. The title is the one of the feed (FD-2).
 const feedLink = (L) => `<link rel="alternate" type="application/atom+xml" title="${esc(`${L['blog.title']} · dreambau.com`)}" href="/blog/feed.xml">\n`;
 
 // ---- the list (LI-1 to LI-8) ----
 
-function row(L, post) {
+// The full text that the map's sheet shows: a <template>, so it is neither shown nor read out on the list itself.
+function fullText(L, post) {
+  const quote = post.quote === undefined ? '' : `<blockquote class="qt"><p>${esc(post.quote)}</p><footer>${esc(post.quoteSource)}</footer></blockquote>\n`;
+  let source = '';
+  if (post.sourceLink !== undefined) {
+    const href = httpsLink(post.sourceLink, post.file); // PR-6
+    const host = displayHost(href);
+    source = `<div class="srcbox"><a class="sk" href="${esc(href)}" rel="noreferrer noopener">${esc(post.sourceTitle === undefined ? host : post.sourceTitle)}</a><p class="sn" lang="de">${esc(fill(L['blog.source.leads'], { site: host }))}</p></div>\n`;
+  }
+  return `<template class="voll" lang="${esc(post.lang)}">
+${post.paragraphs.map((paragraph) => `<p>${esc(paragraph)}</p>`).join('\n')}
+${quote}${source}</template>`;
+}
+
+function row(L, post, { newest = false } = {}) {
   const marks = marksOf(L, post);
-  return `<li class="row">
-<span class="no" aria-hidden="true">${formatNumber(post.number)}</span>
+  const no = formatNumber(post.number);
+  return `<li class="row" data-no="${no}" data-date="${esc(post.date)}"${newest ? ' data-newest' : ''}>
+<span class="no" aria-hidden="true">${no}</span>
 <time class="dt" datetime="${esc(post.date)}">${esc(post.date)}</time>
 <h2 class="tt"><a href="${esc(addressOf(post))}"${langAttr(post)}>${esc(post.title)}</a></h2>
 ${marks === '' ? '' : `<span class="mks">${marks}</span>\n`}<p class="ex"${langAttr(post)}>${esc(previewOf(post.paragraphs[0]))}</p>
+${fullText(L, post)}
 </li>`;
 }
 
@@ -120,18 +146,31 @@ function emptyLog(L) {
 `;
 }
 
-export function listPage({ labels: L, footer: footerItems, posts }) {
-  const rows = newestFirst(posts).map((post) => row(L, post));
-  const body = rows.length === 0 ? emptyLog(L) : `<div class="cols">
+// The map "Navigieren" above the list: hidden without JavaScript (karte.css), filled by karte.js from the list below.
+// M is the German part of src/karte.labels.json.
+function mapSection(M) {
+  return `<section class="karte" aria-labelledby="karte-h">
+<h2 class="shd" id="karte-h">${esc(CHROME.map)}</h2>
+${mapStage(M)}<p class="sr">${esc(M.blind)}</p>
+</section>
+`;
+}
+
+export function listPage({ labels: L, footer: footerItems, posts, mapLabels: M }) {
+  const rows = newestFirst(posts).map((post, index) => row(L, post, { newest: index === 0 }));
+  const map = rows.length > 0 && M !== undefined;
+  const body = rows.length === 0 ? emptyLog(L) : `${map ? mapSection(M) : ''}<h2 class="shd logh">${esc(CHROME.log)}</h2>
+<div class="cols">
 <div class="logp">
 <p class="logtop" aria-hidden="true">${esc(CHROME.path)}</p>
-<ol class="log" reversed role="list" aria-label="${esc(L['blog.list.label'])}">
+<ol class="log" id="posts" reversed role="list" aria-label="${esc(L['blog.list.label'])}">
 ${rows.join('\n')}
 </ol>
 </div>
 ${legend(L)}</div>
-`;
-  return `${head({ title: `${L['blog.title']} · dreambau.com`, extra: `<link rel="canonical" href="${ORIGIN}/blog/">\n${feedLink(L)}` })}${header(L, { heading: true })}<main id="main">
+${map ? mapSheet(M) : ''}`;
+  const extra = `${hasDemo(posts) ? NOINDEX : ''}<link rel="canonical" href="${ORIGIN}/blog/">\n${feedLink(L)}`;
+  return `${head({ title: `${L['blog.title']} · dreambau.com`, extra, map })}${header(L, { heading: true })}<main id="main">
 ${body}</main>
 ${footer(L, footerItems)}`;
 }
@@ -178,7 +217,7 @@ function neighbour(L, key, other) {
   return `<a href="${esc(addressOf(other))}"><small lang="de">${esc(L[key])}</small><span${langAttr(other)}>${esc(other.title)}</span></a>`;
 }
 
-export function postPage({ labels: L, footer: footerItems, post, older, newer }) {
+export function postPage({ labels: L, footer: footerItems, post, older, newer, noindex = false }) {
   const own = langAttr(post);
   const german = post.lang === 'de' ? '' : ' lang="de"'; // LG-2: the labels around an English post stay German
   const lines = [];
@@ -212,7 +251,7 @@ ${line(`<div class="tx srcbox"><a class="sk" href="${esc(href)}" rel="noreferrer
 <dl><div><dt>${esc(L['blog.language'])}</dt><dd>${esc(L[post.lang === 'en' ? 'blog.lang.en' : 'blog.lang.de'])}</dd></div><div><dt>${esc(L['blog.address'])}</dt><dd>${esc(addressOf(post))}</dd></div></dl>
 </aside>`);
 
-  return `${head({ title: `${post.title} · ${L['blog.title']} · dreambau.com`, extra: postHead(L, post), script: true })}${header(L, { heading: false })}<main id="main">
+  return `${head({ title: `${post.title} · ${L['blog.title']} · dreambau.com`, extra: `${noindex ? NOINDEX : ''}${postHead(L, post)}`, script: true })}${header(L, { heading: false })}<main id="main">
 <article class="post" lang="${esc(post.lang)}">
 ${lines.join('\n')}
 </article>

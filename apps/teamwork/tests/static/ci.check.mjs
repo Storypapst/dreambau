@@ -40,7 +40,7 @@ concurrency:
 jobs:
   check:
     name: Teamwork checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
@@ -75,7 +75,7 @@ const MUTATIONS = [
   ['the root concurrency group', 'group: teamwork-${{ github.ref }}', 'group: ci-${{ github.ref }}'],
   ['no time limit', '    timeout-minutes: 30\n', ''],
   ['a time limit of 60 minutes', 'timeout-minutes: 30', 'timeout-minutes: 60'],
-  ['another operating system', 'runs-on: ubuntu-latest', 'runs-on: macos-latest'],
+  ['another operating system', 'runs-on: ubuntu-24.04', 'runs-on: macos-latest'],
   ['an action pinned to a tag', `uses: ${uses['actions/checkout']}`, 'uses: actions/checkout@v4'],
   ['an action pinned to another commit', `uses: ${uses['actions/setup-node']}`, `uses: actions/setup-node@${'0123456789abcdef'.repeat(3).slice(0, 40)}`],
   ['persisting credentials', 'persist-credentials: false', 'persist-credentials: true'],

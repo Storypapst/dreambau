@@ -1,0 +1,15 @@
+{
+  "name": "dreambau-contact",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Contact form handler for dreambau.com/kontakt/: one valid post becomes one e-mail, nothing is stored.",
+  "engines": { "node": ">=20.0.0 <21.0.0" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "check": "node --test tests/config.check.mjs tests/tokens.check.mjs tests/validate.check.mjs tests/guards.check.mjs tests/server.check.mjs tests/mail.check.mjs tests/static.check.mjs",
+    "e2e": "node tools/e2e-contact.mjs"
+  },
+  "dependencies": { "nodemailer": "9.0.3" },
+  "devDependencies": { "playwright": "1.56.1" }
+}

@@ -13,13 +13,16 @@ export function checkLanguages(root=ROOT,{release=false,complete=false,buildDir=
  let mirror,de;try{mirror=JSON.parse(fs.readFileSync(path.join(root,'src/i18n/languages.json'),'utf8'));de=parseLangFile(fs.readFileSync(path.join(root,'site/i18n/de.js'),'utf8')).texts;}catch(e){return {problems:['FAIL C1 inputs: '+e.message],notes,pass:[]};}
  const rows=mirror.languages,known=new Map(rows.map(r=>[r.code,r]));check('C1',known.size===rows.length&&known.has('de'),'languages.json','unique rows and German required');
  const keys=Object.keys(de),animations=Object.keys(de).filter(k=>k.startsWith('blind.')).map(k=>k.slice(6)),dir=path.join(root,'site/i18n');
+ // A production may close with its own two lead-in lines: claim.<id>.1 and claim.<id>.2 (the third line is always the brand).
+ const claimKeys=keys.filter(k=>k.startsWith('claim.')),claimIds=claimKeys.filter(k=>k.endsWith('.1')).map(k=>k.slice(6,-2));
  for(const file of fs.readdirSync(dir).filter(f=>f.endsWith('.js')&&f!=='index.js')){
   const code=file.slice(0,-3),r=known.get(code),buf=fs.readFileSync(path.join(dir,file)),text=buf.toString('utf8');check('C1',!!r,file,'code absent from list');let obj;
   try{const parsed=parseLangFile(text);obj=parsed.texts;check('C2',parsed.code===code&&Object.keys(obj).every(k=>/^[a-z0-9_.]{1,40}$/.test(k))&&Object.values(obj).every(v=>typeof v==='string'),file,'one strict text-only registration with valid keys');}catch(e){bad('C2',file,e.message);continue;}
   check('C3',!text.startsWith('\uFEFF')&&!text.includes('\r')&&text===text.normalize('NFC')&&Buffer.from(text).equals(buf)&&Object.values(obj).every(v=>!/[<>\u0000-\u001F\u007F]|:\/\//u.test(v)),file,'UTF8/NFC/text safety');
   check('C4',JSON.stringify(Object.keys(obj))===JSON.stringify(keys),file,'key set/order differs from German');
   check('C5',animations.every(id=>['tag1','tag2','brand'].every(p=>de['blind.'+id].includes('{'+p+'}')))&&keys.every(k=>typeof obj[k]==='string'&&placeholders(obj[k])===placeholders(de[k])),file,'placeholder set differs');
-  check('C6',buf.length<=32768,file,'larger than32768 bytes');check('C7',['tag.1','tag.2'].every(k=>obj[k]&&!/[|\r\n]/.test(obj[k])),file,'empty or multiline Tagline');
+  check('C6',buf.length<=32768,file,'larger than32768 bytes');check('C7',['tag.1','tag.2',...claimKeys].every(k=>obj[k]&&!/[|\r\n]/.test(obj[k])),file,'empty or multiline Tagline');
+  check('C13',claimKeys.every(k=>/^claim\.[a-z0-9]+\.[12]$/.test(k))&&claimKeys.length===claimIds.length*2&&claimIds.every(id=>animations.includes(id)&&typeof de['claim.'+id+'.2']==='string'&&typeof obj['claim.'+id+'.1']==='string'&&typeof obj['claim.'+id+'.2']==='string'&&[...obj['claim.'+id+'.1']].length<=40&&[...obj['claim.'+id+'.2']].length<=30),file,'claim keys: one pair per production that has a description, line 1 at most 40 and line 2 at most 30 characters');
   const limits={'cta.words':30,'play.label':30,'snd.on_label':/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(obj['snd.on_label']||'')?13:16,'lang.title':40,'lang.close':40,'skip.label':40,'lang.error':80};
   check('C8',Object.entries(limits).every(([k,n])=>typeof obj[k]==='string'&&[...obj[k]].length<=n)&&obj['lang.aria']?.startsWith('{code}'),file,'visible label limit or language aria prefix');
   for(const k of keys){if(/\d/.test(obj[k]||'')&&!/\d/.test(de[k])){const digits=(obj[k]||'').match(/\d+/g)||[];if(digits.includes(String(rows.length)))bad('C9',file,'literal language count');else notes.push('WARN C9 '+file+': digit in '+k);}}pass.add('C9');

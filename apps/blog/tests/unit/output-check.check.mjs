@@ -13,12 +13,12 @@ import { checkOutput, loadOutputDir } from '../../src/lib/output-check.mjs';
 
 const lines = (files) => checkOutput(files).map(format);
 const file = (name, text = '') => ({ name, bytes: Buffer.from(text, 'utf8') });
-const SHAPES = 'not a file of the shapes of spec 7.2 (index.html, 404.html, feed.xml, blog.css, blog.js, <year>/<slug>/index.html, <year>/<slug>/image.webp or image.png)';
+const SHAPES = 'not a file of the shapes of spec 7.2 (index.html, 404.html, feed.xml, blog.css, blog.js, karte.js, <year>/<slug>/index.html, <year>/<slug>/image.webp or image.png)';
 const DOT = 'a name below public/ must not begin with a dot';
 
 // a minimal good tree, by hand: the page of a post has the head lines the check reads (line 6 is the canonical link)
 const page = (canonical) => `<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n<title>x</title>\n<link rel="canonical" href="${canonical}">\n<meta property="og:image" content="https://dreambau.com/blog/2026/x/image.png">\n</head>\n<body><a href="https://anderswo.example.test/quelle">Quelle</a></body>\n</html>\n`;
-const GOOD = () => [file('index.html', page('https://dreambau.com/blog/')), file('blog.css'), file('blog.js'), file('feed.xml'), file('2026/x/index.html', page('https://dreambau.com/blog/2026/x/')), file('2026/x/image.png')];
+const GOOD = () => [file('index.html', page('https://dreambau.com/blog/')), file('blog.css'), file('blog.js'), file('karte.js'), file('feed.xml'), file('2026/x/index.html', page('https://dreambau.com/blog/2026/x/')), file('2026/x/image.png')];
 const without = (files, name) => files.filter((entry) => entry.name !== name);
 
 await run(async () => {
@@ -34,7 +34,7 @@ await run(async () => {
     buildBlog({ postsDir: posts, outDir: path.join(dir, 'out'), mode: 'preview' });
     const files = loadOutputDir(path.join(dir, 'out', 'public'));
     same('AD-1 the build of three posts and one image holds exactly these files', files.map((entry) => entry.name), [
-      '2025/drei-beitrag/index.html', '2026/eins-beitrag/index.html', '2026/zwei-beitrag/image.webp', '2026/zwei-beitrag/index.html', '404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html']);
+      '2025/drei-beitrag/index.html', '2026/eins-beitrag/index.html', '2026/zwei-beitrag/image.webp', '2026/zwei-beitrag/index.html', '404.html', 'blog.css', 'blog.js', 'feed.xml', 'index.html', 'karte.js']);
     same('V16 the check finds nothing to report in it', lines(files), []);
     // a stray file, a dot file and a wrong host on disk are found by the directory reader too
     fs.writeFileSync(path.join(dir, 'out', 'public', '.hidden'), 'x');
@@ -57,8 +57,8 @@ await run(async () => {
   same('AD-1 an image without the page of its post', lines([...GOOD(), file('2026/y/image.webp')]), ['FAIL AD-1 2026/y/image.webp: the post 2026/y has no index.html']);
   same('AD-1 a year folder with a page of its own', lines([...GOOD(), file('2026/index.html')]), [`FAIL AD-1 2026/index.html: ${SHAPES}`]);
   same('AD-1 the list is missing', lines(without(GOOD(), 'index.html')), ['FAIL AD-1 index.html: the build output has no such file']);
-  same('AD-1 the feed, the stylesheet and the script are missing', lines(GOOD().filter((entry) => !['feed.xml', 'blog.css', 'blog.js'].includes(entry.name))), [
-    'FAIL AD-1 blog.css: the build output has no such file', 'FAIL AD-1 blog.js: the build output has no such file', 'FAIL AD-1 feed.xml: the build output has no such file']);
+  same('AD-1 the feed, the stylesheet and the two scripts are missing', lines(GOOD().filter((entry) => !['feed.xml', 'blog.css', 'blog.js', 'karte.js'].includes(entry.name))), [
+    'FAIL AD-1 blog.css: the build output has no such file', 'FAIL AD-1 blog.js: the build output has no such file', 'FAIL AD-1 feed.xml: the build output has no such file', 'FAIL AD-1 karte.js: the build output has no such file']);
   check('AD-1 404.html is allowed by the shapes (the slice of the 404 adds it) but not required', lines([...GOOD(), file('404.html', page('https://dreambau.com/blog/'))]).length === 0);
 
   // ---- every absolute address of the head uses https://dreambau.com (AD-3) ----

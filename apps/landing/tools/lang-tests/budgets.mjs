@@ -14,5 +14,7 @@ test('shipped runtime, manifest, shell and restored styles stay within the recor
  // Keep the allowance explicit; moving CSS into another file must not hide its cost.
  const styles=[...read('index.html').toString().matchAll(/<style>([\s\S]*?)<\/style>/g)].reduce((n,m)=>n+Buffer.byteLength(m[1]),0);assert.ok(styles-5587<=5120,'new styles '+(styles-5587));
  const gzip=['index.html','shell.js','i18n.js','i18n/index.js','i18n/de.js'].reduce((n,p)=>n+gzipSync(read(p),{level:1}).length,0);
- assert.ok(gzip-19566<=12288,'German source gzip increase '+(gzip-19566));
+ // The translated start page menu and footer (menu.*, data-i18n bindings, direction) and the claims of Formsache and
+ // Blickwinkel add 330 measured gzip bytes over main 4cc3db3 (12014); the allowance grows by 512 for them, explicitly.
+ assert.ok(gzip-19566<=12288+512,'German source gzip increase '+(gzip-19566));
 });

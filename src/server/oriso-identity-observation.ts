@@ -34,7 +34,7 @@ export interface OrisoIdentityObserver { observe(selectors: unknown): Promise<Or
 export type OrisoIdentityObserverOptions = Omit<OrisoManagedAdminClientOptions, "admitRecord" | "error" | "redirect">;
 
 // ORISO's UsernameTranscoder uses UTF-8 Base32 with '.' in place of padding.
-function encodeUsername(raw: string) {
+export function encodeOrisoUsername(raw: string) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   let bits = "";
   for (const byte of Buffer.from(raw, "utf8")) bits += byte.toString(2).padStart(8, "0");
@@ -51,14 +51,14 @@ function rawUsername(value: string): string | null {
   const bytes: number[] = [];
   for (let offset = 0; offset + 8 <= bits.length; offset += 8) bytes.push(Number.parseInt(bits.slice(offset, offset + 8), 2));
   const raw = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(bytes));
-  return selector.safeParse(raw).success && encodeUsername(raw).toLowerCase() === value.toLowerCase() ? raw : null;
+  return selector.safeParse(raw).success && encodeOrisoUsername(raw).toLowerCase() === value.toLowerCase() ? raw : null;
 }
 function matchesSelectors(observation: OrisoIdentityObservation, selectors: OrisoIdentitySelectors, raw: string | null) {
   const normalized = observation.normalizedSelectors;
   return (normalized.identityId ?? undefined) === selectors.identityId
     && (normalized.email ?? undefined) === selectors.email?.toLowerCase()
     && (raw === null ? normalized.usernames.length === 0
-      : normalized.usernames.length === 2 && normalized.usernames[0] === raw && normalized.usernames[1] === encodeUsername(raw));
+      : normalized.usernames.length === 2 && normalized.usernames[0] === raw && normalized.usernames[1] === encodeOrisoUsername(raw));
 }
 const maximumBodyBytes = 128 * 1024;
 async function boundedJson(response: Awaited<ReturnType<ProvisioningFetch>>) {

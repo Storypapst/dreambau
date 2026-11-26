@@ -19,6 +19,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { ROOT, SITE, parseArgs } from './lib.mjs';
 import { parseManifest, publishedManifest } from './lib-languages.mjs';
 import { checkLanguages } from './check-languages.mjs';
@@ -90,8 +91,22 @@ if (!drafts) {
 }
 // --- write
 const files = new Map([['index.html', html], ['style.css', styleCss], ['noscript.css', noscriptCss], ['shell.js', shell], ['i18n.js', read('i18n.js')], ['i18n/index.js', manifestText]]);
-for (const f of ['navigation.css','navigation.js','source-view.js','source-view.css','source-locales.js','comparisons.js']) {files.set(f, read(f));}
+for (const f of ['navigation.css','navigation.js','source-view.js','source-view.css','source-locales.js','comparisons.js','credits.js']) {files.set(f, read(f));}
 for (const f of langFiles) files.set('i18n/' + f, read('i18n/' + f));
+// The legal pages (Impressum, Datenschutz) and their stylesheet: static, no script, no inline style; served flat under the prefix
+// (/homepage-assets/impressum.html, /homepage-assets/datenschutz.html), the paths the footer and the menu of index.html link to.
+const LEGAL = ['impressum.html', 'datenschutz.html', 'legal.css'];
+for (const f of LEGAL) {
+  const text = read('legal/' + f);
+  if (f.endsWith('.html')) for (const [re, what] of [[/<style[\s>]/i, 'an inline <style>'], [/\sstyle\s*=/i, 'a style attribute'], [/\son[a-z]+\s*=/i, 'an event handler attribute'], [/<script\b/i, 'a <script>']]) {
+    if (re.test(text)) fail(`legal/${f} contains ${what}; the policy of the start page forbids it`);
+  }
+  files.set(f, text);
+}
+for (const m of html.matchAll(/href="([^"]*)"/g)) {
+  if (m[1].startsWith(prefix) && /\.html$/.test(m[1]) && !files.has(m[1].slice(prefix.length))) fail(`index.html links ${m[1]}, but the build has no such file`);
+}
+const legalOpen = LEGAL.filter(f => f.endsWith('.html')).flatMap(f => [...read('legal/' + f).matchAll(/data-open="([^"]+)"/g)].map(m => `${f}#${m[1]}`));
 for (const id of productions) {
   const f = path.join(SITE, 'p', id + '.js');
   if (!fs.existsSync(f)) fail(`site/p/${id}.js is missing: run \`npm run build\` first`);
@@ -101,7 +116,16 @@ for (const id of productions) {
 // Include the reviewed static website package; its nginx gate checks canonical routes.
 const website=path.resolve(ROOT,'../website/dist'), websiteManifest=website+'.json';
 if(!fs.existsSync(websiteManifest)) fail('run npm run build in apps/website before this build');
-for(const file of JSON.parse(fs.readFileSync(websiteManifest,'utf8')).files){const buf=fs.readFileSync(path.join(website,file.path));if(sha(buf)!==file.sha256)fail('website manifest mismatch: '+file.path);files.set(file.path,buf);}
+for(const file of JSON.parse(fs.readFileSync(websiteManifest,'utf8')).files){if(files.has(file.path))fail('website file collides with a landing file: '+file.path);const buf=fs.readFileSync(path.join(website,file.path));if(sha(buf)!==file.sha256)fail('website manifest mismatch: '+file.path);files.set(file.path,buf);}
+// Include the blog (apps/blog, preview of posts/) under blog/, so the start page publisher ships it too; nginx serves /blog/ from there.
+// The generator is plain Node without dependencies, so the build runs it itself: every caller (npm script, tests, e2e) gets the same blog.
+// A copy of apps/landing without a sibling apps/blog (a test fixture) builds without the blog.
+const blogApp=path.resolve(ROOT,'../blog'), blogDir=blogApp+'/dist', blogManifest=blogDir+'/blog.json';
+if(fs.existsSync(path.join(blogApp,'src/cli.mjs'))){
+  const b=spawnSync(process.execPath,['src/cli.mjs'],{cwd:blogApp,encoding:'utf8'});
+  if(b.status!==0) fail('the blog build failed: '+(b.stderr||b.stdout).trim());
+  for(const file of JSON.parse(fs.readFileSync(blogManifest,'utf8')).files){const rel='blog/'+file.path;if(files.has(rel))fail('blog file collides with a landing file: '+rel);const buf=fs.readFileSync(path.join(blogDir,'public',file.path));if(sha(buf)!==file.sha256)fail('blog manifest mismatch: '+file.path);files.set(rel,buf);}
+}
 const initialFiles=Object.fromEntries([...files].filter(([name])=>name==='style.css'||name==='navigation.css'||name==='index.html'||name==='shell.js'||name==='navigation.js'||name==='i18n.js'||name.startsWith('i18n/')||/^p\/[^/]+\.js$/.test(name)&&!name.endsWith('.src.js')).map(([name,text])=>[name,Buffer.byteLength(text)]));
 files.set('source-facts.js','window.Dream.sourceFacts='+JSON.stringify({runtimeBytes:Buffer.byteLength(shell),files:initialFiles})+';\n');
 fs.rmSync(out, { recursive: true, force: true });
@@ -113,9 +137,10 @@ for (const [rel, text] of [...files].sort(([x], [y]) => x < y ? -1 : 1)) {
   manifest.push({ path: rel, bytes: buf.length, sha256: sha(buf) });
 }
 const total = manifest.reduce((s, f) => s + f.bytes, 0);
-fs.writeFileSync(out + '.json', JSON.stringify({ assets: prefix, productions, languages, ...(drafts ? { drafts: true } : {}), totalBytes: total, files: manifest }, null, 2) + '\n');
+fs.writeFileSync(out + '.json', JSON.stringify({ assets: prefix, productions, languages, ...(drafts ? { drafts: true } : {}), totalBytes: total, legalOpenPoints: legalOpen, files: manifest }, null, 2) + '\n');
 
 console.log(`apex build${drafts ? ' (drafts form, never published)' : ''}: ${manifest.length} files, ${total} bytes, assets under ${prefix}, languages ${languages.join(',')}  ->  ${path.relative(ROOT, out)}/`);
+if (legalOpen.length) console.log(`  NOTE  legal pages still show ${legalOpen.length} open point(s): ${legalOpen.join(', ')} (fill before publishing)`);
 for (const f of manifest) console.log(`  ${f.path.padEnd(14)} ${String(f.bytes).padStart(6)} bytes  ${f.sha256.slice(0, 12)}`);
 
 if (!drafts) { const checked = checkLanguages(ROOT, { release: true, buildDir: out }); if (checked.problems.length) fail(checked.problems.join('\n')); }

@@ -76,7 +76,11 @@ await run(async () => {
     const tokens = fs.readFileSync(path.join(ASSETS, 'tokens.css'), 'utf8');
     const css = fs.readFileSync(path.join(ASSETS, 'blog.css'), 'utf8');
     const shipped = fs.readFileSync(path.join(out, 'public', 'blog.css'), 'utf8');
-    same('AD-1 public/blog.css is tokens.css followed by blog.css', shipped, `${tokens.replace(/\n$/, '')}\n${css}`);
+    const karte = fs.readFileSync(path.join(ASSETS, 'karte.css'), 'utf8');
+    same('AD-1 public/blog.css is tokens.css followed by blog.css and the map\'s karte.css (one stylesheet, LI-1)', shipped, `${tokens.replace(/\n$/, '')}\n${css}${karte}`);
+    const mapLabels = JSON.parse(fs.readFileSync(path.join(ASSETS, 'karte.labels.json'), 'utf8'));
+    same('AD-1 public/karte.js is the German labels of the map followed by src/karte.js', read(out, 'karte.js'), `const KARTE_LABELS = ${JSON.stringify({ de: mapLabels.de })};\n${fs.readFileSync(path.join(ASSETS, 'karte.js'), 'utf8')}`);
+    check(`the map's karte.js is ${Buffer.byteLength(read(out, 'karte.js'))} bytes, under 65,536 (it is loaded by the list page only)`, Buffer.byteLength(read(out, 'karte.js')) <= 65536);
     same('AD-1 public/blog.js is src/blog.js', fs.readFileSync(path.join(out, 'public', 'blog.js'), 'utf8'), fs.readFileSync(path.join(ASSETS, 'blog.js'), 'utf8'));
     check(`BD-10 the shipped blog.css is ${Buffer.byteLength(shipped)} bytes, under the starting budget of 24,576`, Buffer.byteLength(shipped) <= 24576, String(Buffer.byteLength(shipped)));
     check(`BD-10 blog.js is ${Buffer.byteLength(fs.readFileSync(path.join(ASSETS, 'blog.js')))} bytes, under 2,048`, Buffer.byteLength(fs.readFileSync(path.join(ASSETS, 'blog.js'))) <= 2048);
